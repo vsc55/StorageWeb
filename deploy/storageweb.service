@@ -1,0 +1,38 @@
+[Unit]
+Description=StorageWeb - servidor web de archivos
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@APP_USER@
+Group=@APP_GROUP@
+Environment=STORAGEWEB_CONFIG=@CONF_DIR@/config.json
+Environment=PYTHONUNBUFFERED=1
+WorkingDirectory=@APP_DIR@
+ExecStart=@APP_DIR@/venv/bin/python @APP_DIR@/run.py
+Restart=on-failure
+RestartSec=5
+
+# Archivos creados: rw para usuario y grupo del servicio, nada para otros
+UMask=0007
+
+# --- Endurecimiento ---
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+# Si usas home_template=/home/{username} o pam.use_system_home=true cambia a "false"
+# y añade /home a ReadWritePaths
+ProtectHome=true
+ReadWritePaths=@DATA_DIR@ @STORAGE_DIR@
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

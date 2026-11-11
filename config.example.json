@@ -1,0 +1,65 @@
+{
+  "app_name": "StorageWeb",
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8080,
+    "threads": 8,
+    "behind_proxy": true,
+    "max_upload_mb": 2048
+  },
+  "secret_key": "",
+  "data_dir": "/var/lib/storageweb",
+  "session": {
+    "lifetime_hours": 8,
+    "cookie_secure": true
+  },
+  "storage": {
+    "home_template": "/srv/storageweb/homes/{username}",
+    "create_home": true,
+    "show_hidden": false,
+    "shares": [
+      {
+        "name": "compartido",
+        "label": "Compartido",
+        "path": "/srv/storageweb/shared",
+        "read_only": false,
+        "users": ["*"],
+        "groups": []
+      },
+      {
+        "name": "publico",
+        "label": "Documentación (lectura)",
+        "path": "/srv/storageweb/public",
+        "read_only": true,
+        "users": ["*"],
+        "groups": []
+      }
+    ]
+  },
+  "auth": {
+    "local": { "enabled": true },
+    "pam": {
+      "enabled": false,
+      "service": "login",
+      "allowed_groups": ["storageweb-users"],
+      "use_system_home": false
+    },
+    "entra": {
+      "enabled": false,
+      "tenant_id": "00000000-0000-0000-0000-000000000000",
+      "client_id": "00000000-0000-0000-0000-000000000000",
+      "client_secret": "CAMBIAR",
+      "redirect_uri": "https://files.midominio.com/auth/entra/callback",
+      "scopes": ["User.Read"],
+      "button_label": "Iniciar sesión con Microsoft",
+      "username_claim": "preferred_username",
+      "strip_domain": false,
+      "allowed_groups": [],
+      "single_logout": false
+    }
+  },
+  "security": {
+    "max_login_failures": 5,
+    "lockout_minutes": 15
+  }
+}

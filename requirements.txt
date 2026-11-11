@@ -1,0 +1,5 @@
+Flask>=3.0,<4
+Werkzeug>=3.0,<4
+waitress>=3.0,<4
+msal>=1.28,<2
+python-pam>=2.0,<3 ; sys_platform != "win32"

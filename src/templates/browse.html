@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}{{ root.label }}{% if rel %} / {{ rel }}{% endif %} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="layout">
+  <nav class="sidebar">
+    <h2>Ubicaciones</h2>
+    <ul>
+      {% for r in roots %}
+      <li><a href="{{ url_for('files.browse', root=r.name, sub='') }}"
+             class="{% if r.name == root.name %}active{% endif %}">
+          {{ r.label }}{% if r.read_only %} <small>(lectura)</small>{% endif %}</a></li>
+      {% endfor %}
+    </ul>
+  </nav>
+
+  <section class="content">
+    <div class="breadcrumbs">
+      <a href="{{ url_for('files.browse', root=root.name, sub='') }}">{{ root.label }}</a>
+      {% for c in crumbs %}
+        <span>/</span><a href="{{ url_for('files.browse', root=root.name, sub=c.rel) }}">{{ c.name }}</a>
+      {% endfor %}
+    </div>
+
+    {% if not root.read_only %}
+    <div class="toolbar">
+      <form id="upload-form" method="post" enctype="multipart/form-data"
+            action="{{ url_for('files.upload', root=root.name, sub=rel) }}"
+            data-max-mb="{{ max_upload_mb }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <label class="btn btn-primary">Subir archivos
+          <input id="file-input" type="file" name="files" multiple hidden>
+        </label>
+        <noscript><button class="btn" type="submit">Enviar</button></noscript>
+      </form>
+      <form method="post" action="{{ url_for('files.mkdir', root=root.name, sub=rel) }}" class="inline">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="text" name="name" placeholder="Nueva carpeta" required maxlength="255">
+        <button class="btn" type="submit">Crear</button>
+      </form>
+    </div>
+
+    <div id="dropzone" class="dropzone">Arrastra aquí archivos para subirlos (máx. {{ max_upload_mb }} MB por envío)</div>
+    <div id="progress" class="progress" hidden><div class="bar"></div><span class="label"></span></div>
+    {% endif %}
+
+    <table class="files">
+      <thead><tr><th>Nombre</th><th class="num">Tamaño</th><th>Modificado</th><th></th></tr></thead>
+      <tbody>
+        {% if parent is not none %}
+        <tr><td colspan="4"><a href="{{ url_for('files.browse', root=root.name, sub=parent) }}">⬆ ..</a></td></tr>
+        {% endif %}
+        {% for e in entries %}
+        <tr>
+          <td class="name">
+            {% if e.is_dir %}
+              <a href="{{ url_for('files.browse', root=root.name, sub=e.rel) }}">📁 {{ e.name }}</a>
+            {% else %}
+              <a href="{{ url_for('files.download', root=root.name, sub=e.rel) }}">📄 {{ e.name }}</a>
+            {% endif %}
+          </td>
+          <td class="num">{{ e.size }}</td>
+          <td>{{ e.mtime }}</td>
+          <td class="actions">
+            {% if not e.is_dir %}
+            <a class="btn btn-small" href="{{ url_for('files.download', root=root.name, sub=e.rel) }}">Descargar</a>
+            {% endif %}
+            {% if not root.read_only %}
+            <form method="post" action="{{ url_for('files.rename', root=root.name, sub=e.rel) }}"
+                  class="inline js-rename" data-name="{{ e.name }}">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <input type="hidden" name="name" value="{{ e.name }}">
+              <button class="btn btn-small" type="submit">Renombrar</button>
+            </form>
+            <form method="post" action="{{ url_for('files.delete', root=root.name, sub=e.rel) }}"
+                  class="inline js-delete" data-name="{{ e.name }}" data-dir="{{ '1' if e.is_dir else '0' }}">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <button class="btn btn-small btn-danger" type="submit">Eliminar</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="muted">Carpeta vacía</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='app.js') }}"></script>{% endblock %}
