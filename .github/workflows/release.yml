@@ -1,0 +1,110 @@
+name: Release
+
+# Al publicar un tag vX.Y.Z (p. ej. `git tag v1.2.0 && git push origin v1.2.0`) se ejecutan los tests,
+# se generan zip + deb + rpm y se crea la release de GitHub con esos ficheros.
+# También se puede lanzar a mano (Actions > Release > Run workflow) para probar el build sin publicar.
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versión para el build de prueba (no se publica release)"
+        required: true
+        default: "0.0.0-dev"
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Build zip / deb / rpm
+    needs: tests
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Determinar versión
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then V="${GITHUB_REF_NAME#v}"; else V="$INPUT_VERSION"; fi
+          if ! [[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::Versión no válida: '$V' (se espera X.Y.Z o X.Y.Z-sufijo)"; exit 1
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Instalar nfpm
+        run: |
+          echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nfpm rpm
+          nfpm --version
+
+      - name: Build
+        env:
+          MAINTAINER: "${{ github.repository_owner }} <noreply@github.com>"
+          VENDOR: ${{ github.repository_owner }}
+          HOMEPAGE: ${{ github.server_url }}/${{ github.repository }}
+        run: bash packaging/build.sh "${{ steps.version.outputs.version }}" amd64 arm64
+
+      - name: Inspeccionar paquetes
+        run: |
+          for f in dist/*.deb; do echo "== $f"; dpkg-deb --info "$f"; dpkg-deb -c "$f" | head -n 25; done
+          for f in dist/*.rpm; do echo "== $f"; rpm -qip "$f"; rpm -qlp "$f" | head -n 25; done
+
+      - name: Probar instalación del .deb (amd64)
+        run: |
+          V="${{ steps.version.outputs.version }}"
+          sudo apt-get install -y ./dist/storageweb_${V}_amd64.deb
+          systemctl is-active storageweb
+          for i in $(seq 1 20); do curl -fsS -o /dev/null http://127.0.0.1:8080/login && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8080/login | grep -q 'Iniciar sesión'
+          sudo storageweb-admin user-add ci --role admin --password contraseña-de-prueba
+          sudo storageweb-admin user-list | grep -q '^ci .* admin '
+          sudo storageweb-admin check-config
+          sudo apt-get remove -y storageweb
+          ! systemctl is-active storageweb
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: storageweb-${{ steps.version.outputs.version }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Publicar release
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: storageweb-${{ needs.build.outputs.version }}
+          path: dist
+
+      - name: Crear release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          FLAGS=()
+          [[ "$VERSION" == *-* ]] && FLAGS+=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "StorageWeb $VERSION" \
+            --generate-notes \
+            --verify-tag \
+            "${FLAGS[@]}"

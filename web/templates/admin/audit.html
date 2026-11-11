@@ -1,0 +1,30 @@
+{% extends "admin/_layout.html" %}
+{% block title %}Auditoría · {{ app_name }}{% endblock %}
+{% block admin_content %}
+<div class="page-head"><h1>Auditoría</h1></div>
+
+<form method="get" class="inline search">
+  <input type="text" name="user" value="{{ user_filter }}" placeholder="Usuario">
+  <input type="text" name="action" value="{{ action_filter }}" placeholder="Acción (login, upload, delete…)">
+  <button class="btn" type="submit">Filtrar</button>
+  {% if user_filter or action_filter %}<a class="btn btn-ghost" href="{{ url_for('admin.audit_log') }}">Limpiar</a>{% endif %}
+</form>
+
+<table class="files small">
+  <thead><tr><th>Fecha (UTC)</th><th>Usuario</th><th>Acción</th><th>Objeto</th><th>IP</th><th>Detalle</th></tr></thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td class="nowrap">{{ r['ts'][:19].replace('T', ' ') }}</td>
+      <td>{{ r['username'] or '—' }}</td>
+      <td><code>{{ r['action'] }}</code></td>
+      <td class="name">{{ r['target'] or '' }}</td>
+      <td>{{ r['ip'] or '' }}</td>
+      <td class="muted">{{ r['detail'] or '' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">Sin registros.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

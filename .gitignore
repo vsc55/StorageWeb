@@ -2,5 +2,10 @@ __pycache__/
 *.pyc
 venv/
 .venv/
+.dev/
 data/
+build/
+dist/
+.pytest_cache/
+.coverage
 config.json

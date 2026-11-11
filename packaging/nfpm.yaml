@@ -1,0 +1,72 @@
+# Plantilla nfpm (https://nfpm.goreleaser.com). La procesa packaging/build.sh,
+# que sustituye @VERSION@, @ARCH@, @STAGE@ y @WHEELS@.
+name: storageweb
+arch: "@ARCH@"
+platform: linux
+version: "@VERSION@"
+version_schema: semver
+release: "1"
+section: web
+priority: optional
+maintainer: "@MAINTAINER@"
+vendor: "@VENDOR@"
+homepage: "@HOMEPAGE@"
+license: "@LICENSE@"
+description: |
+  Servidor web para subir y descargar archivos.
+  Login con usuarios locales, usuarios del sistema (PAM) y Microsoft Entra ID (SSO).
+  Cada usuario dispone de su home y de rutas compartidas configurables.
+
+overrides:
+  deb:
+    depends:
+      - python3 (>= 3.9)
+      - python3-venv
+      - adduser | passwd
+    recommends:
+      - nginx
+  rpm:
+    depends:
+      - python3 >= 3.9
+      - shadow-utils
+      - util-linux
+
+contents:
+  - src: "@STAGE@/"
+    dst: /opt/storageweb
+    type: tree
+
+  - src: "@WHEELS@/"
+    dst: /opt/storageweb/wheels
+    type: tree
+
+  - src: "@STAGE_EXTRA@/storageweb.service"
+    dst: /usr/lib/systemd/system/storageweb.service
+    file_info:
+      mode: 0644
+
+  - src: "@STAGE_EXTRA@/storageweb-admin"
+    dst: /usr/bin/storageweb-admin
+    file_info:
+      mode: 0755
+
+  - src: config/config.example.json
+    dst: /etc/storageweb/config.json
+    type: config|noreplace
+    file_info:
+      mode: 0640
+
+  - src: deploy/nginx-storageweb.conf
+    dst: /usr/share/doc/storageweb/nginx-storageweb.conf
+    file_info:
+      mode: 0644
+
+  - src: README.md
+    dst: /usr/share/doc/storageweb/README.md
+    file_info:
+      mode: 0644
+
+scripts:
+  postinstall: deploy/postinstall.sh
+  preremove: packaging/preremove.sh
+  postremove: packaging/postremove.sh

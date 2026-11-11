@@ -1,0 +1,185 @@
+{% extends "admin/_layout.html" %}
+{% block title %}Ajustes · {{ app_name }}{% endblock %}
+{% block admin_content %}
+{% set st = cfg.storage %}
+{% set pam = cfg.auth.pam %}
+{% set en = cfg.auth.entra %}
+<div class="page-head">
+  <h1>Ajustes</h1>
+  {% if has_overrides %}
+  <form method="post" action="{{ url_for('admin.settings_reset') }}" class="js-confirm"
+        data-confirm="¿Descartar todos los ajustes guardados desde la web y volver a config.json?">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button class="btn btn-ghost" type="submit">Restablecer a config.json</button>
+  </form>
+  {% endif %}
+</div>
+<p class="muted small">
+  Los ajustes guardados aquí se almacenan en la base de datos, se aplican al instante y tienen prioridad sobre
+  <code>config.json</code>.
+  {% if info and has_overrides %}Última modificación: {{ info['updated_at'][:16].replace('T', ' ') }} UTC por {{ info['updated_by'] or '—' }}.{% endif %}
+</p>
+
+<form method="post" class="settings">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+
+  <fieldset class="card">
+    <legend>General</legend>
+    <div class="form-grid">
+      <label>Nombre de la aplicación <input type="text" name="app_name" value="{{ cfg.app_name }}" maxlength="80"></label>
+    </div>
+  </fieldset>
+
+  <fieldset class="card">
+    <legend>Almacenamiento</legend>
+    <div class="form-grid">
+      <label class="span2">Plantilla de carpeta personal <small class="muted">(debe contener {username})</small>
+        <input type="text" name="home_template" value="{{ st.home_template }}" required></label>
+      <label class="check"><input type="checkbox" name="create_home" {% if st.create_home %}checked{% endif %}> Crear la carpeta personal en el primer acceso</label>
+      <label class="check"><input type="checkbox" name="create_shares" {% if st.create_shares %}checked{% endif %}> Crear carpetas compartidas si no existen</label>
+      <label class="check"><input type="checkbox" name="show_hidden" {% if st.show_hidden %}checked{% endif %}> Mostrar archivos ocultos</label>
+      <label>Tamaño máximo por archivo (MB) <small class="muted">(0 = sin límite; las subidas van por partes)</small>
+        <input type="number" name="max_file_size_mb" value="{{ st.max_file_size_mb }}" min="0"></label>
+    </div>
+
+    <h3>Carpetas compartidas</h3>
+    <p class="muted small">Usuarios y grupos separados por comas. <code>*</code> = todos los usuarios. Los grupos de Entra ID son Object IDs o nombres de App Role.</p>
+    <div class="table-scroll">
+    <table class="files shares-table" id="shares-table">
+      <thead><tr><th>Nombre (URL)</th><th>Etiqueta</th><th>Ruta en el servidor</th><th>Acceso</th><th>Usuarios</th><th>Grupos</th><th></th></tr></thead>
+      <tbody>
+        {% for s in st.shares %}
+        <tr>
+          <td><input type="text" name="share_name" value="{{ s.name }}" pattern="[A-Za-z0-9_\-]+" maxlength="64"></td>
+          <td><input type="text" name="share_label" value="{{ s.label }}"></td>
+          <td><input type="text" name="share_path" value="{{ s.path }}"></td>
+          <td><select name="share_read_only">
+                <option value="0" {% if not s.read_only %}selected{% endif %}>Lectura/escritura</option>
+                <option value="1" {% if s.read_only %}selected{% endif %}>Solo lectura</option></select></td>
+          <td><input type="text" name="share_users" value="{{ s.users | join(', ') }}"></td>
+          <td><input type="text" name="share_groups" value="{{ s.groups | join(', ') }}"></td>
+          <td><button type="button" class="btn btn-small btn-danger js-remove-row">Quitar</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <template id="share-row-template">
+      <tr>
+        <td><input type="text" name="share_name" pattern="[A-Za-z0-9_\-]+" maxlength="64"></td>
+        <td><input type="text" name="share_label"></td>
+        <td><input type="text" name="share_path"></td>
+        <td><select name="share_read_only"><option value="0">Lectura/escritura</option><option value="1">Solo lectura</option></select></td>
+        <td><input type="text" name="share_users" value="*"></td>
+        <td><input type="text" name="share_groups"></td>
+        <td><button type="button" class="btn btn-small btn-danger js-remove-row">Quitar</button></td>
+      </tr>
+    </template>
+    <button type="button" class="btn btn-small" id="add-share">Añadir carpeta compartida</button>
+  </fieldset>
+
+  <fieldset class="card">
+    <legend>Permisos del rol «Usuario»</legend>
+    <p class="muted small">Los administradores tienen siempre todos los permisos. En carpetas de solo lectura solo se permite descargar.</p>
+    <div class="checks">
+      {% for p in permissions %}
+      <label class="check"><input type="checkbox" name="perm_{{ p }}" {% if cfg.permissions.user[p] %}checked{% endif %}> {{ PERMISSION_LABELS[p] }}</label>
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  <fieldset class="card">
+    <legend>Usuarios locales</legend>
+    <label class="check"><input type="checkbox" name="local_enabled" {% if cfg.auth.local.enabled %}checked{% endif %}> Permitir inicio de sesión con usuarios locales</label>
+  </fieldset>
+
+  <fieldset class="card">
+    <legend>Usuarios del sistema (PAM)</legend>
+    <div class="form-grid">
+      <label class="check"><input type="checkbox" name="pam_enabled" {% if pam.enabled %}checked{% endif %}> Activado (solo Linux/macOS)</label>
+      <label>Servicio PAM <input type="text" name="pam_service" value="{{ pam.service }}"></label>
+      <label>Grupos permitidos <input type="text" name="pam_allowed_groups" value="{{ pam.allowed_groups | join(', ') }}" placeholder="vacío = todos"></label>
+      <label>Grupos con rol administrador <input type="text" name="pam_admin_groups" value="{{ pam.admin_groups | join(', ') }}"></label>
+      <label class="check"><input type="checkbox" name="pam_use_system_home" {% if pam.use_system_home %}checked{% endif %}> Usar el home del sistema (/home/usuario)</label>
+    </div>
+  </fieldset>
+
+  <fieldset class="card">
+    <legend>Microsoft Entra ID (SSO)</legend>
+    <div class="form-grid">
+      <label class="check"><input type="checkbox" name="entra_enabled" {% if en.enabled %}checked{% endif %}> Activado</label>
+      <label>Implementación
+        <select name="entra_provider">
+          {% for p in providers %}<option value="{{ p }}" {% if en.provider == p %}selected{% endif %}>{{ 'OAuth2 / OIDC (sin dependencias)' if p == 'oauth2' else 'MSAL (librería de Microsoft)' }}</option>{% endfor %}
+        </select></label>
+      <label>Tenant ID <input type="text" name="entra_tenant_id" value="{{ en.tenant_id }}" placeholder="00000000-0000-0000-0000-000000000000"></label>
+      <label>Client ID <input type="text" name="entra_client_id" value="{{ en.client_id }}"></label>
+      <label>Client secret
+        <input type="password" name="entra_client_secret" autocomplete="new-password"
+               placeholder="{{ '•••••••• (configurado, dejar vacío para conservar)' if secret_set else 'No configurado' }}"></label>
+      <label>Redirect URI <input type="url" name="entra_redirect_uri" value="{{ en.redirect_uri }}" placeholder="https://files.midominio.com/auth/entra/callback"></label>
+      <label>Scopes adicionales <input type="text" name="entra_scopes" value="{{ en.scopes | join(' ') }}"></label>
+      <label>Texto del botón <input type="text" name="entra_button_label" value="{{ en.button_label }}"></label>
+      <label>Claim de nombre de usuario <input type="text" name="entra_username_claim" value="{{ en.username_claim }}"></label>
+      <label class="check"><input type="checkbox" name="entra_strip_domain" {% if en.strip_domain %}checked{% endif %}> Quitar el dominio del usuario (juan@contoso.com → juan)</label>
+      <label class="span2">Grupos / App Roles permitidos <small class="muted">(vacío = cualquier usuario del tenant)</small>
+        <input type="text" name="entra_allowed_groups" value="{{ en.allowed_groups | join(', ') }}"></label>
+      <label class="check"><input type="checkbox" name="entra_single_logout" {% if en.single_logout %}checked{% endif %}> Cerrar también la sesión de Microsoft al salir</label>
+    </div>
+
+    <h3>Alta de usuarios y roles</h3>
+    <div class="form-grid">
+      <label class="check span2"><input type="checkbox" name="entra_auto_provision" {% if en.auto_provision %}checked{% endif %}>
+        Crear el usuario automáticamente en su primer inicio de sesión
+        <small class="muted">(si se desactiva, solo entran usuarios de Entra dados de alta antes por un administrador)</small></label>
+      <label>Rol por defecto
+        <select name="entra_default_role">
+          {% for r in ROLES %}<option value="{{ r }}" {% if en.default_role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}
+        </select></label>
+      <label class="check"><input type="checkbox" name="entra_sync_role_on_login" {% if en.sync_role_on_login %}checked{% endif %}>
+        Recalcular el rol en cada inicio de sesión según el mapeo</label>
+      <label class="span2">Mapeo grupo / App Role → rol <small class="muted">(una línea por mapeo: <code>StorageWeb.Admin = admin</code>)</small>
+        <textarea name="entra_role_mappings" rows="4" spellcheck="false">{% for k, v in en.role_mappings.items() %}{{ k }} = {{ v }}
+{% endfor %}</textarea></label>
+    </div>
+
+    <details>
+      <summary>Avanzado (endpoints propios / otro proveedor OIDC)</summary>
+      <div class="form-grid">
+        <label>Authorize URL <input type="url" name="entra_authorize_url" value="{{ en.authorize_url }}"></label>
+        <label>Token URL <input type="url" name="entra_token_url" value="{{ en.token_url }}"></label>
+        <label>Issuer <input type="text" name="entra_issuer" value="{{ en.issuer }}"></label>
+        <label>Logout URL <input type="url" name="entra_logout_url" value="{{ en.logout_url }}"></label>
+        <label>Timeout (s) <input type="number" name="entra_timeout_seconds" value="{{ en.timeout_seconds }}" min="1" max="120"></label>
+      </div>
+    </details>
+  </fieldset>
+
+  <fieldset class="card">
+    <legend>Seguridad</legend>
+    <div class="form-grid">
+      <label>Intentos fallidos antes de bloquear <input type="number" name="max_login_failures" value="{{ cfg.security.max_login_failures }}" min="1"></label>
+      <label>Minutos de bloqueo <input type="number" name="lockout_minutes" value="{{ cfg.security.lockout_minutes }}" min="1"></label>
+    </div>
+  </fieldset>
+
+  <div class="form-actions sticky-actions">
+    <button class="btn btn-primary" type="submit">Guardar ajustes</button>
+  </div>
+</form>
+
+<fieldset class="card">
+  <legend>Arranque (solo config.json, requiere reiniciar el servicio)</legend>
+  <dl class="kv">
+    <dt>Fichero</dt><dd><code>{{ boot.config_path }}</code></dd>
+    <dt>Base de datos</dt><dd><code>{{ boot.database }}</code></dd>
+    <dt>Escucha</dt><dd>{{ boot.host }}:{{ boot.port }}{% if boot.behind_proxy %} (detrás de proxy){% endif %}</dd>
+    <dt>Máximo por petición</dt><dd>{{ boot.max_upload_mb }} MB <small class="muted">(cada parte de una subida y la subida sin JavaScript)</small></dd>
+    <dt>Cookie segura (HTTPS)</dt><dd>{{ 'Sí' if boot.cookie_secure else 'No' }}</dd>
+  </dl>
+  <details>
+    <summary>Configuración efectiva (JSON, secretos ocultos)</summary>
+    <pre class="code">{{ effective_json }}</pre>
+  </details>
+</fieldset>
+{% endblock %}

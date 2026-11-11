@@ -17,13 +17,16 @@
     "home_template": "/srv/storageweb/homes/{username}",
     "create_home": true,
     "show_hidden": false,
+    "max_file_size_mb": 0,
     "shares": [
       {
         "name": "compartido",
         "label": "Compartido",
         "path": "/srv/storageweb/shared",
         "read_only": false,
-        "users": ["*"],
+        "users": [
+          "*"
+        ],
         "groups": []
       },
       {
@@ -31,31 +34,63 @@
         "label": "Documentación (lectura)",
         "path": "/srv/storageweb/public",
         "read_only": true,
-        "users": ["*"],
+        "users": [
+          "*"
+        ],
         "groups": []
       }
     ]
   },
+  "permissions": {
+    "user": {
+      "upload": true,
+      "download": true,
+      "mkdir": true,
+      "rename": false,
+      "delete": false
+    }
+  },
   "auth": {
-    "local": { "enabled": true },
+    "local": {
+      "enabled": true
+    },
     "pam": {
       "enabled": false,
       "service": "login",
-      "allowed_groups": ["storageweb-users"],
-      "use_system_home": false
+      "allowed_groups": [
+        "storageweb-users"
+      ],
+      "use_system_home": false,
+      "admin_groups": [
+        "storageweb-admins"
+      ]
     },
     "entra": {
       "enabled": false,
+      "provider": "oauth2",
       "tenant_id": "00000000-0000-0000-0000-000000000000",
       "client_id": "00000000-0000-0000-0000-000000000000",
       "client_secret": "CAMBIAR",
       "redirect_uri": "https://files.midominio.com/auth/entra/callback",
-      "scopes": ["User.Read"],
+      "scopes": [
+        "User.Read"
+      ],
       "button_label": "Iniciar sesión con Microsoft",
       "username_claim": "preferred_username",
       "strip_domain": false,
       "allowed_groups": [],
-      "single_logout": false
+      "auto_provision": true,
+      "default_role": "user",
+      "role_mappings": {
+        "StorageWeb.Admin": "admin"
+      },
+      "sync_role_on_login": true,
+      "single_logout": false,
+      "authorize_url": "",
+      "token_url": "",
+      "issuer": "",
+      "logout_url": "",
+      "timeout_seconds": 15
     }
   },
   "security": {

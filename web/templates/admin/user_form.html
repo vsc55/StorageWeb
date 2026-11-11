@@ -1,0 +1,70 @@
+{% extends "admin/_layout.html" %}
+{% block title %}{{ 'Editar ' ~ user['username'] if user else 'Nuevo usuario' }} · {{ app_name }}{% endblock %}
+{% block admin_content %}
+<div class="page-head">
+  <h1>{% if user %}Usuario «{{ user['username'] }}»{% else %}Nuevo usuario{% endif %}</h1>
+  <a class="btn btn-ghost" href="{{ url_for('admin.users_list') }}">← Volver</a>
+</div>
+
+<form method="post" class="card form-grid">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+
+  {% if user %}
+    <div class="field"><span class="label">Usuario</span><strong>{{ user['username'] }}</strong></div>
+    <div class="field"><span class="label">Origen</span>{{ SOURCE_LABELS[user['source']] }}
+      {% if user['source'] == 'entra' and not user['external_id'] %}<small class="muted">(se vinculará en su primer login)</small>{% endif %}</div>
+    <div class="field"><span class="label">Creado</span>{{ user['created_at'][:16].replace('T', ' ') }}</div>
+    <div class="field"><span class="label">Último acceso</span>{{ (user['last_login'] or '—')[:16].replace('T', ' ') }}</div>
+  {% else %}
+    <label>Usuario
+      <input type="text" name="username" value="{{ form.username or '' }}" required maxlength="128" autofocus
+             pattern="[A-Za-z0-9][A-Za-z0-9._@+\-]*">
+      <small class="muted">Para Entra ID usa el UPN, p. ej. juan@contoso.com</small>
+    </label>
+    <label>Origen
+      <select name="source" id="source-select">
+        {% for s in sources %}<option value="{{ s }}" {% if form.source == s %}selected{% endif %}>{{ SOURCE_LABELS[s] }}</option>{% endfor %}
+      </select>
+    </label>
+  {% endif %}
+
+  <label>Nombre visible
+    <input type="text" name="display_name" value="{{ form.display_name or '' }}" maxlength="200">
+  </label>
+  <label>Email
+    <input type="email" name="email" value="{{ form.email or '' }}" maxlength="200">
+  </label>
+  <label>Rol
+    <select name="role">
+      {% for r in ROLES %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Grupos <small class="muted">(separados por comas; dan acceso a carpetas compartidas)</small>
+    <input type="text" name="groups" value="{{ (form.groups or []) | join(', ') }}">
+  </label>
+  <label class="span2">Carpeta personal <small class="muted">(vacío = plantilla por defecto)</small>
+    <input type="text" name="home_path" value="{{ form.home_path or '' }}" placeholder="/srv/storageweb/homes/usuario">
+  </label>
+
+  {% if not user or user['source'] == 'local' %}
+  <label class="js-local-only">{{ 'Nueva contraseña' if user else 'Contraseña' }}
+    <input type="password" name="password" autocomplete="new-password" minlength="10"
+           {% if not user %}required{% endif %} placeholder="{{ 'Dejar vacío para no cambiarla' if user else 'Mínimo 10 caracteres' }}">
+  </label>
+  {% endif %}
+
+  <label class="check"><input type="checkbox" name="enabled" {% if form.enabled %}checked{% endif %}> Cuenta activa</label>
+
+  <div class="span2 form-actions">
+    <button class="btn btn-primary" type="submit">{{ 'Guardar cambios' if user else 'Crear usuario' }}</button>
+  </div>
+</form>
+
+{% if user and user['id'] != current_user['id'] %}
+<form method="post" action="{{ url_for('admin.user_delete', user_id=user['id']) }}" class="danger-zone js-confirm"
+      data-confirm="¿Eliminar el usuario «{{ user['username'] }}»? Sus archivos no se borrarán.">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <button class="btn btn-danger" type="submit">Eliminar usuario</button>
+</form>
+{% endif %}
+{% endblock %}

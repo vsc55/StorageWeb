@@ -1,0 +1,36 @@
+{% extends "admin/_layout.html" %}
+{% block title %}Usuarios · {{ app_name }}{% endblock %}
+{% block admin_content %}
+<div class="page-head">
+  <h1>Usuarios</h1>
+  <a class="btn btn-primary" href="{{ url_for('admin.user_new') }}">Nuevo usuario</a>
+</div>
+
+<form method="get" class="inline search">
+  <input type="text" name="q" value="{{ search }}" placeholder="Buscar por usuario, nombre o email">
+  <button class="btn" type="submit">Buscar</button>
+  {% if search %}<a class="btn btn-ghost" href="{{ url_for('admin.users_list') }}">Limpiar</a>{% endif %}
+</form>
+
+<table class="files">
+  <thead>
+    <tr><th>Usuario</th><th>Nombre</th><th>Origen</th><th>Rol</th><th>Grupos</th><th>Estado</th><th>Último acceso</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for u in users %}
+    <tr>
+      <td class="name"><a href="{{ url_for('admin.user_edit', user_id=u['id']) }}">{{ u['username'] }}</a></td>
+      <td>{{ u['display_name'] or '' }}</td>
+      <td>{{ SOURCE_LABELS[u['source']] }}</td>
+      <td><span class="badge badge-{{ u['role'] }}">{{ ROLE_LABELS[u['role']] }}</span></td>
+      <td class="muted small">{{ (u['groups'] or '').replace(',', ', ') }}</td>
+      <td>{% if u['enabled'] %}Activo{% else %}<span class="text-danger">Deshabilitado</span>{% endif %}</td>
+      <td class="small">{{ (u['last_login'] or '—')[:16].replace('T', ' ') }}</td>
+      <td class="actions"><a class="btn btn-small" href="{{ url_for('admin.user_edit', user_id=u['id']) }}">Editar</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="muted">No hay usuarios.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,14 @@
+#!/bin/sh
+# Ejecuta manage.py de StorageWeb como el usuario del servicio.
+# Ejemplo: sudo storageweb-admin user-add ana
+APP_DIR="@APP_DIR@"
+APP_USER="@APP_USER@"
+CONFIG="@CONF_DIR@/config.json"
+
+cd "$APP_DIR" || exit 1
+if [ "$(id -u)" -eq 0 ]; then
+  exec runuser -u "$APP_USER" -- env STORAGEWEB_CONFIG="$CONFIG" \
+       "$APP_DIR/venv/bin/python" "$APP_DIR/manage.py" "$@"
+fi
+exec sudo -u "$APP_USER" env STORAGEWEB_CONFIG="$CONFIG" \
+     "$APP_DIR/venv/bin/python" "$APP_DIR/manage.py" "$@"

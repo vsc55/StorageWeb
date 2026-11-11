@@ -21,26 +21,38 @@
       {% endfor %}
     </div>
 
-    {% if not root.read_only %}
+    {% if 'upload' in perms or 'mkdir' in perms %}
     <div class="toolbar">
+      {% if 'upload' in perms %}
       <form id="upload-form" method="post" enctype="multipart/form-data"
             action="{{ url_for('files.upload', root=root.name, sub=rel) }}"
-            data-max-mb="{{ max_upload_mb }}">
+            data-api="{{ url_for('uploads.init') }}" data-root="{{ root.name }}" data-path="{{ rel }}"
+            data-max-file="{{ max_file_size_mb * 1024 * 1024 }}">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
         <label class="btn btn-primary">Subir archivos
           <input id="file-input" type="file" name="files" multiple hidden>
         </label>
         <noscript><button class="btn" type="submit">Enviar</button></noscript>
       </form>
+      {% endif %}
+      {% if 'mkdir' in perms %}
       <form method="post" action="{{ url_for('files.mkdir', root=root.name, sub=rel) }}" class="inline">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
         <input type="text" name="name" placeholder="Nueva carpeta" required maxlength="255">
         <button class="btn" type="submit">Crear</button>
       </form>
+      {% endif %}
     </div>
-
-    <div id="dropzone" class="dropzone">Arrastra aquí archivos para subirlos (máx. {{ max_upload_mb }} MB por envío)</div>
-    <div id="progress" class="progress" hidden><div class="bar"></div><span class="label"></span></div>
+    {% if 'upload' in perms %}
+    <div id="dropzone" class="dropzone">Arrastra aquí archivos para subirlos
+      ({% if max_file_size_mb %}máx. {{ max_file_size_mb }} MB por archivo{% else %}sin límite de tamaño{% endif %};
+      las subidas interrumpidas se reanudan)</div>
+    <div id="upload-panel" class="upload-panel" hidden>
+      <div class="progress"><div class="bar"></div><span class="label"></span></div>
+      <div class="upload-meta"><span class="detail muted small"></span>
+        <button type="button" class="btn btn-small btn-danger" id="upload-cancel">Cancelar</button></div>
+    </div>
+    {% endif %}
     {% endif %}
 
     <table class="files">
@@ -54,25 +66,30 @@
           <td class="name">
             {% if e.is_dir %}
               <a href="{{ url_for('files.browse', root=root.name, sub=e.rel) }}">📁 {{ e.name }}</a>
-            {% else %}
+            {% elif 'download' in perms %}
               <a href="{{ url_for('files.download', root=root.name, sub=e.rel) }}">📄 {{ e.name }}</a>
+            {% else %}
+              📄 {{ e.name }}
             {% endif %}
           </td>
           <td class="num">{{ e.size }}</td>
           <td>{{ e.mtime }}</td>
           <td class="actions">
-            {% if not e.is_dir %}
+            {% if not e.is_dir and 'download' in perms %}
             <a class="btn btn-small" href="{{ url_for('files.download', root=root.name, sub=e.rel) }}">Descargar</a>
             {% endif %}
-            {% if not root.read_only %}
+            {% if 'rename' in perms %}
             <form method="post" action="{{ url_for('files.rename', root=root.name, sub=e.rel) }}"
                   class="inline js-rename" data-name="{{ e.name }}">
               <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
               <input type="hidden" name="name" value="{{ e.name }}">
               <button class="btn btn-small" type="submit">Renombrar</button>
             </form>
+            {% endif %}
+            {% if 'delete' in perms %}
             <form method="post" action="{{ url_for('files.delete', root=root.name, sub=e.rel) }}"
-                  class="inline js-delete" data-name="{{ e.name }}" data-dir="{{ '1' if e.is_dir else '0' }}">
+                  class="inline js-confirm"
+                  data-confirm="{{ ('¿Eliminar la carpeta «' ~ e.name ~ '» y todo su contenido?') if e.is_dir else ('¿Eliminar «' ~ e.name ~ '»?') }}">
               <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
               <button class="btn btn-small btn-danger" type="submit">Eliminar</button>
             </form>
@@ -87,4 +104,4 @@
   </section>
 </div>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='app.js') }}"></script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/app.js') }}"></script>{% endblock %}

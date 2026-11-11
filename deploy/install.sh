@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Instalador de StorageWeb para Ubuntu (22.04 / 24.04).
+# Instalación manual de StorageWeb en Ubuntu (22.04 / 24.04 / 26.04) desde el código fuente.
+# (Alternativa: instalar el .deb de la release de GitHub: sudo apt install ./storageweb_X.Y.Z_amd64.deb)
 #
 # Uso:  sudo ./deploy/install.sh [--pam] [--nginx]
 #
@@ -8,12 +9,12 @@
 #   DATA_DIR=/var/lib/storageweb STORAGE_DIR=/srv/storageweb sudo -E ./deploy/install.sh
 set -euo pipefail
 
-APP_USER="${APP_USER:-storageweb}"
-APP_GROUP="${APP_GROUP:-$APP_USER}"
-APP_DIR="${APP_DIR:-/opt/storageweb}"
-CONF_DIR="${CONF_DIR:-/etc/storageweb}"
-DATA_DIR="${DATA_DIR:-/var/lib/storageweb}"
-STORAGE_DIR="${STORAGE_DIR:-/srv/storageweb}"
+export APP_USER="${APP_USER:-storageweb}"
+export APP_GROUP="${APP_GROUP:-$APP_USER}"
+export APP_DIR="${APP_DIR:-/opt/storageweb}"
+export CONF_DIR="${CONF_DIR:-/etc/storageweb}"
+export DATA_DIR="${DATA_DIR:-/var/lib/storageweb}"
+export STORAGE_DIR="${STORAGE_DIR:-/srv/storageweb}"
 WITH_PAM=0
 WITH_NGINX=0
 
@@ -30,85 +31,62 @@ done
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 log() { echo -e "\e[1;34m==>\e[0m $*"; }
+render() {  # render <plantilla> <destino>
+  sed -e "s#@APP_USER@#$APP_USER#g" -e "s#@APP_GROUP@#$APP_GROUP#g" -e "s#@APP_DIR@#$APP_DIR#g" \
+      -e "s#@CONF_DIR@#$CONF_DIR#g" -e "s#@DATA_DIR@#$DATA_DIR#g" -e "s#@STORAGE_DIR@#$STORAGE_DIR#g" \
+      "$1" > "$2"
+}
 
 log "Instalando dependencias del sistema"
 apt-get update -qq
 PKGS=(python3 python3-venv python3-pip rsync)
-[[ $WITH_NGINX -eq 1 ]] && PKGS+=(nginx certbot python3-certbot-nginx)
+if [[ $WITH_NGINX -eq 1 ]]; then PKGS+=(nginx certbot python3-certbot-nginx); fi
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${PKGS[@]}"
 
-log "Creando usuario de servicio '$APP_USER'"
-if ! getent group "$APP_GROUP" >/dev/null; then
-  groupadd --system "$APP_GROUP"
+log "Copiando aplicación a $APP_DIR"
+install -d -m 0755 -o root -g root "$APP_DIR"
+rsync -a --delete \
+      --exclude 'venv' --exclude '.venv' --exclude 'wheels' --exclude 'config.json' --exclude '__pycache__' \
+      --exclude '.git' --exclude '.github' --exclude '.vscode' --exclude '.dev' --exclude 'tests' \
+      --exclude 'build' --exclude 'dist' --exclude 'packaging' --exclude 'data' \
+      "$SRC_DIR"/ "$APP_DIR"/
+chown -R root:root "$APP_DIR"
+
+mkdir -p "$CONF_DIR"
+if [[ ! -f "$CONF_DIR/config.json" ]]; then
+  log "Creando $CONF_DIR/config.json"
+  sed -e "s#/var/lib/storageweb#$DATA_DIR#g" -e "s#/srv/storageweb#$STORAGE_DIR#g" \
+      "$SRC_DIR/config/config.example.json" > "$CONF_DIR/config.json"
+  if [[ $WITH_PAM -eq 1 ]]; then
+    python3 - "$CONF_DIR/config.json" <<'EOF'
+import json, sys
+p = sys.argv[1]
+c = json.load(open(p, encoding="utf-8"))
+c["auth"]["pam"]["enabled"] = True
+json.dump(c, open(p, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+EOF
+  fi
+else
+  log "Se conserva el config.json existente"
 fi
-if ! id -u "$APP_USER" >/dev/null 2>&1; then
-  useradd --system --gid "$APP_GROUP" --home-dir "$DATA_DIR" --no-create-home \
-          --shell /usr/sbin/nologin "$APP_USER"
-fi
+
+log "Instalando servicio systemd y comando storageweb-admin"
+render "$SRC_DIR/deploy/storageweb.service" /etc/systemd/system/storageweb.service
+render "$SRC_DIR/deploy/storageweb-admin" /usr/local/bin/storageweb-admin
+chmod 0755 /usr/local/bin/storageweb-admin
+
 if [[ $WITH_PAM -eq 1 ]]; then
-  # pam_unix necesita leer /etc/shadow (el servicio usa NoNewPrivileges, no puede usar unix_chkpwd)
+  getent group "$APP_GROUP" >/dev/null || groupadd --system "$APP_GROUP"
+  id -u "$APP_USER" >/dev/null 2>&1 || useradd --system --gid "$APP_GROUP" --home-dir "$DATA_DIR" \
+                                               --no-create-home --shell /usr/sbin/nologin "$APP_USER"
+  # pam_unix necesita leer /etc/shadow (el servicio usa NoNewPrivileges y no puede usar unix_chkpwd)
   usermod -aG shadow "$APP_USER"
   getent group storageweb-users >/dev/null || groupadd storageweb-users
   log "PAM: añade los usuarios permitidos al grupo 'storageweb-users' (usermod -aG storageweb-users <user>)"
 fi
 
-log "Copiando aplicación a $APP_DIR"
-install -d -m 0755 -o root -g root "$APP_DIR"
-rsync -a --delete --exclude 'venv' --exclude 'data' --exclude 'config.json' \
-      --exclude '__pycache__' --exclude '.git' --exclude 'deploy' \
-      "$SRC_DIR"/ "$APP_DIR"/
-chown -R root:root "$APP_DIR"
-
-log "Creando entorno virtual Python"
-[[ -d "$APP_DIR/venv" ]] || python3 -m venv "$APP_DIR/venv"
-"$APP_DIR/venv/bin/pip" install -q --upgrade pip
-"$APP_DIR/venv/bin/pip" install -q -r "$APP_DIR/requirements.txt"
-
-log "Creando directorios de datos"
-install -d -m 0750 -o root      -g "$APP_GROUP" "$CONF_DIR"
-install -d -m 0750 -o "$APP_USER" -g "$APP_GROUP" "$DATA_DIR"
-install -d -m 2770 -o "$APP_USER" -g "$APP_GROUP" "$STORAGE_DIR"
-install -d -m 2770 -o "$APP_USER" -g "$APP_GROUP" "$STORAGE_DIR/homes"
-install -d -m 2770 -o "$APP_USER" -g "$APP_GROUP" "$STORAGE_DIR/shared"
-install -d -m 2770 -o "$APP_USER" -g "$APP_GROUP" "$STORAGE_DIR/public"
-
-if [[ ! -f "$CONF_DIR/config.json" ]]; then
-  log "Creando $CONF_DIR/config.json"
-  sed -e "s#/var/lib/storageweb#$DATA_DIR#g" -e "s#/srv/storageweb#$STORAGE_DIR#g" \
-      "$SRC_DIR/config.example.json" > "$CONF_DIR/config.json"
-  [[ $WITH_PAM -eq 1 ]] && python3 - "$CONF_DIR/config.json" <<'EOF'
-import json, sys
-p = sys.argv[1]; c = json.load(open(p))
-c["auth"]["pam"]["enabled"] = True
-json.dump(c, open(p, "w"), indent=2, ensure_ascii=False)
-EOF
-else
-  log "Se conserva el config.json existente"
-fi
-# root escribe, el servicio solo lee (contiene el client_secret de Entra)
-chown root:"$APP_GROUP" "$CONF_DIR/config.json"
-chmod 0640 "$CONF_DIR/config.json"
-
-log "Inicializando base de datos"
-sudo -u "$APP_USER" STORAGEWEB_CONFIG="$CONF_DIR/config.json" \
-     "$APP_DIR/venv/bin/python" "$APP_DIR/manage.py" init-db
-
-log "Instalando comando 'storageweb-admin'"
-cat > /usr/local/bin/storageweb-admin <<EOF
-#!/bin/sh
-# Ejecuta manage.py como el usuario del servicio
-cd "$APP_DIR" && exec sudo -u "$APP_USER" STORAGEWEB_CONFIG="$CONF_DIR/config.json" \\
-  "$APP_DIR/venv/bin/python" "$APP_DIR/manage.py" "\$@"
-EOF
-chmod 0755 /usr/local/bin/storageweb-admin
-
-log "Instalando servicio systemd"
-sed -e "s#@APP_USER@#$APP_USER#g" -e "s#@APP_GROUP@#$APP_GROUP#g" -e "s#@APP_DIR@#$APP_DIR#g" \
-    -e "s#@CONF_DIR@#$CONF_DIR#g" -e "s#@DATA_DIR@#$DATA_DIR#g" -e "s#@STORAGE_DIR@#$STORAGE_DIR#g" \
-    "$SRC_DIR/deploy/storageweb.service" > /etc/systemd/system/storageweb.service
-systemctl daemon-reload
-systemctl enable storageweb >/dev/null
-systemctl restart storageweb
+log "Configurando usuario, directorios, entorno Python y servicio"
+sh "$SRC_DIR/deploy/postinstall.sh"
 
 if [[ $WITH_NGINX -eq 1 && ! -f /etc/nginx/sites-available/storageweb ]]; then
   log "Copiando plantilla de nginx (edita server_name y certificados)"
@@ -117,7 +95,6 @@ if [[ $WITH_NGINX -eq 1 && ! -f /etc/nginx/sites-available/storageweb ]]; then
   echo "   ln -s /etc/nginx/sites-available/storageweb /etc/nginx/sites-enabled/ && certbot --nginx -d <dominio>"
 fi
 
-sleep 1
 systemctl --no-pager --lines=5 status storageweb || true
 cat <<EOF
 
@@ -126,6 +103,5 @@ StorageWeb instalado.
   Datos/BD:   $DATA_DIR
   Archivos:   $STORAGE_DIR
   Servicio:   systemctl status storageweb  |  journalctl -u storageweb -f
-  Usuarios:   sudo storageweb-admin user-add <usuario>
-              sudo storageweb-admin user-list
+  Admin:      sudo storageweb-admin user-add admin --role admin   (luego entra en /admin)
 EOF

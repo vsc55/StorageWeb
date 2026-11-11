@@ -1,0 +1,87 @@
+{
+  // Tareas de StorageWeb. Ejecuta primero "StorageWeb: crear entorno .venv".
+  // Ctrl+Shift+B lanza el servidor de pruebas (tarea de build por defecto).
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "StorageWeb: crear entorno .venv",
+      "type": "shell",
+      "command": "python3 -m venv .venv && .venv/bin/python -m pip install -U pip && .venv/bin/python -m pip install -r requirements-dev.txt",
+      "windows": {
+        "command": "python -m venv .venv; if ($?) { .venv\\Scripts\\python.exe -m pip install -U pip }; if ($?) { .venv\\Scripts\\python.exe -m pip install -r requirements-dev.txt }",
+        "options": {
+          "shell": { "executable": "powershell.exe", "args": ["-NoProfile", "-Command"] }
+        }
+      },
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "StorageWeb: servidor de pruebas (auto-reload)",
+      "detail": "http://127.0.0.1:8080 con config/config.dev.json; se reinicia al cambiar .py, config o plantillas",
+      "type": "process",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "windows": { "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe" },
+      "args": ["run.py", "--dev", "--config", "config/config.dev.json"],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": { "PYTHONUNBUFFERED": "1", "PYTHONDONTWRITEBYTECODE": "1" }
+      },
+      "isBackground": true,
+      "group": { "kind": "build", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": {
+        "owner": "storageweb",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^\\s*File \"(.+)\", line (\\d+), in (.+)$",
+          "file": 1,
+          "line": 2,
+          "message": 3
+        },
+        "background": {
+          "activeBegin": true,
+          "beginsPattern": "(Restarting with|Detected change)",
+          "endsPattern": "(Running on|Debugger PIN)"
+        }
+      }
+    },
+    {
+      "label": "StorageWeb: crear usuario de pruebas",
+      "type": "process",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "windows": { "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe" },
+      "args": ["manage.py", "--config", "config/config.dev.json", "user-add", "${input:devUser}", "--role", "${input:devRole}"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "StorageWeb: tests",
+      "type": "process",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "windows": { "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe" },
+      "args": ["-m", "pytest", "-q"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "devUser",
+      "type": "promptString",
+      "description": "Nombre del usuario local de pruebas (la contraseña se pedirá en el terminal)",
+      "default": "admin"
+    },
+    {
+      "id": "devRole",
+      "type": "pickString",
+      "description": "Rol del usuario de pruebas",
+      "options": ["admin", "user"],
+      "default": "admin"
+    }
+  ]
+}
