@@ -1,0 +1,63 @@
+{% extends "admin/_layout.html" %}
+{% from "admin/groups/_macros.html" import source_badge, group_fields, member_list, share_chips with context %}
+{% block title %}{{ _("Group «%(name)s»", name=(group|group_label)) if group else _("New group") }} · {{ app_name }}{% endblock %}
+{% block admin_content %}
+<div class="page-head">
+  <div class="inline">
+    <h1>{% if group %}{{ _("Group «%(name)s»", name=(group|group_label)) }}{% else %}{{ _("New group") }}{% endif %}</h1>
+    {% if group %}{{ source_badge(group['source']) }}{% endif %}
+  </div>
+  <a class="btn btn-ghost" href="{{ url_for('groups.index') }}">← {{ _("Back") }}</a>
+</div>
+
+{% if group and group['builtin'] %}
+<div class="card builtin-note">
+  <svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg>
+  <div>
+    <strong>{{ _("Built-in group") }}</strong>
+    <p class="muted small">{{ group|group_description }} {{ _("It comes with StorageWeb: it cannot be edited or deleted. Shared folders can use it with the identifier %(name)s.", name=group['name']) }}</p>
+  </div>
+</div>
+{% else %}
+<form method="post" class="card form-grid">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+  {{ group_fields(form, group) }}
+  <div class="span2 form-actions">
+    <button class="btn btn-primary" type="submit">{{ _("Save changes") if group else _("Create group") }}</button>
+  </div>
+</form>
+{% endif %}
+
+{% if group %}
+<section class="card section-gap" aria-labelledby="members-title">
+  <h2 id="members-title" class="card-title">{{ _("Members (%(count)s)", count=members|length) }}</h2>
+  {{ member_list(group, members, request.path) }}
+</section>
+
+<section class="card section-gap" aria-labelledby="shares-title">
+  <div class="page-head">
+    <h2 id="shares-title" class="card-title">{{ _("Shared folders") }}</h2>
+    <a class="small" href="{{ url_for('groups.matrix_view') }}">{{ _("Change in the access matrix") }}</a>
+  </div>
+  {{ share_chips(shares) }}
+</section>
+
+{% if not group['builtin'] %}
+<section class="danger-zone" aria-label="{{ _('Delete group') }}">
+  <div class="danger-row">
+    <div>
+      <strong>{{ _("Delete group") }}</strong>
+      <p class="muted small">{{ _("Its members lose the access it gives. Users and files are not touched.") }}
+        {% if shares %}{{ _("Shared folders that use it: %(shares)s.", shares=shares|map(attribute='label')|join(', ')) }}{% endif %}</p>
+    </div>
+    <form method="post" action="{{ url_for('groups.delete', group_id=group['id']) }}" class="inline js-confirm"
+          data-confirm="{{ _('Delete the group «%(name)s»?', name=(group|group_label)) }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button class="btn btn-danger" type="submit">{{ _("Delete group") }}</button>
+    </form>
+  </div>
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}

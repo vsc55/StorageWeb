@@ -46,7 +46,7 @@ DEFAULTS: dict = {
         # Tamaño máximo por archivo en MB (0 = sin límite). Las subidas se hacen por partes,
         # así que no dependen de server.max_upload_mb (que limita cada petición).
         "max_file_size_mb": 0,
-        # [{"name", "label", "path", "read_only", "users": ["*"], "groups": []}]
+        # [{"name", "label", "path", "read_only", "users": ["*"], "groups": [], "read_only_groups": []}]
         "shares": [],
     },
     # Permisos del rol "user" (el rol "admin" los tiene todos)
@@ -139,7 +139,10 @@ DESCRIPTIONS: dict[str, str] = {
     "storage.shares[].path": "Ruta en el servidor. Relativa = respecto a la carpeta del `config.json`.",
     "storage.shares[].read_only": "Solo lectura: únicamente se permite descargar, también a los administradores.",
     "storage.shares[].users": "Usuarios con acceso; `[\"*\"]` = todos.",
-    "storage.shares[].groups": "Grupos con acceso (locales, del sistema, o Object IDs/App Roles de Entra ID).",
+    "storage.shares[].groups": "Grupos con acceso: identificador de un grupo de *Administración → Grupos*, "
+                               "grupo del sistema, u Object ID/App Role de Entra ID.",
+    "storage.shares[].read_only_groups": "Grupos de `groups` que solo pueden leer (los edita la matriz de "
+                                         "accesos). Quien entra también por otro grupo o por `users` puede escribir.",
     "permissions.user.upload": "El rol `user` puede subir archivos.",
     "permissions.user.download": "El rol `user` puede descargar archivos.",
     "permissions.user.mkdir": "El rol `user` puede crear carpetas.",
@@ -181,4 +184,4 @@ DESCRIPTIONS: dict[str, str] = {
 }
 
 # Campos de cada elemento de storage.shares (lista; no aparecen en DEFAULTS)
-SHARE_FIELDS = ("name", "label", "path", "read_only", "users", "groups")
+SHARE_FIELDS = ("name", "label", "path", "read_only", "users", "groups", "read_only_groups")

@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-from tests.helpers import add_user, get_csrf, login
+from tests.helpers import add_user, get_csrf, login, visible
 from storageweb.web.context import get_db
 
 
@@ -238,7 +238,7 @@ def test_read_only_share(shares_app, tmp_path):
     assert client.post("/rename/docs/leeme.txt", data={"name": "z", "_csrf": token}).status_code == 403
     assert client.post("/mkdir/docs/", data={"name": "z", "_csrf": token}).status_code == 403
     assert (tmp_path / "docs" / "leeme.txt").exists()
-    assert "Subir archivos" not in client.get("/f/docs/").get_data(as_text=True)
+    assert "Subir archivos" not in visible(client.get("/f/docs/").get_data(as_text=True))
 
 
 def test_missing_share_dir(shares_app):
@@ -269,3 +269,51 @@ def test_audit_file_operations(app, logged, home):
         ).fetchall()
     assert [(r["action"], r["target"]) for r in rows] == [
         ("upload", "home:/a.txt"), ("download", "home:/a.txt"), ("delete", "home:/a.txt")]
+
+
+# --------------------------------------------------------------------------- layout C: orden, árbol y detalle
+
+def test_sort_by_size_and_date(logged, home):
+    import os
+    import time
+
+    client, _ = logged
+    (home / "grande.bin").write_bytes(b"x" * 3000)
+    (home / "medio.bin").write_bytes(b"x" * 2000)
+    (home / "pequeno.bin").write_bytes(b"x" * 10)
+    (home / "carpeta").mkdir()
+    now = time.time()
+    os.utime(home / "pequeno.bin", (now, now))
+    os.utime(home / "grande.bin", (now - 100, now - 100))
+    os.utime(home / "medio.bin", (now - 50, now - 50))
+
+    def order(query):
+        html = client.get(f"/f/home/{query}").get_data(as_text=True)
+        names = ["carpeta", "grande.bin", "medio.bin", "pequeno.bin"]
+        return sorted(names, key=lambda n: html.index(f'data-name="{n}"'))
+
+    assert order("?sort=size&order=desc") == ["carpeta", "grande.bin", "medio.bin", "pequeno.bin"]
+    assert order("?sort=size") == ["carpeta", "pequeno.bin", "medio.bin", "grande.bin"]
+    assert order("?sort=mtime&order=desc") == ["carpeta", "pequeno.bin", "medio.bin", "grande.bin"]
+    assert order("?sort=nada") == ["carpeta", "grande.bin", "medio.bin", "pequeno.bin"]  # valor no válido = nombre
+    html = client.get("/f/home/?sort=size&order=desc").get_data(as_text=True)
+    assert 'aria-sort="descending"' in html
+
+
+def test_tree_shows_path_and_subfolders(logged, home):
+    client, _ = logged
+    (home / "Proyectos" / "2026").mkdir(parents=True)
+    (home / "Proyectos" / "Contratos").mkdir()
+    html = client.get("/f/home/Proyectos").get_data(as_text=True)
+    tree = html.split('class="tree"', 1)[1].split("</aside>", 1)[0]
+    assert "Proyectos" in tree and "2026" in tree and "Contratos" in tree
+    assert 'class="tree-item level-1 active"' in tree
+
+
+def test_row_data_for_details_panel(logged, home):
+    client, _ = logged
+    (home / "informe.pdf").write_bytes(b"x" * 1536)
+    html = client.get("/f/home/").get_data(as_text=True)
+    assert 'data-name="informe.pdf"' in html and 'data-dir="0"' in html
+    assert 'data-kind="Archivo PDF"' in html and 'data-size="1,5 KB"' in html
+    assert 'data-href="/download/home/informe.pdf"' in html

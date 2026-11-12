@@ -1,0 +1,95 @@
+{% extends "admin/_layout.html" %}
+{% from "admin/users/_macros.html" import view_switch, avatar, status, badges, filters_form, group_chips, access_list, activity_list with context %}
+{% block title %}{{ _("Users") }} · {{ app_name }}{% endblock %}
+{% block admin_content %}
+<div class="page-head">
+  <div>
+    <h1>{{ _("Users") }}</h1>
+    <p class="muted small">{{ _("%(all)s users · %(active)s active · %(disabled)s disabled", all=counts.all, active=counts.active, disabled=counts.disabled) }}</p>
+  </div>
+  <div class="inline">
+    {{ view_switch('panel') }}
+    <a class="btn btn-primary" href="{{ url_for('admin.user_new') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New user") }}</a>
+  </div>
+</div>
+
+{{ filters_form(filters, 'admin.users_panel', '<input type="hidden" name="tab" value="%s">'|format(tab)|safe) }}
+
+<div class="master-detail">
+  <aside class="md-list" aria-label="{{ _('List of users') }}">
+    <ul>
+      {% for u in users %}
+      <li><a class="md-item md-user{% if current and u['id'] == current['id'] %} active{% endif %}{% if not u['enabled'] %} is-off{% endif %}"
+             href="{{ url_for('admin.users_panel', u=u['id'], tab=tab, q=filters.q or None, status=filters.status if filters.status != 'all' else None, source=filters.source or None, role=filters.role or None) }}"
+             {% if current and u['id'] == current['id'] %}aria-current="true"{% endif %}>
+        {{ avatar(u) }}
+        <span class="md-item-text"><strong>{{ u['display_name'] or u['username'] }}</strong>
+          <span class="muted small">{{ u['username'] }}</span></span>
+        <span class="dot {{ 'dot-on' if u['enabled'] else 'dot-off' }}" role="img" aria-label="{{ _('Active') if u['enabled'] else _('Disabled') }}"></span>
+      </a></li>
+      {% else %}
+      <li class="muted small md-empty">{{ _("No users.") }}</li>
+      {% endfor %}
+    </ul>
+  </aside>
+
+  <section class="md-detail">
+    {% if current %}
+    {% set here = url_for('admin.users_panel', u=current['id'], tab=tab) %}
+    <div class="user-head">
+      {{ avatar(current, 'xl') }}
+      <div class="user-head-text">
+        <h2 class="md-title">{{ current['display_name'] or current['username'] }}</h2>
+        <div class="inline small muted"><span>{{ current['username'] }}</span> {{ badges(current) }} {{ status(current) }}</div>
+      </div>
+      {% if current['id'] != current_user['id'] %}
+      <form method="post" action="{{ url_for('admin.user_status', user_id=current['id']) }}" class="inline{% if current['enabled'] %} js-confirm{% endif %}"
+            {% if current['enabled'] %}data-confirm="{{ _('Disable «%(name)s»? They will not be able to sign in, not even with %(source)s.', name=current['username'], source=SOURCE_LABELS[current['source']]) }}"{% endif %}>
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="enabled" value="{{ '0' if current['enabled'] else '1' }}">
+        <input type="hidden" name="next" value="{{ here }}">
+        <button class="btn btn-small{% if current['enabled'] %} btn-danger{% endif %}" type="submit">{{ _("Disable") if current['enabled'] else _("Enable") }}</button>
+      </form>
+      {% endif %}
+    </div>
+
+    <nav class="tabs" aria-label="{{ _('Sections of the user') }}">
+      {% for key, label in [('profile', _('Profile')), ('groups', _('Groups (%(count)s)', count=memberships|length)), ('access', _('Effective access')), ('activity', _('Activity'))] %}
+      <a class="tab{% if tab == key %} active{% endif %}" href="{{ url_for('admin.users_panel', u=current['id'], tab=key) }}"{% if tab == key %} aria-current="page"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+
+    {% if tab == 'profile' %}
+      <form method="post" action="{{ url_for('admin.user_edit', user_id=current['id']) }}" class="form-grid">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ here }}">
+        <label>{{ _("Display name") }}<input type="text" name="display_name" value="{{ form.display_name or '' }}" maxlength="200"></label>
+        <label>{{ _("Email") }}<input type="email" name="email" value="{{ form.email or '' }}" maxlength="200"></label>
+        <label>{{ _("Role") }}
+          <select name="role">{% for r in ROLES %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></label>
+        <label>{{ _("Personal folder") }} <small class="muted">({{ _("empty = default template") }})</small>
+          <input type="text" name="home_path" value="{{ form.home_path or '' }}" class="mono"></label>
+        {% if current['source'] == 'local' %}
+        <label>{{ _("New password") }}<input type="password" name="password" autocomplete="new-password" minlength="10" placeholder="{{ _('Leave empty to keep it') }}"></label>
+        {% else %}
+        <p class="muted small">{{ _("Signs in with %(source)s: the password is managed there.", source=SOURCE_LABELS[current['source']]) }}</p>
+        {% endif %}
+        <label class="check"><input type="checkbox" name="enabled" {% if form.enabled %}checked{% endif %}> {{ _("Account enabled") }}</label>
+        <div class="span2 form-actions">
+          <button class="btn btn-primary" type="submit">{{ _("Save changes") }}</button>
+          <a class="btn btn-ghost" href="{{ url_for('admin.user_edit', user_id=current['id']) }}">{{ _("Full record") }}</a>
+        </div>
+      </form>
+    {% elif tab == 'groups' %}
+      {{ group_chips(current, memberships, unknown_groups, addable_groups, here) }}
+    {% elif tab == 'access' %}
+      {{ access_list(current, access, role_permissions) }}
+    {% else %}
+      {{ activity_list(current, activity) }}
+    {% endif %}
+    {% else %}
+    <div class="empty"><p>{{ _("No users.") }}</p></div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

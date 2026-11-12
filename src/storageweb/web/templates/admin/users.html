@@ -1,37 +1,93 @@
 {% extends "admin/_layout.html" %}
+{% from "admin/users/_macros.html" import view_switch, avatar, status as status_badge, badges, filters_form with context %}
 {% block title %}{{ _("Users") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
 <div class="page-head">
-  <h1>{{ _("Users") }}</h1>
-  <a class="btn btn-primary" href="{{ url_for('admin.user_new') }}">{{ _("New user") }}</a>
+  <div>
+    <h1>{{ _("Users") }}</h1>
+    <p class="muted small">{{ _("%(all)s users · %(active)s active · %(disabled)s disabled", all=counts.all, active=counts.active, disabled=counts.disabled) }}</p>
+  </div>
+  <div class="inline">
+    {{ view_switch('list') }}
+    <a class="btn btn-primary" href="{{ url_for('admin.user_new') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New user") }}</a>
+  </div>
 </div>
 
-<form method="get" class="inline search">
-  <input type="text" name="q" value="{{ search }}" placeholder="{{ _('Search by user name, name or email') }}">
-  <button class="btn" type="submit">{{ _("Search") }}</button>
-  {% if search %}<a class="btn btn-ghost" href="{{ url_for('admin.users_list') }}">{{ _("Clear") }}</a>{% endif %}
+{% call filters_form(filters, 'admin.users_list') %}
+  <select name="group" aria-label="{{ _('Group') }}">
+    <option value="">{{ _("Any group") }}</option>
+    {% for gr in all_groups %}<option value="{{ gr['id'] }}" {% if filters.group == gr['id'] %}selected{% endif %}>{{ (gr|group_label) }}</option>{% endfor %}
+  </select>
+{% endcall %}
+
+<form method="post" action="{{ url_for('admin.users_bulk') }}" id="bulk-form" class="bulk-bar">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="next" value="{{ request.full_path }}">
+  <span class="small" id="bulk-count" aria-live="polite">{{ _("With the selected users:") }}</span>
+  <label class="sr-only" for="bulk-action">{{ _("Action") }}</label>
+  <select name="action" id="bulk-action" required>
+    <option value="">{{ _("Choose an action…") }}</option>
+    <option value="add_group">{{ _("Add to a group") }}</option>
+    <option value="role_user">{{ _("Change role to %(role)s", role=ROLE_LABELS['user']) }}</option>
+    <option value="role_admin">{{ _("Change role to %(role)s", role=ROLE_LABELS['admin']) }}</option>
+    <option value="enable">{{ _("Enable") }}</option>
+    <option value="disable">{{ _("Disable") }}</option>
+  </select>
+  <label class="sr-only" for="bulk-group">{{ _("Group") }}</label>
+  <select name="group_id" id="bulk-group">
+    <option value="">{{ _("Group…") }}</option>
+    {% for gr in all_groups %}<option value="{{ gr['id'] }}">{{ (gr|group_label) }}</option>{% endfor %}
+  </select>
+  <button class="btn" type="submit">{{ _("Apply") }}</button>
 </form>
 
-<table class="files">
+<div class="table-scroll">
+<table class="files users-table">
   <thead>
-    <tr><th>{{ _("User") }}</th><th>{{ _("Name") }}</th><th>{{ _("Source") }}</th><th>{{ _("Role") }}</th>
-        <th>{{ _("Groups") }}</th><th>{{ _("Status") }}</th><th>{{ _("Last sign-in") }}</th><th></th></tr>
+    <tr><th class="col-check"><input type="checkbox" id="bulk-all" aria-label="{{ _('Select all') }}"></th>
+        <th>{{ _("User") }}</th><th>{{ _("Source") }}</th><th>{{ _("Role") }}</th>
+        <th>{{ _("Groups") }}</th><th>{{ _("Status") }}</th><th>{{ _("Last sign-in") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr>
   </thead>
   <tbody>
     {% for u in users %}
-    <tr>
-      <td class="name"><a href="{{ url_for('admin.user_edit', user_id=u['id']) }}">{{ u['username'] }}</a></td>
-      <td>{{ u['display_name'] or '' }}</td>
-      <td>{{ SOURCE_LABELS[u['source']] }}</td>
+    <tr{% if not u['enabled'] %} class="row-disabled"{% endif %}>
+      <td class="col-check"><input type="checkbox" name="ids" value="{{ u['id'] }}" form="bulk-form" class="bulk-check"
+                                   aria-label="{{ _('Select %(name)s', name=u['username']) }}"></td>
+      <td class="name"><a class="user-cell" href="{{ url_for('admin.user_edit', user_id=u['id']) }}">{{ avatar(u) }}
+        <span><strong>{{ u['display_name'] or u['username'] }}</strong>{% if u['display_name'] %}<span class="muted small">{{ u['username'] }}</span>{% endif %}</span></a></td>
+      <td><span class="badge badge-src badge-src-{{ u['source'] }}">{{ SOURCE_LABELS[u['source']] }}</span></td>
       <td><span class="badge badge-{{ u['role'] }}">{{ ROLE_LABELS[u['role']] }}</span></td>
-      <td class="muted small">{{ (u['groups'] or '').replace(',', ', ') }}</td>
-      <td>{% if u['enabled'] %}{{ _("Active") }}{% else %}<span class="text-danger">{{ _("Disabled") }}</span>{% endif %}</td>
+      <td><span class="tags">{% for name in group_names[u['id']] %}<span class="tag">{{ name }}</span>{% endfor %}</span></td>
+      <td>{{ status_badge(u) }}</td>
       <td class="small">{{ u['last_login']|datetime }}</td>
-      <td class="actions"><a class="btn btn-small" href="{{ url_for('admin.user_edit', user_id=u['id']) }}">{{ _("Edit") }}</a></td>
+      <td class="actions">
+        {% if u['id'] != current_user['id'] %}
+        <form method="post" action="{{ url_for('admin.user_status', user_id=u['id']) }}" class="inline{% if u['enabled'] %} js-confirm{% endif %}"
+              {% if u['enabled'] %}data-confirm="{{ _('Disable «%(name)s»? They will not be able to sign in, not even with %(source)s.', name=u['username'], source=SOURCE_LABELS[u['source']]) }}"{% endif %}>
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <input type="hidden" name="enabled" value="{{ '0' if u['enabled'] else '1' }}">
+          <input type="hidden" name="next" value="{{ request.full_path }}">
+          <button class="btn btn-small{% if u['enabled'] %} btn-danger{% endif %}" type="submit">{{ _("Disable") if u['enabled'] else _("Enable") }}</button>
+        </form>
+        {% endif %}
+        <a class="btn btn-small" href="{{ url_for('admin.user_edit', user_id=u['id']) }}">{{ _("Edit") }}</a>
+      </td>
     </tr>
     {% else %}
     <tr><td colspan="8" class="muted">{{ _("No users.") }}</td></tr>
     {% endfor %}
   </tbody>
 </table>
+</div>
+
+{% if pages > 1 %}
+<nav class="pager" aria-label="{{ _('Pages') }}">
+  <span class="muted small">{{ _("%(first)s–%(last)s of %(total)s", first=(page - 1) * page_size + 1, last=[page * page_size, total]|min, total=total) }}</span>
+  <span class="inline">
+    {% set args = request.args.to_dict() %}
+    {% if page > 1 %}<a class="btn btn-small" href="{{ url_for('admin.users_list', **dict(args, page=page - 1)) }}">{{ _("Previous") }}</a>{% endif %}
+    {% if page < pages %}<a class="btn btn-small" href="{{ url_for('admin.users_list', **dict(args, page=page + 1)) }}">{{ _("Next") }}</a>{% endif %}
+  </span>
+</nav>
+{% endif %}
 {% endblock %}

@@ -15,6 +15,7 @@ from .db import init_db
 from .i18n import _, _l
 from .settings import RuntimeSettings, ensure_secret_key, normalize, read_config_file
 from .web import js_messages, register_blueprints
+from .web.views.profile import THEME_ICONS, THEME_LABELS, THEMES, current_theme
 from .web.context import close_db, settings
 from .web.guards import (check_csrf, csrf_token, load_current_user, reset_request_locale, select_locale,
                          set_security_headers)
@@ -87,6 +88,8 @@ def create_app(config_path: str | None = None) -> Flask:
                 "is_admin": is_admin(user), "ROLE_LABELS": ROLE_LABELS, "app_version": __version__,
                 "current_locale": i18n.get_locale(),
                 "available_locales": [(code, i18n.locale_display_name(code)) for code in i18n.LOCALES],
+                "current_theme": current_theme(),
+                "available_themes": [(code, THEME_LABELS[code], THEME_ICONS[code]) for code in THEMES],
                 "js_messages": js_messages.catalog}
 
     def render_error(code: int, name: str, description: str | None):

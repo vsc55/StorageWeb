@@ -1,6 +1,9 @@
 (function () {
   "use strict";
 
+  // Con JavaScript, las acciones por fila pasan a la barra de selección y al panel de detalle
+  document.documentElement.classList.add("js");
+
   var form = document.getElementById("upload-form");
   var input = document.getElementById("file-input");
   var dropzone = document.getElementById("dropzone");
@@ -224,4 +227,160 @@
       f.querySelector('input[name="name"]').value = name;
     });
   });
+
+  // ------------------------------------------------------------------ explorador: selección y detalle
+
+  var table = document.getElementById("file-table");
+  if (!table) return;
+
+  var rows = Array.prototype.slice.call(table.querySelectorAll("tr.file-row"));
+  var selectAll = document.getElementById("select-all");
+  var bar = document.getElementById("selection-bar");
+  var barCount = document.getElementById("selection-count");
+  var details = {
+    empty: document.getElementById("details-empty"),
+    multi: document.getElementById("details-multi"),
+    multiCount: document.getElementById("details-multi-count"),
+    body: document.getElementById("details-body"),
+    icon: document.getElementById("details-icon"),
+    name: document.getElementById("details-name"),
+    kind: document.getElementById("details-kind"),
+    size: document.getElementById("details-size"),
+    mtime: document.getElementById("details-mtime"),
+    open: document.getElementById("details-open"),
+    download: document.getElementById("details-download")
+  };
+  var filterInput = document.getElementById("filter-input");
+  var filterEmpty = document.getElementById("filter-empty");
+
+  function checkbox(row) { return row.querySelector("input.row-check"); }
+  function selected() { return rows.filter(function (r) { return checkbox(r).checked; }); }
+  function isDir(row) { return row.dataset.dir === "1"; }
+
+  // Envía un formulario de fila como si lo hubiera enviado el usuario (con su confirmación/prompt)
+  function submitForm(f) {
+    if (!f) return;
+    if (typeof f.requestSubmit === "function") { f.requestSubmit(); return; }
+    var ev = new Event("submit", { cancelable: true });
+    if (f.dispatchEvent(ev)) f.submit();
+  }
+
+  function countText(n) {
+    return n === 1 ? t("1 item selected") : t("%(num)s items selected", { num: n });
+  }
+
+  function update() {
+    var sel = selected();
+    var n = sel.length;
+    rows.forEach(function (r) { r.classList.toggle("selected", checkbox(r).checked); });
+    if (bar) {
+      bar.hidden = n === 0;
+      barCount.textContent = countText(n);
+      bar.querySelectorAll("[data-action]").forEach(function (b) {
+        var a = b.dataset.action;
+        if (a === "download") b.disabled = !(n === 1 && !isDir(sel[0]) && sel[0].dataset.href);
+        if (a === "rename") b.disabled = n !== 1;
+        if (a === "delete") b.disabled = n === 0;
+      });
+    }
+    var visible = rows.filter(function (r) { return !r.hidden; });
+    if (selectAll) {
+      selectAll.checked = n > 0 && n === visible.length;
+      selectAll.indeterminate = n > 0 && n < visible.length;
+    }
+    details.empty.hidden = n !== 0;
+    details.multi.hidden = n < 2;
+    details.body.hidden = n !== 1;
+    if (n >= 2) details.multiCount.textContent = countText(n);
+    if (n === 1) {
+      var r = sel[0];
+      details.name.textContent = r.dataset.name;
+      details.kind.textContent = r.dataset.kind;
+      details.size.textContent = r.dataset.size;
+      details.mtime.textContent = r.dataset.mtime;
+      details.icon.querySelector("use").setAttribute("href", isDir(r) ? "#i-folder" : "#i-file");
+      details.icon.setAttribute("class", "icon icon-xl " + (isDir(r) ? "folder-icon" : "file-icon"));
+      details.open.hidden = !isDir(r);
+      details.open.setAttribute("href", isDir(r) ? r.dataset.href : "#");
+      if (details.download) {
+        details.download.hidden = isDir(r) || !r.dataset.href;
+        details.download.setAttribute("href", r.dataset.href || "#");
+      }
+    }
+  }
+
+  function selectOnly(row) {
+    rows.forEach(function (r) { checkbox(r).checked = r === row; });
+    update();
+  }
+
+  rows.forEach(function (row) {
+    checkbox(row).addEventListener("change", update);
+    row.addEventListener("click", function (e) {
+      if (e.target.closest("a, button, input, label, form")) return;
+      selectOnly(row);
+    });
+    row.addEventListener("dblclick", function (e) {
+      if (e.target.closest("a, button, input, label, form")) return;
+      if (row.dataset.href) window.location.href = row.dataset.href;
+    });
+  });
+
+  if (selectAll) {
+    selectAll.addEventListener("change", function () {
+      rows.forEach(function (r) { if (!r.hidden) checkbox(r).checked = selectAll.checked; });
+      update();
+    });
+  }
+
+  function deleteMany(sel) {
+    if (!confirm(t("Delete %(num)s items? This cannot be undone.", { num: sel.length }))) return;
+    var forms = sel.map(function (r) { return r.querySelector("form.js-delete"); }).filter(Boolean);
+    var chain = Promise.resolve();
+    forms.forEach(function (f) {
+      chain = chain.then(function () {
+        return fetch(f.action, { method: "POST", body: new FormData(f), headers: { "X-CSRF-Token": csrf },
+                                 credentials: "same-origin" });
+      });
+    });
+    chain.then(function () { window.location.reload(); },
+               function () { alert(t("Network error.")); window.location.reload(); });
+  }
+
+  function runAction(action) {
+    var sel = selected();
+    if (action === "clear") { rows.forEach(function (r) { checkbox(r).checked = false; }); update(); return; }
+    if (!sel.length) return;
+    if (action === "download" && sel.length === 1 && sel[0].dataset.href) window.location.href = sel[0].dataset.href;
+    if (action === "rename" && sel.length === 1) submitForm(sel[0].querySelector("form.js-rename"));
+    if (action === "delete") {
+      if (sel.length === 1) submitForm(sel[0].querySelector("form.js-delete"));
+      else deleteMany(sel);
+    }
+  }
+
+  document.querySelectorAll("#selection-bar [data-action], #details [data-action]").forEach(function (b) {
+    b.addEventListener("click", function () { runAction(b.dataset.action); });
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && selected().length && !e.target.closest("input, textarea, select")) runAction("clear");
+  });
+
+  if (filterInput) {
+    filterInput.addEventListener("input", function () {
+      var q = filterInput.value.trim().toLowerCase();
+      var shown = 0;
+      rows.forEach(function (r) {
+        var match = !q || r.dataset.name.toLowerCase().indexOf(q) !== -1;
+        r.hidden = !match;
+        if (!match) checkbox(r).checked = false;
+        if (match) shown++;
+      });
+      if (filterEmpty) filterEmpty.hidden = shown > 0 || rows.length === 0;
+      update();
+    });
+  }
+
+  update();
 })();

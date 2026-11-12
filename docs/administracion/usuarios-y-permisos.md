@@ -32,23 +32,50 @@ Los permisos del rol `user` se cambian en *Administración → Ajustes → Permi
 ## Carpetas
 
 - **Personal:** sale de `storage.home_template`, o de la ruta personalizada del usuario (campo *Carpeta personal*). Se crea en el primer acceso si `create_home` está activo.
-- **Compartidas:** se asignan por usuario o por grupo. Los grupos se obtienen así:
-  - locales: los que asigne el admin (`--groups` o el formulario);
-  - PAM: los grupos del sistema, actualizados en cada login;
-  - Entra ID: Object IDs de grupo y nombres de App Role del token, actualizados en cada login.
+- **Compartidas:** se asignan por usuario o por [grupo](#grupos). El acceso de un grupo puede ser de lectura y escritura o de solo lectura (`read_only_groups`); un usuario puede escribir si entra por su nombre o por algún grupo que no sea de solo lectura. Si la carpeta es `read_only`, nadie escribe.
 
-  Todos se comparan en minúsculas.
+## Grupos
+
+*Administración → Grupos* reúne los grupos que dan acceso a las carpetas compartidas. Cada grupo tiene un **identificador** (el que usan las carpetas, p. ej. `rrhh`), un nombre visible y un origen:
+
+| Origen | Miembros |
+|---|---|
+| Local | Los añade el admin a mano. |
+| Entra ID | Se sincronizan en cada inicio de sesión desde el Object ID del grupo o el nombre del App Role (*Grupo externo*). El id_token debe incluir el claim `groups` o `roles`. |
+| Sistema (PAM) | Miembros de un grupo del servidor, sincronizados en cada inicio de sesión. |
+
+El grupo **Administradores** (`admins`) viene de serie y no se puede editar ni eliminar. Sus miembros son los usuarios con rol `admin`: añadir a alguien le da el rol y quitarlo se lo retira, con las mismas protecciones que el rol (no puedes quitártelo a ti mismo y siempre queda un admin activo). Las carpetas compartidas pueden usarlo con el identificador `admins`. Si el rol viene de Entra ID (`role_mappings`) o de PAM (`admin_groups`), se recalcula en el siguiente inicio de sesión.
+
+Un admin también puede añadir a mano a un usuario a un grupo de Entra ID o del sistema. Las pertenencias manuales **se conservan** al volver a iniciar sesión; las sincronizadas se cambian en el proveedor. En la ficha del usuario, los grupos sincronizados se ven con un candado.
+
+Los grupos que llegan del proveedor o que usan las carpetas pero no están dados de alta aparecen como **grupos sin dar de alta**, con un botón para darlos de alta. Siguen funcionando igual mientras tanto: las carpetas pueden referenciar directamente un Object ID.
+
+Hay tres vistas para elegir, con el selector *Lista · Paneles · Matriz de accesos* (se recuerda la última):
+
+- **Lista:** tabla de grupos y una ficha por grupo con sus datos, miembros, carpetas y baja.
+- **Paneles:** lista a la izquierda y detalle con las pestañas *Miembros*, *Carpetas* y *Ajustes*.
+- **Matriz de accesos:** una fila por grupo y una columna por carpeta compartida; cada celda es *—*, *Lectura* o *Escritura*. Guarda los cambios en los ajustes de las carpetas (`groups` y `read_only_groups`). Las carpetas abiertas a todos (`users: ["*"]`) no dependen de los grupos.
+
+Eliminar un grupo quita el acceso que da; no toca usuarios ni archivos. La [decisión 0011](../arquitectura/decisiones/0011-grupos-gestionados.md) explica el modelo.
 
 ## Gestión
 
 === "Web"
 
-    *Administración → Usuarios*: crear, editar (rol, grupos, carpeta, estado, contraseña) y eliminar.
+    *Administración → Usuarios*: crear, editar (rol, grupos, carpeta, estado, contraseña), activar o desactivar y eliminar.
+    Hay tres vistas para elegir con el selector *Lista · Paneles · Tarjetas* (se recuerda la última):
+
+    - **Lista:** filtros por estado, origen, rol y grupo, paginación y **acciones en bloque** (añadir a un grupo, cambiar el rol, activar, desactivar). Cada acción se aplica a cada usuario con sus protecciones; los que no se pueden cambiar se listan.
+    - **Paneles:** lista a la izquierda y detalle con las pestañas *Perfil*, *Grupos*, *Acceso efectivo* y *Actividad*.
+    - **Tarjetas:** tarjetas agrupadas en administradores, usuarios y desactivados, con un panel de edición rápida (estado y rol).
+
+    La ficha de cada usuario muestra su **acceso efectivo** (qué carpetas ve, con qué permiso y por qué: su carpeta, abierta a todos, por su nombre o por un grupo) y su **actividad reciente** en la auditoría.
+    La lista se puede filtrar por estado (*Todos*, *Activos*, *Desactivados*) y cada fila tiene su botón *Desactivar*/*Activar*.
 
 === "CLI"
 
     ```bash
-    sudo storageweb-admin user-add ana --role user --groups rrhh,it
+    sudo storageweb-admin user-add ana --role user --groups rrhh,it   # grupos manuales; se crean si no existen
     sudo storageweb-admin user-set ana --role admin
     sudo storageweb-admin user-set ana --disable
     sudo storageweb-admin user-set ana --locale en      # idioma preferido de la interfaz
@@ -57,7 +84,16 @@ Los permisos del rol `user` se cambian en *Administración → Ajustes → Permi
     sudo storageweb-admin user-list
     ```
 
-Al desactivar un usuario se cierra su sesión en la siguiente petición. Al eliminarlo, **sus archivos se conservan** en el disco.
+### Desactivar en lugar de eliminar
+
+Desactivar funciona con **cualquier origen**: local, Entra ID o PAM. Una cuenta desactivada no puede iniciar sesión aunque Microsoft o el sistema la sigan autenticando: StorageWeb rechaza el acceso con «Tu cuenta está deshabilitada». Su sesión abierta se cierra en la siguiente petición, y sus archivos, grupos y preferencias se conservan para cuando se active de nuevo.
+
+Al eliminar un usuario, **sus archivos se conservan** en el disco, pero se pierde la cuenta.
+
+!!! warning "Usuarios de Entra ID con alta automática"
+    Si `auth.entra.auto_provision` está activo, **eliminar** a un usuario de Entra ID no le bloquea: en su siguiente inicio de sesión se crea otra vez con el rol por defecto. Para bloquearle, desactívalo.
+
+Las dos acciones quedan en la [auditoría](../referencia/auditoria.md) como `user_disabled` y `user_enabled`. Un admin no puede desactivarse a sí mismo, ni desactivar al último admin activo.
 
 ## Usuarios del sistema (PAM)
 

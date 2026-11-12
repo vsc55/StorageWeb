@@ -12,6 +12,7 @@ from ..i18n import _, _l
 from ..settings.defaults import ROLES
 from ..providers import local, pam
 from ..providers.base import MULTI_TENANT
+from . import groups as group_core
 from .permissions import ADMIN, USER
 
 SOURCES = ("local", "entra", "pam")
@@ -56,13 +57,14 @@ def authenticate_password(conn: Connection, cfg: dict, username: str, password: 
     if user is None:
         home = pam.system_home(username) if pcfg["use_system_home"] else None
         user = users.get_by_id(conn, users.create(conn, username=username, source="pam", role=role,
-                                            groups=groups, home_path=home))
+                                            home_path=home))
     if not user["enabled"]:
         return None
-    fields = {"groups": groups}
+    fields = {}
     if admin_groups:
         fields["role"] = role
     users.touch_login(conn, user["id"], **fields)
+    group_core.sync_external(conn, user["id"], "pam", groups)
     return users.get_by_id(conn, user["id"])
 
 
@@ -120,14 +122,14 @@ def login_with_claims(conn: Connection, ecfg: dict, claims: dict, ip: str | None
         else:
             uid = users.create(conn, username=username, source="entra", external_id=oid,
                                role=resolve_role(ecfg, groups), display_name=claims.get("name"),
-                               email=claims.get("email") or raw_username, groups=groups)
+                               email=claims.get("email") or raw_username)
             user = users.get_by_id(conn, uid)
             audit.log(conn, "user_provisioned", username=username, ip=ip, detail=f"entra:{user['role']}")
 
     if not user["enabled"]:
         raise AccountError(_("Your account is disabled."), "disabled")
 
-    fields = {"groups": groups}
+    fields = {}
     if claims.get("name"):
         fields["display_name"] = claims["name"]
     role = resolve_role(ecfg, groups, user["role"])
@@ -135,6 +137,7 @@ def login_with_claims(conn: Connection, ecfg: dict, claims: dict, ip: str | None
         fields["role"] = role
         audit.log(conn, "role_changed", username=username, ip=ip, detail=f"{user['role']}->{role} (entra)")
     users.touch_login(conn, user["id"], **fields)
+    group_core.sync_external(conn, user["id"], "entra", groups)
     return users.get_by_id(conn, user["id"])
 
 
@@ -171,14 +174,25 @@ def create_account(conn: Connection, *, username: str, source: str, role: str = 
             password_hash = local.hash_password(password or "")
         except ValueError as exc:
             raise AccountError(str(exc)) from exc
-    return users.create(conn, username=username, source=source, role=role, password_hash=password_hash,
-                        display_name=display_name or None, email=email or None, groups=groups,
-                        home_path=home_path or None, enabled=enabled)
+    uid = users.create(conn, username=username, source=source, role=role, password_hash=password_hash,
+                       display_name=display_name or None, email=email or None,
+                       home_path=home_path or None, enabled=enabled)
+    if groups:
+        _set_groups(conn, uid, groups)
+    return uid
+
+
+def _set_groups(conn: Connection, user_id: int, groups: list[str]) -> None:
+    try:
+        group_core.set_manual_groups(conn, user_id, groups)
+    except group_core.GroupError as exc:
+        raise AccountError(exc.message) from exc
 
 
 def update_account(conn: Connection, user, actor, *, role: str, enabled: bool, display_name: str | None,
-                   email: str | None, groups: list[str], home_path: str | None,
+                   email: str | None, home_path: str | None, groups: list[str] | None = None,
                    password: str | None = None) -> None:
+    """Edita la cuenta. ``groups`` (si se pasa) son sus grupos manuales; los sincronizados no cambian."""
     _check_role(role)
     if user["id"] == actor["id"]:
         if role != ADMIN:
@@ -187,7 +201,7 @@ def update_account(conn: Connection, user, actor, *, role: str, enabled: bool, d
             raise AccountError(_("You cannot disable your own account."))
     _guard_last_admin(conn, user, role, enabled)
     fields = {"role": role, "enabled": enabled, "display_name": display_name or None,
-              "email": email or None, "groups": groups, "home_path": home_path or None}
+              "email": email or None, "home_path": home_path or None}
     if password:
         if user["source"] != "local":
             raise AccountError(_("Only local users have a password that can be changed."))
@@ -196,6 +210,30 @@ def update_account(conn: Connection, user, actor, *, role: str, enabled: bool, d
         except ValueError as exc:
             raise AccountError(str(exc)) from exc
     users.update(conn, user["id"], **fields)
+    if groups is not None:
+        _set_groups(conn, user["id"], groups)
+
+
+def set_role(conn: Connection, user, actor, role: str) -> None:
+    """Cambia solo el rol (acciones en bloque y edición rápida)."""
+    _check_role(role)
+    if user["id"] == actor["id"] and role != ADMIN:
+        raise AccountError(_("You cannot remove the administrator role from yourself."))
+    _guard_last_admin(conn, user, role, bool(user["enabled"]))
+    users.update(conn, user["id"], role=role)
+
+
+def set_enabled(conn: Connection, user, actor, enabled: bool) -> None:
+    """Activa o desactiva una cuenta de cualquier origen.
+
+    Desactivar bloquea el acceso aunque la identidad siga siendo válida en Entra ID o en el
+    sistema, y cierra la sesión abierta en su siguiente petición. Para bloquear a un usuario de
+    SSO hay que desactivarlo: si se elimina y ``auto_provision`` está activo, se crea de nuevo.
+    """
+    if user["id"] == actor["id"] and not enabled:
+        raise AccountError(_("You cannot disable your own account."))
+    _guard_last_admin(conn, user, user["role"], enabled)
+    users.update(conn, user["id"], enabled=enabled)
 
 
 def delete_account(conn: Connection, user, actor) -> None:

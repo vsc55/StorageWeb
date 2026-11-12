@@ -1,106 +1,209 @@
 {% extends "base.html" %}
 {% block title %}{{ root.label }}{% if rel %} / {{ rel }}{% endif %} · {{ app_name }}{% endblock %}
+
+{% macro sort_th(key, label, cls="") -%}
+{% set active = sort == key %}
+{% set next_order = 'desc' if active and not descending else 'asc' %}
+<th class="{{ cls }}" scope="col" aria-sort="{{ ('descending' if descending else 'ascending') if active else 'none' }}">
+  <a class="sort-link" href="{{ url_for('files.browse', root=root.name, sub=rel, sort=key, order=next_order) }}">
+    {{ label }}{% if active %}<span aria-hidden="true">{{ ' ↓' if descending else ' ↑' }}</span>{% endif %}
+  </a>
+</th>
+{%- endmacro %}
+
 {% block content %}
-<div class="layout">
-  <nav class="sidebar">
-    <h2>{{ _("Locations") }}</h2>
-    <ul>
+{% set can_upload = 'upload' in perms %}
+{% set can_mkdir = 'mkdir' in perms %}
+{% set can_download = 'download' in perms %}
+{% set can_rename = 'rename' in perms %}
+{% set can_delete = 'delete' in perms %}
+{% set location_label = root.label ~ ((' / ' ~ rel) if rel else '') %}
+
+<div class="explorer">
+  {# ---------------------------------------------------------------- árbol de carpetas #}
+  <aside class="tree" aria-label="{{ _('Folders') }}">
+    <h2 class="panel-title">{{ _("Locations") }}</h2>
+    <ul class="tree-list">
       {% for r in roots %}
-      <li><a href="{{ url_for('files.browse', root=r.name, sub='') }}"
-             class="{% if r.name == root.name %}active{% endif %}">
-          {{ r.label }}{% if r.read_only %} <small>({{ _("read-only") }})</small>{% endif %}</a></li>
+      {% set is_current = r.name == root.name %}
+      <li>
+        <a class="tree-item{% if is_current and not rel %} active{% endif %}" href="{{ url_for('files.browse', root=r.name, sub='') }}"
+           {% if is_current and not rel %}aria-current="page"{% endif %}>
+          <svg class="icon icon-xs muted-icon" aria-hidden="true"><use href="#i-chevron-{{ 'down' if is_current else 'right' }}"></use></svg>
+          <svg class="icon icon-sm" aria-hidden="true"><use href="#i-{{ 'home' if r.name == 'home' else ('lock' if r.read_only else 'share') }}"></use></svg>
+          <span class="tree-name">{{ r.label }}</span>
+          {% if r.read_only %}<span class="pill">{{ _("read-only") }}</span>{% endif %}
+        </a>
+        {% if is_current %}
+        <ul class="tree-list">
+          {% for c in crumbs %}
+          <li><a class="tree-item level-{{ [loop.index, 6]|min }}{% if loop.last %} active{% endif %}"
+                 href="{{ url_for('files.browse', root=root.name, sub=c.rel) }}" {% if loop.last %}aria-current="page"{% endif %}>
+            <svg class="icon icon-sm folder-icon" aria-hidden="true"><use href="#i-folder"></use></svg><span class="tree-name">{{ c.name }}</span></a></li>
+          {% endfor %}
+          {% for e in entries if e.is_dir %}
+          <li><a class="tree-item level-{{ [crumbs|length + 1, 6]|min }}" href="{{ url_for('files.browse', root=root.name, sub=e.rel) }}">
+            <svg class="icon icon-sm folder-icon" aria-hidden="true"><use href="#i-folder"></use></svg><span class="tree-name">{{ e.name }}</span></a></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </li>
       {% endfor %}
     </ul>
-  </nav>
+  </aside>
 
-  <section class="content">
-    <div class="breadcrumbs">
-      <a href="{{ url_for('files.browse', root=root.name, sub='') }}">{{ root.label }}</a>
-      {% for c in crumbs %}
-        <span>/</span><a href="{{ url_for('files.browse', root=root.name, sub=c.rel) }}">{{ c.name }}</a>
-      {% endfor %}
-    </div>
-
-    {% if 'upload' in perms or 'mkdir' in perms %}
-    <div class="toolbar">
-      {% if 'upload' in perms %}
-      <form id="upload-form" method="post" enctype="multipart/form-data"
+  {# ---------------------------------------------------------------- listado #}
+  <section class="listing" aria-label="{{ _('Contents') }}">
+    <div class="listing-toolbar">
+      <nav class="breadcrumbs" aria-label="{{ _('Path') }}">
+        <a href="{{ url_for('files.browse', root=root.name, sub='') }}">{{ root.label }}</a>
+        {% for c in crumbs %}
+          <span class="sep" aria-hidden="true">/</span>
+          {% if loop.last %}<strong aria-current="page">{{ c.name }}</strong>
+          {% else %}<a href="{{ url_for('files.browse', root=root.name, sub=c.rel) }}">{{ c.name }}</a>{% endif %}
+        {% endfor %}
+      </nav>
+      <div class="toolbar-spacer"></div>
+      <label class="filter">
+        <span class="sr-only">{{ _("Filter in this folder") }}</span>
+        <svg class="icon icon-sm muted-icon" aria-hidden="true"><use href="#i-search"></use></svg>
+        <input id="filter-input" type="search" placeholder="{{ _('Filter in this folder') }}" autocomplete="off">
+      </label>
+      {% if can_mkdir %}
+      <details class="popover">
+        <summary class="btn"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New folder") }}</summary>
+        <form method="post" action="{{ url_for('files.mkdir', root=root.name, sub=rel) }}" class="popover-body">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <label>{{ _("Folder name") }}
+            <input type="text" name="name" placeholder="{{ _('New folder') }}" required maxlength="255"></label>
+          <button class="btn btn-primary" type="submit">{{ _("Create") }}</button>
+        </form>
+      </details>
+      {% endif %}
+      {% if can_upload %}
+      <form id="upload-form" method="post" enctype="multipart/form-data" class="inline"
             action="{{ url_for('files.upload', root=root.name, sub=rel) }}"
             data-api="{{ url_for('uploads.init') }}" data-root="{{ root.name }}" data-path="{{ rel }}"
             data-max-file="{{ max_file_size_mb * 1024 * 1024 }}">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <label class="btn btn-primary">{{ _("Upload files") }}
+        <label class="btn btn-primary"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-upload"></use></svg>{{ _("Upload files") }}
           <input id="file-input" type="file" name="files" multiple hidden>
         </label>
         <noscript><button class="btn" type="submit">{{ _("Send") }}</button></noscript>
       </form>
       {% endif %}
-      {% if 'mkdir' in perms %}
-      <form method="post" action="{{ url_for('files.mkdir', root=root.name, sub=rel) }}" class="inline">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <input type="text" name="name" placeholder="{{ _('New folder') }}" required maxlength="255">
-        <button class="btn" type="submit">{{ _("Create") }}</button>
-      </form>
-      {% endif %}
     </div>
-    {% if 'upload' in perms %}
-    {% set limit = _("max. %(size)s MB per file", size=max_file_size_mb) if max_file_size_mb else _("no size limit") %}
-    <div id="dropzone" class="dropzone">{{ _("Drag files here to upload them (%(limit)s; interrupted uploads resume)", limit=limit) }}</div>
+
+    <div id="selection-bar" class="selection-bar" hidden>
+      <strong id="selection-count"></strong>
+      {% if can_download %}<button type="button" class="btn btn-ghost" data-action="download"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Download") }}</button>{% endif %}
+      {% if can_rename %}<button type="button" class="btn btn-ghost" data-action="rename"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-rename"></use></svg>{{ _("Rename") }}</button>{% endif %}
+      {% if can_delete %}<button type="button" class="btn btn-ghost btn-danger" data-action="delete"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-delete"></use></svg>{{ _("Delete") }}</button>{% endif %}
+      <button type="button" class="btn btn-ghost" data-action="clear">{{ _("Clear selection") }}</button>
+    </div>
+
+    {% if can_upload %}
     <div id="upload-panel" class="upload-panel" hidden>
       <div class="progress"><div class="bar"></div><span class="label"></span></div>
       <div class="upload-meta"><span class="detail muted small"></span>
         <button type="button" class="btn btn-small btn-danger" id="upload-cancel">{{ _("Cancel") }}</button></div>
     </div>
     {% endif %}
-    {% endif %}
 
-    <table class="files">
-      <thead><tr><th>{{ _("Name") }}</th><th class="num">{{ _("Size") }}</th><th>{{ _("Modified") }}</th><th></th></tr></thead>
-      <tbody>
-        {% if parent is not none %}
-        <tr><td colspan="4"><a href="{{ url_for('files.browse', root=root.name, sub=parent) }}">⬆ ..</a></td></tr>
-        {% endif %}
-        {% for e in entries %}
-        <tr>
-          <td class="name">
-            {% if e.is_dir %}
-              <a href="{{ url_for('files.browse', root=root.name, sub=e.rel) }}">📁 {{ e.name }}</a>
-            {% elif 'download' in perms %}
-              <a href="{{ url_for('files.download', root=root.name, sub=e.rel) }}">📄 {{ e.name }}</a>
-            {% else %}
-              📄 {{ e.name }}
-            {% endif %}
-          </td>
-          <td class="num">{{ e.size }}</td>
-          <td>{{ e.mtime }}</td>
-          <td class="actions">
-            {% if not e.is_dir and 'download' in perms %}
-            <a class="btn btn-small" href="{{ url_for('files.download', root=root.name, sub=e.rel) }}">{{ _("Download") }}</a>
-            {% endif %}
-            {% if 'rename' in perms %}
-            <form method="post" action="{{ url_for('files.rename', root=root.name, sub=e.rel) }}"
-                  class="inline js-rename" data-name="{{ e.name }}">
-              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-              <input type="hidden" name="name" value="{{ e.name }}">
-              <button class="btn btn-small" type="submit">{{ _("Rename") }}</button>
-            </form>
-            {% endif %}
-            {% if 'delete' in perms %}
-            <form method="post" action="{{ url_for('files.delete', root=root.name, sub=e.rel) }}"
-                  class="inline js-confirm"
-                  data-confirm="{{ _('Delete the folder «%(name)s» and all its contents?', name=e.name) if e.is_dir else _('Delete «%(name)s»?', name=e.name) }}">
-              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-              <button class="btn btn-small btn-danger" type="submit">{{ _("Delete") }}</button>
-            </form>
-            {% endif %}
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="4" class="muted">{{ _("Empty folder") }}</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="table-scroll">
+      <table class="files" id="file-table" data-location="{{ location_label }}">
+        <thead>
+          <tr>
+            <th class="col-check" scope="col"><input type="checkbox" id="select-all" aria-label="{{ _('Select all') }}"></th>
+            {{ sort_th("name", _("Name")) }}
+            {{ sort_th("size", _("Size"), "num") }}
+            {{ sort_th("mtime", _("Modified"), "col-date") }}
+            <th class="row-actions" scope="col"><span class="sr-only">{{ _("Actions") }}</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if parent is not none %}
+          <tr class="row-up"><td></td><td colspan="4"><a href="{{ url_for('files.browse', root=root.name, sub=parent) }}">
+            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-right"></use></svg>{{ _("Parent folder") }}</a></td></tr>
+          {% endif %}
+          {% for e in entries %}
+          {% set href = url_for('files.browse', root=root.name, sub=e.rel) if e.is_dir else (url_for('files.download', root=root.name, sub=e.rel) if can_download else '') %}
+          <tr class="file-row" data-name="{{ e.name }}" data-dir="{{ '1' if e.is_dir else '0' }}" data-href="{{ href }}"
+              data-kind="{{ _('Folder') if e.is_dir else (_('%(ext)s file', ext=e.ext) if e.ext else _('File')) }}"
+              data-size="{{ e.size or '—' }}" data-mtime="{{ e.mtime }}">
+            <td class="col-check"><input type="checkbox" class="row-check" aria-label="{{ _('Select %(name)s', name=e.name) }}"></td>
+            <td class="name">
+              <span class="name-cell">
+                <svg class="icon {{ 'folder-icon' if e.is_dir else 'file-icon' }}" aria-hidden="true"><use href="#i-{{ 'folder' if e.is_dir else 'file' }}"></use></svg>
+                {% if href %}<a href="{{ href }}">{{ e.name }}</a>{% else %}<span>{{ e.name }}</span>{% endif %}
+                {% if e.ext %}<span class="ext">{{ e.ext }}</span>{% endif %}
+              </span>
+            </td>
+            <td class="num">{{ e.size }}</td>
+            <td class="col-date">{{ e.mtime }}</td>
+            <td class="row-actions">
+              {% if not e.is_dir and can_download %}
+              <a class="btn btn-icon" href="{{ href }}" title="{{ _('Download') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg><span class="sr-only">{{ _("Download") }}</span></a>
+              {% endif %}
+              {% if can_rename %}
+              <form method="post" action="{{ url_for('files.rename', root=root.name, sub=e.rel) }}" class="inline js-rename" data-name="{{ e.name }}">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <input type="hidden" name="name" value="{{ e.name }}">
+                <button class="btn btn-icon" type="submit" title="{{ _('Rename') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-rename"></use></svg><span class="sr-only">{{ _("Rename") }}</span></button>
+              </form>
+              {% endif %}
+              {% if can_delete %}
+              <form method="post" action="{{ url_for('files.delete', root=root.name, sub=e.rel) }}" class="inline js-confirm js-delete"
+                    data-confirm="{{ _('Delete the folder «%(name)s» and all its contents?', name=e.name) if e.is_dir else _('Delete «%(name)s»?', name=e.name) }}">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <button class="btn btn-icon btn-danger" type="submit" title="{{ _('Delete') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-delete"></use></svg><span class="sr-only">{{ _("Delete") }}</span></button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td></td><td colspan="4" class="muted empty">{{ _("Empty folder") }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p id="filter-empty" class="muted empty" hidden>{{ _("No items match the filter.") }}</p>
+    </div>
+
+    {% if can_upload %}
+    {% set limit = _("max. %(size)s MB per file", size=max_file_size_mb) if max_file_size_mb else _("no size limit") %}
+    <div id="dropzone" class="dropzone">{{ _("Drag files here to upload them (%(limit)s; interrupted uploads resume)", limit=limit) }}</div>
+    {% endif %}
   </section>
+
+  {# ---------------------------------------------------------------- panel de detalle #}
+  <aside class="details" id="details" aria-label="{{ _('Details') }}">
+    <div id="details-empty" class="details-empty">
+      <svg class="icon icon-xl folder-icon" aria-hidden="true"><use href="#i-folder"></use></svg>
+      <h2>{{ location_label }}</h2>
+      <p class="muted">{{ ngettext("%(num)d item", "%(num)d items", entries|length) }}</p>
+      <p class="muted small">{{ _("Select a file or folder to see its details.") }}</p>
+    </div>
+    <div id="details-multi" class="details-empty" hidden>
+      <svg class="icon icon-xl file-icon" aria-hidden="true"><use href="#i-file"></use></svg>
+      <h2 id="details-multi-count"></h2>
+    </div>
+    <div id="details-body" class="details-body" hidden aria-live="polite">
+      <div class="details-preview"><svg class="icon icon-xl" id="details-icon" aria-hidden="true"><use href="#i-file"></use></svg></div>
+      <h2 id="details-name"></h2>
+      <dl class="kv">
+        <dt>{{ _("Type") }}</dt><dd id="details-kind"></dd>
+        <dt>{{ _("Size") }}</dt><dd id="details-size"></dd>
+        <dt>{{ _("Modified") }}</dt><dd id="details-mtime"></dd>
+        <dt>{{ _("Location") }}</dt><dd>{{ location_label }}</dd>
+      </dl>
+      <div class="details-actions">
+        <a class="btn btn-primary btn-block" id="details-open" href="#"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-open"></use></svg>{{ _("Open") }}</a>
+        {% if can_download %}<a class="btn btn-primary btn-block" id="details-download" href="#"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Download") }}</a>{% endif %}
+        {% if can_rename %}<button type="button" class="btn btn-block" data-action="rename"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-rename"></use></svg>{{ _("Rename") }}</button>{% endif %}
+        {% if can_delete %}<button type="button" class="btn btn-block btn-danger" data-action="delete"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-delete"></use></svg>{{ _("Delete") }}</button>{% endif %}
+      </div>
+    </div>
+  </aside>
 </div>
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='js/app.js') }}"></script>{% endblock %}

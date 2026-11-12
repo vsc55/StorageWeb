@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: StorageWeb VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-12 21:04+0100\n"
+"POT-Creation-Date: 2026-11-12 22:41+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -81,7 +81,7 @@ msgstr ""
 msgid "The passwords do not match."
 msgstr ""
 
-#: storageweb/cli.py
+#: storageweb/cli.py storageweb/web/views/groups.py
 #, python-format
 msgid "The user %(name)s does not exist."
 msgstr ""
@@ -171,11 +171,11 @@ msgstr ""
 msgid "Homes"
 msgstr ""
 
-#: storageweb/cli.py storageweb/web/templates/base.html
+#: storageweb/cli.py storageweb/web/templates/base.html storageweb/web/templates/profile.html
 msgid "Language"
 msgstr ""
 
-#: storageweb/cli.py
+#: storageweb/cli.py storageweb/web/templates/admin/user_form.html
 msgid "Sign-in"
 msgstr ""
 
@@ -288,7 +288,9 @@ msgstr ""
 msgid "Read the password from standard input"
 msgstr ""
 
-#: storageweb/cli.py storageweb/web/templates/admin/user_form.html
+#: storageweb/cli.py storageweb/web/templates/admin/groups/_macros.html
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
+#: storageweb/web/templates/profile.html
 msgid "Display name"
 msgstr ""
 
@@ -412,11 +414,13 @@ msgstr ""
 msgid "Write the config.json from the backup to this path"
 msgstr ""
 
-#: storageweb/core/accounts.py
+#: storageweb/core/accounts.py storageweb/core/groups.py
+#: storageweb/web/templates/admin/groups/_macros.html
 msgid "Local"
 msgstr ""
 
-#: storageweb/core/accounts.py
+#: storageweb/core/accounts.py storageweb/core/groups.py
+#: storageweb/web/templates/admin/groups/_macros.html
 msgid "System (PAM)"
 msgstr ""
 
@@ -449,7 +453,7 @@ msgstr ""
 msgid "Invalid role: %(role)s"
 msgstr ""
 
-#: storageweb/core/accounts.py
+#: storageweb/core/accounts.py storageweb/core/groups.py
 msgid "At least one active administrator must remain."
 msgstr ""
 
@@ -457,7 +461,7 @@ msgstr ""
 msgid "Invalid user name (letters, digits and . _ @ + -)."
 msgstr ""
 
-#: storageweb/core/accounts.py
+#: storageweb/core/accounts.py storageweb/core/groups.py
 #, python-format
 msgid "Invalid source: %(source)s"
 msgstr ""
@@ -466,7 +470,7 @@ msgstr ""
 msgid "A user with that name already exists."
 msgstr ""
 
-#: storageweb/core/accounts.py
+#: storageweb/core/accounts.py storageweb/core/groups.py
 msgid "You cannot remove the administrator role from yourself."
 msgstr ""
 
@@ -474,7 +478,7 @@ msgstr ""
 msgid "You cannot disable your own account."
 msgstr ""
 
-#: storageweb/core/accounts.py
+#: storageweb/core/accounts.py storageweb/web/views/profile.py
 msgid "Only local users have a password that can be changed."
 msgstr ""
 
@@ -528,12 +532,71 @@ msgstr ""
 msgid "The backup does not include config.json"
 msgstr ""
 
+#: storageweb/core/groups.py storageweb/web/views/admin.py
+msgid "Administrators"
+msgstr ""
+
+#: storageweb/core/groups.py
+msgid "Users with the administrator role. Adding or removing members changes their role."
+msgstr ""
+
+#: storageweb/core/groups.py
+msgid "The display name is required."
+msgstr ""
+
+#: storageweb/core/groups.py
+#, python-format
+msgid "Groups from %(source)s need the identifier of the external group."
+msgstr ""
+
+#: storageweb/core/groups.py
+#, python-format
+msgid "The group «%(name)s» is already linked to that identifier."
+msgstr ""
+
+#: storageweb/core/groups.py
+msgid "Invalid group identifier (lowercase letters, digits and . _ @ + -)."
+msgstr ""
+
+#: storageweb/core/groups.py
+msgid "A group with that identifier already exists."
+msgstr ""
+
+#: storageweb/core/groups.py storageweb/web/views/groups.py
+msgid "This group comes with StorageWeb and cannot be changed."
+msgstr ""
+
+#: storageweb/core/groups.py
+msgid "This group comes with StorageWeb and cannot be deleted."
+msgstr ""
+
+#: storageweb/core/groups.py
+#, python-format
+msgid "This membership comes from %(source)s and is changed there."
+msgstr ""
+
+#: storageweb/core/groups.py
+#, python-format
+msgid "The group %(name)s is given by the administrator role; change the role instead."
+msgstr ""
+
+#: storageweb/core/groups.py
+#, python-format
+msgid "The group %(name)s does not exist."
+msgstr ""
+
+#: storageweb/core/groups.py
+#, python-format
+msgid "Invalid access level: %(level)s"
+msgstr ""
+
 #: storageweb/core/permissions.py
 msgid "Administrator"
 msgstr ""
 
 #: storageweb/core/permissions.py storageweb/web/templates/admin/audit.html
-#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/user_form.html
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/profile.html
 msgid "User"
 msgstr ""
 
@@ -553,7 +616,8 @@ msgstr ""
 msgid "Rename"
 msgstr ""
 
-#: storageweb/core/permissions.py storageweb/web/templates/browse.html
+#: storageweb/core/permissions.py storageweb/web/templates/admin/groups/panel.html
+#: storageweb/web/templates/browse.html
 msgid "Delete"
 msgstr ""
 
@@ -571,6 +635,27 @@ msgstr ""
 
 #: storageweb/core/storage.py
 msgid "My folder"
+msgstr ""
+
+#: storageweb/core/storage.py
+msgid "personal folder"
+msgstr ""
+
+#: storageweb/core/storage.py
+msgid "open to all users"
+msgstr ""
+
+#: storageweb/core/storage.py
+msgid "by user name"
+msgstr ""
+
+#: storageweb/core/storage.py
+#, python-format
+msgid "group %(name)s"
+msgstr ""
+
+#: storageweb/core/storage.py storageweb/web/templates/admin/groups/matrix.html
+msgid "read-only folder"
 msgstr ""
 
 #: storageweb/core/storage.py
@@ -755,6 +840,30 @@ msgstr ""
 msgid "Could not upload:"
 msgstr ""
 
+#: storageweb/web/js_messages.py
+msgid "1 item selected"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "%(num)s items selected"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "Delete %(num)s items? This cannot be undone."
+msgstr ""
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "%(count)s unsaved changes"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "%(count)s selected:"
+msgstr ""
+
 #: storageweb/web/api/uploads.py
 msgid "Folder not found"
 msgstr ""
@@ -771,16 +880,60 @@ msgstr ""
 msgid "The offset parameter is missing"
 msgstr ""
 
+#: storageweb/web/templates/base.html storageweb/web/templates/profile.html
+msgid "Theme"
+msgstr ""
+
+#: storageweb/web/templates/base.html
+msgid "Main"
+msgstr ""
+
 #: storageweb/web/templates/base.html
 msgid "Files"
 msgstr ""
 
-#: storageweb/web/templates/admin/_layout.html storageweb/web/templates/base.html
+#: storageweb/web/templates/base.html
 msgid "Administration"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings.html storageweb/web/templates/admin/user_form.html
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/cards.html
+#: storageweb/web/templates/admin/users/panel.html storageweb/web/templates/base.html
+#: storageweb/web/views/admin.py
+msgid "Users"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/groups/panel.html
+#: storageweb/web/templates/admin/settings.html storageweb/web/templates/admin/user_form.html
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/cards.html
+#: storageweb/web/templates/base.html
+msgid "Groups"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/panel.html storageweb/web/templates/admin/settings.html
+#: storageweb/web/templates/base.html
+msgid "Settings"
+msgstr ""
+
+#: storageweb/web/templates/admin/audit.html storageweb/web/templates/base.html
+msgid "Audit"
+msgstr ""
+
+#: storageweb/web/templates/base.html
+#, python-format
+msgid "Account of %(name)s"
+msgstr ""
+
+#: storageweb/web/templates/base.html storageweb/web/templates/profile.html
+msgid "My profile"
 msgstr ""
 
 #: storageweb/web/templates/base.html
 msgid "Sign out"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "Folders"
 msgstr ""
 
 #: storageweb/web/templates/browse.html
@@ -792,7 +945,15 @@ msgid "read-only"
 msgstr ""
 
 #: storageweb/web/templates/browse.html
-msgid "Send"
+msgid "Contents"
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/browse.html
+msgid "Path"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "Filter in this folder"
 msgstr ""
 
 #: storageweb/web/templates/browse.html
@@ -800,7 +961,84 @@ msgid "New folder"
 msgstr ""
 
 #: storageweb/web/templates/browse.html
+msgid "Folder name"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
 msgid "Create"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "Send"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "Clear selection"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "Cancel"
+msgstr ""
+
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/browse.html
+msgid "Select all"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/browse.html
+msgid "Name"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "Size"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "Modified"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/groups/list.html
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/browse.html
+msgid "Actions"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "Parent folder"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "Folder"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+#, python-format
+msgid "%(ext)s file"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "File"
+msgstr ""
+
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/browse.html
+#, python-format
+msgid "Select %(name)s"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+#, python-format
+msgid "Delete the folder «%(name)s» and all its contents?"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+#, python-format
+msgid "Delete «%(name)s»?"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "Empty folder"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "No items match the filter."
 msgstr ""
 
 #: storageweb/web/templates/browse.html
@@ -818,33 +1056,30 @@ msgid "Drag files here to upload them (%(limit)s; interrupted uploads resume)"
 msgstr ""
 
 #: storageweb/web/templates/browse.html
-msgid "Cancel"
-msgstr ""
-
-#: storageweb/web/templates/admin/users.html storageweb/web/templates/browse.html
-msgid "Name"
-msgstr ""
-
-#: storageweb/web/templates/browse.html
-msgid "Size"
-msgstr ""
-
-#: storageweb/web/templates/browse.html
-msgid "Modified"
+msgid "Details"
 msgstr ""
 
 #: storageweb/web/templates/browse.html
 #, python-format
-msgid "Delete the folder «%(name)s» and all its contents?"
+msgid "%(num)d item"
+msgid_plural "%(num)d items"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/templates/browse.html
+msgid "Select a file or folder to see its details."
 msgstr ""
 
 #: storageweb/web/templates/browse.html
-#, python-format
-msgid "Delete «%(name)s»?"
+msgid "Type"
 msgstr ""
 
 #: storageweb/web/templates/browse.html
-msgid "Empty folder"
+msgid "Location"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "Open"
 msgstr ""
 
 #: storageweb/web/templates/error.html
@@ -861,6 +1096,7 @@ msgid "Sign in"
 msgstr ""
 
 #: storageweb/web/templates/admin/user_form.html storageweb/web/templates/login.html
+#: storageweb/web/templates/profile.html
 msgid "Password"
 msgstr ""
 
@@ -872,17 +1108,63 @@ msgstr ""
 msgid "No sign-in method is enabled. Check config.json."
 msgstr ""
 
-#: storageweb/web/templates/admin/_layout.html storageweb/web/templates/admin/settings.html
-#: storageweb/web/templates/admin/users.html
-msgid "Users"
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/profile.html
+msgid "Account"
 msgstr ""
 
-#: storageweb/web/templates/admin/_layout.html storageweb/web/templates/admin/settings.html
-msgid "Settings"
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/admin/users/cards.html
+#: storageweb/web/templates/admin/users/panel.html storageweb/web/templates/profile.html
+msgid "Role"
 msgstr ""
 
-#: storageweb/web/templates/admin/_layout.html storageweb/web/templates/admin/audit.html
-msgid "Audit"
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
+#: storageweb/web/templates/profile.html
+msgid "Email"
+msgstr ""
+
+#: storageweb/web/templates/profile.html
+msgid "Your name and email come from your sign-in provider and are updated there."
+msgstr ""
+
+#: storageweb/web/templates/profile.html
+msgid "Preferences"
+msgstr ""
+
+#: storageweb/web/templates/profile.html
+msgid "Browser language"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/groups/panel.html
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
+#: storageweb/web/templates/profile.html
+msgid "Save changes"
+msgstr ""
+
+#: storageweb/web/templates/profile.html
+msgid "Change password"
+msgstr ""
+
+#: storageweb/web/templates/profile.html
+msgid "Current password"
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
+#: storageweb/web/templates/profile.html
+msgid "New password"
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/profile.html
+msgid "At least 10 characters"
+msgstr ""
+
+#: storageweb/web/templates/profile.html
+msgid "Repeat the new password"
+msgstr ""
+
+#: storageweb/web/templates/profile.html
+#, python-format
+msgid "You sign in with %(source)s, so your password is managed there."
 msgstr ""
 
 #: storageweb/web/templates/admin/audit.html
@@ -893,7 +1175,8 @@ msgstr ""
 msgid "Filter"
 msgstr ""
 
-#: storageweb/web/templates/admin/audit.html storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/admin/audit.html storageweb/web/templates/admin/groups/list.html
+#: storageweb/web/templates/admin/users/_macros.html
 msgid "Clear"
 msgstr ""
 
@@ -901,7 +1184,7 @@ msgstr ""
 msgid "Date"
 msgstr ""
 
-#: storageweb/web/templates/admin/audit.html
+#: storageweb/web/templates/admin/audit.html storageweb/web/templates/admin/users.html
 msgid "Action"
 msgstr ""
 
@@ -985,6 +1268,7 @@ msgstr ""
 msgid "0 = no limit; uploads are sent in parts"
 msgstr ""
 
+#: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/groups/list.html
 #: storageweb/web/templates/admin/settings.html
 msgid "Shared folders"
 msgstr ""
@@ -993,6 +1277,11 @@ msgstr ""
 msgid ""
 "Users and groups separated by commas. <code>*</code> = all users. Entra ID groups are Object IDs "
 "or App Role names."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings.html
+#, python-format
+msgid "Read or write access per group is set in <a href=\"%(url)s\">Groups → Access matrix</a>."
 msgstr ""
 
 #: storageweb/web/templates/admin/settings.html
@@ -1007,24 +1296,20 @@ msgstr ""
 msgid "Path on the server"
 msgstr ""
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Access"
-msgstr ""
-
 #: storageweb/web/templates/admin/settings.html storageweb/web/templates/admin/user_form.html
-#: storageweb/web/templates/admin/users.html
-msgid "Groups"
+msgid "Access"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings.html
 msgid "Read/write"
 msgstr ""
 
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/groups/matrix.html
 #: storageweb/web/templates/admin/settings.html
 msgid "Read-only"
 msgstr ""
 
-#: storageweb/web/templates/admin/settings.html
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/settings.html
 msgid "Remove"
 msgstr ""
 
@@ -1189,7 +1474,7 @@ msgid "Startup (config.json only, requires restarting the service)"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings.html
-msgid "File"
+msgid "Configuration file"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings.html
@@ -1230,6 +1515,7 @@ msgid "Edit %(name)s"
 msgstr ""
 
 #: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/admin/users/cards.html storageweb/web/templates/admin/users/panel.html
 msgid "New user"
 msgstr ""
 
@@ -1239,10 +1525,16 @@ msgid "User «%(name)s»"
 msgstr ""
 
 #: storageweb/web/templates/admin/user_form.html
+#, python-format
+msgid "last sign-in %(when)s"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/user_form.html
 msgid "Back"
 msgstr ""
 
-#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/user_form.html
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/_macros.html
 msgid "Source"
 msgstr ""
 
@@ -1251,34 +1543,35 @@ msgid "will be linked on first sign-in"
 msgstr ""
 
 #: storageweb/web/templates/admin/user_form.html
-msgid "Created"
-msgstr ""
-
-#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users.html
-msgid "Last sign-in"
-msgstr ""
-
-#: storageweb/web/templates/admin/user_form.html
 msgid "For Entra ID use the UPN, e.g. juan@contoso.com"
 msgstr ""
 
 #: storageweb/web/templates/admin/user_form.html
-msgid "Email"
-msgstr ""
-
-#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users.html
-msgid "Role"
+#, python-format
+msgid "Created %(when)s."
 msgstr ""
 
 #: storageweb/web/templates/admin/user_form.html
-msgid "comma separated; they give access to shared folders"
+msgid "The name is updated from Entra ID on each sign-in."
 msgstr ""
 
 #: storageweb/web/templates/admin/user_form.html
+msgid "Role and access"
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
+msgid "Account enabled"
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html
+msgid "comma separated; unknown ones are created as local groups"
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
 msgid "Personal folder"
 msgstr ""
 
-#: storageweb/web/templates/admin/user_form.html
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
 msgid "empty = default template"
 msgstr ""
 
@@ -1286,24 +1579,13 @@ msgstr ""
 msgid "user"
 msgstr ""
 
-#: storageweb/web/templates/admin/user_form.html
-msgid "New password"
-msgstr ""
-
-#: storageweb/web/templates/admin/user_form.html
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
 msgid "Leave empty to keep it"
 msgstr ""
 
-#: storageweb/web/templates/admin/user_form.html
-msgid "At least 10 characters"
-msgstr ""
-
-#: storageweb/web/templates/admin/user_form.html
-msgid "Account enabled"
-msgstr ""
-
-#: storageweb/web/templates/admin/user_form.html
-msgid "Save changes"
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
+#, python-format
+msgid "Signs in with %(source)s: the password is managed there."
 msgstr ""
 
 #: storageweb/web/templates/admin/user_form.html
@@ -1311,40 +1593,675 @@ msgid "Create user"
 msgstr ""
 
 #: storageweb/web/templates/admin/user_form.html
+msgid "They give access to shared folders."
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html
 #, python-format
-msgid "Delete the user «%(name)s»? Their files will not be removed."
+msgid ""
+"Groups with a padlock come from %(source)s and are updated on each sign-in: change them there. "
+"The others are assigned here and are kept when the user signs in again."
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html
+msgid "Disable access"
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html
+msgid "Account disabled"
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html
+msgid ""
+"The user will not be able to sign in and their open session ends on the next request. Their files"
+" and settings are kept."
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html
+msgid "The user cannot sign in. Enable the account to restore access."
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html
+#, python-format
+msgid "This also applies to %(source)s: the identity stays valid there, but StorageWeb rejects it."
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/admin/users/panel.html
+#, python-format
+msgid "Disable «%(name)s»? They will not be able to sign in, not even with %(source)s."
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html
+msgid "Disable user"
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html
+msgid "Enable user"
 msgstr ""
 
 #: storageweb/web/templates/admin/user_form.html
 msgid "Delete user"
 msgstr ""
 
+#: storageweb/web/templates/admin/user_form.html
+msgid "Removes the account. Their files are not removed."
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html
+msgid ""
+"Warning: if automatic creation of Entra ID users is enabled, the account is created again on "
+"their next sign-in. To block access, disable it instead."
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html
+#, python-format
+msgid "Delete the user «%(name)s»? Their files will not be removed."
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/cards.html
+#: storageweb/web/templates/admin/users/panel.html
+msgid "Effective access"
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html
+msgid "What they see when they sign in, and why."
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html
+msgid "Recent activity"
+msgstr ""
+
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/panel.html
+#, python-format
+msgid "%(all)s users · %(active)s active · %(disabled)s disabled"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/groups/matrix.html
 #: storageweb/web/templates/admin/users.html
-msgid "Search by user name, name or email"
+msgid "Group"
 msgstr ""
 
 #: storageweb/web/templates/admin/users.html
-msgid "Search"
+msgid "Any group"
 msgstr ""
 
 #: storageweb/web/templates/admin/users.html
+msgid "With the selected users:"
+msgstr ""
+
+#: storageweb/web/templates/admin/users.html
+msgid "Choose an action…"
+msgstr ""
+
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/_macros.html
+msgid "Add to a group"
+msgstr ""
+
+#: storageweb/web/templates/admin/users.html
+#, python-format
+msgid "Change role to %(role)s"
+msgstr ""
+
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/panel.html
+msgid "Enable"
+msgstr ""
+
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/panel.html
+msgid "Disable"
+msgstr ""
+
+#: storageweb/web/templates/admin/users.html
+msgid "Group…"
+msgstr ""
+
+#: storageweb/web/templates/admin/users.html
+msgid "Apply"
+msgstr ""
+
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/_macros.html
 msgid "Status"
 msgstr ""
 
 #: storageweb/web/templates/admin/users.html
-msgid "Active"
+msgid "Last sign-in"
 msgstr ""
 
-#: storageweb/web/templates/admin/users.html
-msgid "Disabled"
-msgstr ""
-
-#: storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/users.html
 msgid "Edit"
 msgstr ""
 
-#: storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/cards.html
+#: storageweb/web/templates/admin/users/panel.html
 msgid "No users."
+msgstr ""
+
+#: storageweb/web/templates/admin/users.html
+msgid "Pages"
+msgstr ""
+
+#: storageweb/web/templates/admin/users.html
+#, python-format
+msgid "%(first)s–%(last)s of %(total)s"
+msgstr ""
+
+#: storageweb/web/templates/admin/users.html
+msgid "Previous"
+msgstr ""
+
+#: storageweb/web/templates/admin/users.html
+msgid "Next"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/groups/matrix.html
+msgid "Read and write"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/groups/matrix.html
+msgid "No access"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Groups view"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/users/_macros.html
+msgid "List"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/users/_macros.html
+msgid "Panels"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/groups/matrix.html
+msgid "Access matrix"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Identifier"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Shared folders use it. It cannot be changed."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Lowercase, e.g. rrhh. Shared folders use it."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "e.g. Human Resources"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Description"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Where the members come from"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Members are added by hand."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Synchronized on each sign-in from a group or App Role."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Members of a group of the server."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "External group"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Entra ID: Object ID of the group or App Role name. System: group name."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid ""
+"Leave it empty for local groups. For Entra ID the id_token must include the «groups» or «roles» "
+"claim."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Add user"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "User name…"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/users/_macros.html
+msgid "Add"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Membership"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Administrator role"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Synchronized"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Manual"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+#, python-format
+msgid "Remove the administrator role from «%(name)s»?"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+#, python-format
+msgid "Managed in %(source)s"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "No members yet."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Synchronized members appear when they sign in."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid ""
+"Adding a user here gives them the administrator role; removing them takes it away. If the role "
+"comes from Entra ID (role mappings) or from the system (administrator groups), it is recalculated"
+" on their next sign-in."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Synchronized members are updated when each user signs in. Members added by hand are kept."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "This group does not give access to any shared folder."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+#, python-format
+msgid "Groups not registered (%(count)s)"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid ""
+"They arrive at sign-in or shared folders use them, but they have no name. Register them to manage"
+" them here."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+#, python-format
+msgid "%(num)s user"
+msgid_plural "%(num)s users"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+#, python-format
+msgid "used in %(shares)s"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Register"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/form.html
+#, python-format
+msgid "Group «%(name)s»"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/groups/list.html
+#: storageweb/web/templates/admin/groups/matrix.html storageweb/web/templates/admin/groups/panel.html
+msgid "New group"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/groups/list.html
+#: storageweb/web/templates/admin/groups/panel.html
+msgid "Built-in group"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/groups/panel.html
+#, python-format
+msgid ""
+"It comes with StorageWeb: it cannot be edited or deleted. Shared folders can use it with the "
+"identifier %(name)s."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/form.html
+msgid "Create group"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/groups/panel.html
+#, python-format
+msgid "Members (%(count)s)"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/groups/panel.html
+msgid "Change in the access matrix"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/form.html
+msgid "Delete group"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/form.html
+msgid "Its members lose the access it gives. Users and files are not touched."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/form.html
+#, python-format
+msgid "Shared folders that use it: %(shares)s."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/groups/panel.html
+#, python-format
+msgid "Delete the group «%(name)s»?"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/list.html
+msgid "They give access to shared folders. They can be local or come from Entra ID or the system."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/list.html
+msgid "Search by name or description"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/list.html
+msgid "All sources"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/users/_macros.html
+msgid "Search"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/list.html
+msgid "Linked to"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/list.html
+msgid "Members"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/list.html
+#, python-format
+msgid "+%(num)s manual"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/groups/panel.html
+#: storageweb/web/templates/admin/users/_macros.html
+msgid "No groups."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/matrix.html
+msgid "Groups and access"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/matrix.html
+msgid "What each group can do in each shared folder."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/matrix.html
+msgid "There are no shared folders."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/matrix.html
+msgid "Create them in Settings."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/matrix.html storageweb/web/templates/admin/groups/panel.html
+msgid "There are no groups yet."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/matrix.html
+msgid "all users"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/matrix.html storageweb/web/templates/admin/groups/panel.html
+#, python-format
+msgid "%(num)s member"
+msgid_plural "%(num)s members"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/templates/admin/groups/matrix.html
+msgid "The folder is open to all users: groups do not change anything."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/matrix.html
+msgid "Everyone"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/matrix.html
+#, python-format
+msgid "%(group)s in %(share)s"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/matrix.html storageweb/web/templates/admin/users/_macros.html
+msgid "Read"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/matrix.html storageweb/web/templates/admin/users/_macros.html
+msgid "Write"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/matrix.html
+msgid "Change a cell to give or remove access."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/matrix.html
+msgid "Discard"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/matrix.html storageweb/web/templates/admin/users/cards.html
+msgid "Save"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/matrix.html
+#, python-format
+msgid "Shared folders also use groups that are not registered: %(groups)s. They are kept as they are."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/matrix.html
+msgid "Register them"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/panel.html
+msgid "List of groups"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/panel.html
+msgid "Filter…"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/panel.html
+msgid "Filter groups"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/panel.html
+msgid "Sections of the group"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/panel.html
+#, python-format
+msgid "Folders (%(count)s)"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/panel.html
+msgid "Shared folders this group gives access to."
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html
+msgid "Users view"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html
+msgid "Cards"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/admin/users/cards.html
+#: storageweb/web/templates/admin/users/panel.html
+msgid "Active"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/admin/users/cards.html
+#: storageweb/web/templates/admin/users/panel.html storageweb/web/views/admin.py
+msgid "Disabled"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/admin/users/cards.html
+msgid "Search by user name, name or email"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html
+msgid "All"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html
+msgid "Any source"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html
+msgid "Any role"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html
+msgid "Given by the administrator role."
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html
+msgid "by role"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html
+#, python-format
+msgid "Comes from %(source)s and is updated on each sign-in."
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html
+#, python-format
+msgid "Remove from the group %(name)s"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html
+msgid "Not registered: click to register it"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html
+msgid "not registered"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html
+msgid "Add to a group…"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html
+msgid "The account is disabled: it does not see any folder."
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html
+#, python-format
+msgid "Allowed actions: %(perms)s."
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html
+msgid "Change them in Settings"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html
+#, python-format
+msgid "by %(name)s"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html
+msgid "No activity yet."
+msgstr ""
+
+#: storageweb/web/templates/admin/users/_macros.html
+msgid "See it in the audit log"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/cards.html
+msgid "Search…"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/cards.html
+msgid "Quick edit"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/cards.html
+msgid "Close"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/cards.html
+msgid "Account active"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/cards.html
+msgid "Can sign in"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/cards.html storageweb/web/templates/admin/users/panel.html
+msgid "Full record"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/panel.html
+msgid "List of users"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/panel.html
+msgid "Sections of the user"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/panel.html
+msgid "Profile"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/panel.html
+#, python-format
+msgid "Groups (%(count)s)"
+msgstr ""
+
+#: storageweb/web/templates/admin/users/panel.html
+msgid "Activity"
+msgstr ""
+
+#: storageweb/web/views/admin.py
+msgid "Select some users and an action."
+msgstr ""
+
+#: storageweb/web/views/admin.py
+msgid "Choose the group."
+msgstr ""
+
+#: storageweb/web/views/admin.py
+#, python-format
+msgid "Done for %(num)s user."
+msgid_plural "Done for %(num)s users."
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/views/admin.py storageweb/web/views/groups.py
+msgid "Changes saved."
+msgstr ""
+
+#: storageweb/web/views/admin.py
+#, python-format
+msgid "User «%(name)s» enabled."
+msgstr ""
+
+#: storageweb/web/views/admin.py
+#, python-format
+msgid "User «%(name)s» disabled: they can no longer sign in."
 msgstr ""
 
 #: storageweb/web/views/admin.py
@@ -1352,8 +2269,9 @@ msgstr ""
 msgid "User «%(name)s» created."
 msgstr ""
 
-#: storageweb/web/views/admin.py
-msgid "Changes saved."
+#: storageweb/web/views/admin.py storageweb/web/views/groups.py
+#, python-format
+msgid "«%(user)s» added to the group «%(group)s»."
 msgstr ""
 
 #: storageweb/web/views/admin.py
@@ -1383,7 +2301,7 @@ msgstr ""
 msgid "Failed attempts"
 msgstr ""
 
-#: storageweb/web/views/admin.py
+#: storageweb/web/views/admin.py storageweb/web/views/groups.py
 #, python-format
 msgid "The changes were not saved: %(error)s"
 msgstr ""
@@ -1479,5 +2397,61 @@ msgstr ""
 #: storageweb/web/views/files.py
 #, python-format
 msgid "Could not delete: %(error)s"
+msgstr ""
+
+#: storageweb/web/views/groups.py
+#, python-format
+msgid "Group «%(name)s» created."
+msgstr ""
+
+#: storageweb/web/views/groups.py
+#, python-format
+msgid "Group «%(name)s» deleted. Users and files have not been touched."
+msgstr ""
+
+#: storageweb/web/views/groups.py
+#, python-format
+msgid "«%(user)s» removed from the group «%(group)s»."
+msgstr ""
+
+#: storageweb/web/views/groups.py
+#, python-format
+msgid "Access saved: %(count)s changes."
+msgstr ""
+
+#: storageweb/web/views/groups.py
+msgid "There were no changes."
+msgstr ""
+
+#: storageweb/web/views/profile.py
+msgid "System"
+msgstr ""
+
+#: storageweb/web/views/profile.py
+msgid "Light"
+msgstr ""
+
+#: storageweb/web/views/profile.py
+msgid "Dark"
+msgstr ""
+
+#: storageweb/web/views/profile.py
+msgid "Profile saved."
+msgstr ""
+
+#: storageweb/web/views/profile.py
+msgid "The current password is not correct."
+msgstr ""
+
+#: storageweb/web/views/profile.py
+msgid "The new passwords do not match."
+msgstr ""
+
+#: storageweb/web/views/profile.py
+msgid "The new password must be different from the current one."
+msgstr ""
+
+#: storageweb/web/views/profile.py
+msgid "Password changed."
 msgstr ""
 

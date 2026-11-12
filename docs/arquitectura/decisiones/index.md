@@ -14,6 +14,7 @@ Un ADR (*Architecture Decision Record*) explica **por qué** se tomó una decisi
 | [0008](0008-empaquetado.md) | Paquetes con wheel + venv y dependencias incluidas | Aceptada |
 | [0009](0009-usuario-de-servicio.md) | Un solo usuario de servicio para todos los archivos | Aceptada |
 | [0010](0010-internacionalizacion.md) | Internacionalización con gettext/Babel y textos fuente en inglés | Aceptada |
+| [0011](0011-grupos-gestionados.md) | Grupos gestionados con pertenencias manuales y sincronizadas | Aceptada |
 
 ## Cómo proponer uno
 

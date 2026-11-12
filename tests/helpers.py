@@ -27,6 +27,11 @@ def add_user(app, username: str, password: str | None = PASSWORD, source: str = 
                             password_hash=generate_password_hash(password) if password else None, **kw)
 
 
+def visible(html: str) -> str:
+    """HTML sin el catálogo JSON de textos del JavaScript (contiene textos que no se muestran)."""
+    return re.sub(r'<script type="application/json" id="i18n-messages">.*?</script>', "", html, flags=re.S)
+
+
 def csrf_from(html: str) -> str:
     match = re.search(r'name="csrf-token" content="([^"]+)"', html)
     assert match, "no se encontró el token CSRF en la página"

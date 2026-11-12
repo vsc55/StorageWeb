@@ -7,7 +7,7 @@ from typing import Iterable
 from ..connection import now_iso
 
 _UPDATABLE = {"display_name", "email", "groups", "home_path", "enabled", "role", "password_hash",
-              "external_id", "last_login", "locale"}
+              "external_id", "last_login", "locale", "theme", "external_groups"}
 
 
 def _join_groups(groups: Iterable[str] | None) -> str:
@@ -31,13 +31,37 @@ def get_by_external(conn: Connection, source: str, external_id: str):
                         (source, external_id)).fetchone()
 
 
-def list_all(conn: Connection, search: str = "") -> list:
+def list_all(conn: Connection, search: str = "", *, status: str | None = None, source: str | None = None,
+             role: str | None = None, group_id: int | None = None) -> list:
+    """Usuarios filtrados. ``status`` = active | disabled; ``group_id`` = miembros de ese grupo."""
+    where, params = [], []
     if search:
         like = f"%{search}%"
-        return conn.execute(
-            "SELECT * FROM users WHERE username LIKE ? OR display_name LIKE ? OR email LIKE ? "
-            "ORDER BY username", (like, like, like)).fetchall()
-    return conn.execute("SELECT * FROM users ORDER BY username").fetchall()
+        where.append("(username LIKE ? OR display_name LIKE ? OR email LIKE ?)")
+        params += [like, like, like]
+    if status in ("active", "disabled"):
+        where.append("enabled = ?")
+        params.append(1 if status == "active" else 0)
+    if source:
+        where.append("source = ?")
+        params.append(source)
+    if role:
+        where.append("role = ?")
+        params.append(role)
+    if group_id is not None:
+        builtin = conn.execute("SELECT builtin FROM groups WHERE id = ?", (group_id,)).fetchone()
+        if builtin is not None and builtin[0]:
+            where.append("role = 'admin'")  # el grupo de serie «admins» lo da el rol
+        else:
+            where.append("id IN (SELECT user_id FROM user_groups WHERE group_id = ?)")
+            params.append(group_id)
+    sql = "SELECT * FROM users" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY username"
+    return conn.execute(sql, params).fetchall()  # noqa: S608 (condiciones fijas, valores parametrizados)
+
+
+def counts(conn: Connection) -> dict:
+    row = conn.execute("SELECT COUNT(*), COALESCE(SUM(enabled), 0) FROM users").fetchone()
+    return {"all": row[0], "active": row[1], "disabled": row[0] - row[1]}
 
 
 def create(conn: Connection, *, username: str, source: str, role: str = "user",
@@ -62,8 +86,9 @@ def update(conn: Connection, user_id: int, **fields) -> None:
         raise ValueError(f"Campos no actualizables: {', '.join(sorted(unknown))}")
     if not fields:
         return
-    if "groups" in fields and not isinstance(fields["groups"], str):
-        fields["groups"] = _join_groups(fields["groups"])
+    for key in ("groups", "external_groups"):
+        if key in fields and not isinstance(fields[key], str):
+            fields[key] = _join_groups(fields[key])
     if "enabled" in fields:
         fields["enabled"] = 1 if fields["enabled"] else 0
     if "home_path" in fields:

@@ -47,7 +47,8 @@
     </div>
 
     <h3>{{ _("Shared folders") }}</h3>
-    <p class="muted small">{{ _("Users and groups separated by commas. <code>*</code> = all users. Entra ID groups are Object IDs or App Role names.") }}</p>
+    <p class="muted small">{{ _("Users and groups separated by commas. <code>*</code> = all users. Entra ID groups are Object IDs or App Role names.") }}
+      {{ _("Read or write access per group is set in <a href=\"%(url)s\">Groups → Access matrix</a>.", url=url_for('groups.matrix_view')) }}</p>
     <div class="table-scroll">
     <table class="files shares-table" id="shares-table">
       <thead><tr><th>{{ _("Name (URL)") }}</th><th>{{ _("Label") }}</th><th>{{ _("Path on the server") }}</th><th>{{ _("Access") }}</th>
@@ -62,7 +63,8 @@
                 <option value="0" {% if not s.read_only %}selected{% endif %}>{{ _("Read/write") }}</option>
                 <option value="1" {% if s.read_only %}selected{% endif %}>{{ _("Read-only") }}</option></select></td>
           <td><input type="text" name="share_users" value="{{ s.users | join(', ') }}"></td>
-          <td><input type="text" name="share_groups" value="{{ s.groups | join(', ') }}"></td>
+          <td><input type="text" name="share_groups" value="{{ s.groups | join(', ') }}">
+              <input type="hidden" name="share_read_only_groups" value="{{ (s.read_only_groups or []) | join(', ') }}"></td>
           <td><button type="button" class="btn btn-small btn-danger js-remove-row">{{ _("Remove") }}</button></td>
         </tr>
         {% endfor %}
@@ -76,7 +78,7 @@
         <td><input type="text" name="share_path"></td>
         <td><select name="share_read_only"><option value="0">{{ _("Read/write") }}</option><option value="1">{{ _("Read-only") }}</option></select></td>
         <td><input type="text" name="share_users" value="*"></td>
-        <td><input type="text" name="share_groups"></td>
+        <td><input type="text" name="share_groups"><input type="hidden" name="share_read_only_groups" value=""></td>
         <td><button type="button" class="btn btn-small btn-danger js-remove-row">{{ _("Remove") }}</button></td>
       </tr>
     </template>
@@ -176,7 +178,7 @@
 <fieldset class="card">
   <legend>{{ _("Startup (config.json only, requires restarting the service)") }}</legend>
   <dl class="kv">
-    <dt>{{ _("File") }}</dt><dd><code>{{ boot.config_path }}</code></dd>
+    <dt>{{ _("Configuration file") }}</dt><dd><code>{{ boot.config_path }}</code></dd>
     <dt>{{ _("Database") }}</dt><dd><code>{{ boot.database }}</code></dd>
     <dt>{{ _("Listening on") }}</dt><dd>{{ boot.host }}:{{ boot.port }}{% if boot.behind_proxy %} ({{ _("behind a proxy") }}){% endif %}</dd>
     <dt>{{ _("Maximum per request") }}</dt><dd>{{ boot.max_upload_mb }} MB <small class="muted">({{ _("each part of an upload and the upload without JavaScript") }})</small></dd>

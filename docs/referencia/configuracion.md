@@ -54,7 +54,8 @@ Todas las opciones de `config.json`, con su valor por defecto. Las rutas relativ
 | `storage.shares[].path` | | | Sí | Ruta en el servidor. Relativa = respecto a la carpeta del `config.json`. |
 | `storage.shares[].read_only` | | | Sí | Solo lectura: únicamente se permite descargar, también a los administradores. |
 | `storage.shares[].users` | | | Sí | Usuarios con acceso; `["*"]` = todos. |
-| `storage.shares[].groups` | | | Sí | Grupos con acceso (locales, del sistema, o Object IDs/App Roles de Entra ID). |
+| `storage.shares[].groups` | | | Sí | Grupos con acceso: identificador de un grupo de *Administración → Grupos*, grupo del sistema, u Object ID/App Role de Entra ID. |
+| `storage.shares[].read_only_groups` | | | Sí | Grupos de `groups` que solo pueden leer (los edita la matriz de accesos). Quien entra también por otro grupo o por `users` puede escribir. |
 
 ## Permisos (`permissions`)
 

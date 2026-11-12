@@ -7,6 +7,8 @@ from pathlib import Path
 
 from ..db.repositories.users import groups_of
 from ..i18n import _, format_datetime, format_size
+from .groups import ADMINS_GROUP
+from .permissions import ADMIN
 from .security import UPLOAD_TMP_PREFIX, safe_username_for_path
 
 
@@ -26,10 +28,45 @@ def available_roots(user, cfg: dict) -> list[dict]:
     roots = [{"name": "home", "label": _("My folder"), "path": home_path_for(user, cfg), "read_only": False}]
     uname = user["username"].lower()
     ugroups = groups_of(user)
+    if user["role"] == ADMIN:
+        ugroups.add(ADMINS_GROUP)  # grupo de serie: lo da el rol
     for share in cfg["storage"]["shares"]:
-        if "*" in share["users"] or uname in share["users"] or ugroups.intersection(share["groups"]):
-            roots.append({**share, "path": Path(share["path"])})
+        by_user = "*" in share["users"] or uname in share["users"]
+        matched = ugroups.intersection(share["groups"])
+        if not (by_user or matched):
+            continue
+        # Solo lectura si lo es la carpeta o si todos los grupos por los que entra son de solo lectura
+        read_only = share["read_only"] or (not by_user and matched <= set(share.get("read_only_groups", [])))
+        roots.append({**share, "path": Path(share["path"]), "read_only": read_only})
     return roots
+
+
+def explain_access(user, cfg: dict, group_labels: dict[str, str] | None = None) -> list[dict]:
+    """Carpetas que ve el usuario, con su nivel (``read``/``write``) y por qué.
+
+    Usa las mismas reglas que :func:`available_roots`; ``group_labels`` traduce identificadores de
+    grupo (o Object IDs) a su nombre visible.
+    """
+    labels = group_labels or {}
+    uname = user["username"].lower()
+    ugroups = groups_of(user)
+    if user["role"] == ADMIN:
+        ugroups.add(ADMINS_GROUP)
+    result = [{"name": "home", "label": _("My folder"), "level": "write", "reasons": [_("personal folder")]}]
+    for root in available_roots(user, cfg)[1:]:
+        share = next(s for s in cfg["storage"]["shares"] if s["name"] == root["name"])
+        reasons = []
+        if "*" in share["users"]:
+            reasons.append(_("open to all users"))
+        if uname in share["users"]:
+            reasons.append(_("by user name"))
+        for ref in sorted(ugroups.intersection(share["groups"])):
+            reasons.append(_("group %(name)s", name=labels.get(ref, ref)))
+        if share["read_only"]:
+            reasons.append(_("read-only folder"))
+        result.append({"name": root["name"], "label": root["label"],
+                       "level": "read" if root["read_only"] else "write", "reasons": reasons})
+    return result
 
 
 def find_root(user, cfg: dict, name: str) -> dict:
@@ -68,16 +105,12 @@ def unique_path(directory: Path, name: str) -> Path:
     raise FileExistsError(name)
 
 
-def human_size(n: int) -> str:
-    size = float(n)
-    for unit in ("B", "KB", "MB", "GB", "TB"):
-        if size < 1024 or unit == "TB":
-            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
-        size /= 1024
-    return f"{n} B"
+SORT_KEYS = ("name", "size", "mtime")
 
 
-def list_directory(root: dict, target: Path, show_hidden: bool) -> list[dict]:
+def list_directory(root: dict, target: Path, show_hidden: bool, sort: str = "name",
+                   descending: bool = False) -> list[dict]:
+    """Contenido de una carpeta: las carpetas siempre primero, luego ordenado por ``sort``."""
     base_rel = rel_path(root, target)
     entries = []
     with os.scandir(target) as it:
@@ -91,14 +124,23 @@ def list_directory(root: dict, target: Path, show_hidden: bool) -> list[dict]:
                 st = entry.stat()
             except OSError:
                 continue
+            ext = "" if is_dir else Path(entry.name).suffix.lstrip(".").upper()
             entries.append({
                 "name": entry.name,
                 "is_dir": is_dir,
+                "ext": ext if len(ext) <= 8 else "",
+                "bytes": 0 if is_dir else st.st_size,
+                "ts": st.st_mtime,
                 "size": "" if is_dir else format_size(st.st_size),
                 "mtime": format_datetime(datetime.fromtimestamp(st.st_mtime)),
                 "rel": f"{base_rel}/{entry.name}".lstrip("/"),
             })
-    entries.sort(key=lambda e: (not e["is_dir"], e["name"].lower()))
+    if sort not in SORT_KEYS:
+        sort = "name"
+    keys = {"name": lambda e: e["name"].lower(), "size": lambda e: e["bytes"], "mtime": lambda e: e["ts"]}
+    entries.sort(key=lambda e: (e["name"].lower(),))  # desempate estable por nombre
+    entries.sort(key=keys[sort], reverse=descending)
+    entries.sort(key=lambda e: not e["is_dir"])        # carpetas primero (sort estable)
     return entries
 
 

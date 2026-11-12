@@ -1,0 +1,75 @@
+{% extends "admin/_layout.html" %}
+{% from "admin/users/_macros.html" import view_switch, avatar, status, badges, group_chips, access_list with context %}
+{% block title %}{{ _("Users") }} · {{ app_name }}{% endblock %}
+{% block admin_content %}
+<div class="page-head">
+  <h1>{{ _("Users") }}</h1>
+  <div class="inline">
+    {{ view_switch('cards') }}
+    <form method="get" class="inline">
+      <input type="text" name="q" value="{{ filters.q }}" placeholder="{{ _('Search…') }}" aria-label="{{ _('Search by user name, name or email') }}">
+    </form>
+    <a class="btn btn-primary" href="{{ url_for('admin.user_new') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New user") }}</a>
+  </div>
+</div>
+
+<div class="cards-layout">
+  <div class="cards-main">
+    {% for key, title, rows in sections %}
+    {% if rows %}
+    <h2 class="cards-title{% if key == 'disabled' %} text-danger{% endif %}">{{ title }} · {{ rows|length }}</h2>
+    <ul class="user-cards">
+      {% for u in rows %}
+      <li><a class="user-card{% if current and u['id'] == current['id'] %} active{% endif %}{% if not u['enabled'] %} is-off{% endif %}"
+             href="{{ url_for('admin.users_cards', u=u['id'], q=filters.q or None) }}"{% if current and u['id'] == current['id'] %} aria-current="true"{% endif %}>
+        <span class="user-card-head">{{ avatar(u, 'lg') }}
+          <span class="md-item-text"><strong>{{ u['display_name'] or u['username'] }}</strong>
+            <span class="muted small">{{ u['username'] }} · {{ SOURCE_LABELS[u['source']] }}</span></span></span>
+        {% if group_names[u['id']] %}<span class="tags">{% for name in group_names[u['id']] %}<span class="tag">{{ name }}</span>{% endfor %}</span>{% endif %}
+        <span class="muted small">{{ _("Active") if u['enabled'] else _("Disabled") }} · {{ u['last_login']|datetime }}</span>
+      </a></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% endfor %}
+    {% if not sections|map(attribute=2)|map('length')|sum %}<div class="empty"><p>{{ _("No users.") }}</p></div>{% endif %}
+  </div>
+
+  {% if current %}
+  {% set here = url_for('admin.users_cards', u=current['id'], q=filters.q or None) %}
+  <aside class="quick-edit" aria-label="{{ _('Quick edit') }}">
+    <div class="quick-head">
+      {{ avatar(current, 'xl') }}
+      <div class="md-item-text"><strong>{{ current['display_name'] or current['username'] }}</strong>
+        <span class="muted small">{{ current['username'] }}</span>
+        <span class="inline">{{ badges(current) }}</span></div>
+      <a class="btn btn-ghost btn-icon" href="{{ url_for('admin.users_cards', q=filters.q or None) }}" aria-label="{{ _('Close') }}">×</a>
+    </div>
+
+    <form method="post" action="{{ url_for('admin.user_quick', user_id=current['id']) }}" class="quick-form">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="{{ here }}">
+      <label class="check quick-toggle"><span><strong>{{ _("Account active") }}</strong>
+        <span class="muted small">{{ _("Can sign in") }}</span></span>
+        <input type="checkbox" name="enabled" {% if current['enabled'] %}checked{% endif %} {% if current['id'] == current_user['id'] %}disabled{% endif %}></label>
+      {% if current['id'] == current_user['id'] %}<input type="hidden" name="enabled" value="on">{% endif %}
+      <fieldset class="quick-roles">
+        <legend>{{ _("Role") }}</legend>
+        {% for r in ROLES %}<label class="check"><input type="radio" name="role" value="{{ r }}" {% if current['role'] == r %}checked{% endif %}> {{ ROLE_LABELS[r] }}</label>{% endfor %}
+      </fieldset>
+      <button class="btn btn-primary" type="submit">{{ _("Save") }}</button>
+    </form>
+
+    <div>
+      <h3>{{ _("Groups") }}</h3>
+      {{ group_chips(current, memberships, unknown_groups, addable_groups, here) }}
+    </div>
+    <div>
+      <h3>{{ _("Effective access") }}</h3>
+      {{ access_list(current, access, role_permissions) }}
+    </div>
+    <a class="btn btn-block" href="{{ url_for('admin.user_edit', user_id=current['id']) }}">{{ _("Full record") }}</a>
+  </aside>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,128 @@
+{# Piezas comunes de las tres vistas de grupos #}
+
+{% macro source_badge(source) -%}
+<span class="badge badge-src badge-src-{{ source }}">{{ GROUP_SOURCE_LABELS[source] }}</span>
+{%- endmacro %}
+
+{% macro level_label(level) -%}
+{% if level == 'write' %}{{ _("Read and write") }}{% elif level == 'read' %}{{ _("Read-only") }}{% else %}{{ _("No access") }}{% endif %}
+{%- endmacro %}
+
+{% macro view_switch(view) -%}
+<nav class="segmented view-switch" aria-label="{{ _('Groups view') }}">
+  <a class="segment{% if view == 'list' %} active{% endif %}" href="{{ url_for('groups.list_view') }}"{% if view == 'list' %} aria-current="page"{% endif %}>{{ _("List") }}</a>
+  <a class="segment{% if view == 'panel' %} active{% endif %}" href="{{ url_for('groups.panel_view') }}"{% if view == 'panel' %} aria-current="page"{% endif %}>{{ _("Panels") }}</a>
+  <a class="segment{% if view == 'matrix' %} active{% endif %}" href="{{ url_for('groups.matrix_view') }}"{% if view == 'matrix' %} aria-current="page"{% endif %}>{{ _("Access matrix") }}</a>
+</nav>
+{%- endmacro %}
+
+{# Campos del grupo. ``group`` es None al crear. #}
+{% macro group_fields(form, group) -%}
+  {% if group %}
+    <div class="field"><span class="label">{{ _("Identifier") }}</span><code>{{ group['name'] }}</code>
+      <small class="muted">{{ _("Shared folders use it. It cannot be changed.") }}</small></div>
+  {% else %}
+    <label>{{ _("Identifier") }}
+      <input type="text" name="name" value="{{ form.name or '' }}" required maxlength="128" autofocus
+             pattern="[a-z0-9][a-z0-9._@+\-]*">
+      <small class="muted">{{ _("Lowercase, e.g. rrhh. Shared folders use it.") }}</small>
+    </label>
+  {% endif %}
+  <label>{{ _("Display name") }}
+    <input type="text" name="label" value="{{ form.label or '' }}" maxlength="200" {% if group %}required{% endif %}
+           placeholder="{{ _('e.g. Human Resources') }}">
+  </label>
+  <label class="span2">{{ _("Description") }}
+    <input type="text" name="description" value="{{ form.description or '' }}" maxlength="500">
+  </label>
+  <fieldset class="span2 source-cards">
+    <legend>{{ _("Where the members come from") }}</legend>
+    <label class="source-card"><input type="radio" name="source" value="local" {% if form.source == 'local' %}checked{% endif %}>
+      <span><strong>{{ _("Local") }}</strong><span class="muted small">{{ _("Members are added by hand.") }}</span></span></label>
+    <label class="source-card"><input type="radio" name="source" value="entra" {% if form.source == 'entra' %}checked{% endif %}>
+      <span><strong>Entra ID</strong><span class="muted small">{{ _("Synchronized on each sign-in from a group or App Role.") }}</span></span></label>
+    <label class="source-card"><input type="radio" name="source" value="pam" {% if form.source == 'pam' %}checked{% endif %}>
+      <span><strong>{{ _("System (PAM)") }}</strong><span class="muted small">{{ _("Members of a group of the server.") }}</span></span></label>
+  </fieldset>
+  <label class="span2">{{ _("External group") }} <small class="muted">({{ _("Entra ID: Object ID of the group or App Role name. System: group name.") }})</small>
+    <input type="text" name="external_id" value="{{ form.external_id or '' }}" maxlength="200" class="mono">
+    <small class="muted">{{ _("Leave it empty for local groups. For Entra ID the id_token must include the «groups» or «roles» claim.") }}</small>
+  </label>
+{%- endmacro %}
+
+{# Miembros con su origen; los sincronizados no se pueden quitar. #}
+{% macro member_list(group, members, next) -%}
+<div class="members-head">
+  <form method="post" action="{{ url_for('groups.member_add', group_id=group['id']) }}" class="inline">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label class="sr-only" for="add-member-{{ group['id'] }}">{{ _("Add user") }}</label>
+    <input type="text" id="add-member-{{ group['id'] }}" name="username" required placeholder="{{ _('User name…') }}">
+    <button class="btn" type="submit">{{ _("Add") }}</button>
+  </form>
+</div>
+<div class="table-scroll">
+<table class="files">
+  <thead><tr><th>{{ _("User") }}</th><th>{{ _("Name") }}</th><th>{{ _("Membership") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr></thead>
+  <tbody>
+  {% for m in members %}
+    <tr{% if not m['enabled'] %} class="row-disabled"{% endif %}>
+      <td class="name"><a href="{{ url_for('admin.user_edit', user_id=m['id']) }}">{{ m['username'] }}</a></td>
+      <td>{{ m['display_name'] or '' }}</td>
+      <td>{% if m['origin'] == 'role' %}<span class="badge badge-admin">{{ _("Administrator role") }}</span>
+          {% elif m['origin'] == 'sync' %}<span class="membership membership-sync"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-sync"></use></svg>{{ _("Synchronized") }}</span>
+          {% else %}<span class="badge">{{ _("Manual") }}</span>{% endif %}</td>
+      <td class="actions">
+        {% if m['origin'] in ('manual', 'role') and not (m['origin'] == 'role' and m['id'] == current_user['id']) %}
+        <form method="post" action="{{ url_for('groups.member_remove', group_id=group['id'], user_id=m['id']) }}" class="inline{% if m['origin'] == 'role' %} js-confirm{% endif %}"
+              {% if m['origin'] == 'role' %}data-confirm="{{ _('Remove the administrator role from «%(name)s»?', name=m['username']) }}"{% endif %}>
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <input type="hidden" name="next" value="{{ next }}">
+          <button class="btn btn-small btn-danger" type="submit">{{ _("Remove") }}</button>
+        </form>
+        {% elif m['origin'] == 'sync' %}<span class="muted small">{{ _("Managed in %(source)s", source=GROUP_SOURCE_LABELS[group['source']]) }}</span>{% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="4" class="muted">{{ _("No members yet.") }}{% if group['source'] != 'local' %} {{ _("Synchronized members appear when they sign in.") }}{% endif %}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% if group['builtin'] %}<p class="muted small">{{ _("Adding a user here gives them the administrator role; removing them takes it away. If the role comes from Entra ID (role mappings) or from the system (administrator groups), it is recalculated on their next sign-in.") }}</p>{% endif %}
+{% if group['source'] != 'local' %}<p class="muted small">{{ _("Synchronized members are updated when each user signs in. Members added by hand are kept.") }}</p>{% endif %}
+{%- endmacro %}
+
+{% macro share_chips(shares) -%}
+<div class="chips">
+  {% for s in shares %}
+  <span class="chip"><svg class="icon icon-sm folder-icon" aria-hidden="true"><use href="#i-folder"></use></svg>{{ s.label }}
+    <span class="muted">· {{ level_label(s.level) }}</span></span>
+  {% else %}
+  <span class="muted small">{{ _("This group does not give access to any shared folder.") }}</span>
+  {% endfor %}
+</div>
+{%- endmacro %}
+
+{% macro detected_box(detected) -%}
+{% if detected %}
+<section class="detected" aria-labelledby="detected-title">
+  <div>
+    <h2 id="detected-title" class="card-title">{{ _("Groups not registered (%(count)s)", count=detected|length) }}</h2>
+    <p class="muted small">{{ _("They arrive at sign-in or shared folders use them, but they have no name. Register them to manage them here.") }}</p>
+  </div>
+  <div class="chips">
+    {% for d in detected %}
+    <span class="chip chip-detected">
+      <code>{{ d.id }}</code>
+      <span class="muted small">
+        {%- if d.source %}{{ GROUP_SOURCE_LABELS[d.source] }} · {{ ngettext("%(num)s user", "%(num)s users", d.users) }}{% endif -%}
+        {%- if d.shares %}{% if d.source %} · {% endif %}{{ _("used in %(shares)s", shares=d.shares|join(', ')) }}{% endif -%}
+      </span>
+      <a class="btn btn-small" href="{{ url_for('groups.new', source=d.source or 'local', external_id=d.id if d.source else '', name='' if d.source else d.id) }}">{{ _("Register") }}</a>
+    </span>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{%- endmacro %}

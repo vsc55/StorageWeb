@@ -1,55 +1,137 @@
 <!doctype html>
-<html lang="{{ current_locale }}">
+<html lang="{{ current_locale }}" data-theme="{{ current_theme }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="{{ 'light dark' if current_theme == 'system' else current_theme }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{% block title %}{{ app_name }}{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   {# Textos del JavaScript (no se ejecuta: permitido por la CSP) #}
   <script type="application/json" id="i18n-messages">{{ js_messages()|tojson }}</script>
 </head>
-<body>
-  <header class="topbar">
-    <a class="brand" href="{{ url_for('files.index') }}">{{ app_name }}</a>
-    {% if current_user %}
-    <nav class="mainnav">
-      <a href="{{ url_for('files.index') }}" class="{% if request.blueprint == 'files' %}active{% endif %}">{{ _("Files") }}</a>
-      {% if is_admin %}
-      <a href="{{ url_for('admin.index') }}" class="{% if request.blueprint == 'admin' %}active{% endif %}">{{ _("Administration") }}</a>
-      {% endif %}
-    </nav>
-    {% endif %}
-    <div class="userbox">
-      <form method="post" action="{{ url_for('auth.change_locale') }}" class="langbox" aria-label="{{ _('Language') }}">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <input type="hidden" name="next" value="{{ request.full_path }}">
-        {% for code, name in available_locales %}
-        <button type="submit" name="locale" value="{{ code }}" lang="{{ code }}" title="{{ name }}"
-                class="btn btn-ghost btn-small{% if code == current_locale %} active{% endif %}"
-                {% if code == current_locale %}aria-current="true"{% endif %}>{{ code|upper }}</button>
-        {% endfor %}
-      </form>
-      {% if current_user %}
-      <span>{{ current_user['display_name'] or current_user['username'] }}
-        <small class="badge badge-{{ current_user['role'] }}">{{ ROLE_LABELS[current_user['role']] }}</small></span>
-      <form method="post" action="{{ url_for('auth.logout') }}">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <button class="btn btn-ghost" type="submit">{{ _("Sign out") }}</button>
-      </form>
-      {% endif %}
-    </div>
-  </header>
+<body class="{{ 'in-app' if current_user else 'public' }}">
+{% include "_icons.html" %}
 
-  <main class="container">
+{# Selector segmentado de idioma: un formulario, un botón por idioma #}
+{% macro langbox(extra_class="") -%}
+<form method="post" action="{{ url_for('auth.change_locale') }}" class="segmented {{ extra_class }}" aria-label="{{ _('Language') }}">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="next" value="{{ request.full_path }}">
+  {% for code, name in available_locales %}
+  <button type="submit" name="locale" value="{{ code }}" lang="{{ code }}" title="{{ name }}"
+          class="segment{% if code == current_locale %} active{% endif %}"
+          {% if code == current_locale %}aria-current="true"{% endif %}>{{ code|upper }}</button>
+  {% endfor %}
+</form>
+{%- endmacro %}
+
+{# Selector segmentado de tema #}
+{% macro themebox(with_labels=true) -%}
+<form method="post" action="{{ url_for('profile.change_theme') }}" class="segmented" aria-label="{{ _('Theme') }}">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="next" value="{{ request.full_path }}">
+  {% for code, label, icon in available_themes %}
+  <button type="submit" name="theme" value="{{ code }}" title="{{ label }}"
+          class="segment{% if code == current_theme %} active{% endif %}"
+          {% if code == current_theme %}aria-current="true"{% endif %}>
+    <svg class="icon icon-sm" aria-hidden="true"><use href="#i-{{ icon }}"></use></svg>
+    {% if with_labels %}<span>{{ label }}</span>{% else %}<span class="sr-only">{{ label }}</span>{% endif %}
+  </button>
+  {% endfor %}
+</form>
+{%- endmacro %}
+
+{% if current_user %}
+{% set display = current_user['display_name'] or current_user['username'] %}
+{% set initials = (display.split()|map('first')|join)[:2]|upper if ' ' in display else display[:2]|upper %}
+<div class="app">
+  <nav class="rail" aria-label="{{ _('Main') }}">
+    <a class="rail-brand" href="{{ url_for('files.index') }}" title="{{ app_name }}">
+      <svg class="icon" aria-hidden="true"><use href="#i-folder"></use></svg>
+      <span class="sr-only">{{ app_name }}</span>
+    </a>
+    <a class="rail-item{% if request.blueprint == 'files' %} active{% endif %}" href="{{ url_for('files.index') }}"
+       {% if request.blueprint == 'files' %}aria-current="page"{% endif %}>
+      <svg class="icon" aria-hidden="true"><use href="#i-folder"></use></svg><span class="rail-label">{{ _("Files") }}</span>
+    </a>
+    {% if is_admin %}
+    <div class="rail-group" role="group" aria-label="{{ _('Administration') }}">
+      <a class="rail-item{% if request.endpoint and request.endpoint.startswith('admin.user') %} active{% endif %}" href="{{ url_for('admin.users_index') }}">
+        <svg class="icon" aria-hidden="true"><use href="#i-user"></use></svg><span class="rail-label">{{ _("Users") }}</span>
+      </a>
+      <a class="rail-item{% if request.blueprint == 'groups' %} active{% endif %}" href="{{ url_for('groups.index') }}">
+        <svg class="icon" aria-hidden="true"><use href="#i-users"></use></svg><span class="rail-label">{{ _("Groups") }}</span>
+      </a>
+      <a class="rail-item{% if request.endpoint and request.endpoint.startswith('admin.settings') %} active{% endif %}" href="{{ url_for('admin.settings_page') }}">
+        <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg><span class="rail-label">{{ _("Settings") }}</span>
+      </a>
+      <a class="rail-item{% if request.endpoint == 'admin.audit_log' %} active{% endif %}" href="{{ url_for('admin.audit_log') }}">
+        <svg class="icon" aria-hidden="true"><use href="#i-audit"></use></svg><span class="rail-label">{{ _("Audit") }}</span>
+      </a>
+    </div>
+    {% endif %}
+    <div class="rail-spacer"></div>
+    <details class="account">
+      <summary class="avatar{% if request.blueprint == 'profile' %} active{% endif %}" title="{{ display }}"
+               aria-label="{{ _('Account of %(name)s', name=display) }}">{{ initials }}</summary>
+      <div class="account-menu">
+        <div class="account-head">
+          <span class="avatar avatar-lg" aria-hidden="true">{{ initials }}</span>
+          <div class="account-who">
+            <strong>{{ display }}</strong>
+            <span class="muted small">{{ current_user['username'] }}</span>
+            <span><span class="badge badge-{{ current_user['role'] }}">{{ ROLE_LABELS[current_user['role']] }}</span></span>
+          </div>
+        </div>
+        <a class="menu-item" href="{{ url_for('profile.profile') }}">
+          <svg class="icon icon-sm" aria-hidden="true"><use href="#i-user"></use></svg>{{ _("My profile") }}</a>
+        <div class="menu-section">
+          <span class="menu-label"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-globe"></use></svg>{{ _("Language") }}</span>
+          {{ langbox("segmented-fill") }}
+        </div>
+        <div class="menu-section">
+          <span class="menu-label"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-sun"></use></svg>{{ _("Theme") }}</span>
+          {{ themebox() }}
+        </div>
+        <form method="post" action="{{ url_for('auth.logout') }}" class="menu-form">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <button class="menu-item menu-danger" type="submit"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-logout"></use></svg>{{ _("Sign out") }}</button>
+        </form>
+        <span class="menu-foot muted small">StorageWeb {{ app_version }}</span>
+      </div>
+    </details>
+  </nav>
+  <div class="app-main">
+{% else %}
+<header class="public-bar">
+  <a class="brand" href="{{ url_for('files.index') }}">
+    <span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#i-folder"></use></svg></span>{{ app_name }}
+  </a>
+  <div class="public-tools">
+    {{ themebox(false) }}
+    {{ langbox() }}
+  </div>
+</header>
+<main class="public-main">
+{% endif %}
+
     {% with messages = get_flashed_messages(with_categories=true) %}
-      {% for cat, msg in messages %}
-        <div class="flash flash-{{ cat }}">{{ msg }}</div>
-      {% endfor %}
+      {% if messages %}
+      <div class="flashes" role="status">
+        {% for cat, msg in messages %}<div class="flash flash-{{ cat }}">{{ msg }}</div>{% endfor %}
+      </div>
+      {% endif %}
     {% endwith %}
     {% block content %}{% endblock %}
-  </main>
-  <footer class="footer muted">StorageWeb {{ app_version }}</footer>
-  {% block scripts %}{% endblock %}
+
+{% if current_user %}
+  </div>
+</div>
+{% else %}
+</main>
+<footer class="footer muted">StorageWeb {{ app_version }}</footer>
+{% endif %}
+{% block scripts %}{% endblock %}
 </body>
 </html>

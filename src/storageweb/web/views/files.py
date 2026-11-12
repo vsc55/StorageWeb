@@ -68,7 +68,10 @@ def browse(root, sub):
     if not target.is_dir():
         abort(404)
     try:
-        entries = storage.list_directory(r, target, settings()["storage"]["show_hidden"])
+        sort = request.args.get("sort", "name")
+        sort = sort if sort in storage.SORT_KEYS else "name"
+        descending = request.args.get("order") == "desc"
+        entries = storage.list_directory(r, target, settings()["storage"]["show_hidden"], sort, descending)
     except PermissionError:
         abort(403, description=_("The service is not allowed to read this folder."))
     rel = storage.rel_path(r, target)
@@ -76,6 +79,7 @@ def browse(root, sub):
     return render_template("browse.html", root=r, roots=storage.available_roots(g.user, settings()),
                            rel=rel, crumbs=storage.breadcrumbs(rel), parent=parent, entries=entries,
                            perms=_perms(r), max_upload_mb=boot_config()["server"]["max_upload_mb"],
+                           sort=sort, descending=descending,
                            max_file_size_mb=settings()["storage"]["max_file_size_mb"])
 
 

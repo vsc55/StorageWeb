@@ -5,7 +5,7 @@ import pytest
 
 from storageweb.db.repositories import users
 
-from tests.helpers import add_user, get_csrf, login
+from tests.helpers import add_user, get_csrf, login, visible
 from tests.sso_helpers import TENANT, entra_cfg, finish_login, start_login
 from storageweb.web.context import get_db
 
@@ -29,7 +29,7 @@ def test_user_default_permissions(default_perms_app, home):
                        content_type="multipart/form-data")
     assert resp.status_code == 200
     assert client.get("/download/home/a.txt").data == b"x"
-    html = client.get("/f/home/").get_data(as_text=True)
+    html = visible(client.get("/f/home/").get_data(as_text=True))
     assert "Renombrar" not in html and "Eliminar" not in html
     assert client.post("/delete/home/a.txt", data={"_csrf": token}).status_code == 403
     assert client.post("/rename/home/a.txt", data={"_csrf": token, "name": "b"}).status_code == 403
@@ -56,7 +56,7 @@ def test_download_permission(make_app, home):
     client.get("/f/home/")  # crea la carpeta personal
     (home / "a.txt").write_text("x")
     assert client.get("/download/home/a.txt").status_code == 403
-    assert "Descargar" not in client.get("/f/home/").get_data(as_text=True)
+    assert "Descargar" not in visible(client.get("/f/home/").get_data(as_text=True))
 
 
 # --------------------------------------------------------------------------- Entra: alta y rol

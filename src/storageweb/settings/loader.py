@@ -167,6 +167,8 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None) -> 
             "read_only": bool(share.get("read_only", False)),
             "users": [u.lower() for u in _str_list(share.get("users", ["*"]), f"{name}.users")],
             "groups": [g.lower() for g in _str_list(share.get("groups", []), f"{name}.groups")],
+            "read_only_groups": [g.lower() for g in _str_list(share.get("read_only_groups", []),
+                                                              f"{name}.read_only_groups")],
         })
     storage["shares"] = shares
 

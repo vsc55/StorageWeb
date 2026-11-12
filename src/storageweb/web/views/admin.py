@@ -4,16 +4,19 @@ from __future__ import annotations
 import json
 import re
 
-from flask import Blueprint, abort, flash, g, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, g, redirect, render_template, request, session, url_for
 
 from ...core import accounts
-from ...core.permissions import PERMISSION_LABELS, ROLE_LABELS
+from ...core import groups as group_core
+from ...core.permissions import ADMIN, PERMISSION_LABELS, ROLE_LABELS, permissions_for
+from ...core.storage import explain_access
 from ...db.repositories import audit, users
-from ...i18n import LOCALES, _, locale_display_name
+from ...db.repositories import groups as group_repo
+from ...i18n import LOCALES, _, locale_display_name, ngettext
 from ...providers import SSO_PROVIDERS
 from ...settings import DEFAULTS, PERMISSIONS, ROLES, ConfigError, deep_merge, mask_secrets, runtime_view
 from ..context import boot_config, get_db, invalidate_settings, runtime, settings
-from ..guards import admin_required, client_ip
+from ..guards import admin_required, client_ip, safe_next
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -40,11 +43,213 @@ def index():
 
 # --------------------------------------------------------------------------- usuarios
 
+USER_STATUS_FILTERS = ("all", "active", "disabled")
+USER_VIEWS = ("list", "panel", "cards")
+USER_TABS = ("profile", "groups", "access", "activity")
+PAGE_SIZE = 25
+BULK_ACTIONS = ("disable", "enable", "role_user", "role_admin", "add_group")
+
+
+@bp.app_template_filter("initials")
+def _initials(user) -> str:
+    """Iniciales para el avatar: de su nombre visible o, si no tiene, de su usuario."""
+    name = (user["display_name"] or user["username"].split("@")[0]).strip()
+    parts = [p for p in re.split(r"[\s._-]+", name) if p]
+    return ("".join(p[0] for p in parts[:2]) if len(parts) > 1 else name[:2]).upper()
+
+
+def _back(default: str):
+    target = request.form.get("next") or request.args.get("next")
+    return redirect(safe_next(target) if target else default)
+
+
+def _user_filters() -> dict:
+    a = request.args
+    status = a.get("status", "all")
+    source = a.get("source", "")
+    role = a.get("role", "")
+    return {"q": a.get("q", "").strip(),
+            "status": status if status in USER_STATUS_FILTERS else "all",
+            "source": source if source in accounts.SOURCES else "",
+            "role": role if role in ROLES else "",
+            "group": a.get("group", type=int)}
+
+
+def _filtered_users(f: dict) -> list:
+    return users.list_all(get_db(), search=f["q"], status=None if f["status"] == "all" else f["status"],
+                          source=f["source"] or None, role=f["role"] or None, group_id=f["group"])
+
+
+def _group_names(user_rows) -> dict:
+    """Nombre visible de los grupos de cada usuario (para la lista y las tarjetas)."""
+    result = {}
+    for u in user_rows:
+        result[u["id"]] = [group_core.label(m) for m in group_core.memberships(get_db(), u)]
+    return result
+
+
+@bp.route("/users/")
+@admin_required
+def users_index():
+    view = session.get("users_view")
+    return redirect(url_for({"panel": "admin.users_panel", "cards": "admin.users_cards"}.get(view, "admin.users_list")))
+
+
 @bp.route("/users")
 @admin_required
 def users_list():
-    search = request.args.get("q", "").strip()
-    return render_template("admin/users.html", users=users.list_all(get_db(), search=search), search=search)
+    session["users_view"] = "list"
+    f = _user_filters()
+    rows = _filtered_users(f)
+    page = max(request.args.get("page", 1, type=int), 1)
+    pages = max((len(rows) + PAGE_SIZE - 1) // PAGE_SIZE, 1)
+    page = min(page, pages)
+    shown = rows[(page - 1) * PAGE_SIZE: page * PAGE_SIZE]
+    return render_template("admin/users.html", users=shown, total=len(rows), page=page, pages=pages,
+                           filters=f, search=f["q"], status=f["status"], counts=users.counts(get_db()),
+                           all_groups=group_repo.list_all(get_db()), group_names=_group_names(shown),
+                           page_size=PAGE_SIZE)
+
+
+@bp.route("/users/bulk", methods=["POST"])
+@admin_required
+def users_bulk():
+    """Acción sobre varios usuarios. Se aplica a cada uno con sus protecciones; los errores se listan."""
+    action = request.form.get("action", "")
+    ids = [int(x) for x in request.form.getlist("ids") if x.isdigit()]
+    if action not in BULK_ACTIONS or not ids:
+        flash(_("Select some users and an action."), "error")
+        return _back(url_for("admin.users_list"))
+    group = None
+    if action == "add_group":
+        group = group_repo.get_by_id(get_db(), request.form.get("group_id", type=int) or 0)
+        if group is None:
+            flash(_("Choose the group."), "error")
+            return _back(url_for("admin.users_list"))
+    done, errors = 0, []
+    for uid in ids:
+        user = users.get_by_id(get_db(), uid)
+        if user is None:
+            continue
+        try:
+            if action in ("disable", "enable"):
+                accounts.set_enabled(get_db(), user, g.user, action == "enable")
+                _audit("user_enabled" if action == "enable" else "user_disabled", user["username"], user["source"])
+            elif action in ("role_user", "role_admin"):
+                role = ADMIN if action == "role_admin" else "user"
+                accounts.set_role(get_db(), user, g.user, role)
+                _audit("user_updated", user["username"], f"role={role}")
+            else:
+                group_core.add_member(get_db(), group, user)
+                _audit("group_member_added", group["name"], user["username"])
+        except accounts.AccountError as exc:
+            errors.append(f"{user['username']}: {exc.message}")
+        else:
+            done += 1
+    if done:
+        flash(ngettext("Done for %(num)s user.", "Done for %(num)s users.", done), "info")
+    for error in errors:
+        flash(error, "error")
+    return _back(url_for("admin.users_list"))
+
+
+def _user_detail(user) -> dict:
+    """Lo común de la ficha (A), los paneles (B) y la edición rápida (C)."""
+    cfg = settings()
+    labels = {}
+    for grp in group_repo.list_all(get_db()):
+        labels[grp["name"]] = group_core.label(grp)
+        if grp["external_id"]:
+            labels[grp["external_id"]] = group_core.label(grp)
+    perms = permissions_for(user, cfg)
+    return {**_user_groups_context(user),
+            "access": explain_access(user, cfg, labels) if user["enabled"] else [],
+            "activity": audit.for_user(get_db(), user["username"], 8),
+            "role_permissions": [PERMISSION_LABELS[p] for p in PERMISSIONS if p in perms]}
+
+
+def _pick(rows, wanted: int | None):
+    for row in rows:
+        if row["id"] == wanted:
+            return row
+    return rows[0] if rows else None
+
+
+@bp.route("/users/panel")
+@admin_required
+def users_panel():
+    session["users_view"] = "panel"
+    f = _user_filters()
+    rows = _filtered_users(f)
+    current = _pick(rows, request.args.get("u", type=int))
+    tab = request.args.get("tab", "profile")
+    tab = tab if tab in USER_TABS else "profile"
+    ctx = {}
+    if current is not None:
+        ctx = {**_user_detail(current), "form": {**dict(current), "enabled": bool(current["enabled"])}}
+    return render_template("admin/users/panel.html", users=rows, current=current, tab=tab, filters=f,
+                           counts=users.counts(get_db()), **ctx)
+
+
+@bp.route("/users/cards")
+@admin_required
+def users_cards():
+    session["users_view"] = "cards"
+    f = _user_filters()
+    rows = _filtered_users(f)
+    current = None
+    if request.args.get("u", type=int):
+        current = _pick(rows, request.args.get("u", type=int))
+    sections = [
+        ("admins", _("Administrators"), [u for u in rows if u["enabled"] and u["role"] == ADMIN]),
+        ("users", _("Users"), [u for u in rows if u["enabled"] and u["role"] != ADMIN]),
+        ("disabled", _("Disabled"), [u for u in rows if not u["enabled"]]),
+    ]
+    return render_template("admin/users/cards.html", sections=sections, current=current, filters=f,
+                           group_names=_group_names(rows), **(_user_detail(current) if current else {}))
+
+
+@bp.route("/users/<int:user_id>/quick", methods=["POST"])
+@admin_required
+def user_quick(user_id: int):
+    """Edición rápida (vista de tarjetas): estado y rol."""
+    user = users.get_by_id(get_db(), user_id)
+    if user is None:
+        abort(404)
+    enabled = request.form.get("enabled") == "on"
+    role = request.form.get("role", user["role"])
+    try:
+        if role != user["role"]:
+            accounts.set_role(get_db(), user, g.user, role)
+            _audit("user_updated", user["username"], f"role={role}")
+        if enabled != bool(user["enabled"]):
+            accounts.set_enabled(get_db(), users.get_by_id(get_db(), user_id), g.user, enabled)
+            _audit("user_enabled" if enabled else "user_disabled", user["username"], user["source"])
+    except accounts.AccountError as exc:
+        flash(exc.message, "error")
+    else:
+        flash(_("Changes saved."), "info")
+    return _back(url_for("admin.users_cards", u=user_id))
+
+
+@bp.route("/users/<int:user_id>/status", methods=["POST"])
+@admin_required
+def user_status(user_id: int):
+    """Activa o desactiva una cuenta (también de Entra ID o PAM: desactivar bloquea el acceso)."""
+    user = users.get_by_id(get_db(), user_id)
+    if user is None:
+        abort(404)
+    enabled = request.form.get("enabled") == "1"
+    try:
+        accounts.set_enabled(get_db(), user, g.user, enabled)
+    except accounts.AccountError as exc:
+        flash(exc.message, "error")
+    else:
+        _audit("user_enabled" if enabled else "user_disabled", user["username"], user["source"])
+        message = _("User «%(name)s» enabled.", name=user["username"]) if enabled else \
+            _("User «%(name)s» disabled: they can no longer sign in.", name=user["username"])
+        flash(message, "info")
+    return _back(url_for("admin.user_edit", user_id=user_id))
 
 
 def _user_form_data() -> dict:
@@ -53,7 +258,6 @@ def _user_form_data() -> dict:
         "display_name": f.get("display_name", "").strip(),
         "email": f.get("email", "").strip(),
         "role": f.get("role", "user"),
-        "groups": _split(f.get("groups", "")),
         "home_path": f.get("home_path", "").strip(),
         "enabled": f.get("enabled") == "on",
         "password": f.get("password", ""),
@@ -66,7 +270,7 @@ def user_new():
     form = {"source": "local", "role": "user", "enabled": True}
     if request.method == "POST":
         form = {**_user_form_data(), "username": request.form.get("username", "").strip(),
-                "source": request.form.get("source", "local")}
+                "source": request.form.get("source", "local"), "groups": _split(request.form.get("groups", ""))}
         try:
             uid = accounts.create_account(get_db(), 
                 username=form["username"], source=form["source"], role=form["role"],
@@ -88,7 +292,7 @@ def user_edit(user_id: int):
     user = users.get_by_id(get_db(), user_id)
     if user is None:
         abort(404)
-    form = {**dict(user), "groups": sorted(users.groups_of(user)), "enabled": bool(user["enabled"])}
+    form = {**dict(user), "enabled": bool(user["enabled"])}
     if request.method == "POST":
         data = _user_form_data()
         try:
@@ -100,8 +304,37 @@ def user_edit(user_id: int):
             detail = f"role={data['role']} enabled={data['enabled']}" + (" password" if data["password"] else "")
             _audit("user_updated", user["username"], detail)
             flash(_("Changes saved."), "info")
-            return redirect(url_for("admin.user_edit", user_id=user_id))
-    return render_template("admin/user_form.html", user=user, form=form, sources=accounts.SOURCES)
+            return _back(url_for("admin.user_edit", user_id=user_id))
+        if request.form.get("next"):
+            return _back(url_for("admin.user_edit", user_id=user_id))
+    return render_template("admin/user_form.html", user=user, form=form, sources=accounts.SOURCES,
+                           **_user_detail(user))
+
+
+def _user_groups_context(user) -> dict:
+    """Grupos del usuario (con origen), grupos a los que se puede añadir y grupos del proveedor sin alta."""
+    rows = group_core.memberships(get_db(), user)
+    mine = {g["id"] for g in rows}
+    names = {g["name"] for g in rows} | {g["external_id"] for g in rows if g["external_id"]}
+    known = {g["name"] for g in group_repo.list_all(get_db())} | \
+        {g["external_id"] for g in group_repo.list_all(get_db()) if g["external_id"]}
+    unknown = sorted(group_core.split(user["external_groups"]) - names - known)
+    return {"memberships": rows, "unknown_groups": unknown,
+            "addable_groups": [g for g in group_repo.list_all(get_db()) if g["id"] not in mine]}
+
+
+@bp.route("/users/<int:user_id>/groups", methods=["POST"])
+@admin_required
+def user_group_add(user_id: int):
+    user = users.get_by_id(get_db(), user_id)
+    group = group_repo.get_by_id(get_db(), request.form.get("group_id", type=int) or 0)
+    if user is None or group is None:
+        abort(404)
+    group_core.add_member(get_db(), group, user)
+    _audit("group_member_added", group["name"], user["username"])
+    flash(_("«%(user)s» added to the group «%(group)s».", user=user["username"],
+            group=group_core.label(group)), "info")
+    return _back(url_for("admin.user_edit", user_id=user_id))
 
 
 @bp.route("/users/<int:user_id>/delete", methods=["POST"])
@@ -147,13 +380,19 @@ def _runtime_from_form() -> dict:
     on = lambda name: f.get(name) == "on"  # noqa: E731
 
     shares = []
-    rows = zip(f.getlist("share_name"), f.getlist("share_label"), f.getlist("share_path"),
-               f.getlist("share_read_only"), f.getlist("share_users"), f.getlist("share_groups"))
-    for name, label, path, read_only, users_, groups in rows:
+    names = f.getlist("share_name")
+    ro_groups = f.getlist("share_read_only_groups")
+    ro_groups += [""] * (len(names) - len(ro_groups))  # filas nuevas o formularios antiguos
+    rows = zip(names, f.getlist("share_label"), f.getlist("share_path"), f.getlist("share_read_only"),
+               f.getlist("share_users"), f.getlist("share_groups"), ro_groups)
+    for name, label, path, read_only, users_, groups, ro in rows:
         if not name.strip() and not path.strip():
             continue  # fila vacía
+        groups = _split(groups)
         shares.append({"name": name.strip(), "label": label.strip(), "path": path.strip(),
-                       "read_only": read_only == "1", "users": _split(users_), "groups": _split(groups)})
+                       "read_only": read_only == "1", "users": _split(users_), "groups": groups,
+                       # la matriz de accesos los edita; aquí solo se conservan los que siguen en groups
+                       "read_only_groups": [g for g in _split(ro) if g.lower() in {x.lower() for x in groups}]})
 
     return {
         "app_name": f.get("app_name", "").strip(),

@@ -127,8 +127,6 @@ def cmd_user_passwd(cfg, conn, args):
 def cmd_user_set(cfg, conn, args):
     user = _get(conn, args.username)
     fields = {}
-    if args.groups is not None:
-        fields["groups"] = _groups(args.groups)
     if args.home is not None:
         fields["home_path"] = args.home
     if args.name is not None:
@@ -143,9 +141,14 @@ def cmd_user_set(cfg, conn, args):
         fields["enabled"] = True
     if args.disable:
         fields["enabled"] = False
-    if not fields:
+    if not fields and args.groups is None:
         _fail(_("Nothing to change."))
     users.update(conn, user["id"], **fields)
+    if args.groups is not None:
+        from .core import groups as group_core
+
+        group_core.set_manual_groups(conn, user["id"], _groups(args.groups))
+        fields["groups"] = True
     print(_("User %(name)s updated: %(fields)s", name=repr(args.username), fields=", ".join(fields)))
 
 

@@ -1,0 +1,123 @@
+{# Piezas comunes de las tres vistas de usuarios (importar «with context») #}
+
+{% macro view_switch(view) -%}
+<nav class="segmented view-switch" aria-label="{{ _('Users view') }}">
+  <a class="segment{% if view == 'list' %} active{% endif %}" href="{{ url_for('admin.users_list') }}"{% if view == 'list' %} aria-current="page"{% endif %}>{{ _("List") }}</a>
+  <a class="segment{% if view == 'panel' %} active{% endif %}" href="{{ url_for('admin.users_panel') }}"{% if view == 'panel' %} aria-current="page"{% endif %}>{{ _("Panels") }}</a>
+  <a class="segment{% if view == 'cards' %} active{% endif %}" href="{{ url_for('admin.users_cards') }}"{% if view == 'cards' %} aria-current="page"{% endif %}>{{ _("Cards") }}</a>
+</nav>
+{%- endmacro %}
+
+{% macro avatar(u, size='') -%}
+<span class="avatar avatar-user{% if size %} avatar-{{ size }}{% endif %}{% if u['role'] == 'admin' %} avatar-admin{% endif %}{% if not u['enabled'] %} avatar-off{% endif %}" aria-hidden="true">{{ u|initials }}</span>
+{%- endmacro %}
+
+{% macro status(u) -%}
+{% if u['enabled'] %}<span class="status status-on">{{ _("Active") }}</span>{% else %}<span class="status status-off">{{ _("Disabled") }}</span>{% endif %}
+{%- endmacro %}
+
+{% macro badges(u) -%}
+<span class="badge badge-src badge-src-{{ u['source'] }}">{{ SOURCE_LABELS[u['source']] }}</span>
+<span class="badge badge-{{ u['role'] }}">{{ ROLE_LABELS[u['role']] }}</span>
+{%- endmacro %}
+
+{# Filtros comunes (lista y paneles); ``target`` = endpoint del formulario #}
+{% macro filters_form(filters, target, extra='') -%}
+<form method="get" action="{{ url_for(target) }}" class="inline search user-filters">
+  {{ extra }}
+  <input type="text" name="q" value="{{ filters.q }}" placeholder="{{ _('Search by user name, name or email') }}"
+         aria-label="{{ _('Search by user name, name or email') }}">
+  <select name="status" aria-label="{{ _('Status') }}">
+    <option value="all" {% if filters.status == 'all' %}selected{% endif %}>{{ _("All") }}</option>
+    <option value="active" {% if filters.status == 'active' %}selected{% endif %}>{{ _("Active") }}</option>
+    <option value="disabled" {% if filters.status == 'disabled' %}selected{% endif %}>{{ _("Disabled") }}</option>
+  </select>
+  <select name="source" aria-label="{{ _('Source') }}">
+    <option value="">{{ _("Any source") }}</option>
+    {% for s, label in SOURCE_LABELS.items() %}<option value="{{ s }}" {% if filters.source == s %}selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+  <select name="role" aria-label="{{ _('Role') }}">
+    <option value="">{{ _("Any role") }}</option>
+    {% for r in ROLES %}<option value="{{ r }}" {% if filters.role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}
+  </select>
+  {{ caller() if caller else '' }}
+  <button class="btn" type="submit">{{ _("Search") }}</button>
+  {% if filters.q or filters.status != 'all' or filters.source or filters.role or filters.group %}<a class="btn btn-ghost" href="{{ url_for(target) }}">{{ _("Clear") }}</a>{% endif %}
+</form>
+{%- endmacro %}
+
+{# Grupos como fichas: candado = del proveedor o del rol; × = manual #}
+{% macro group_chips(user, memberships, unknown_groups, addable_groups, next) -%}
+<div class="chips">
+  {% for m in memberships %}
+    {% if m['origin'] == 'role' %}
+    <span class="chip chip-role" title="{{ _('Given by the administrator role.') }}">
+      <svg class="icon icon-sm" aria-hidden="true"><use href="#i-lock"></use></svg>
+      <a href="{{ url_for('groups.edit', group_id=m['id']) }}">{{ (m|group_label) }}</a> <span class="small">· {{ _("by role") }}</span></span>
+    {% elif m['origin'] == 'sync' %}
+    <span class="chip chip-sync" title="{{ _('Comes from %(source)s and is updated on each sign-in.', source=SOURCE_LABELS[m['source']]) }}">
+      <svg class="icon icon-sm" aria-hidden="true"><use href="#i-lock"></use></svg>
+      <a href="{{ url_for('groups.edit', group_id=m['id']) }}">{{ (m|group_label) }}</a> <span class="small">· {{ SOURCE_LABELS[m['source']] }}</span></span>
+    {% else %}
+    <span class="chip">
+      <a href="{{ url_for('groups.edit', group_id=m['id']) }}">{{ (m|group_label) }}</a>
+      <form method="post" action="{{ url_for('groups.member_remove', group_id=m['id'], user_id=user['id']) }}" class="inline">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ next }}">
+        <button class="chip-remove" type="submit" aria-label="{{ _('Remove from the group %(name)s', name=(m|group_label)) }}">×</button>
+      </form>
+    </span>
+    {% endif %}
+  {% endfor %}
+  {% for ext in unknown_groups %}
+    <a class="chip chip-detected" href="{{ url_for('groups.new', source=user['source'], external_id=ext) }}"
+       title="{{ _('Not registered: click to register it') }}"><code>{{ ext }}</code> <span class="small">{{ _("not registered") }}</span></a>
+  {% endfor %}
+  {% if not memberships and not unknown_groups %}<span class="muted small">{{ _("No groups.") }}</span>{% endif %}
+</div>
+{% if addable_groups %}
+<form method="post" action="{{ url_for('admin.user_group_add', user_id=user['id']) }}" class="inline section-gap">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="next" value="{{ next }}">
+  <label class="sr-only" for="add-group-{{ user['id'] }}">{{ _("Add to a group") }}</label>
+  <select name="group_id" id="add-group-{{ user['id'] }}" required>
+    <option value="">{{ _("Add to a group…") }}</option>
+    {% for gr in addable_groups %}<option value="{{ gr['id'] }}">{{ (gr|group_label) }} ({{ gr['name'] }})</option>{% endfor %}
+  </select>
+  <button class="btn" type="submit">{{ _("Add") }}</button>
+</form>
+{% endif %}
+{%- endmacro %}
+
+{% macro access_list(user, access, role_permissions) -%}
+{% if not user['enabled'] %}
+  <p class="muted small">{{ _("The account is disabled: it does not see any folder.") }}</p>
+{% else %}
+<ul class="access-list">
+  {% for a in access %}
+  <li>
+    <svg class="icon folder-icon" aria-hidden="true"><use href="#i-folder"></use></svg>
+    <span class="access-text"><strong>{{ a.label }}</strong><span class="muted small">{{ a.reasons|join(' · ') }}</span></span>
+    <span class="access-level access-level-{{ a.level }}">{{ _("Write") if a.level == 'write' else _("Read") }}</span>
+  </li>
+  {% endfor %}
+</ul>
+<p class="muted small">{{ _("Allowed actions: %(perms)s.", perms=role_permissions|join(', ') or '—') }}
+  {% if user['role'] != 'admin' %}<a href="{{ url_for('admin.settings_page') }}">{{ _("Change them in Settings") }}</a>{% endif %}</p>
+{% endif %}
+{%- endmacro %}
+
+{% macro activity_list(user, activity) -%}
+{% if activity %}
+<ol class="activity">
+  {% for e in activity %}
+  <li><span class="muted small nowrap">{{ e['ts']|datetime }}</span>
+      <span><code>{{ e['action'] }}</code>{% if e['username'] and e['username'] != user['username'] %} · {{ _("by %(name)s", name=e['username']) }}{% endif %}
+        {%- if e['target'] and e['target'] != user['username'] %} · {{ e['target'] }}{% endif %}</span></li>
+  {% endfor %}
+</ol>
+{% else %}
+<p class="muted small">{{ _("No activity yet.") }}</p>
+{% endif %}
+<a class="small" href="{{ url_for('admin.audit_log', user=user['username']) }}">{{ _("See it in the audit log") }}</a>
+{%- endmacro %}

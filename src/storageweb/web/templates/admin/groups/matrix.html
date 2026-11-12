@@ -1,0 +1,85 @@
+{% extends "admin/_layout.html" %}
+{% from "admin/groups/_macros.html" import source_badge, view_switch with context %}
+{% block title %}{{ _("Access matrix") }} · {{ app_name }}{% endblock %}
+{% block admin_content %}
+<div class="page-head">
+  <div>
+    <h1>{{ _("Groups and access") }}</h1>
+    <p class="muted small">{{ _("What each group can do in each shared folder.") }}</p>
+  </div>
+  <div class="inline">
+    {{ view_switch('matrix') }}
+    <a class="btn btn-primary" href="{{ url_for('groups.new', next=url_for('groups.matrix_view')) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New group") }}</a>
+  </div>
+</div>
+
+{% if not shares %}
+  <div class="empty"><p>{{ _("There are no shared folders.") }} <a href="{{ url_for('admin.settings_page') }}">{{ _("Create them in Settings.") }}</a></p></div>
+{% elif not matrix %}
+  <div class="empty"><p>{{ _("There are no groups yet.") }} <a href="{{ url_for('groups.new', next=url_for('groups.matrix_view')) }}">{{ _("New group") }}</a></p></div>
+{% else %}
+<div class="matrix-legend small muted">
+  <span><span class="swatch swatch-write"></span>{{ _("Read and write") }}</span>
+  <span><span class="swatch swatch-read"></span>{{ _("Read-only") }}</span>
+  <span><span class="swatch swatch-none"></span>{{ _("No access") }}</span>
+</div>
+
+<form method="post" id="access-matrix">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="table-scroll">
+  <table class="files matrix">
+    <thead>
+      <tr>
+        <th scope="col">{{ _("Group") }}</th>
+        {% for s in shares %}
+        <th scope="col" class="matrix-col">
+          <svg class="icon icon-sm folder-icon" aria-hidden="true"><use href="#i-folder"></use></svg>
+          <span>{{ s.label }}</span>
+          {% if '*' in s.users %}<span class="muted small">{{ _("all users") }}</span>
+          {% elif s.read_only %}<span class="muted small">{{ _("read-only folder") }}</span>{% endif %}
+        </th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in matrix %}
+      {% set gr = row.group %}
+      <tr>
+        <th scope="row">
+          <a href="{{ url_for('groups.edit', group_id=gr['id']) }}"><strong>{{ (gr|group_label) }}</strong></a> {{ source_badge(gr['source']) }}
+          <div class="muted small">{{ ngettext("%(num)s member", "%(num)s members", gr['members']) }}</div>
+        </th>
+        {% for c in row.cells %}
+        <td class="matrix-cell">
+          {% if c.everyone %}
+            <span class="muted small" title="{{ _('The folder is open to all users: groups do not change anything.') }}">{{ _("Everyone") }}</span>
+          {% else %}
+          <select name="access-{{ gr['id'] }}-{{ c.share.name }}" class="access access-{{ c.level }}" data-initial="{{ c.level }}"
+                  aria-label="{{ _('%(group)s in %(share)s', group=(gr|group_label), share=c.share.label) }}">
+            <option value="none" {% if c.level == 'none' %}selected{% endif %}>—</option>
+            <option value="read" {% if c.level == 'read' %}selected{% endif %}>{{ _("Read") }}</option>
+            <option value="write" {% if c.level == 'write' %}selected{% endif %} {% if c.share.read_only %}disabled{% endif %}>{{ _("Write") }}</option>
+          </select>
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <div class="matrix-bar sticky-actions">
+    <span class="small" id="matrix-status" aria-live="polite">{{ _("Change a cell to give or remove access.") }}</span>
+    <span class="toolbar-spacer"></span>
+    <a class="btn btn-ghost" href="{{ url_for('groups.matrix_view') }}">{{ _("Discard") }}</a>
+    <button class="btn btn-primary" type="submit">{{ _("Save") }}</button>
+  </div>
+</form>
+
+{% if unregistered %}
+<p class="muted small">{{ _("Shared folders also use groups that are not registered: %(groups)s. They are kept as they are.", groups=unregistered|join(', ')) }}
+  <a href="{{ url_for('groups.list_view') }}">{{ _("Register them") }}</a></p>
+{% endif %}
+{% endif %}
+{% endblock %}

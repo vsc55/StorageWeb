@@ -2,7 +2,7 @@ import pytest
 
 from storageweb.db.repositories import users
 
-from tests.helpers import PASSWORD, add_user, get_csrf, login, settings_form
+from tests.helpers import PASSWORD, add_user, get_csrf, login, settings_form, visible
 from storageweb.web.context import get_db
 
 
@@ -34,7 +34,7 @@ def test_user_role_cannot_post_admin(logged):
 
 def test_admin_link_only_for_admin(app, client, logged):
     c, _ = logged
-    assert "Administración" not in c.get("/f/home/").get_data(as_text=True)
+    assert "Administración" not in visible(c.get("/f/home/").get_data(as_text=True))
 
 
 def test_admin_sees_admin_link(admin):
@@ -95,10 +95,10 @@ def test_edit_user(app, admin, tmp_path):
     uid = add_user(app, "ana")
     resp = client.post(f"/admin/users/{uid}", data={
         "_csrf": token, "display_name": "Ana L.", "email": "ana@x.com", "role": "admin",
-        "groups": "finanzas", "home_path": str(tmp_path / "h"), "enabled": "on"})
+        "home_path": str(tmp_path / "h"), "enabled": "on"})
     assert resp.status_code == 302
     u = _user(app, "ana")
-    assert u["role"] == "admin" and u["display_name"] == "Ana L." and u["groups"] == "finanzas"
+    assert u["role"] == "admin" and u["display_name"] == "Ana L."
     assert u["home_path"] == str(tmp_path / "h")
 
 
@@ -205,7 +205,7 @@ def test_settings_permissions_affect_users(app, admin):
     add_user(app, "ana")
     user_client = app.test_client()
     login(user_client, "ana")
-    assert "Subir archivos" not in user_client.get("/f/home/").get_data(as_text=True)
+    assert "Subir archivos" not in visible(user_client.get("/f/home/").get_data(as_text=True))
     tok = get_csrf(user_client, "/f/home/")
     assert user_client.post("/upload/home/", data={"_csrf": tok}).status_code == 403
     # el admin conserva todos los permisos
@@ -284,3 +284,105 @@ def test_audit_page_filters(app, admin):
     assert "nadie" in html
     html = client.get("/admin/audit?user=root").get_data(as_text=True)
     assert "nadie" not in html
+
+
+# --------------------------------------------------------------------------- activar / desactivar
+
+def _toggle(client, token, uid, enabled, **extra):
+    return client.post(f"/admin/users/{uid}/status", data={"_csrf": token, "enabled": "1" if enabled else "0", **extra})
+
+
+@pytest.mark.parametrize("source", ["local", "entra", "pam"])
+def test_disable_any_source(app, admin, source):
+    client, token = admin
+    uid = add_user(app, "persona", password=None if source != "local" else PASSWORD, source=source,
+                   external_id="oid-x" if source == "entra" else None)
+    resp = _toggle(client, token, uid, False)
+    assert resp.status_code == 302 and resp.location.endswith(f"/admin/users/{uid}")
+    assert not _user(app, "persona")["enabled"]
+    _toggle(client, token, uid, True)
+    assert _user(app, "persona")["enabled"]
+
+
+def test_disabled_sso_user_cannot_sign_in(entra_app, token_endpoint):
+    """Una cuenta de Entra desactivada no entra aunque Microsoft la autentique."""
+    from tests.sso_helpers import finish_login, start_login
+
+    app = entra_app()
+    admin_client = app.test_client()
+    add_user(app, "root", role="admin")
+    login(admin_client, "root")
+    token = get_csrf(admin_client, "/f/home/")
+    uid = add_user(app, "juan@contoso.com", password=None, source="entra", external_id="oid-juan")
+    _toggle(admin_client, token, uid, False)
+
+    other = app.test_client()
+    _, q = start_login(other, token_endpoint)
+    assert "/login" in finish_login(other, q["state"]).location
+    assert other.get("/f/home/").status_code == 302
+
+    _toggle(admin_client, token, uid, True)
+    _, q = start_login(other, token_endpoint)
+    finish_login(other, q["state"])
+    assert other.get("/f/home/").status_code == 200
+
+
+def test_disable_ends_open_session(app, admin):
+    client, token = admin
+    uid = add_user(app, "ana")
+    ana = app.test_client()
+    login(ana, "ana")
+    assert ana.get("/f/home/").status_code == 200
+    _toggle(client, token, uid, False)
+    assert ana.get("/f/home/").status_code == 302
+
+
+def test_cannot_disable_self_or_last_admin(app, admin):
+    client, token = admin
+    me = _user(app, "root")
+    _toggle(client, token, me["id"], False, next="/admin/users")
+    html = client.get("/admin/users").get_data(as_text=True)
+    assert "No puedes deshabilitar tu propia cuenta" in html and _user(app, "root")["enabled"]
+    # otro admin no puede dejar el sistema sin administradores activos
+    other = add_user(app, "jefa", role="admin")
+    with app.app_context():
+        users.update(get_db(), me["id"], enabled=True)
+    _toggle(client, token, other, False)
+    assert not _user(app, "jefa")["enabled"]
+
+
+def test_disable_redirects_to_next_and_audits(app, admin):
+    from storageweb.db.repositories import audit
+
+    client, token = admin
+    uid = add_user(app, "ana")
+    resp = _toggle(client, token, uid, False, next="/admin/users?status=all")
+    assert resp.location == "/admin/users?status=all"
+    _toggle(client, token, uid, True)
+    with app.app_context():
+        actions = [r["action"] for r in audit.recent(get_db(), 5)]
+    assert "user_disabled" in actions and "user_enabled" in actions
+
+
+def test_users_status_filter(app, admin):
+    client, token = admin
+    uid = add_user(app, "inactivo")
+    add_user(app, "activo")
+    _toggle(client, token, uid, False)
+    html = client.get("/admin/users?status=disabled").get_data(as_text=True)
+    assert "inactivo" in html and ">activo<" not in html
+    html = client.get("/admin/users?status=active").get_data(as_text=True)
+    assert "inactivo" not in html and "activo" in html
+
+
+def test_user_cannot_toggle(app, logged):
+    client, token = logged
+    uid = add_user(app, "otro")
+    assert _toggle(client, token, uid, False).status_code == 403
+
+
+def test_entra_delete_warning(app, admin):
+    client, _ = admin
+    uid = add_user(app, "juan@contoso.com", password=None, source="entra", external_id="o9")
+    html = client.get(f"/admin/users/{uid}").get_data(as_text=True)
+    assert "se vuelve a crear" in html and "Desactivar usuario" in html

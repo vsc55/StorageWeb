@@ -84,6 +84,7 @@ nav:
           - 0008 Empaquetado con wheels: arquitectura/decisiones/0008-empaquetado.md
           - 0009 Un solo usuario de servicio: arquitectura/decisiones/0009-usuario-de-servicio.md
           - 0010 Internacionalización: arquitectura/decisiones/0010-internacionalizacion.md
+          - 0011 Grupos gestionados: arquitectura/decisiones/0011-grupos-gestionados.md
           - Plantilla: arquitectura/decisiones/plantilla.md
   - Desarrollo:
       - desarrollo/index.md

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ _("My profile") }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="page-head"><h1>{{ _("My profile") }}</h1></div>
+
+  <div class="profile-grid">
+    <form method="post" action="{{ url_for('profile.profile') }}" class="card form-grid">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <h2 class="span2 card-title">{{ _("Account") }}</h2>
+      <div class="field"><span class="label">{{ _("User") }}</span><strong>{{ user['username'] }}</strong></div>
+      <div class="field"><span class="label">{{ _("Role") }}</span><span><span class="badge badge-{{ user['role'] }}">{{ ROLE_LABELS[user['role']] }}</span></span></div>
+      <label>{{ _("Display name") }}
+        <input type="text" name="display_name" value="{{ user['display_name'] or '' }}" maxlength="200" {% if not editable %}readonly{% endif %}></label>
+      <label>{{ _("Email") }}
+        <input type="email" name="email" value="{{ user['email'] or '' }}" maxlength="200" {% if not editable %}readonly{% endif %}></label>
+      {% if not editable %}
+      <p class="span2 muted small">{{ _("Your name and email come from your sign-in provider and are updated there.") }}</p>
+      {% endif %}
+
+      <h2 class="span2 card-title">{{ _("Preferences") }}</h2>
+      <label>{{ _("Language") }}
+        <select name="locale">
+          <option value="" {% if not user_locale %}selected{% endif %}>{{ _("Browser language") }}</option>
+          {% for code, name in locales %}<option value="{{ code }}" lang="{{ code }}" {% if user_locale == code %}selected{% endif %}>{{ name }}</option>{% endfor %}
+        </select></label>
+      <fieldset class="field theme-field">
+        <legend class="label">{{ _("Theme") }}</legend>
+        <div class="theme-options">
+          {% for code, label in themes %}
+          <label class="theme-option">
+            <input type="radio" name="theme" value="{{ code }}" {% if user_theme == code %}checked{% endif %}>
+            <span class="theme-swatch theme-swatch-{{ code }}" aria-hidden="true"><span></span><span></span></span>
+            <span>{{ label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      <div class="span2 form-actions">
+        <button class="btn btn-primary" type="submit">{{ _("Save changes") }}</button>
+      </div>
+    </form>
+
+    {% if user['source'] == 'local' %}
+    <form method="post" action="{{ url_for('profile.change_password') }}" class="card stack" id="password">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <h2 class="card-title">{{ _("Change password") }}</h2>
+      <label>{{ _("Current password") }}
+        <input type="password" name="current_password" autocomplete="current-password" required></label>
+      <label>{{ _("New password") }}
+        <input type="password" name="new_password" autocomplete="new-password" minlength="10" required
+               placeholder="{{ _('At least 10 characters') }}"></label>
+      <label>{{ _("Repeat the new password") }}
+        <input type="password" name="repeat_password" autocomplete="new-password" minlength="10" required></label>
+      <div><button class="btn btn-primary" type="submit">{{ _("Change password") }}</button></div>
+    </form>
+    {% else %}
+    <div class="card stack">
+      <h2 class="card-title">{{ _("Password") }}</h2>
+      <p class="muted">{{ _("You sign in with %(source)s, so your password is managed there.", source=SOURCE_LABELS[user['source']]) }}</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

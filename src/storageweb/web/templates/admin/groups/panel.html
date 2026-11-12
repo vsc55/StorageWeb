@@ -1,0 +1,82 @@
+{% extends "admin/_layout.html" %}
+{% from "admin/groups/_macros.html" import source_badge, view_switch, group_fields, member_list, share_chips, detected_box with context %}
+{% block title %}{{ _("Groups") }} · {{ app_name }}{% endblock %}
+{% block admin_content %}
+<div class="page-head">
+  <h1>{{ _("Groups") }}</h1>
+  <div class="inline">
+    {{ view_switch('panel') }}
+    <a class="btn btn-primary" href="{{ url_for('groups.new', next=url_for('groups.panel_view')) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New group") }}</a>
+  </div>
+</div>
+
+<div class="master-detail">
+  <aside class="md-list" aria-label="{{ _('List of groups') }}">
+    <form method="get" class="md-search">
+      <input type="hidden" name="tab" value="{{ tab }}">
+      <input type="text" name="q" value="{{ search }}" placeholder="{{ _('Filter…') }}" aria-label="{{ _('Filter groups') }}">
+    </form>
+    <ul>
+      {% for gr in groups %}
+      <li><a class="md-item{% if current and gr['id'] == current['id'] %} active{% endif %}"
+             href="{{ url_for('groups.panel_view', g=gr['id'], tab=tab, q=search or None) }}"
+             {% if current and gr['id'] == current['id'] %}aria-current="true"{% endif %}>
+        <span class="md-item-text"><strong>{{ (gr|group_label) }}</strong>
+          <span class="muted small">{{ gr['name'] }} · {{ ngettext("%(num)s member", "%(num)s members", gr['members']) }}</span></span>
+        {{ source_badge(gr['source']) }}
+      </a></li>
+      {% else %}
+      <li class="muted small md-empty">{{ _("No groups.") }}</li>
+      {% endfor %}
+    </ul>
+  </aside>
+
+  <section class="md-detail">
+    {% if current %}
+    {% set here = url_for('groups.panel_view', g=current['id'], tab=tab) %}
+    <div class="page-head">
+      <div>
+        <div class="inline"><h2 class="md-title">{{ (current|group_label) }}</h2>{{ source_badge(current['source']) }}</div>
+        <p class="muted small"><code>{{ current['name'] }}</code>{% if (current|group_description) %} · {{ (current|group_description) }}{% endif %}</p>
+      </div>
+      {% if current['builtin'] %}<span class="badge"><svg class="icon icon-xs" aria-hidden="true"><use href="#i-lock"></use></svg> {{ _("Built-in group") }}</span>{% else %}
+      <form method="post" action="{{ url_for('groups.delete', group_id=current['id']) }}" class="inline js-confirm"
+            data-confirm="{{ _('Delete the group «%(name)s»?', name=(current|group_label)) }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button class="btn btn-small btn-danger" type="submit">{{ _("Delete") }}</button>
+      </form>{% endif %}
+    </div>
+
+    <nav class="tabs" aria-label="{{ _('Sections of the group') }}">
+      <a class="tab{% if tab == 'members' %} active{% endif %}" href="{{ url_for('groups.panel_view', g=current['id'], tab='members') }}"{% if tab == 'members' %} aria-current="page"{% endif %}>{{ _("Members (%(count)s)", count=members|length) }}</a>
+      <a class="tab{% if tab == 'shares' %} active{% endif %}" href="{{ url_for('groups.panel_view', g=current['id'], tab='shares') }}"{% if tab == 'shares' %} aria-current="page"{% endif %}>{{ _("Folders (%(count)s)", count=shares|length) }}</a>
+      <a class="tab{% if tab == 'link' %} active{% endif %}" href="{{ url_for('groups.panel_view', g=current['id'], tab='link') }}"{% if tab == 'link' %} aria-current="page"{% endif %}>{{ _("Settings") }}</a>
+    </nav>
+
+    {% if tab == 'members' %}
+      {{ member_list(current, members, here) }}
+    {% elif tab == 'shares' %}
+      <p class="muted small">{{ _("Shared folders this group gives access to.") }}</p>
+      {{ share_chips(shares) }}
+      <p><a class="small" href="{{ url_for('groups.matrix_view') }}">{{ _("Change in the access matrix") }}</a></p>
+    {% elif current['builtin'] %}
+      <p class="muted">{{ current|group_description }} {{ _("It comes with StorageWeb: it cannot be edited or deleted. Shared folders can use it with the identifier %(name)s.", name=current['name']) }}</p>
+    {% else %}
+      <form method="post" action="{{ url_for('groups.edit', group_id=current['id']) }}" class="form-grid">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ here }}">
+        {{ group_fields(form, current) }}
+        <div class="span2 form-actions"><button class="btn btn-primary" type="submit">{{ _("Save changes") }}</button></div>
+      </form>
+    {% endif %}
+    {% else %}
+    <div class="empty">
+      <p>{{ _("There are no groups yet.") }}</p>
+      <a class="btn btn-primary" href="{{ url_for('groups.new', next=url_for('groups.panel_view')) }}">{{ _("New group") }}</a>
+    </div>
+    {% endif %}
+  </section>
+</div>
+
+{{ detected_box(detected) }}
+{% endblock %}

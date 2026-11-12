@@ -26,6 +26,17 @@ Cada acción relevante se guarda en la tabla `audit_log`. Se puede consultar en 
 | `user_created` | Alta de usuario desde la web | `origen:rol` |
 | `user_updated` | Edición de usuario desde la web | Rol, estado y cambio de contraseña |
 | `user_deleted` | Baja de usuario desde la web | |
+| `user_disabled` | Cuenta desactivada desde la web (botón *Desactivar*) | Origen de la cuenta |
+| `user_enabled` | Cuenta activada de nuevo desde la web | Origen de la cuenta |
+| `group_created` | Alta de grupo | `origen:grupo externo` |
+| `group_updated` | Edición de grupo | `origen:grupo externo` |
+| `group_deleted` | Baja de grupo | |
+| `group_member_added` | Usuario añadido a mano a un grupo (*target* = grupo) | Usuario |
+| `group_member_removed` | Usuario quitado de un grupo (*target* = grupo) | Usuario |
+| `group_access_updated` | Cambios guardados en la matriz de accesos | `grupo@carpeta=nivel, …` |
+| `profile_updated` | El usuario guarda su perfil | Campos guardados |
+| `password_changed` | El usuario cambia su contraseña desde su perfil | |
+| `password_change_failed` | Intento de cambio de contraseña con la contraseña actual incorrecta | |
 | `settings_updated` | Ajustes web guardados | |
 | `settings_reset` | Ajustes web descartados (web o `settings-reset`) | |
 | `upload` | Archivo subido | Tamaño en bytes |

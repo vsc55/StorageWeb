@@ -13,13 +13,33 @@ erDiagram
         text role "admin | user"
         text password_hash "solo local"
         text external_id "oid de Entra"
-        text groups "csv en minúsculas"
+        text groups "lista efectiva (csv)"
+        text external_groups "del proveedor (csv)"
         text home_path "opcional"
         text locale "es | en | NULL"
+        text theme "system | light | dark | NULL"
         int enabled
         text created_at
         text last_login
     }
+    groups {
+        int id PK
+        text name UK "lo usan las carpetas"
+        text label
+        text description
+        text source "local | entra | pam"
+        text external_id "Object ID, App Role o grupo del sistema"
+        int builtin "1 = de serie (admins)"
+        text created_at
+    }
+    user_groups {
+        int user_id PK
+        int group_id PK
+        text origin "manual | sync"
+        text added_at
+    }
+    users ||--o{ user_groups : ""
+    groups ||--o{ user_groups : ""
     audit_log {
         int id PK
         text ts
@@ -51,7 +71,9 @@ erDiagram
 
 | Tabla | Uso |
 |---|---|
-| `users` | Cuentas. `(source, external_id)` es único: una cuenta de Entra por `oid`. `username` no distingue mayúsculas. |
+| `users` | Cuentas. `(source, external_id)` es único: una cuenta de Entra por `oid`. `username` no distingue mayúsculas. `groups` es la lista efectiva que usan las carpetas: `external_groups` más los nombres de sus grupos. |
+| `groups` | Grupos dados de alta. `(source, external_id)` es único. `builtin = 1` marca el grupo de serie `admins` (migración 005), cuyos miembros son los usuarios con rol admin. Ver la [decisión 0011](decisiones/0011-grupos-gestionados.md). |
+| `user_groups` | Pertenencias. Al iniciar sesión solo se reemplazan las `sync`; las `manual` se conservan. |
 | `audit_log` | Registro de eventos; ver la [referencia de auditoría](../referencia/auditoria.md). |
 | `settings` | Ajustes web como un documento JSON (`key = runtime`). `revision` se incrementa en cada cambio para invalidar cachés. |
 | `uploads` | Subidas por partes en curso. El progreso **no** se guarda aquí: es el tamaño del `.part`. |

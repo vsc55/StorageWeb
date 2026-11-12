@@ -36,11 +36,10 @@ def check_csrf() -> None:
 
 
 def clear_session() -> None:
-    """Vacía la sesión conservando el idioma elegido (para que no cambie al entrar o salir)."""
-    locale = session.get("locale")
+    """Vacía la sesión conservando el idioma y el tema elegidos (para que no cambien al entrar o salir)."""
+    keep = {key: session[key] for key in ("locale", "theme") if session.get(key)}
     session.clear()
-    if locale:
-        session["locale"] = locale
+    session.update(keep)
 
 
 def start_session(user) -> None:

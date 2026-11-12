@@ -31,29 +31,29 @@ def test_default_locale_is_english(tmp_path):
     cfg.write_text('{"data_dir": "data", "session": {"cookie_secure": false}, "server": {"behind_proxy": false}}',
                    encoding="utf-8")
     html = create_app(str(cfg)).test_client().get("/login").get_data(as_text=True)
-    assert '<html lang="en">' in html and "Sign in" in html
+    assert '<html lang="en" ' in html and "Sign in" in html
 
 
 def test_configured_spanish_default(client):
     html = client.get("/login").get_data(as_text=True)
-    assert '<html lang="es">' in html and "Iniciar sesión" in html
+    assert '<html lang="es" ' in html and "Iniciar sesión" in html
 
 
 def test_accept_language_english(client):
     html = client.get("/login", headers=EN).get_data(as_text=True)
-    assert '<html lang="en">' in html and "Sign in" in html and "User name" in html
+    assert '<html lang="en" ' in html and "Sign in" in html and "User name" in html
     assert not SPANISH.search(_visible_text(html))
 
 
 def test_unsupported_language_uses_default(client):
     html = client.get("/login", headers={"Accept-Language": "fr-FR,fr"}).get_data(as_text=True)
-    assert '<html lang="es">' in html  # default_locale de los tests
+    assert '<html lang="es" ' in html  # default_locale de los tests
 
 
 def test_default_locale_setting(make_app):
     app = make_app({"default_locale": "en"})
     html = app.test_client().get("/login").get_data(as_text=True)
-    assert '<html lang="en">' in html
+    assert '<html lang="en" ' in html
 
 
 def test_invalid_default_locale(make_app):
@@ -70,7 +70,7 @@ def test_switch_language_anonymous_survives_login(app, client):
     assert resp.status_code == 302 and resp.location == "/login"
     assert "Sign in" in client.get("/login").get_data(as_text=True)
     login(client, "ana")
-    assert '<html lang="en">' in client.get("/f/home/").get_data(as_text=True)
+    assert '<html lang="en" ' in client.get("/f/home/").get_data(as_text=True)
 
 
 def test_switch_language_saved_for_user(app, logged):
@@ -82,13 +82,13 @@ def test_switch_language_saved_for_user(app, logged):
     other = app.test_client()
     login(other, "ana")
     html = other.get("/f/home/", headers={"Accept-Language": "es"}).get_data(as_text=True)
-    assert '<html lang="en">' in html and "Upload files" in html
+    assert '<html lang="en" ' in html and "Upload files" in html
 
 
 def test_switch_language_rejects_unknown(logged):
     client, token = logged
     client.post("/locale", data={"_csrf": token, "locale": "xx", "next": "/f/home/"})
-    assert '<html lang="es">' in client.get("/f/home/").get_data(as_text=True)
+    assert '<html lang="es" ' in client.get("/f/home/").get_data(as_text=True)
 
 
 def test_switch_language_requires_csrf(client):

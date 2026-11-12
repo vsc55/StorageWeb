@@ -23,6 +23,13 @@ def log(conn: Connection, action: str, target: str | None = None, *, username: s
         _log.exception("No se pudo escribir en audit_log")
 
 
+def for_user(conn: Connection, username: str, limit: int = 10) -> list:
+    """Eventos hechos por el usuario o sobre él (``target`` o ``detail`` = su nombre)."""
+    return conn.execute(
+        "SELECT * FROM audit_log WHERE username = ? OR target = ? OR detail = ? ORDER BY id DESC LIMIT ?",
+        (username, username, username, int(limit))).fetchall()
+
+
 def recent(conn: Connection, limit: int = 100, username: str | None = None,
            action: str | None = None) -> list:
     query, params = "SELECT * FROM audit_log WHERE 1=1", []

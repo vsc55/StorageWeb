@@ -19,6 +19,11 @@ JS_MESSAGES = [
     N_("These files exceed the maximum size allowed (%(max)s):"),
     N_("File %(index)s of %(total)s: %(name)s"),
     N_("Could not upload:"),
+    N_("1 item selected"),
+    N_("%(num)s items selected"),
+    N_("Delete %(num)s items? This cannot be undone."),
+    N_("%(count)s unsaved changes"),
+    N_("%(count)s selected:"),
 ]
 
 

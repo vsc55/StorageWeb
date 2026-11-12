@@ -1,17 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="layout">
-  <nav class="sidebar">
-    <h2>{{ _("Administration") }}</h2>
-    <ul>
-      <li><a href="{{ url_for('admin.users_list') }}" class="{% if request.endpoint.startswith('admin.user') %}active{% endif %}">{{ _("Users") }}</a></li>
-      <li><a href="{{ url_for('admin.settings_page') }}" class="{% if request.endpoint.startswith('admin.settings') %}active{% endif %}">{{ _("Settings") }}</a></li>
-      <li><a href="{{ url_for('admin.audit_log') }}" class="{% if request.endpoint == 'admin.audit_log' %}active{% endif %}">{{ _("Audit") }}</a></li>
-    </ul>
-  </nav>
-  <section class="content">
-    {% block admin_content %}{% endblock %}
-  </section>
+<div class="page">
+  {% block admin_content %}{% endblock %}
 </div>
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='js/admin.js') }}"></script>{% endblock %}
