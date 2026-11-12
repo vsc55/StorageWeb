@@ -31,24 +31,28 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 ### Cambiado
 
 - **Nuevo diseño de la interfaz:**
-  - barra lateral de iconos (Archivos, Usuarios, Ajustes, Auditoría, idioma y cuenta);
+  - barra lateral de iconos (Archivos, Usuarios, Grupos, Ajustes, Auditoría, idioma y cuenta);
   - explorador en tres columnas: árbol de carpetas, lista y panel de detalle;
   - selección múltiple con barra de acciones y borrado de varios elementos;
   - filtro y orden por nombre, tamaño o fecha;
   - iconos SVG y tema **Sistema / Claro / Oscuro**, guardado por usuario (migración 003);
   - menú de cuenta con perfil, idioma, tema y salir;
   - adaptable a móvil;
-  - sin JavaScript, cada fila conserva sus acciones.
+  - sin JavaScript, cada fila conserva sus acciones;
+  - en modo oscuro, tablas, tarjetas y paneles tienen su propia superficie y bordes con más contraste.
 - Estructura de paquete estándar (`src/storageweb`) con capas sin Flask. El comando `storageweb` sustituye a `run.py` y `manage.py`.
 - Migraciones de base de datos versionadas (`PRAGMA user_version`).
 - La API JSON devuelve todos sus errores en JSON, incluidos los de CSRF.
 - `auth.entra.button_label` pasa a estar vacío por defecto: así el botón se muestra traducido. Si lo personalizas, se muestra tal cual.
 - Los logs del servidor se escriben en inglés.
+- En la ficha de usuario, los grupos se gestionan como fichas (añadir y quitar) en lugar de un campo de texto. `--groups` de `user-add` y `user-set` asigna grupos manuales y crea como locales los que no existan.
 
 ### Notas de actualización
 
 - `run.py` y `manage.py` ya no existen. Usa `storageweb serve` y `storageweb <comando>`, o `storageweb-admin`.
 - Las bases de datos existentes se adoptan automáticamente como esquema 001, y la migración 002 añade `users.locale`.
+- La migración 004 crea los grupos: los de los usuarios locales pasan a ser grupos locales con pertenencia manual, y los de Entra ID y PAM aparecen como *grupos sin dar de alta* hasta que les des nombre. Las carpetas que usaban Object IDs siguen funcionando.
+- La migración 005 crea el grupo de serie `admins`. Si ya tenías un grupo local llamado `admins`, se renombra a `admins-local` con sus miembros, y las carpetas que usaban `admins` pasan a dar acceso a los administradores.
 - **El idioma por defecto es el inglés.** Para mantener la interfaz en español, pon `"default_locale": "es"` en `config.json` o en *Administration → Settings*.
 
 ### Corregido
