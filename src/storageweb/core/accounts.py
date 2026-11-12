@@ -8,13 +8,14 @@ import re
 from sqlite3 import Connection
 
 from ..db.repositories import audit, users
+from ..i18n import _, _l
 from ..settings.defaults import ROLES
 from ..providers import local, pam
 from ..providers.base import MULTI_TENANT
 from .permissions import ADMIN, USER
 
 SOURCES = ("local", "entra", "pam")
-SOURCE_LABELS = {"local": "Local", "entra": "Entra ID", "pam": "Sistema (PAM)"}
+SOURCE_LABELS = {"local": _l("Local"), "entra": "Entra ID", "pam": _l("System (PAM)")}
 USERNAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@+-]{0,127}$")
 
 
@@ -87,19 +88,19 @@ def login_with_claims(conn: Connection, ecfg: dict, claims: dict, ip: str | None
     """Devuelve el usuario correspondiente a los claims del id_token (creándolo si procede)."""
     tenant = (ecfg.get("tenant_id") or "").lower()
     if tenant and tenant not in MULTI_TENANT and str(claims.get("tid", "")).lower() != tenant:
-        raise AccountError("Tu cuenta no pertenece a la organización permitida.", "tenant")
+        raise AccountError(_("Your account does not belong to the allowed organization."), "tenant")
 
     oid = claims.get("oid") or claims.get("sub")
     raw_username = str(claims.get(ecfg["username_claim"]) or claims.get("email") or "").strip().lower()
     if not oid or not raw_username:
-        raise AccountError("La cuenta de Microsoft no devolvió un identificador válido.", "claims")
+        raise AccountError(_("The Microsoft account did not return a valid identifier."), "claims")
     username = raw_username.split("@")[0] if ecfg["strip_domain"] else raw_username
 
     groups = sorted({str(x).lower() for x in claims.get("groups") or []} |
                     {str(x).lower() for x in claims.get("roles") or []})
     allowed = {x.lower() for x in ecfg["allowed_groups"]}
     if allowed and not allowed.intersection(groups):
-        raise AccountError("Tu cuenta no tiene permiso para acceder a esta aplicación.", "group")
+        raise AccountError(_("Your account is not allowed to access this application."), "group")
 
     user = users.get_by_external(conn, "entra", oid)
     if user is None:
@@ -111,11 +112,11 @@ def login_with_claims(conn: Connection, ecfg: dict, claims: dict, ip: str | None
             audit.log(conn, "user_linked", username=username, ip=ip, detail="entra")
         elif existing is not None:
             # Nunca vincular automáticamente con una cuenta local/PAM con el mismo nombre
-            raise AccountError("Ya existe una cuenta con ese nombre. Contacta con el administrador.",
+            raise AccountError(_("An account with that name already exists. Contact the administrator."),
                                "conflict")
         elif not ecfg["auto_provision"]:
-            raise AccountError("Tu cuenta no está dada de alta en la aplicación. "
-                               "Contacta con el administrador.", "not_provisioned")
+            raise AccountError(_("Your account is not registered in the application. Contact the administrator."),
+                               "not_provisioned")
         else:
             uid = users.create(conn, username=username, source="entra", external_id=oid,
                                role=resolve_role(ecfg, groups), display_name=claims.get("name"),
@@ -124,7 +125,7 @@ def login_with_claims(conn: Connection, ecfg: dict, claims: dict, ip: str | None
             audit.log(conn, "user_provisioned", username=username, ip=ip, detail=f"entra:{user['role']}")
 
     if not user["enabled"]:
-        raise AccountError("Tu cuenta está deshabilitada.", "disabled")
+        raise AccountError(_("Your account is disabled."), "disabled")
 
     fields = {"groups": groups}
     if claims.get("name"):
@@ -141,13 +142,13 @@ def login_with_claims(conn: Connection, ecfg: dict, claims: dict, ip: str | None
 
 def _check_role(role: str) -> None:
     if role not in ROLES:
-        raise AccountError(f"Rol no válido: {role}")
+        raise AccountError(_("Invalid role: %(role)s", role=role))
 
 
 def _guard_last_admin(conn: Connection, user, new_role: str, new_enabled: bool) -> None:
     losing_admin = user["role"] == ADMIN and user["enabled"] and (new_role != ADMIN or not new_enabled)
     if losing_admin and users.count_admins(conn, exclude_id=user["id"]) == 0:
-        raise AccountError("Debe quedar al menos un administrador activo.")
+        raise AccountError(_("At least one active administrator must remain."))
 
 
 def create_account(conn: Connection, *, username: str, source: str, role: str = USER, password: str | None = None,
@@ -158,12 +159,12 @@ def create_account(conn: Connection, *, username: str, source: str, role: str = 
     if source == "entra":
         username = username.lower()
     if not USERNAME_RE.match(username):
-        raise AccountError("Nombre de usuario no válido (letras, números y . _ @ + -).")
+        raise AccountError(_("Invalid user name (letters, digits and . _ @ + -)."))
     if source not in SOURCES:
-        raise AccountError(f"Origen no válido: {source}")
+        raise AccountError(_("Invalid source: %(source)s", source=source))
     _check_role(role)
     if users.get_by_username(conn, username) is not None:
-        raise AccountError("Ya existe un usuario con ese nombre.")
+        raise AccountError(_("A user with that name already exists."))
     password_hash = None
     if source == "local":
         try:
@@ -181,15 +182,15 @@ def update_account(conn: Connection, user, actor, *, role: str, enabled: bool, d
     _check_role(role)
     if user["id"] == actor["id"]:
         if role != ADMIN:
-            raise AccountError("No puedes quitarte a ti mismo el rol de administrador.")
+            raise AccountError(_("You cannot remove the administrator role from yourself."))
         if not enabled:
-            raise AccountError("No puedes deshabilitar tu propia cuenta.")
+            raise AccountError(_("You cannot disable your own account."))
     _guard_last_admin(conn, user, role, enabled)
     fields = {"role": role, "enabled": enabled, "display_name": display_name or None,
               "email": email or None, "groups": groups, "home_path": home_path or None}
     if password:
         if user["source"] != "local":
-            raise AccountError("Solo se puede cambiar la contraseña de usuarios locales.")
+            raise AccountError(_("Only local users have a password that can be changed."))
         try:
             fields["password_hash"] = local.hash_password(password)
         except ValueError as exc:
@@ -199,6 +200,6 @@ def update_account(conn: Connection, user, actor, *, role: str, enabled: bool, d
 
 def delete_account(conn: Connection, user, actor) -> None:
     if user["id"] == actor["id"]:
-        raise AccountError("No puedes eliminar tu propia cuenta.")
+        raise AccountError(_("You cannot delete your own account."))
     _guard_last_admin(conn, user, USER, False)
     users.delete(conn, user["id"])

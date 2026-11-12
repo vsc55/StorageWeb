@@ -16,6 +16,7 @@ import shutil
 from pathlib import Path
 from typing import BinaryIO
 
+from ..i18n import _
 from .security import UPLOAD_TMP_PREFIX
 from .storage import unique_path
 
@@ -47,11 +48,11 @@ def validate_size(size, max_file_size_mb: int) -> int:
     try:
         size = int(size)
     except (TypeError, ValueError) as exc:
-        raise UploadError("Tamaño de archivo no válido") from exc
+        raise UploadError(_("Invalid file size")) from exc
     if size < 0:
-        raise UploadError("Tamaño de archivo no válido")
+        raise UploadError(_("Invalid file size"))
     if max_file_size_mb and size > max_file_size_mb * MB:
-        raise UploadError(f"El archivo supera el máximo permitido ({max_file_size_mb} MB)", 413)
+        raise UploadError(_("The file exceeds the maximum allowed (%(max)s MB)", max=max_file_size_mb), 413)
     return size
 
 
@@ -61,21 +62,21 @@ def check_space(directory: Path, size: int) -> None:
     except OSError:
         return
     if size + DISK_MARGIN > free:
-        raise UploadError("No hay espacio suficiente en el servidor para este archivo", 507)
+        raise UploadError(_("Not enough space on the server for this file"), 507)
 
 
 def received(part: Path) -> int:
     try:
         return part.stat().st_size
     except FileNotFoundError:
-        raise UploadError("La subida ya no existe; vuelve a empezar", 404) from None
+        raise UploadError(_("The upload no longer exists; start again"), 404) from None
 
 
 def append(part: Path, stream: BinaryIO, offset: int, total: int) -> int:
     """Añade el contenido de ``stream`` al .part en ``offset``. Devuelve el nuevo tamaño."""
     current = received(part)
     if offset != current:
-        raise UploadError("Offset incorrecto", 409, received=current)
+        raise UploadError(_("Wrong offset"), 409, received=current)
     written = 0
     with open(part, "ab") as fh:
         while True:
@@ -85,7 +86,7 @@ def append(part: Path, stream: BinaryIO, offset: int, total: int) -> int:
             written += len(block)
             if current + written > total:
                 fh.truncate(current)
-                raise UploadError("Se han recibido más datos de los declarados", 400, received=current)
+                raise UploadError(_("More data received than declared"), 400, received=current)
             fh.write(block)
     return current + written
 
@@ -93,7 +94,7 @@ def append(part: Path, stream: BinaryIO, offset: int, total: int) -> int:
 def finalize(part: Path, directory: Path, filename: str, total: int) -> Path:
     size = received(part)
     if size != total:
-        raise UploadError("La subida está incompleta", 409, received=size)
+        raise UploadError(_("The upload is incomplete"), 409, received=size)
     final = unique_path(directory, filename)
     os.replace(part, final)
     return final

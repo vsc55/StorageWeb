@@ -32,9 +32,10 @@ def test_adopts_pre_versioning_database(tmp_path):
     conn.execute("INSERT INTO users (username, source, created_at) VALUES ('ana', 'local', 'x')")
     conn.commit()
     conn.close()
-    assert init_db(db) == [1]
+    assert init_db(db) == [v for v, _ in available_migrations()]
     conn = connect(db)
     assert conn.execute("SELECT username FROM users").fetchone()[0] == "ana"
+    assert "locale" in {r[1] for r in conn.execute("PRAGMA table_info(users)")}
 
 
 def test_migrations_are_consecutive():

@@ -44,11 +44,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Sintaxis bash/sh
         run: |
-          for f in packaging/*.sh packaging/scripts/*.sh packaging/bin/storageweb-admin; do
+          for f in packaging/*.sh packaging/scripts/*.sh packaging/bin/storageweb-admin packaging/docker/entrypoint.sh \
+                   packaging/gentoo/*/*/*.ebuild* packaging/gentoo/www-apps/storageweb/files/storageweb.initd; do
             echo "-> $f"; bash -n "$f"
           done
       - name: ShellCheck (errores)
-        run: shellcheck --severity=error packaging/*.sh packaging/scripts/*.sh packaging/bin/storageweb-admin
+        run: shellcheck --severity=error packaging/*.sh packaging/scripts/*.sh packaging/bin/storageweb-admin packaging/docker/entrypoint.sh
       - name: JSON válido
         run: |
           python3 -m json.tool config/config.example.json > /dev/null
@@ -73,3 +74,50 @@ jobs:
           printf '{"data_dir": "/tmp/sw", "storage": {"home_template": "/tmp/sw/homes/{username}"}}' > /tmp/sw.json
           /tmp/venv/bin/storageweb --config /tmp/sw.json user-add ci --role admin --password ci-password-123
           /tmp/venv/bin/storageweb --config /tmp/sw.json check-config
+
+  docker:
+    name: Imagen Docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir la imagen
+        run: docker build --build-arg VERSION=0.0.0-ci -t storageweb:ci .
+      - name: Arrancar y comprobar
+        run: |
+          printf 'clave-de-prueba-123' > /tmp/pw
+          docker run -d --name sw -p 8080:8080 \
+            -e STORAGEWEB_COOKIE_SECURE=false -e STORAGEWEB_BEHIND_PROXY=false \
+            -e STORAGEWEB_ADMIN_USER=admin -e STORAGEWEB_ADMIN_PASSWORD_FILE=/run/pw \
+            -v /tmp/pw:/run/pw:ro storageweb:ci
+          for i in $(seq 1 45); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' sw)" = healthy ] && break; sleep 2
+          done
+          docker inspect -f '{{.State.Health.Status}}' sw | grep -qx healthy
+          curl -fsS http://127.0.0.1:8080/healthz | grep -q '"0.0.0-ci"'
+          curl -fsS http://127.0.0.1:8080/login | grep -q 'Iniciar sesión'
+          docker exec sw storageweb user-list | grep -q '^admin .* admin '
+          test "$(docker exec sw id -u)" = 10001
+          # Al reiniciar no se duplica el admin ni se pierde la configuración
+          docker restart sw
+          sleep 5
+          test "$(docker exec sw storageweb user-list | grep -c '^admin ')" = 1
+      - name: Logs del contenedor
+        if: failure()
+        run: docker logs sw || true
+
+  docs:
+    name: Documentación y traducciones
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar
+        run: python -m pip install -e ".[docs]"
+      - name: Traducciones completas y al día
+        run: python tools/i18n.py check
+      - name: Referencia generada al día
+        run: python tools/gen_docs.py --check
+      - name: Construir (estricto)
+        run: mkdocs build --strict

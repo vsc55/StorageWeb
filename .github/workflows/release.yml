@@ -1,7 +1,8 @@
 name: Release
 
 # Al publicar un tag vX.Y.Z (p. ej. `git tag v1.2.0 && git push origin v1.2.0`) se ejecutan los tests,
-# se generan zip + deb + rpm y se crea la release de GitHub con esos ficheros.
+# se generan wheel, zip, tar.gz, deb, rpm y el overlay de Gentoo, se publica la imagen Docker en
+# ghcr.io/<owner>/<repo>, se publica la documentación en GitHub Pages y se crea la release de GitHub.
 # También se puede lanzar a mano (Actions > Release > Run workflow) para probar el build sin publicar.
 on:
   push:
@@ -21,7 +22,7 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   build:
-    name: Build zip / deb / rpm
+    name: Build wheel / zip / deb / rpm / Gentoo
     needs: tests
     runs-on: ubuntu-latest
     outputs:
@@ -62,6 +63,9 @@ jobs:
         run: |
           for f in dist/*.deb; do echo "== $f"; dpkg-deb --info "$f"; dpkg-deb -c "$f" | head -n 25; done
           for f in dist/*.rpm; do echo "== $f"; rpm -qip "$f"; rpm -qlp "$f" | head -n 25; done
+          V="${{ steps.version.outputs.version }}"
+          tar -tzf "dist/storageweb-gentoo-overlay-$V.tar.gz"
+          tar -xzf "dist/storageweb-gentoo-overlay-$V.tar.gz" -O --wildcards '*/Manifest'
 
       - name: Probar instalación del .deb (amd64)
         run: |
@@ -82,9 +86,104 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  docker:
+    name: Imagen Docker (amd64 + arm64)
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.ref_type == 'tag'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ needs.build.outputs.version }},enable=${{ github.ref_type != 'tag' }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          build-args: VERSION=${{ needs.build.outputs.version }}
+          push: ${{ github.ref_type == 'tag' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  gentoo:
+    name: Probar ebuild en Gentoo (informativo)
+    needs: build
+    runs-on: ubuntu-latest
+    # No bloquea la release: depende de la disponibilidad de paquetes binarios de Gentoo
+    continue-on-error: true
+    container: gentoo/stage3:latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: storageweb-${{ needs.build.outputs.version }}
+          path: dist
+      - name: emerge www-apps/storageweb
+        env:
+          V: ${{ needs.build.outputs.version }}
+          FEATURES: "-sandbox -usersandbox -ipc-sandbox -network-sandbox -pid-sandbox getbinpkg"
+        run: |
+          emerge-webrsync -q
+          mkdir -p /var/db/repos /etc/portage/repos.conf /etc/portage/package.accept_keywords \
+                   /etc/portage/package.license /var/cache/distfiles
+          tar -xzf "dist/storageweb-gentoo-overlay-$V.tar.gz" -C /var/db/repos
+          printf '[storageweb]\nlocation = /var/db/repos/storageweb-overlay\n' > /etc/portage/repos.conf/storageweb.conf
+          echo 'www-apps/storageweb ~amd64' > /etc/portage/package.accept_keywords/storageweb
+          echo 'www-apps/storageweb all-rights-reserved' > /etc/portage/package.license/storageweb
+          cp "dist/storageweb-$V.tar.gz" /var/cache/distfiles/
+          emerge --quiet-build --getbinpkg www-apps/storageweb
+          storageweb --help
+          storageweb --config /etc/storageweb/config.json check-config
+
+  docs:
+    name: Publicar documentación (GitHub Pages)
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Construir
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          python -m pip install -e ".[docs]"
+          sed -i "s/^site_name: StorageWeb$/site_name: StorageWeb $VERSION/" mkdocs.yml
+          mkdocs build --strict --site-dir site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
   release:
     name: Publicar release
-    needs: build
+    needs: [build, docker]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:

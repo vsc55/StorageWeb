@@ -13,6 +13,7 @@ def _cfg(tmp_path, data):
 
 def test_defaults_without_file(tmp_path):
     cfg = load_config(tmp_path / "no-existe.json")
+    assert cfg["default_locale"] == "en"
     assert cfg["server"]["port"] == 8080
     assert cfg["auth"]["local"]["enabled"] is True
     assert cfg["auth"]["entra"]["provider"] == "oauth2"

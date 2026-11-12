@@ -7,7 +7,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 # Funciona tanto con el paquete instalado (pip install -e .) como sin instalar
-ENV = {**os.environ, "PYTHONIOENCODING": "utf-8",
+ENV = {**os.environ, "PYTHONIOENCODING": "utf-8", "STORAGEWEB_LANG": "es",
        "PYTHONPATH": os.pathsep.join(filter(None, [str(ROOT / "src"), os.environ.get("PYTHONPATH")]))}
 
 
@@ -69,3 +69,49 @@ def test_bad_config(tmp_path):
     res = subprocess.run([sys.executable, "-m", "storageweb", "--config", str(bad), "user-list"],
                          capture_output=True, text=True, cwd=ROOT, env=ENV)
     assert res.returncode != 0
+
+
+def test_password_stdin_and_user_exists(cli, write_config):
+    cfg = write_config()
+    env_cmd = [sys.executable, "-m", "storageweb", "--config", str(cfg)]
+    assert subprocess.run([*env_cmd, "user-exists", "eva"], cwd=ROOT, env=ENV).returncode == 1
+    res = subprocess.run([*env_cmd, "user-add", "eva", "--role", "admin", "--password-stdin"],
+                         input="contraseña-por-stdin\n", capture_output=True, text=True,
+                         encoding="utf-8", cwd=ROOT, env=ENV)
+    assert res.returncode == 0, res.stderr
+    assert subprocess.run([*env_cmd, "user-exists", "eva"], cwd=ROOT, env=ENV).returncode == 0
+
+    from storageweb import create_app
+    from tests.helpers import login
+    app = create_app(str(cfg))
+    assert login(app.test_client(), "eva", "contraseña-por-stdin").status_code == 302
+
+
+def test_backup_and_restore_cli(cli, write_config, tmp_path):
+    cfg = write_config()
+    cli("user-add", "ana", "--password", "contraseña-larga")
+    out = cli("backup", "--output", str(tmp_path / "copias"), "--keep", "3").stdout.strip()
+    assert out.endswith(".tar.gz") and Path(out).exists()
+    assert "esquema" in cli("backup-list", "--output", str(tmp_path / "copias")).stdout
+    cli("user-del", "ana")
+    assert cli("restore", out, ok=False).returncode == 1  # sin --force no reemplaza
+    assert "Restaurada" in cli("restore", out, "--force").stdout
+    assert "ana" in cli("user-list").stdout
+    audit_out = cli("audit", "--limit", "5").stdout
+    assert "restore" in audit_out
+
+
+def test_settings_reset_cli(cli, write_config):
+    from storageweb import create_app
+    from storageweb.web.context import get_db, runtime, settings
+
+    cfg = write_config()
+    app = create_app(str(cfg))
+    with app.test_request_context():
+        new = {"app_name": "Roto"}
+        runtime().save(get_db(), new, "root")
+    with app.test_request_context():
+        assert settings()["app_name"] == "Roto"
+    assert "descartados" in cli("settings-reset").stdout
+    with app.test_request_context():
+        assert settings()["app_name"] == "StorageWeb"

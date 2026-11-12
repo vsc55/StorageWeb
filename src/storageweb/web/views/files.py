@@ -12,6 +12,7 @@ from ...core import storage
 from ...core.permissions import PERMISSION_LABELS, effective_for_root, permissions_for
 from ...core.security import UPLOAD_TMP_PREFIX, resolve_entry, resolve_inside, safe_filename
 from ...db.repositories import audit
+from ...i18n import _, ngettext
 from ..context import boot_config, get_db, settings
 from ..guards import client_ip, login_required
 
@@ -33,8 +34,8 @@ def _require(root: dict, perm: str) -> None:
     if perm in _perms(root):
         return
     if root["read_only"] and perm != "download":
-        abort(403, description="Esta carpeta es de solo lectura.")
-    abort(403, description=f"No tienes permiso para: {PERMISSION_LABELS[perm].lower()}.")
+        abort(403, description=_("This folder is read-only."))
+    abort(403, description=_("You are not allowed to: %(action)s.", action=str(PERMISSION_LABELS[perm]).lower()))
 
 
 def _audit(action: str, root: dict, rel: str, detail: str | None = None) -> None:
@@ -69,7 +70,7 @@ def browse(root, sub):
     try:
         entries = storage.list_directory(r, target, settings()["storage"]["show_hidden"])
     except PermissionError:
-        abort(403, description="El servicio no tiene permisos para leer esta carpeta.")
+        abort(403, description=_("The service is not allowed to read this folder."))
     rel = storage.rel_path(r, target)
     parent = "/".join(rel.split("/")[:-1]) if rel else None
     return render_template("browse.html", root=r, roots=storage.available_roots(g.user, settings()),
@@ -115,8 +116,8 @@ def upload(root, sub):
             final = storage.unique_path(directory, name)
             os.replace(tmp, final)
         except OSError as exc:
-            current_app.logger.exception("Error guardando %s", name)
-            errors.append(f"{name}: {exc.strerror or 'error de escritura'}")
+            current_app.logger.exception("Error saving %s", name)
+            errors.append(name + ": " + (exc.strerror or _("write error")))
             tmp.unlink(missing_ok=True)
             continue
         saved.append(final.name)
@@ -125,7 +126,7 @@ def upload(root, sub):
     if _wants_json():
         return jsonify(saved=saved, errors=errors), (200 if saved or not errors else 400)
     if saved:
-        flash(f"Subidos {len(saved)} archivo(s).", "info")
+        flash(ngettext("%(num)d file uploaded.", "%(num)d files uploaded.", len(saved)), "info")
     for e in errors:
         flash(e, "error")
     return _back(r, storage.rel_path(r, directory))
@@ -145,13 +146,13 @@ def mkdir(root, sub):
         new_dir = directory / name
         new_dir.mkdir()
         _audit("mkdir", r, storage.rel_path(r, new_dir))
-        flash(f"Carpeta «{name}» creada.", "info")
+        flash(_("Folder «%(name)s» created.", name=name), "info")
     except ValueError as exc:
         flash(str(exc), "error")
     except FileExistsError:
-        flash("Ya existe un elemento con ese nombre.", "error")
+        flash(_("An item with that name already exists."), "error")
     except OSError as exc:
-        flash(f"No se pudo crear la carpeta: {exc.strerror}", "error")
+        flash(_("Could not create the folder: %(error)s", error=exc.strerror), "error")
     return _back(r, storage.rel_path(r, directory))
 
 
@@ -170,13 +171,13 @@ def rename(root, sub):
         old_rel = storage.rel_path(r, target)
         target.rename(dest)
         _audit("rename", r, old_rel, detail=new_name)
-        flash("Renombrado correctamente.", "info")
+        flash(_("Renamed."), "info")
     except ValueError as exc:
         flash(str(exc), "error")
     except FileExistsError:
-        flash("Ya existe un elemento con ese nombre.", "error")
+        flash(_("An item with that name already exists."), "error")
     except OSError as exc:
-        flash(f"No se pudo renombrar: {exc.strerror}", "error")
+        flash(_("Could not rename: %(error)s", error=exc.strerror), "error")
     return _back(r, parent_rel)
 
 
@@ -194,7 +195,7 @@ def delete(root, sub):
         else:
             target.unlink()
         _audit("delete", r, rel)
-        flash(f"«{target.name}» eliminado.", "info")
+        flash(_("«%(name)s» deleted.", name=target.name), "info")
     except OSError as exc:
-        flash(f"No se pudo eliminar: {exc.strerror}", "error")
+        flash(_("Could not delete: %(error)s", error=exc.strerror), "error")
     return _back(r, parent_rel)

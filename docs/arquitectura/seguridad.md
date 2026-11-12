@@ -1,0 +1,62 @@
+# Modelo de seguridad
+
+## Activos
+
+| Activo | Dónde |
+|---|---|
+| Archivos de los usuarios | Sistema de ficheros (homes y carpetas compartidas) |
+| Credenciales | Hashes scrypt (`users.password_hash`), `client_secret` de Entra (`config.json` o `settings`), `secret_key` |
+| Sesiones | Cookies firmadas |
+| Registro de auditoría | `audit_log` |
+
+## Actores y fronteras de confianza
+
+```mermaid
+flowchart LR
+    subgraph Internet
+        A[Usuario anónimo]
+        U[Usuario autenticado]
+        M[Administrador]
+    end
+    subgraph Servidor
+        P[Proxy HTTPS] --> S[StorageWeb<br/>usuario storageweb]
+        S --> F[(Ficheros / SQLite)]
+    end
+    E[Entra ID]
+    A & U & M --> P
+    S <--> E
+```
+
+- **Lo que se considera hostil:** todo lo que llega del navegador (rutas, nombres de archivo, cabeceras, cuerpos) y las cabeceras `X-Forwarded-*` si no hay un proxy de confianza.
+- **Lo que se considera de confianza:**
+  - el sistema operativo y quien tiene acceso de root;
+  - el proxy inverso, si `behind_proxy` está activo;
+  - el endpoint de token de Entra ID, al que se accede por TLS.
+
+## Amenazas y controles
+
+| Amenaza | Control | Dónde |
+|---|---|---|
+| Acceder a archivos de otro usuario o del sistema (path traversal, symlinks) | `resolve_inside` resuelve la ruta real y exige que quede dentro de la raíz. Rechaza `..` y rutas absolutas. Borrar y renombrar no siguen el symlink final (`resolve_entry`) | `core/security.py` |
+| Nombres de archivo maliciosos | `safe_filename`: solo el último componente, sin caracteres de control ni reservados, NFC, ≤ 255 bytes, sin nombres reservados de Windows | `core/security.py` |
+| CSRF | Token aleatorio por sesión, comparado en tiempo constante, en POST/PUT/DELETE (formularios y `X-CSRF-Token`) | `web/guards.py` |
+| Robo o fijación de sesión | Cookie `HttpOnly`, `Secure` y `SameSite=Lax`; la sesión se limpia al iniciar y al cerrar sesión; caducidad | `app.py`, `guards.start_session` |
+| Fuerza bruta y enumeración de usuarios | Bloqueo por IP y por usuario; hash ficticio para igualar tiempos | `core/security.LoginThrottle`, `providers/local.py` |
+| Open redirect tras el login | `safe_next` solo admite rutas relativas del propio sitio | `web/guards.py` |
+| XSS | Escape automático de Jinja; CSP `default-src 'self'` sin scripts ni estilos inline | `templates/`, `guards.set_security_headers` |
+| Clickjacking | `X-Frame-Options: DENY` y `frame-ancestors 'none'` | ídem |
+| Escalada de privilegios en la app | Permisos comprobados en el servidor en cada acción (también en cada parte de una subida); rol admin protegido (último admin, auto-degradación) | `core/permissions.py`, `core/accounts.py` |
+| Suplantación con SSO | `state`, `nonce`, PKCE; validación de `iss`, `aud`, `azp`, `exp`, `nbf` y `tid`; nunca se vincula a una cuenta local o PAM del mismo nombre | `providers/oauth2.py`, `core/accounts.py` |
+| Agotar disco o memoria | Límite por petición y por archivo; comprobación de espacio libre; streaming en subidas y descargas; limpieza de subidas abandonadas | `core/uploads.py` |
+| Fuga de secretos | `client_secret` nunca se muestra en la web; `config.json` en `0640`; copias en `0600` | `settings/`, `core/backup.py` |
+| Compromiso del proceso | Usuario sin privilegios; systemd con `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, `RestrictAddressFamilies` | `packaging/systemd/` |
+
+## Decisiones con impacto en la seguridad
+
+- **No se verifica la firma del id_token:** se obtiene directamente del endpoint de token por TLS y con autenticación del cliente ([ADR 0004](decisiones/0004-firma-id-token.md)).
+- **Un único usuario de servicio** escribe todos los archivos. El aislamiento entre usuarios lo garantiza la aplicación, no el sistema operativo ([ADR 0009](decisiones/0009-usuario-de-servicio.md)).
+- **Bloqueo de intentos en memoria:** se pierde al reiniciar. Es aceptable para una instancia única.
+
+## Limitaciones conocidas
+
+Sin antivirus, sin cifrado en reposo propio, sin cuotas por usuario y sin MFA para usuarios locales (usa Entra ID para MFA). Ver la [lista de producción](../administracion/seguridad.md).

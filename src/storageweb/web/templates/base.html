@@ -1,31 +1,44 @@
 <!doctype html>
-<html lang="es">
+<html lang="{{ current_locale }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{% block title %}{{ app_name }}{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  {# Textos del JavaScript (no se ejecuta: permitido por la CSP) #}
+  <script type="application/json" id="i18n-messages">{{ js_messages()|tojson }}</script>
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="{{ url_for('files.index') }}">{{ app_name }}</a>
     {% if current_user %}
     <nav class="mainnav">
-      <a href="{{ url_for('files.index') }}" class="{% if request.blueprint == 'files' %}active{% endif %}">Archivos</a>
+      <a href="{{ url_for('files.index') }}" class="{% if request.blueprint == 'files' %}active{% endif %}">{{ _("Files") }}</a>
       {% if is_admin %}
-      <a href="{{ url_for('admin.index') }}" class="{% if request.blueprint == 'admin' %}active{% endif %}">Administración</a>
+      <a href="{{ url_for('admin.index') }}" class="{% if request.blueprint == 'admin' %}active{% endif %}">{{ _("Administration") }}</a>
       {% endif %}
     </nav>
+    {% endif %}
     <div class="userbox">
+      <form method="post" action="{{ url_for('auth.change_locale') }}" class="langbox" aria-label="{{ _('Language') }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ request.full_path }}">
+        {% for code, name in available_locales %}
+        <button type="submit" name="locale" value="{{ code }}" lang="{{ code }}" title="{{ name }}"
+                class="btn btn-ghost btn-small{% if code == current_locale %} active{% endif %}"
+                {% if code == current_locale %}aria-current="true"{% endif %}>{{ code|upper }}</button>
+        {% endfor %}
+      </form>
+      {% if current_user %}
       <span>{{ current_user['display_name'] or current_user['username'] }}
         <small class="badge badge-{{ current_user['role'] }}">{{ ROLE_LABELS[current_user['role']] }}</small></span>
       <form method="post" action="{{ url_for('auth.logout') }}">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <button class="btn btn-ghost" type="submit">Salir</button>
+        <button class="btn btn-ghost" type="submit">{{ _("Sign out") }}</button>
       </form>
+      {% endif %}
     </div>
-    {% endif %}
   </header>
 
   <main class="container">

@@ -19,6 +19,7 @@ from ...core.permissions import effective_for_root, permissions_for
 from ...core.security import PathError, resolve_inside, safe_filename
 from ...db.repositories import audit
 from ...db.repositories import uploads as repo
+from ...i18n import _
 from ..context import boot_config, get_db, settings
 from ..guards import client_ip
 from . import json_api
@@ -35,7 +36,7 @@ def _upload_error(exc: core.UploadError):
 @bp.before_request
 def _require_login():
     if g.get("user") is None:
-        abort(401, description="Sesión no iniciada")
+        abort(401, description=_("Not signed in"))
 
 
 def _chunk_size() -> int:
@@ -49,18 +50,18 @@ def _writable_dir(root_name: str, rel: str) -> tuple[dict, Path]:
         root = storage.find_root(g.user, cfg, root_name)
         directory = resolve_inside(root["path"], rel)
     except (storage.RootNotFound, PathError):
-        abort(404, description="Carpeta no encontrada")
+        abort(404, description=_("Folder not found"))
     if not directory.is_dir():
-        abort(404, description="Carpeta no encontrada")
+        abort(404, description=_("Folder not found"))
     if "upload" not in effective_for_root(permissions_for(g.user, cfg), root):
-        abort(403, description="No tienes permiso para subir archivos aquí")
+        abort(403, description=_("You are not allowed to upload files here"))
     return root, directory
 
 
 def _owned(upload_id: str):
     row = repo.get(get_db(), upload_id)
     if row is None or row["user_id"] != g.user["id"]:
-        abort(404, description="Subida no encontrada")
+        abort(404, description=_("Upload not found"))
     return row
 
 
@@ -99,18 +100,18 @@ def init():
 
 @bp.route("/<upload_id>", methods=["GET"])
 def status(upload_id: str):
-    row, _, _, part = _load(upload_id)
+    row, _root, _directory, part = _load(upload_id)
     return {"id": row["id"], "name": row["filename"], "size": row["size"],
             "received": core.received(part), "chunk_size": _chunk_size()}
 
 
 @bp.route("/<upload_id>", methods=["PUT"])
 def put_chunk(upload_id: str):
-    row, _, _, part = _load(upload_id)
+    row, _root, _directory, part = _load(upload_id)
     try:
         offset = int(request.args.get("offset", ""))
     except ValueError:
-        abort(400, description="Falta el parámetro offset")
+        abort(400, description=_("The offset parameter is missing"))
     new_size = core.append(part, request.stream, offset, row["size"])
     repo.touch(get_db(), upload_id)
     return {"received": new_size}

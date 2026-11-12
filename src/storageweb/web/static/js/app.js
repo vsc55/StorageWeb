@@ -6,6 +6,15 @@
   var dropzone = document.getElementById("dropzone");
   var panel = document.getElementById("upload-panel");
   var csrf = document.querySelector('meta[name="csrf-token"]').getAttribute("content");
+  // Traducciones: el servidor entrega {texto_fuente: traducción} en <script id="i18n-messages">
+  var MESSAGES = {};
+  try { MESSAGES = JSON.parse(document.getElementById("i18n-messages").textContent); } catch (e) { MESSAGES = {}; }
+  function t(message, params) {
+    var text = MESSAGES[message] || message;
+    return text.replace(/%\((\w+)\)s/g, function (m, key) {
+      return params && params[key] !== undefined ? params[key] : m;
+    });
+  }
 
   var MAX_RETRIES = 8;
   var current = { xhr: null, id: null, cancelled: false };
@@ -57,9 +66,9 @@
 
   function errorText(err) {
     if (err.data && err.data.error) return err.data.error;
-    if (err.status === 413) return "La parte o el archivo es demasiado grande para el servidor.";
-    if (err.status === 0) return "Error de red.";
-    return "Error HTTP " + err.status + ".";
+    if (err.status === 413) return t("The part or the file is too large for the server.");
+    if (err.status === 0) return t("Network error.");
+    return t("HTTP error %(status)s.", {status: err.status});
   }
 
   // ------------------------------------------------------------------ subida por partes
@@ -126,7 +135,7 @@
     var list = Array.prototype.slice.call(files);
     var tooBig = list.filter(function (f) { return maxFile && f.size > maxFile; });
     if (tooBig.length) {
-      alert("Superan el tamaño máximo permitido (" + fmt(maxFile) + "):\n" +
+      alert(t("These files exceed the maximum size allowed (%(max)s):", {max: fmt(maxFile)}) + "\n" +
             tooBig.map(function (f) { return f.name; }).join("\n"));
       list = list.filter(function (f) { return tooBig.indexOf(f) < 0; });
       if (!list.length) return;
@@ -138,13 +147,13 @@
     current.cancelled = false;
     panel.hidden = false;
     if (input) input.disabled = true;
-    window.onbeforeunload = function () { return "Hay una subida en curso"; };
+    window.onbeforeunload = function () { return t("An upload is in progress"); };
 
     var chain = Promise.resolve();
     list.forEach(function (file, i) {
       chain = chain.then(function () {
         if (current.cancelled) return;
-        detail.textContent = "Archivo " + (i + 1) + " de " + list.length + ": " + file.name;
+        detail.textContent = t("File %(index)s of %(total)s: %(name)s", {index: i + 1, total: list.length, name: file.name});
         return uploadFile(file, function (bytes) {
           var pct = Math.min(100, Math.floor(((done + bytes) / total) * 100));
           bar.style.width = pct + "%";
@@ -159,14 +168,14 @@
 
     chain.then(function () {
       window.onbeforeunload = null;
-      if (errors.length) alert("No se pudieron subir:\n" + errors.join("\n"));
+      if (errors.length) alert(t("Could not upload:") + "\n" + errors.join("\n"));
       window.location.reload();
     });
   }
 
   if (panel) {
     document.getElementById("upload-cancel").addEventListener("click", function () {
-      if (!confirm("¿Cancelar la subida?")) return;
+      if (!confirm(t("Cancel the upload?"))) return;
       current.cancelled = true;
       if (current.xhr) current.xhr.abort();
       if (current.id) {
@@ -204,13 +213,13 @@
 
   document.querySelectorAll("form.js-confirm").forEach(function (f) {
     f.addEventListener("submit", function (e) {
-      if (!confirm(f.dataset.confirm || "¿Seguro?")) e.preventDefault();
+      if (!confirm(f.dataset.confirm || t("Are you sure?"))) e.preventDefault();
     });
   });
 
   document.querySelectorAll("form.js-rename").forEach(function (f) {
     f.addEventListener("submit", function (e) {
-      var name = prompt("Nuevo nombre:", f.dataset.name);
+      var name = prompt(t("New name:"), f.dataset.name);
       if (!name || name === f.dataset.name) { e.preventDefault(); return; }
       f.querySelector('input[name="name"]').value = name;
     });

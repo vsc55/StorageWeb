@@ -126,3 +126,9 @@ def test_session_cookie_flags(make_app):
     resp = login(client, "ana")
     cookie = resp.headers.get("Set-Cookie", "")
     assert "HttpOnly" in cookie and "Secure" in cookie and "SameSite=Lax" in cookie
+
+
+def test_healthz_without_login(client):
+    resp = client.get("/healthz")
+    assert resp.status_code == 200
+    assert resp.get_json()["status"] == "ok" and resp.get_json()["version"]

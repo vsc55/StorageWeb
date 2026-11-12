@@ -1,0 +1,33 @@
+#!/sbin/openrc-run
+# Servicio OpenRC de StorageWeb
+
+description="StorageWeb - servidor web de archivos"
+
+: "${STORAGEWEB_CONFIG:=/etc/storageweb/config.json}"
+: "${STORAGEWEB_USER:=storageweb}"
+: "${STORAGEWEB_GROUP:=storageweb}"
+: "${STORAGEWEB_LOG:=/var/log/storageweb/storageweb.log}"
+
+command="/usr/bin/storageweb"
+command_args="--config ${STORAGEWEB_CONFIG} serve ${STORAGEWEB_OPTS}"
+command_user="${STORAGEWEB_USER}:${STORAGEWEB_GROUP}"
+supervisor="supervise-daemon"
+directory="/var/lib/storageweb"
+umask="007"
+output_log="${STORAGEWEB_LOG}"
+error_log="${STORAGEWEB_LOG}"
+respawn_delay=5
+respawn_max=10
+
+depend() {
+	need net
+	use dns logger
+}
+
+start_pre() {
+	checkpath --directory --owner "${command_user}" --mode 0750 \
+		/var/lib/storageweb "$(dirname "${STORAGEWEB_LOG}")"
+	checkpath --file --owner "${command_user}" --mode 0640 "${STORAGEWEB_LOG}"
+	# Valida la configuración y aplica migraciones antes de arrancar
+	su -s /bin/sh -c "STORAGEWEB_CONFIG='${STORAGEWEB_CONFIG}' ${command} init-db" "${STORAGEWEB_USER}" >/dev/null
+}

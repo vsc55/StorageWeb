@@ -8,6 +8,8 @@ import time
 import unicodedata
 from pathlib import Path
 
+from ..i18n import _
+
 UPLOAD_TMP_PREFIX = ".sw-upload-"
 IS_WINDOWS = os.name == "nt"
 
@@ -26,9 +28,9 @@ def safe_filename(name: str) -> str:
     name = name.replace("\\", "/").split("/")[-1]
     name = _INVALID_CHARS.sub("_", name).strip().rstrip(". ")
     if name in ("", ".", "..") or name.startswith(UPLOAD_TMP_PREFIX):
-        raise ValueError("Nombre de archivo no válido")
+        raise ValueError(_("Invalid file name"))
     if IS_WINDOWS and name.split(".")[0].upper() in _WIN_RESERVED:
-        raise ValueError("Nombre reservado en Windows")
+        raise ValueError(_("Reserved name on Windows"))
     if len(name.encode("utf-8")) > 255:
         stem, dot, ext = name.rpartition(".")
         if not dot or len(ext) > 16:
@@ -44,7 +46,7 @@ def safe_username_for_path(username: str) -> str:
     cleaned = re.sub(r"[^A-Za-z0-9._@-]", "_", unicodedata.normalize("NFC", username.lower()))
     cleaned = cleaned.strip(".")
     if not cleaned:
-        raise ValueError("Nombre de usuario no válido para ruta")
+        raise ValueError(_("Invalid user name for a folder"))
     return cleaned
 
 

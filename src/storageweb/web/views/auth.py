@@ -5,10 +5,12 @@ from flask import (Blueprint, current_app, flash, g, redirect, render_template, 
                    url_for)
 
 from ...core import accounts
-from ...db.repositories import audit
+from ...db.repositories import audit, users
+from ...i18n import _
+from ...i18n import normalize as normalize_locale
 from ...providers import SSOError, get_sso_provider
 from ..context import get_db, settings, throttle
-from ..guards import client_ip, safe_next, start_session
+from ..guards import clear_session, client_ip, safe_next, start_session
 
 bp = Blueprint("auth", __name__)
 
@@ -30,10 +32,10 @@ def login():
         limiter.configure(cfg["security"]["max_login_failures"], cfg["security"]["lockout_minutes"] * 60)
 
         if not username or not password:
-            flash("Introduce usuario y contraseña.", "error")
+            flash(_("Enter your user name and password."), "error")
         elif limiter.is_blocked(ip, username):
             audit.log(get_db(), "login_blocked", username=username, ip=ip)
-            flash("Demasiados intentos fallidos. Espera unos minutos.", "error")
+            flash(_("Too many failed attempts. Wait a few minutes."), "error")
         else:
             user = accounts.authenticate_password(get_db(), cfg, username, password)
             if user:
@@ -43,11 +45,23 @@ def login():
                 return redirect(safe_next(next_url))
             limiter.failure(ip, username)
             audit.log(get_db(), "login_failed", username=username, ip=ip)
-            flash("Usuario o contraseña incorrectos.", "error")
+            flash(_("Wrong user name or password."), "error")
 
     return render_template("login.html", form_enabled=form_enabled,
                            entra_enabled=auth["entra"]["enabled"],
-                           entra_label=auth["entra"]["button_label"], next_url=next_url)
+                           entra_label=auth["entra"]["button_label"] or _("Sign in with Microsoft"),
+                           next_url=next_url)
+
+
+@bp.route("/locale", methods=["POST"])
+def change_locale():
+    """Cambia el idioma: se guarda en la sesión y, si hay usuario, en su cuenta."""
+    locale = normalize_locale(request.form.get("locale"))
+    if locale:
+        session["locale"] = locale
+        if g.get("user") is not None:
+            users.update(get_db(), g.user["id"], locale=locale)
+    return redirect(safe_next(request.form.get("next")))
 
 
 @bp.route("/logout", methods=["POST"])
@@ -56,12 +70,12 @@ def logout():
     src = session.get("src")
     if user:
         audit.log(get_db(), "logout", username=user["username"], ip=client_ip())
-    session.clear()
+    clear_session()
     ecfg = settings()["auth"]["entra"]
     if src == "entra" and ecfg["enabled"] and ecfg["single_logout"]:
         provider = get_sso_provider(ecfg)
         return redirect(provider.logout_url(url_for("auth.login", _external=True)))
-    flash("Sesión cerrada.", "info")
+    flash(_("You have signed out."), "info")
     return redirect(url_for("auth.login"))
 
 
@@ -77,8 +91,8 @@ def entra_login():
     try:
         auth_url, flow = get_sso_provider(ecfg).begin(_redirect_uri(ecfg))
     except Exception:  # p. ej. MSAL sin conexión al descubrir la autoridad
-        current_app.logger.exception("No se pudo iniciar el login SSO")
-        flash("No se pudo contactar con el proveedor de identidad.", "error")
+        current_app.logger.exception("Could not start the SSO login")
+        flash(_("Could not contact the identity provider."), "error")
         return redirect(url_for("auth.login"))
     session["entra_flow"] = flow
     session["entra_next"] = request.args.get("next", "")
@@ -94,7 +108,7 @@ def entra_callback():
     flow = session.pop("entra_flow", None)
     next_url = session.pop("entra_next", "")
     if not flow:
-        flash("La sesión de inicio expiró. Inténtalo de nuevo.", "error")
+        flash(_("The sign-in session expired. Try again."), "error")
         return redirect(url_for("auth.login"))
     try:
         claims = get_sso_provider(ecfg, flow.get("provider")).complete(flow, request.args.to_dict())
@@ -102,7 +116,7 @@ def entra_callback():
     except SSOError as exc:
         current_app.logger.warning("SSO error: %s", exc)
         audit.log(get_db(), "login_failed", ip=ip, detail=f"entra:{exc.code}")
-        flash("No se pudo iniciar sesión con Microsoft.", "error")
+        flash(_("Could not sign in with Microsoft."), "error")
         return redirect(url_for("auth.login"))
     except accounts.AccountError as exc:
         audit.log(get_db(), "login_denied", ip=ip, detail=f"entra:{exc.code}")

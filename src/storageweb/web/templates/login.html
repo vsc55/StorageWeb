@@ -1,24 +1,24 @@
 {% extends "base.html" %}
-{% block title %}Iniciar sesión · {{ app_name }}{% endblock %}
+{% block title %}{{ _("Sign in") }} · {{ app_name }}{% endblock %}
 {% block content %}
 <section class="card login-card">
-  <h1>Iniciar sesión</h1>
+  <h1>{{ _("Sign in") }}</h1>
 
   {% if form_enabled %}
   <form method="post" action="{{ url_for('auth.login') }}" class="stack">
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
     <input type="hidden" name="next" value="{{ next_url }}">
-    <label>Usuario
+    <label>{{ _("User name") }}
       <input type="text" name="username" autocomplete="username" required autofocus>
     </label>
-    <label>Contraseña
+    <label>{{ _("Password") }}
       <input type="password" name="password" autocomplete="current-password" required>
     </label>
-    <button class="btn btn-primary" type="submit">Entrar</button>
+    <button class="btn btn-primary" type="submit">{{ _("Sign in") }}</button>
   </form>
   {% endif %}
 
-  {% if form_enabled and entra_enabled %}<div class="divider"><span>o</span></div>{% endif %}
+  {% if form_enabled and entra_enabled %}<div class="divider"><span>{{ _("or") }}</span></div>{% endif %}
 
   {% if entra_enabled %}
   <a class="btn btn-microsoft" href="{{ url_for('auth.entra_login', next=next_url) }}">
@@ -31,7 +31,7 @@
   {% endif %}
 
   {% if not form_enabled and not entra_enabled %}
-  <p class="muted">No hay ningún método de inicio de sesión activado. Revisa config.json.</p>
+  <p class="muted">{{ _("No sign-in method is enabled. Check config.json.") }}</p>
   {% endif %}
 </section>
 {% endblock %}

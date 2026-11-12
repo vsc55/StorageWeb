@@ -1,20 +1,21 @@
 {% extends "admin/_layout.html" %}
-{% block title %}Usuarios · {{ app_name }}{% endblock %}
+{% block title %}{{ _("Users") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
 <div class="page-head">
-  <h1>Usuarios</h1>
-  <a class="btn btn-primary" href="{{ url_for('admin.user_new') }}">Nuevo usuario</a>
+  <h1>{{ _("Users") }}</h1>
+  <a class="btn btn-primary" href="{{ url_for('admin.user_new') }}">{{ _("New user") }}</a>
 </div>
 
 <form method="get" class="inline search">
-  <input type="text" name="q" value="{{ search }}" placeholder="Buscar por usuario, nombre o email">
-  <button class="btn" type="submit">Buscar</button>
-  {% if search %}<a class="btn btn-ghost" href="{{ url_for('admin.users_list') }}">Limpiar</a>{% endif %}
+  <input type="text" name="q" value="{{ search }}" placeholder="{{ _('Search by user name, name or email') }}">
+  <button class="btn" type="submit">{{ _("Search") }}</button>
+  {% if search %}<a class="btn btn-ghost" href="{{ url_for('admin.users_list') }}">{{ _("Clear") }}</a>{% endif %}
 </form>
 
 <table class="files">
   <thead>
-    <tr><th>Usuario</th><th>Nombre</th><th>Origen</th><th>Rol</th><th>Grupos</th><th>Estado</th><th>Último acceso</th><th></th></tr>
+    <tr><th>{{ _("User") }}</th><th>{{ _("Name") }}</th><th>{{ _("Source") }}</th><th>{{ _("Role") }}</th>
+        <th>{{ _("Groups") }}</th><th>{{ _("Status") }}</th><th>{{ _("Last sign-in") }}</th><th></th></tr>
   </thead>
   <tbody>
     {% for u in users %}
@@ -24,12 +25,12 @@
       <td>{{ SOURCE_LABELS[u['source']] }}</td>
       <td><span class="badge badge-{{ u['role'] }}">{{ ROLE_LABELS[u['role']] }}</span></td>
       <td class="muted small">{{ (u['groups'] or '').replace(',', ', ') }}</td>
-      <td>{% if u['enabled'] %}Activo{% else %}<span class="text-danger">Deshabilitado</span>{% endif %}</td>
-      <td class="small">{{ (u['last_login'] or '—')[:16].replace('T', ' ') }}</td>
-      <td class="actions"><a class="btn btn-small" href="{{ url_for('admin.user_edit', user_id=u['id']) }}">Editar</a></td>
+      <td>{% if u['enabled'] %}{{ _("Active") }}{% else %}<span class="text-danger">{{ _("Disabled") }}</span>{% endif %}</td>
+      <td class="small">{{ u['last_login']|datetime }}</td>
+      <td class="actions"><a class="btn btn-small" href="{{ url_for('admin.user_edit', user_id=u['id']) }}">{{ _("Edit") }}</a></td>
     </tr>
     {% else %}
-    <tr><td colspan="8" class="muted">No hay usuarios.</td></tr>
+    <tr><td colspan="8" class="muted">{{ _("No users.") }}</td></tr>
     {% endfor %}
   </tbody>
 </table>

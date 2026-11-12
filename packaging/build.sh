@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Genera los artefactos de release en dist/:
 #   storageweb-<version>-py3-none-any.whl  (pip install, cualquier sistema)
-#   storageweb-<version>.zip               (código fuente)
+#   storageweb-<version>.zip / .tar.gz     (código fuente; el .tar.gz lo usa el ebuild de Gentoo)
+#   storageweb-gentoo-overlay-<version>.tar.gz  (overlay con el ebuild y su Manifest)
 #   storageweb_<version>_<arch>.deb        (Debian/Ubuntu, amd64 y arm64)
 #   storageweb-<version>.<arch>.rpm        (RHEL/Rocky/Alma/Fedora/openSUSE, x86_64 y aarch64)
 #   SHA256SUMS
@@ -32,6 +33,7 @@ export LICENSE="${LICENSE:-Proprietary}"
 log() { echo -e "\e[1;34m==>\e[0m $*"; }
 render() {  # render <plantilla> <destino> (valores por defecto del paquete)
   sed -e "s#@APP_USER@#storageweb#g" -e "s#@APP_GROUP@#storageweb#g" -e "s#@APP_DIR@#/opt/storageweb#g" \
+      -e "s#@STORAGEWEB_BIN@#/opt/storageweb/venv/bin/storageweb#g" \
       -e "s#@CONF_DIR@#/etc/storageweb#g" -e "s#@DATA_DIR@#/var/lib/storageweb#g" \
       -e "s#@STORAGE_DIR@#/srv/storageweb#g" "$1" > "$2"
 }
@@ -47,16 +49,27 @@ git ls-files -z | xargs -0 -I{} cp --parents {} "$SRC/" 2>/dev/null || \
   cp -r src config packaging tests pyproject.toml README.md .gitignore .gitattributes "$SRC/"
 sed -i "s/^__version__ = .*/__version__ = \"$VERSION\"/" "$SRC/src/storageweb/__init__.py"
 
-log "Generando zip de código fuente"
+log "Generando zip y tar.gz de código fuente"
 (cd "$BUILD" && python3 -m zipfile -c "$DIST/storageweb-$VERSION.zip" "storageweb-$VERSION")
+tar -C "$BUILD" --owner=0 --group=0 --numeric-owner -czf "$DIST/storageweb-$VERSION.tar.gz" "storageweb-$VERSION"
+
+log "Generando overlay de Gentoo"
+python3 "$PKG/gentoo/make_overlay.py" --version "$VERSION" --homepage "$HOMEPAGE" \
+  --license "${GENTOO_LICENSE:-all-rights-reserved}" --tarball "$DIST/storageweb-$VERSION.tar.gz" \
+  --output "$DIST/storageweb-gentoo-overlay-$VERSION.tar.gz"
 
 log "Construyendo el wheel"
-python3 -m pip wheel -q --disable-pip-version-check --no-deps --wheel-dir "$DIST" "$SRC"
-APP_WHEEL="$(ls "$DIST"/storageweb-"$VERSION"-py3-none-any.whl)"
+# Se construye desde una copia para no dejar build/ ni *.egg-info en las fuentes empaquetadas
+cp -r "$SRC" "$BUILD/wheel-src"
+python3 -m pip wheel -q --disable-pip-version-check --no-deps --wheel-dir "$DIST" "$BUILD/wheel-src"
+# PEP 440 normaliza la versión (1.2.0-rc1 -> 1.2.0rc1), así que se busca por patrón
+APP_WHEEL="$(ls "$DIST"/storageweb-*-py3-none-any.whl)"
 
 EXTRA="$BUILD/extra"
 mkdir -p "$EXTRA"
-render "$PKG/systemd/storageweb.service" "$EXTRA/storageweb.service"
+for unit in storageweb.service storageweb-backup.service storageweb-backup.timer; do
+  render "$PKG/systemd/$unit" "$EXTRA/$unit"
+done
 render "$PKG/bin/storageweb-admin" "$EXTRA/storageweb-admin"
 
 # --------------------------------------------------------------------------- deb / rpm

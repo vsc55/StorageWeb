@@ -9,6 +9,7 @@ from flask import Blueprint, abort, flash, g, redirect, render_template, request
 from ...core import accounts
 from ...core.permissions import PERMISSION_LABELS, ROLE_LABELS
 from ...db.repositories import audit, users
+from ...i18n import LOCALES, _, locale_display_name
 from ...providers import SSO_PROVIDERS
 from ...settings import DEFAULTS, PERMISSIONS, ROLES, ConfigError, deep_merge, mask_secrets, runtime_view
 from ..context import boot_config, get_db, invalidate_settings, runtime, settings
@@ -75,7 +76,7 @@ def user_new():
             flash(exc.message, "error")
         else:
             _audit("user_created", form["username"], f"{form['source']}:{form['role']}")
-            flash(f"Usuario «{form['username']}» creado.", "info")
+            flash(_("User «%(name)s» created.", name=form["username"]), "info")
             return redirect(url_for("admin.user_edit", user_id=uid))
         form.pop("password", None)
     return render_template("admin/user_form.html", user=None, form=form, sources=accounts.SOURCES)
@@ -98,7 +99,7 @@ def user_edit(user_id: int):
         else:
             detail = f"role={data['role']} enabled={data['enabled']}" + (" password" if data["password"] else "")
             _audit("user_updated", user["username"], detail)
-            flash("Cambios guardados.", "info")
+            flash(_("Changes saved."), "info")
             return redirect(url_for("admin.user_edit", user_id=user_id))
     return render_template("admin/user_form.html", user=user, form=form, sources=accounts.SOURCES)
 
@@ -115,7 +116,7 @@ def user_delete(user_id: int):
         flash(exc.message, "error")
         return redirect(url_for("admin.user_edit", user_id=user_id))
     _audit("user_deleted", user["username"])
-    flash(f"Usuario «{user['username']}» eliminado (sus archivos no se han borrado).", "info")
+    flash(_("User «%(name)s» deleted (their files have not been removed).", name=user["username"]), "info")
     return redirect(url_for("admin.users_list"))
 
 
@@ -125,7 +126,7 @@ def _int(name: str, label: str) -> int:
     try:
         return int(request.form.get(name, ""))
     except ValueError as exc:
-        raise ConfigError(f"'{label}' debe ser un número") from exc
+        raise ConfigError(_("%(field)s must be a number", field=label)) from exc
 
 
 def _role_mappings(text: str) -> dict:
@@ -136,7 +137,7 @@ def _role_mappings(text: str) -> dict:
             continue
         key, sep, role = line.rpartition("=")
         if not sep or not key.strip():
-            raise ConfigError(f"Mapeo de roles, línea {n}: usa el formato «grupo = rol»")
+            raise ConfigError(_("Role mapping, line %(line)s: use the format «group = role»", line=n))
         mappings[key.strip()] = role.strip()
     return mappings
 
@@ -156,12 +157,13 @@ def _runtime_from_form() -> dict:
 
     return {
         "app_name": f.get("app_name", "").strip(),
+        "default_locale": f.get("default_locale", ""),
         "storage": {
             "home_template": f.get("home_template", "").strip(),
             "create_home": on("create_home"),
             "create_shares": on("create_shares"),
             "show_hidden": on("show_hidden"),
-            "max_file_size_mb": _int("max_file_size_mb", "Tamaño máximo por archivo"),
+            "max_file_size_mb": _int("max_file_size_mb", _("Maximum size per file")),
             "shares": shares,
         },
         "permissions": {"user": {p: on(f"perm_{p}") for p in PERMISSIONS}},
@@ -182,7 +184,7 @@ def _runtime_from_form() -> dict:
                 "client_secret": f.get("entra_client_secret", "").strip(),
                 "redirect_uri": f.get("entra_redirect_uri", "").strip(),
                 "scopes": f.get("entra_scopes", "").split(),
-                "button_label": f.get("entra_button_label", "").strip() or "Iniciar sesión con Microsoft",
+                "button_label": f.get("entra_button_label", "").strip(),
                 "username_claim": f.get("entra_username_claim", "").strip() or "preferred_username",
                 "strip_domain": on("entra_strip_domain"),
                 "allowed_groups": _split(f.get("entra_allowed_groups", "")),
@@ -195,12 +197,12 @@ def _runtime_from_form() -> dict:
                 "token_url": f.get("entra_token_url", "").strip(),
                 "issuer": f.get("entra_issuer", "").strip(),
                 "logout_url": f.get("entra_logout_url", "").strip(),
-                "timeout_seconds": _int("entra_timeout_seconds", "Timeout"),
+                "timeout_seconds": _int("entra_timeout_seconds", _("Timeout")),
             },
         },
         "security": {
-            "max_login_failures": _int("max_login_failures", "Intentos fallidos"),
-            "lockout_minutes": _int("lockout_minutes", "Minutos de bloqueo"),
+            "max_login_failures": _int("max_login_failures", _("Failed attempts")),
+            "lockout_minutes": _int("lockout_minutes", _("Lockout minutes")),
         },
     }
 
@@ -212,6 +214,7 @@ def _render_settings(cfg: dict, status: int = 200):
     return render_template(
         "admin/settings.html", cfg=cfg, info=info, has_overrides=has_overrides,
         providers=list(SSO_PROVIDERS), permissions=PERMISSIONS,
+        locales=[(code, locale_display_name(code)) for code in LOCALES],
         secret_set=bool(settings()["auth"]["entra"].get("client_secret")),
         boot={"config_path": boot["_config_path"], "database": boot["database"],
               "host": boot["server"]["host"], "port": boot["server"]["port"],
@@ -233,11 +236,11 @@ def settings_page():
             runtime().save(get_db(), draft, g.user["username"])
             invalidate_settings()
         except ConfigError as exc:
-            flash(f"No se guardaron los cambios: {exc}", "error")
+            flash(_("The changes were not saved: %(error)s", error=exc), "error")
             # Se vuelve a mostrar lo que el admin escribió para que pueda corregirlo
             return _render_settings(_draft_view(draft) if draft else settings(), 400)
         _audit("settings_updated")
-        flash("Ajustes guardados y aplicados.", "info")
+        flash(_("Settings saved and applied."), "info")
         return redirect(url_for("admin.settings_page"))
     return _render_settings(settings())
 
@@ -252,7 +255,7 @@ def settings_reset():
     runtime().reset(get_db(), g.user["username"])
     invalidate_settings()
     _audit("settings_reset")
-    flash("Se han descartado los ajustes web; vuelve a aplicarse config.json.", "info")
+    flash(_("Web settings discarded; config.json applies again."), "info")
     return redirect(url_for("admin.settings_page"))
 
 

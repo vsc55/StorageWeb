@@ -13,6 +13,7 @@ import secrets
 import sys
 from pathlib import Path
 
+from ..i18n import LOCALES, _
 from .defaults import (DEFAULTS, PERMISSIONS, ROLES, RUNTIME_SECTIONS, SECRET_FIELDS,
                        SSO_PROVIDER_NAMES)
 
@@ -52,9 +53,9 @@ def read_config_file(path: str | os.PathLike | None = None) -> tuple[dict, Path]
             with open(cfg_path, encoding="utf-8") as fh:
                 data = json.load(fh)
         except json.JSONDecodeError as exc:
-            raise ConfigError(f"JSON inválido en {cfg_path}: {exc}") from exc
+            raise ConfigError(_("Invalid JSON in %(path)s: %(error)s", path=cfg_path, error=exc)) from exc
         if not isinstance(data, dict):
-            raise ConfigError(f"{cfg_path} debe contener un objeto JSON")
+            raise ConfigError(_("%(path)s must contain a JSON object", path=cfg_path))
     return data, cfg_path
 
 
@@ -77,7 +78,7 @@ def _apply_overrides(cfg: dict, file_cfg: dict, overrides: dict) -> dict:
         value = overrides[section]
         if isinstance(DEFAULTS.get(section), dict):
             if not isinstance(value, dict):
-                raise ConfigError(f"El ajuste '{section}' debe ser un objeto")
+                raise ConfigError(_("Setting %(section)s must be an object", section=section))
             cfg[section] = deep_merge(DEFAULTS[section], value)
         else:
             cfg[section] = value
@@ -99,7 +100,7 @@ def _str_list(value, field: str) -> list[str]:
     if isinstance(value, str):
         value = [x for x in re.split(r"[,\s]+", value) if x]
     if not isinstance(value, list):
-        raise ConfigError(f"'{field}' debe ser una lista")
+        raise ConfigError(_("%(field)s must be a list", field=field))
     return [str(x).strip() for x in value if str(x).strip()]
 
 
@@ -107,9 +108,9 @@ def _non_negative_int(value, field: str) -> int:
     try:
         number = int(value)
     except (TypeError, ValueError) as exc:
-        raise ConfigError(f"'{field}' debe ser un número entero") from exc
+        raise ConfigError(_("%(field)s must be an integer", field=field)) from exc
     if number < 0:
-        raise ConfigError(f"'{field}' no puede ser negativo")
+        raise ConfigError(_("%(field)s cannot be negative", field=field))
     return number
 
 
@@ -117,9 +118,9 @@ def _positive_int(value, field: str) -> int:
     try:
         number = int(value)
     except (TypeError, ValueError) as exc:
-        raise ConfigError(f"'{field}' debe ser un número entero") from exc
+        raise ConfigError(_("%(field)s must be an integer", field=field)) from exc
     if number < 1:
-        raise ConfigError(f"'{field}' debe ser mayor que 0")
+        raise ConfigError(_("%(field)s must be greater than 0", field=field))
     return number
 
 
@@ -140,7 +141,7 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None) -> 
     storage = cfg["storage"]
     tmpl = str(storage["home_template"]).strip()
     if "{username}" not in tmpl:
-        raise ConfigError("storage.home_template debe contener {username}")
+        raise ConfigError(_("storage.home_template must contain {username}"))
     if not Path(os.path.expanduser(tmpl.split("{username}")[0] or ".")).is_absolute():
         tmpl = str(base_dir / tmpl)
     storage["home_template"] = os.path.expanduser(tmpl)
@@ -153,12 +154,12 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None) -> 
     for share in storage["shares"]:
         name = str(share.get("name", "")).strip()
         if not SHARE_NAME_RE.match(name):
-            raise ConfigError(f"Nombre de carpeta compartida inválido '{name}' (letras, números, _ y -)")
+            raise ConfigError(_("Invalid shared folder name %(name)s (letters, digits, _ and -)", name=repr(name)))
         if name.lower() in seen:
-            raise ConfigError(f"Nombre de carpeta compartida duplicado o reservado: '{name}'")
+            raise ConfigError(_("Duplicate or reserved shared folder name: %(name)s", name=repr(name)))
         seen.add(name.lower())
         if not share.get("path"):
-            raise ConfigError(f"La carpeta compartida '{name}' no tiene ruta")
+            raise ConfigError(_("Shared folder %(name)s has no path", name=repr(name)))
         shares.append({
             "name": name,
             "label": str(share.get("label") or name).strip(),
@@ -179,22 +180,22 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None) -> 
     pam["allowed_groups"] = [g.lower() for g in _str_list(pam["allowed_groups"], "pam.allowed_groups")]
     pam["admin_groups"] = [g.lower() for g in _str_list(pam["admin_groups"], "pam.admin_groups")]
     if pam["enabled"] and sys.platform == "win32":
-        raise ConfigError("auth.pam no está disponible en Windows")
+        raise ConfigError(_("auth.pam is not available on Windows"))
 
     entra = cfg["auth"]["entra"]
     entra["enabled"] = bool(entra["enabled"])
     if entra["provider"] not in SSO_PROVIDER_NAMES:
-        raise ConfigError(f"auth.entra.provider debe ser uno de: {', '.join(SSO_PROVIDER_NAMES)}")
+        raise ConfigError(_("auth.entra.provider must be one of: %(values)s", values=", ".join(SSO_PROVIDER_NAMES)))
     entra["scopes"] = _str_list(entra["scopes"], "entra.scopes")
     entra["allowed_groups"] = _str_list(entra["allowed_groups"], "entra.allowed_groups")
     if entra["default_role"] not in ROLES:
-        raise ConfigError(f"auth.entra.default_role debe ser uno de: {', '.join(ROLES)}")
+        raise ConfigError(_("auth.entra.default_role must be one of: %(values)s", values=", ".join(ROLES)))
     if not isinstance(entra["role_mappings"], dict):
-        raise ConfigError("auth.entra.role_mappings debe ser un objeto {grupo: rol}")
+        raise ConfigError(_("auth.entra.role_mappings must be an object {group: role}"))
     mappings = {}
     for key, role in entra["role_mappings"].items():
         if role not in ROLES:
-            raise ConfigError(f"Rol '{role}' no válido en role_mappings (usa {', '.join(ROLES)})")
+            raise ConfigError(_("Invalid role %(role)s in role_mappings (use %(values)s)", role=repr(role), values=", ".join(ROLES)))
         mappings[str(key).strip().lower()] = role
     entra["role_mappings"] = mappings
     entra["timeout_seconds"] = _positive_int(entra["timeout_seconds"], "entra.timeout_seconds")
@@ -205,17 +206,19 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None) -> 
             required.append("tenant_id")
         missing = [k for k in required if not entra.get(k)]
         if missing:
-            raise ConfigError(f"Entra ID activado pero faltan: {', '.join(missing)}")
+            raise ConfigError(_("Entra ID is enabled but these are missing: %(fields)s", fields=", ".join(missing)))
 
     cfg["auth"]["local"]["enabled"] = bool(cfg["auth"]["local"]["enabled"])
     if not (cfg["auth"]["local"]["enabled"] or pam["enabled"] or entra["enabled"]):
-        raise ConfigError("Debe haber al menos un método de inicio de sesión activado")
+        raise ConfigError(_("At least one sign-in method must be enabled"))
 
     # --- seguridad
     sec = cfg["security"]
     sec["max_login_failures"] = _positive_int(sec["max_login_failures"], "security.max_login_failures")
     sec["lockout_minutes"] = _positive_int(sec["lockout_minutes"], "security.lockout_minutes")
     cfg["app_name"] = str(cfg["app_name"]).strip() or DEFAULTS["app_name"]
+    if cfg["default_locale"] not in LOCALES:
+        raise ConfigError(_("default_locale must be one of: %(values)s", values=", ".join(LOCALES)))
     return cfg
 
 

@@ -1,10 +1,20 @@
 (function () {
   "use strict";
 
+  // Traducciones: el servidor entrega {texto_fuente: traducción} en <script id="i18n-messages">
+  var MESSAGES = {};
+  try { MESSAGES = JSON.parse(document.getElementById("i18n-messages").textContent); } catch (e) { MESSAGES = {}; }
+  function t(message, params) {
+    var text = MESSAGES[message] || message;
+    return text.replace(/%\((\w+)\)s/g, function (m, key) {
+      return params && params[key] !== undefined ? params[key] : m;
+    });
+  }
+
   // Confirmación genérica para formularios destructivos
   document.querySelectorAll("form.js-confirm").forEach(function (f) {
     f.addEventListener("submit", function (e) {
-      if (!confirm(f.dataset.confirm || "¿Seguro?")) e.preventDefault();
+      if (!confirm(f.dataset.confirm || t("Are you sure?"))) e.preventDefault();
     });
   });
 

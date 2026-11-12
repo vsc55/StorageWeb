@@ -10,7 +10,7 @@ Group=@APP_GROUP@
 Environment=STORAGEWEB_CONFIG=@CONF_DIR@/config.json
 Environment=PYTHONUNBUFFERED=1
 WorkingDirectory=@DATA_DIR@
-ExecStart=@APP_DIR@/venv/bin/storageweb serve
+ExecStart=@STORAGEWEB_BIN@ serve
 Restart=on-failure
 RestartSec=5
 

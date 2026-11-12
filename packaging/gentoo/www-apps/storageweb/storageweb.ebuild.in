@@ -1,0 +1,94 @@
+# Plantilla: packaging/gentoo/make_overlay.py (llamado desde packaging/build.sh) genera
+# storageweb-<version>.ebuild sustituyendo VERSION, HOMEPAGE y GENTOO_LICENSE, y añade el
+# Manifest con los hashes del tarball de la release.
+
+EAPI=8
+
+DISTUTILS_USE_PEP517=setuptools
+PYTHON_COMPAT=( python3_{11..14} )
+
+inherit distutils-r1 systemd
+
+DESCRIPTION="Servidor web para subir y descargar archivos (usuarios locales, PAM y Entra ID)"
+HOMEPAGE="@HOMEPAGE@"
+SRC_URI="@HOMEPAGE@/releases/download/v@VERSION@/storageweb-@VERSION@.tar.gz"
+S="${WORKDIR}/storageweb-@VERSION@"
+
+LICENSE="@GENTOO_LICENSE@"
+SLOT="0"
+KEYWORDS="~amd64 ~arm64"
+IUSE="msal pam"
+RESTRICT="mirror"
+
+# msal y python-pam se importan solo si se activan en la configuración
+RDEPEND="
+	acct-group/storageweb
+	acct-user/storageweb
+	>=dev-python/babel-2.12[${PYTHON_USEDEP}]
+	>=dev-python/flask-3[${PYTHON_USEDEP}]
+	>=dev-python/werkzeug-3[${PYTHON_USEDEP}]
+	>=dev-python/waitress-3[${PYTHON_USEDEP}]
+	msal? ( dev-python/msal[${PYTHON_USEDEP}] )
+	pam? ( dev-python/python-pam[${PYTHON_USEDEP}] )
+"
+
+distutils_enable_tests pytest
+
+src_prepare() {
+	distutils-r1_src_prepare
+
+	# Plantillas comunes del proyecto, con el binario instalado en /usr/bin
+	local f
+	for f in packaging/systemd/storageweb{,-backup}.service packaging/systemd/storageweb-backup.timer \
+			packaging/bin/storageweb-admin; do
+		sed -e "s#@APP_USER@#storageweb#g" -e "s#@APP_GROUP@#storageweb#g" \
+			-e "s#@STORAGEWEB_BIN@#${EPREFIX}/usr/bin/storageweb#g" \
+			-e "s#@CONF_DIR@#${EPREFIX}/etc/storageweb#g" \
+			-e "s#@DATA_DIR@#${EPREFIX}/var/lib/storageweb#g" \
+			-e "s#@STORAGE_DIR@#${EPREFIX}/srv/storageweb#g" \
+			"${f}" > "${T}/${f##*/}" || die
+	done
+}
+
+python_install_all() {
+	distutils-r1_python_install_all
+
+	systemd_dounit "${T}/storageweb.service" "${T}/storageweb-backup.service" "${T}/storageweb-backup.timer"
+	newinitd "${FILESDIR}/storageweb.initd" storageweb
+	newconfd "${FILESDIR}/storageweb.confd" storageweb
+	dobin "${T}/storageweb-admin"
+
+	insinto /etc/storageweb
+	newins config/config.example.json config.json
+	fowners root:storageweb /etc/storageweb /etc/storageweb/config.json
+	fperms 0750 /etc/storageweb
+	fperms 0640 /etc/storageweb/config.json
+
+	insinto /usr/share/storageweb
+	doins config/config.example.json
+	newins packaging/nginx/storageweb.conf nginx-storageweb.conf
+
+	local d
+	for d in /var/lib/storageweb /var/log/storageweb /srv/storageweb \
+			/srv/storageweb/homes /srv/storageweb/shared /srv/storageweb/public; do
+		keepdir "${d}"
+		fowners storageweb:storageweb "${d}"
+	done
+	fperms 0750 /var/lib/storageweb /var/log/storageweb
+	fperms 2770 /srv/storageweb /srv/storageweb/homes /srv/storageweb/shared /srv/storageweb/public
+}
+
+pkg_postinst() {
+	elog "Configuración: /etc/storageweb/config.json"
+	elog "Crea el primer administrador con:"
+	elog "  storageweb-admin user-add admin --role admin"
+	elog "Arranque:"
+	elog "  OpenRC:  rc-update add storageweb default && rc-service storageweb start"
+	elog "  systemd: systemctl enable --now storageweb"
+	elog "Plantilla de nginx (HTTPS, necesario para Entra ID): /usr/share/storageweb/nginx-storageweb.conf"
+	if use pam; then
+		elog ""
+		elog "Con auth.pam el servicio necesita leer /etc/shadow (pam_unix). Revisa la"
+		elog "sección PAM del README antes de activarlo."
+	fi
+}

@@ -6,6 +6,7 @@ from werkzeug.exceptions import HTTPException
 
 from ...core.security import PathError
 from ...core.storage import RootNotFound
+from ...i18n import _
 
 
 def json_api(bp: Blueprint) -> Blueprint:
@@ -21,6 +22,6 @@ def json_api(bp: Blueprint) -> Blueprint:
     @bp.errorhandler(PathError)
     @bp.errorhandler(RootNotFound)
     def _not_found(exc):
-        return {"error": "No encontrado"}, 404
+        return {"error": _("Not found")}, 404
 
     return bp

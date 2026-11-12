@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..db.repositories.users import groups_of
+from ..i18n import _, format_datetime, format_size
 from .security import UPLOAD_TMP_PREFIX, safe_username_for_path
 
 
@@ -22,7 +23,7 @@ def home_path_for(user, cfg: dict) -> Path:
 
 def available_roots(user, cfg: dict) -> list[dict]:
     """Raíces accesibles: su home + las carpetas compartidas permitidas por usuario o grupo."""
-    roots = [{"name": "home", "label": "Mi carpeta", "path": home_path_for(user, cfg), "read_only": False}]
+    roots = [{"name": "home", "label": _("My folder"), "path": home_path_for(user, cfg), "read_only": False}]
     uname = user["username"].lower()
     ugroups = groups_of(user)
     for share in cfg["storage"]["shares"]:
@@ -40,7 +41,7 @@ def find_root(user, cfg: dict, name: str) -> dict:
             storage = cfg["storage"]
             create = storage["create_home"] if name == "home" else storage["create_shares"]
             if not create:
-                raise RootNotFound("La carpeta configurada no existe en el servidor.")
+                raise RootNotFound(_("The configured folder does not exist on the server."))
             path.mkdir(parents=True, exist_ok=True)
             try:
                 os.chmod(path, 0o750 if name == "home" else 0o770)
@@ -93,8 +94,8 @@ def list_directory(root: dict, target: Path, show_hidden: bool) -> list[dict]:
             entries.append({
                 "name": entry.name,
                 "is_dir": is_dir,
-                "size": "" if is_dir else human_size(st.st_size),
-                "mtime": datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                "size": "" if is_dir else format_size(st.st_size),
+                "mtime": format_datetime(datetime.fromtimestamp(st.st_mtime)),
                 "rel": f"{base_rel}/{entry.name}".lstrip("/"),
             })
     entries.sort(key=lambda e: (not e["is_dir"], e["name"].lower()))

@@ -1,0 +1,209 @@
+openapi: 3.1.0
+info:
+  title: StorageWeb API
+  version: "1"
+  description: |
+    API JSON de StorageWeb. La usa la propia interfaz web para las subidas por partes.
+
+    **Autenticación:** cookie de sesión (`storageweb_session`) obtenida al iniciar sesión en la web.
+    Las peticiones que modifican datos (POST, PUT, DELETE) requieren además la cabecera
+    `X-CSRF-Token` con el valor de `<meta name="csrf-token">` de cualquier página.
+
+    **Errores:** siempre JSON, con la forma `{"error": "mensaje"}` (y campos extra en algunos casos).
+servers:
+  - url: /
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: storageweb_session
+    csrf:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: {type: string, description: Mensaje legible}
+    OffsetError:
+      type: object
+      required: [error, received]
+      properties:
+        error: {type: string}
+        received: {type: integer, description: Bytes que tiene el servidor; el cliente debe continuar desde aquí}
+    Upload:
+      type: object
+      properties:
+        id: {type: string, description: Identificador de la subida (32 caracteres hexadecimales)}
+        name: {type: string, description: Nombre final saneado}
+        size: {type: integer, description: Tamaño total declarado en bytes}
+        received: {type: integer, description: Bytes recibidos hasta ahora}
+        chunk_size: {type: integer, description: Tamaño de parte recomendado en bytes}
+  parameters:
+    UploadId:
+      name: upload_id
+      in: path
+      required: true
+      schema: {type: string}
+      description: Identificador devuelto al crear la subida
+  responses:
+    Unauthorized:
+      description: Sesión no iniciada
+      content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+    NotFound:
+      description: La subida o la carpeta no existe, o pertenece a otro usuario
+      content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+    Forbidden:
+      description: Sin permiso de subida en esa carpeta (rol o carpeta de solo lectura)
+      content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+    BadRequest:
+      description: Petición no válida (token CSRF, nombre, tamaño u offset)
+      content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+
+paths:
+  /healthz:
+    get:
+      summary: Estado del servicio
+      description: Sin autenticación. Comprueba que la base de datos responde. Lo usa el healthcheck de Docker.
+      security: []
+      responses:
+        "200":
+          description: Servicio operativo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, enum: [ok]}
+                  version: {type: string}
+        "503":
+          description: La base de datos no responde
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, enum: [error]}
+                  detail: {type: string}
+
+  /api/uploads:
+    post:
+      summary: Iniciar una subida
+      description: |
+        Valida el permiso de subida, el nombre, el tamaño máximo por archivo y el espacio libre, y crea
+        un fichero temporal vacío. También elimina las subidas sin actividad desde hace más de 24 h.
+      security: [{session: [], csrf: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [root, name, size]
+              properties:
+                root: {type: string, description: "`home` o el nombre de una carpeta compartida"}
+                path: {type: string, description: Subcarpeta relativa dentro de `root` (vacío = raíz)}
+                name: {type: string, description: Nombre del archivo}
+                size: {type: integer, minimum: 0, description: Tamaño total en bytes}
+      responses:
+        "201":
+          description: Subida creada
+          content: {application/json: {schema: {$ref: "#/components/schemas/Upload"}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "413":
+          description: El archivo supera `storage.max_file_size_mb`
+          content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+        "507":
+          description: No hay espacio suficiente en el servidor
+          content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+
+  /api/uploads/{upload_id}:
+    parameters:
+      - $ref: "#/components/parameters/UploadId"
+    get:
+      summary: Estado de una subida
+      description: Permite reanudar una subida interrumpida desde `received`.
+      security: [{session: []}]
+      responses:
+        "200":
+          description: Estado actual
+          content: {application/json: {schema: {$ref: "#/components/schemas/Upload"}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    put:
+      summary: Enviar una parte
+      description: |
+        Añade el cuerpo de la petición (binario) al final del fichero temporal. `offset` debe ser igual
+        a los bytes ya recibidos; si no, responde 409 con el valor correcto. El tamaño de la petición está
+        limitado por `server.max_upload_mb`.
+      security: [{session: [], csrf: []}]
+      parameters:
+        - name: offset
+          in: query
+          required: true
+          schema: {type: integer, minimum: 0}
+          description: Posición en bytes donde empieza esta parte
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: {type: string, format: binary}
+      responses:
+        "200":
+          description: Parte guardada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received: {type: integer}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409":
+          description: El offset no coincide con lo recibido
+          content: {application/json: {schema: {$ref: "#/components/schemas/OffsetError"}}}
+        "413":
+          description: La parte supera `server.max_upload_mb`
+          content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+    delete:
+      summary: Cancelar una subida
+      description: Borra el fichero temporal.
+      security: [{session: [], csrf: []}]
+      responses:
+        "204": {description: Subida cancelada}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /api/uploads/{upload_id}/complete:
+    parameters:
+      - $ref: "#/components/parameters/UploadId"
+    post:
+      summary: Finalizar una subida
+      description: |
+        Con todos los bytes recibidos, renombra de forma atómica el fichero temporal al nombre final.
+        Nunca sobrescribe: si el nombre existe, añade ` (1)`, ` (2)`…
+      security: [{session: [], csrf: []}]
+      responses:
+        "200":
+          description: Archivo guardado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name: {type: string, description: Nombre final}
+                  size: {type: integer}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409":
+          description: Faltan bytes por recibir
+          content: {application/json: {schema: {$ref: "#/components/schemas/OffsetError"}}}

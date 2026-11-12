@@ -7,15 +7,34 @@ from datetime import timedelta
 from flask import Flask, g, render_template
 from werkzeug.exceptions import HTTPException
 
-from . import __version__
+from . import __version__, i18n
 from .core.permissions import ROLE_LABELS, is_admin
 from .core.security import LoginThrottle, PathError
 from .core.storage import RootNotFound
 from .db import init_db
+from .i18n import _, _l
 from .settings import RuntimeSettings, ensure_secret_key, normalize, read_config_file
-from .web import register_blueprints
+from .web import js_messages, register_blueprints
 from .web.context import close_db, settings
-from .web.guards import check_csrf, csrf_token, load_current_user, set_security_headers
+from .web.guards import (check_csrf, csrf_token, load_current_user, reset_request_locale, select_locale,
+                         set_security_headers)
+
+# Nombres de los errores HTTP más habituales (los de Werkzeug están en inglés)
+ERROR_NAMES = {
+    400: _l("Bad request"),
+    401: _l("Not signed in"),
+    403: _l("Forbidden"),
+    404: _l("Not found"),
+    405: _l("Method not allowed"),
+    413: _l("Request too large"),
+    500: _l("Internal server error"),
+}
+ERROR_DESCRIPTIONS = {
+    404: _l("The requested page or file does not exist."),
+    405: _l("This operation is not allowed here."),
+    413: _l("The request exceeds the maximum size allowed by the server."),
+    500: _l("Something went wrong on the server. Try again later."),
+}
 
 
 def create_app(config_path: str | None = None) -> Flask:
@@ -46,31 +65,46 @@ def create_app(config_path: str | None = None) -> Flask:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     applied = init_db(cfg["database"])
     if applied:
-        app.logger.info("Migraciones aplicadas: %s", ", ".join(f"{v:03d}" for v in applied))
+        app.logger.info("Applied migrations: %s", ", ".join(f"{v:03d}" for v in applied))
 
-    app.teardown_appcontext(close_db)
-    app.before_request(check_csrf)
+    # --- i18n en plantillas: {{ _("Text") }}, {{ _("Hi %(name)s", name=x) }}, {{ ngettext(...) }}
+    app.jinja_env.add_extension("jinja2.ext.i18n")
+    app.jinja_env.install_gettext_callables(i18n.raw_gettext, i18n.raw_ngettext, newstyle=True)
+    app.jinja_env.filters["datetime"] = i18n.format_datetime
+
+    # El orden importa: primero el usuario y su idioma, para que hasta el error de CSRF salga traducido
     app.before_request(load_current_user)
+    app.before_request(select_locale)
+    app.before_request(check_csrf)
     app.after_request(set_security_headers)
+    app.teardown_request(reset_request_locale)
+    app.teardown_appcontext(close_db)
 
     @app.context_processor
     def inject_globals():
         user = g.get("user")
         return {"csrf_token": csrf_token, "app_name": settings()["app_name"], "current_user": user,
-                "is_admin": is_admin(user), "ROLE_LABELS": ROLE_LABELS, "app_version": __version__}
+                "is_admin": is_admin(user), "ROLE_LABELS": ROLE_LABELS, "app_version": __version__,
+                "current_locale": i18n.get_locale(),
+                "available_locales": [(code, i18n.locale_display_name(code)) for code in i18n.LOCALES],
+                "js_messages": js_messages.catalog}
 
     def render_error(code: int, name: str, description: str | None):
         return render_template("error.html", code=code, name=name, description=description), code
 
     @app.errorhandler(HTTPException)
     def handle_http_error(exc: HTTPException):
-        return render_error(exc.code, exc.name, exc.description)
+        # Si la descripción es la genérica de Werkzeug (en inglés), se usa la traducida
+        description = exc.description
+        if description == type(exc).description:
+            description = ERROR_DESCRIPTIONS.get(exc.code, description)
+        return render_error(exc.code, ERROR_NAMES.get(exc.code, exc.name), description)
 
     @app.errorhandler(PathError)
     @app.errorhandler(RootNotFound)
     def handle_not_found(exc):
-        message = str(exc) if isinstance(exc, RootNotFound) and str(exc) else "La ruta solicitada no existe."
-        return render_error(404, "Not Found", message)
+        message = str(exc) if isinstance(exc, RootNotFound) and str(exc) else _("The requested path does not exist.")
+        return render_error(404, ERROR_NAMES[404], message)
 
     register_blueprints(app)
     return app

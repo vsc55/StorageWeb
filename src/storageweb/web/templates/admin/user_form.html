@@ -1,70 +1,70 @@
 {% extends "admin/_layout.html" %}
-{% block title %}{{ 'Editar ' ~ user['username'] if user else 'Nuevo usuario' }} · {{ app_name }}{% endblock %}
+{% block title %}{{ _("Edit %(name)s", name=user['username']) if user else _("New user") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
 <div class="page-head">
-  <h1>{% if user %}Usuario «{{ user['username'] }}»{% else %}Nuevo usuario{% endif %}</h1>
-  <a class="btn btn-ghost" href="{{ url_for('admin.users_list') }}">← Volver</a>
+  <h1>{% if user %}{{ _("User «%(name)s»", name=user['username']) }}{% else %}{{ _("New user") }}{% endif %}</h1>
+  <a class="btn btn-ghost" href="{{ url_for('admin.users_list') }}">← {{ _("Back") }}</a>
 </div>
 
 <form method="post" class="card form-grid">
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
 
   {% if user %}
-    <div class="field"><span class="label">Usuario</span><strong>{{ user['username'] }}</strong></div>
-    <div class="field"><span class="label">Origen</span>{{ SOURCE_LABELS[user['source']] }}
-      {% if user['source'] == 'entra' and not user['external_id'] %}<small class="muted">(se vinculará en su primer login)</small>{% endif %}</div>
-    <div class="field"><span class="label">Creado</span>{{ user['created_at'][:16].replace('T', ' ') }}</div>
-    <div class="field"><span class="label">Último acceso</span>{{ (user['last_login'] or '—')[:16].replace('T', ' ') }}</div>
+    <div class="field"><span class="label">{{ _("User") }}</span><strong>{{ user['username'] }}</strong></div>
+    <div class="field"><span class="label">{{ _("Source") }}</span>{{ SOURCE_LABELS[user['source']] }}
+      {% if user['source'] == 'entra' and not user['external_id'] %}<small class="muted">({{ _("will be linked on first sign-in") }})</small>{% endif %}</div>
+    <div class="field"><span class="label">{{ _("Created") }}</span>{{ user['created_at']|datetime }}</div>
+    <div class="field"><span class="label">{{ _("Last sign-in") }}</span>{{ user['last_login']|datetime }}</div>
   {% else %}
-    <label>Usuario
+    <label>{{ _("User") }}
       <input type="text" name="username" value="{{ form.username or '' }}" required maxlength="128" autofocus
              pattern="[A-Za-z0-9][A-Za-z0-9._@+\-]*">
-      <small class="muted">Para Entra ID usa el UPN, p. ej. juan@contoso.com</small>
+      <small class="muted">{{ _("For Entra ID use the UPN, e.g. juan@contoso.com") }}</small>
     </label>
-    <label>Origen
+    <label>{{ _("Source") }}
       <select name="source" id="source-select">
         {% for s in sources %}<option value="{{ s }}" {% if form.source == s %}selected{% endif %}>{{ SOURCE_LABELS[s] }}</option>{% endfor %}
       </select>
     </label>
   {% endif %}
 
-  <label>Nombre visible
+  <label>{{ _("Display name") }}
     <input type="text" name="display_name" value="{{ form.display_name or '' }}" maxlength="200">
   </label>
-  <label>Email
+  <label>{{ _("Email") }}
     <input type="email" name="email" value="{{ form.email or '' }}" maxlength="200">
   </label>
-  <label>Rol
+  <label>{{ _("Role") }}
     <select name="role">
       {% for r in ROLES %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}
     </select>
   </label>
-  <label>Grupos <small class="muted">(separados por comas; dan acceso a carpetas compartidas)</small>
+  <label>{{ _("Groups") }} <small class="muted">({{ _("comma separated; they give access to shared folders") }})</small>
     <input type="text" name="groups" value="{{ (form.groups or []) | join(', ') }}">
   </label>
-  <label class="span2">Carpeta personal <small class="muted">(vacío = plantilla por defecto)</small>
-    <input type="text" name="home_path" value="{{ form.home_path or '' }}" placeholder="/srv/storageweb/homes/usuario">
+  <label class="span2">{{ _("Personal folder") }} <small class="muted">({{ _("empty = default template") }})</small>
+    <input type="text" name="home_path" value="{{ form.home_path or '' }}" placeholder="/srv/storageweb/homes/{{ _('user') }}">
   </label>
 
   {% if not user or user['source'] == 'local' %}
-  <label class="js-local-only">{{ 'Nueva contraseña' if user else 'Contraseña' }}
+  <label class="js-local-only">{{ _("New password") if user else _("Password") }}
     <input type="password" name="password" autocomplete="new-password" minlength="10"
-           {% if not user %}required{% endif %} placeholder="{{ 'Dejar vacío para no cambiarla' if user else 'Mínimo 10 caracteres' }}">
+           {% if not user %}required{% endif %} placeholder="{{ _('Leave empty to keep it') if user else _('At least 10 characters') }}">
   </label>
   {% endif %}
 
-  <label class="check"><input type="checkbox" name="enabled" {% if form.enabled %}checked{% endif %}> Cuenta activa</label>
+  <label class="check"><input type="checkbox" name="enabled" {% if form.enabled %}checked{% endif %}> {{ _("Account enabled") }}</label>
 
   <div class="span2 form-actions">
-    <button class="btn btn-primary" type="submit">{{ 'Guardar cambios' if user else 'Crear usuario' }}</button>
+    <button class="btn btn-primary" type="submit">{{ _("Save changes") if user else _("Create user") }}</button>
   </div>
 </form>
 
 {% if user and user['id'] != current_user['id'] %}
 <form method="post" action="{{ url_for('admin.user_delete', user_id=user['id']) }}" class="danger-zone js-confirm"
-      data-confirm="¿Eliminar el usuario «{{ user['username'] }}»? Sus archivos no se borrarán.">
+      data-confirm="{{ _('Delete the user «%(name)s»? Their files will not be removed.', name=user['username']) }}">
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-  <button class="btn btn-danger" type="submit">Eliminar usuario</button>
+  <button class="btn btn-danger" type="submit">{{ _("Delete user") }}</button>
 </form>
 {% endif %}
 {% endblock %}

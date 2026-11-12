@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from ..i18n import _
+
 MIN_PASSWORD_LENGTH = 10
 
 # Hash ficticio para igualar tiempos cuando el usuario no existe o no tiene contraseña
@@ -11,7 +13,7 @@ _DUMMY_HASH = generate_password_hash("dummy-password-for-timing")
 
 def validate_password(password: str) -> None:
     if len(password or "") < MIN_PASSWORD_LENGTH:
-        raise ValueError(f"La contraseña debe tener al menos {MIN_PASSWORD_LENGTH} caracteres")
+        raise ValueError(_("The password must be at least %(num)s characters long", num=MIN_PASSWORD_LENGTH))
 
 
 def hash_password(password: str) -> str:

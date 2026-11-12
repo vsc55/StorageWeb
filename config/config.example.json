@@ -1,5 +1,6 @@
 {
   "app_name": "StorageWeb",
+  "default_locale": "en",
   "server": {
     "host": "127.0.0.1",
     "port": 8080,
@@ -75,7 +76,7 @@
       "scopes": [
         "User.Read"
       ],
-      "button_label": "Iniciar sesión con Microsoft",
+      "button_label": "",
       "username_claim": "preferred_username",
       "strip_domain": false,
       "allowed_groups": [],

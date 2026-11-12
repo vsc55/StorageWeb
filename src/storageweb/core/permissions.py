@@ -5,17 +5,18 @@
 """
 from __future__ import annotations
 
+from ..i18n import _l
 from ..settings.defaults import PERMISSIONS, ROLES
 
 ADMIN = "admin"
 USER = "user"
-ROLE_LABELS = {ADMIN: "Administrador", USER: "Usuario"}
+ROLE_LABELS = {ADMIN: _l("Administrator"), USER: _l("User")}
 PERMISSION_LABELS = {
-    "upload": "Subir archivos",
-    "download": "Descargar",
-    "mkdir": "Crear carpetas",
-    "rename": "Renombrar",
-    "delete": "Eliminar",
+    "upload": _l("Upload files"),
+    "download": _l("Download"),
+    "mkdir": _l("Create folders"),
+    "rename": _l("Rename"),
+    "delete": _l("Delete"),
 }
 assert set(ROLE_LABELS) == set(ROLES) and set(PERMISSION_LABELS) == set(PERMISSIONS)
 

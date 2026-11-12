@@ -70,6 +70,54 @@
       "presentation": { "reveal": "always", "panel": "shared", "clear": true }
     },
     {
+      "label": "StorageWeb: documentación (servir)",
+      "detail": "mkdocs serve en http://127.0.0.1:8000 con recarga automática (requiere pip install -e '.[docs]')",
+      "type": "process",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "windows": { "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe" },
+      "args": ["-m", "mkdocs", "serve"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "mkdocs",
+        "pattern": { "regexp": "^(WARNING|ERROR)\\s+-\\s+(.*)$", "severity": 1, "message": 2 },
+        "background": { "activeBegin": true, "beginsPattern": "Building documentation", "endsPattern": "Serving on" }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "StorageWeb: regenerar referencia",
+      "detail": "Regenera docs/referencia/{configuracion,cli,api}.md desde el código",
+      "type": "process",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "windows": { "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe" },
+      "args": ["tools/gen_docs.py"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "StorageWeb: actualizar traducciones",
+      "detail": "Extrae los textos del código y plantillas y actualiza los catálogos .po (luego: comprobar traducciones)",
+      "type": "process",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "windows": { "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe" },
+      "args": ["tools/i18n.py", "update"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "StorageWeb: comprobar traducciones",
+      "type": "process",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "windows": { "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe" },
+      "args": ["tools/i18n.py", "check"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
       "label": "StorageWeb: tests unitarios",
       "type": "process",
       "command": "${workspaceFolder}/.venv/bin/python",

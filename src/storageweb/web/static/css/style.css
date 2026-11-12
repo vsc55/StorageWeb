@@ -126,3 +126,8 @@ pre.code { background: var(--bg); border: 1px solid var(--line); border-radius: 
 .upload-panel { margin-bottom: 12px; }
 .upload-panel .progress { margin-bottom: 6px; }
 .upload-meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+
+/* --- selector de idioma --- */
+.langbox { display: flex; gap: 2px; margin: 0; }
+.langbox .btn { padding: 3px 7px; font-size: 12px; }
+.langbox .btn.active { font-weight: 700; background: var(--bg); border-color: var(--line); }

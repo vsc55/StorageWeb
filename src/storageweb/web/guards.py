@@ -9,7 +9,9 @@ from flask import abort, g, redirect, request, session, url_for
 
 from ..core.permissions import is_admin
 from ..db.repositories import users
-from .context import get_db
+from ..i18n import LOCALES, _, reset_locale, set_locale
+from ..i18n import normalize as normalize_locale
+from .context import get_db, settings
 
 
 def client_ip() -> str:
@@ -30,14 +32,38 @@ def check_csrf() -> None:
     expected = session.get("_csrf")
     sent = request.headers.get("X-CSRF-Token") or request.form.get("_csrf")
     if not expected or not sent or not hmac.compare_digest(expected, sent):
-        abort(400, description="Token CSRF inválido. Recarga la página e inténtalo de nuevo.")
+        abort(400, description=_("Invalid CSRF token. Reload the page and try again."))
+
+
+def clear_session() -> None:
+    """Vacía la sesión conservando el idioma elegido (para que no cambie al entrar o salir)."""
+    locale = session.get("locale")
+    session.clear()
+    if locale:
+        session["locale"] = locale
 
 
 def start_session(user) -> None:
-    session.clear()
+    clear_session()
     session.permanent = True
     session["uid"] = user["id"]
     session["src"] = user["source"]
+
+
+def select_locale() -> None:
+    """Idioma de la petición: preferencia del usuario > elegido en la sesión > navegador > por defecto."""
+    user = g.get("user")
+    locale = (normalize_locale(user["locale"]) if user is not None else None) \
+        or normalize_locale(session.get("locale")) \
+        or request.accept_languages.best_match(LOCALES) \
+        or settings()["default_locale"]
+    g.locale_token = set_locale(locale)
+
+
+def reset_request_locale(_exc=None) -> None:
+    token = g.pop("locale_token", None)
+    if token is not None:
+        reset_locale(token)
 
 
 def load_current_user() -> None:
@@ -67,7 +93,7 @@ def admin_required(view):
         if g.get("user") is None:
             return redirect(url_for("auth.login", next=request.full_path))
         if not is_admin(g.user):
-            abort(403, description="Esta sección es solo para administradores.")
+            abort(403, description=_("This section is for administrators only."))
         return view(*args, **kwargs)
     return wrapper
 

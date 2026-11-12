@@ -9,6 +9,7 @@ description = "Servidor web para subir y descargar archivos con usuarios locales
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
+    "Babel>=2.12,<3",
     "Flask>=3.0,<4",
     "Werkzeug>=3.0,<4",
     "waitress>=3.0,<4",
@@ -17,7 +18,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<10"]
+dev = ["pytest>=8,<10", "pyyaml>=6"]
+docs = ["mkdocs>=1.6,<2", "mkdocs-material>=9.5,<10", "pyyaml>=6"]
 
 [project.scripts]
 storageweb = "storageweb.cli:main"
@@ -30,7 +32,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 storageweb = ["web/templates/*.html", "web/templates/**/*.html", "web/static/**/*",
-              "db/migrations/*.sql"]
+              "db/migrations/*.sql", "locale/*/LC_MESSAGES/*.po"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

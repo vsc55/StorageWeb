@@ -7,7 +7,7 @@ from typing import Iterable
 from ..connection import now_iso
 
 _UPDATABLE = {"display_name", "email", "groups", "home_path", "enabled", "role", "password_hash",
-              "external_id", "last_login"}
+              "external_id", "last_login", "locale"}
 
 
 def _join_groups(groups: Iterable[str] | None) -> str:

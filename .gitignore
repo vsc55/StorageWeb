@@ -11,3 +11,5 @@ dist/
 .coverage
 config/config.json
 config.json
+admin_password.txt
+site/

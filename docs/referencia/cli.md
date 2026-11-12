@@ -1,0 +1,215 @@
+<!-- Generado por tools/gen_docs.py: no editar a mano -->
+
+# Referencia de la CLI
+
+Comando `storageweb` (también `python -m storageweb`). En un servidor instalado con paquetes, usa `sudo storageweb-admin <comando>`, que lo ejecuta como el usuario del servicio y con `/etc/storageweb/config.json`.
+
+```
+storageweb [--config RUTA] <comando> [opciones]
+```
+
+## Opciones globales
+
+| Opción | Descripción |
+|---|---|
+| `--config` `RUTA` | Ruta a config.json (por defecto $STORAGEWEB_CONFIG, luego /etc/storageweb/config.json) |
+
+## Comandos
+
+| Comando | Descripción |
+|---|---|
+| [`serve`](#serve) | Arranca el servidor web |
+| [`init-db`](#init-db) | Crea la base de datos o aplica las migraciones pendientes |
+| [`user-add`](#user-add) | Crea un usuario (local por defecto) |
+| [`user-passwd`](#user-passwd) | Cambia la contraseña de un usuario local |
+| [`user-set`](#user-set) | Modifica rol, grupos, carpeta, idioma o estado de un usuario |
+| [`user-del`](#user-del) | Elimina un usuario (no borra sus archivos) |
+| [`user-list`](#user-list) | Lista usuarios |
+| [`user-exists`](#user-exists) | Código de salida 0 si el usuario existe, 1 si no |
+| [`audit`](#audit) | Muestra el registro de auditoría |
+| [`check-config`](#check-config) | Valida la configuración y avisa si no hay ningún administrador |
+| [`settings-reset`](#settings-reset) | Descarta los ajustes guardados desde la web y vuelve a config.json |
+| [`backup`](#backup) | Copia de seguridad de la base de datos, config.json y secret_key |
+| [`backup-list`](#backup-list) | Lista las copias de seguridad de una carpeta |
+| [`restore`](#restore) | Restaura una copia (con el servicio parado) |
+
+### `serve` {#serve}
+
+Arranca el servidor web.
+
+```
+storageweb serve [--host HOST] [--port PORT] [--dev] [--no-reload]
+```
+
+| Argumento | Descripción |
+|---|---|
+| `--host` `HOST` | Sobrescribe server.host |
+| `--port` `PORT` | Sobrescribe server.port |
+| `--dev` | Desarrollo: depurador y recarga automática |
+| `--no-reload` | Con --dev, sin recarga (para depurar) |
+
+### `init-db` {#init-db}
+
+Crea la base de datos o aplica las migraciones pendientes.
+
+```
+storageweb init-db
+```
+
+
+### `user-add` {#user-add}
+
+Crea un usuario (local por defecto).
+
+```
+storageweb user-add <username> [--source SOURCE] [--role ROLE] [--password PASSWORD] [--password-stdin] [--name NAME] [--email EMAIL] [--groups GROUPS] [--home HOME]
+```
+
+| Argumento | Descripción |
+|---|---|
+| `username` | Nombre de usuario (para Entra ID, el UPN: juan@contoso.com) |
+| `--source` `SOURCE` | 'entra' = alta previa de un usuario de Entra ID (sin contraseña) Valores: `local`, `entra`. Por defecto: `local`. |
+| `--role` `ROLE` | Rol del usuario Valores: `admin`, `user`. Por defecto: `user`. |
+| `--password` `PASSWORD` | Contraseña (evítalo: queda en el historial; mejor que la pregunte) |
+| `--password-stdin` | Lee la contraseña de la entrada estándar |
+| `--name` `NAME` | Nombre visible |
+| `--email` `EMAIL` | Correo electrónico |
+| `--groups` `GROUPS` | Grupos separados por comas (dan acceso a carpetas compartidas) |
+| `--home` `HOME` | Carpeta personal propia (por defecto storage.home_template) |
+
+### `user-passwd` {#user-passwd}
+
+Cambia la contraseña de un usuario local.
+
+```
+storageweb user-passwd <username> [--password PASSWORD] [--password-stdin]
+```
+
+| Argumento | Descripción |
+|---|---|
+| `username` | Usuario |
+| `--password` `PASSWORD` | Nueva contraseña (si se omite, se pregunta) |
+| `--password-stdin` | Lee la contraseña de la entrada estándar |
+
+### `user-set` {#user-set}
+
+Modifica rol, grupos, carpeta, idioma o estado de un usuario.
+
+```
+storageweb user-set <username> [--role ROLE] [--groups GROUPS] [--home HOME] [--name NAME] [--email EMAIL] [--locale LOCALE] [--enable] [--disable]
+```
+
+| Argumento | Descripción |
+|---|---|
+| `username` | Usuario |
+| `--role` `ROLE` | Nuevo rol Valores: `admin`, `user`. |
+| `--groups` `GROUPS` | Grupos separados por comas (sustituye los actuales) |
+| `--home` `HOME` | Carpeta personal; '' para volver a storage.home_template |
+| `--name` `NAME` | Nombre visible |
+| `--email` `EMAIL` | Correo electrónico |
+| `--locale` `LOCALE` | Idioma preferido de la interfaz Valores: `en`, `es`. |
+| `--enable` | Activa la cuenta |
+| `--disable` | Desactiva la cuenta |
+
+### `user-del` {#user-del}
+
+Elimina un usuario (no borra sus archivos).
+
+```
+storageweb user-del <username>
+```
+
+| Argumento | Descripción |
+|---|---|
+| `username` | Usuario |
+
+### `user-list` {#user-list}
+
+Lista usuarios.
+
+```
+storageweb user-list
+```
+
+
+### `user-exists` {#user-exists}
+
+Código de salida 0 si el usuario existe, 1 si no.
+
+```
+storageweb user-exists <username>
+```
+
+| Argumento | Descripción |
+|---|---|
+| `username` | Usuario |
+
+### `audit` {#audit}
+
+Muestra el registro de auditoría.
+
+```
+storageweb audit [--limit LIMIT] [--user USER]
+```
+
+| Argumento | Descripción |
+|---|---|
+| `--limit` `LIMIT` | Número máximo de entradas Por defecto: `50`. |
+| `--user` `USER` | Filtra por usuario |
+
+### `check-config` {#check-config}
+
+Valida la configuración y avisa si no hay ningún administrador.
+
+```
+storageweb check-config
+```
+
+
+### `settings-reset` {#settings-reset}
+
+Descarta los ajustes guardados desde la web y vuelve a config.json.
+
+```
+storageweb settings-reset
+```
+
+
+### `backup` {#backup}
+
+Copia de seguridad de la base de datos, config.json y secret_key.
+
+```
+storageweb backup [--output OUTPUT] [--keep KEEP]
+```
+
+| Argumento | Descripción |
+|---|---|
+| `--output` `OUTPUT` | Carpeta de destino (por defecto <data_dir>/backups) |
+| `--keep` `KEEP` | Conserva solo las N copias más recientes de la carpeta |
+
+### `backup-list` {#backup-list}
+
+Lista las copias de seguridad de una carpeta.
+
+```
+storageweb backup-list [--output OUTPUT]
+```
+
+| Argumento | Descripción |
+|---|---|
+| `--output` `OUTPUT` | Carpeta de copias (por defecto <data_dir>/backups) |
+
+### `restore` {#restore}
+
+Restaura una copia (con el servicio parado).
+
+```
+storageweb restore <archive> [--force] [--config-to CONFIG_TO]
+```
+
+| Argumento | Descripción |
+|---|---|
+| `archive` | Fichero storageweb-backup-*.tar.gz |
+| `--force` | Reemplaza la base de datos existente (antes guarda una copia .antes-de-restaurar-*) |
+| `--config-to` `CONFIG_TO` | Escribe el config.json de la copia en esta ruta |

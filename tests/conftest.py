@@ -9,6 +9,16 @@ import pytest
 from tests.helpers import add_user, deep_update, get_csrf, login
 
 
+@pytest.fixture(autouse=True)
+def spanish_locale():
+    """Idioma activo fuera de las peticiones (core, CLI en proceso): español, como la configuración de los tests."""
+    from storageweb import i18n
+
+    token = i18n.set_locale("es")
+    yield
+    i18n.reset_locale(token)
+
+
 @pytest.fixture
 def write_config(tmp_path: Path):
     def _write(overrides: dict | None = None) -> Path:
@@ -17,6 +27,8 @@ def write_config(tmp_path: Path):
             "data_dir": "data",
             "session": {"cookie_secure": False},
             "storage": {"home_template": "data/homes/{username}"},
+            # Los tests comprueban los textos en español: se fija explícitamente (por defecto es inglés)
+            "default_locale": "es",
             # En los tests de archivos el rol user tiene todos los permisos; los valores por
             # defecto (sin renombrar/borrar) se prueban aparte
             "permissions": {"user": {p: True for p in ("upload", "download", "mkdir", "rename", "delete")}},

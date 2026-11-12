@@ -1,0 +1,96 @@
+site_name: StorageWeb
+site_description: Servidor web para subir y descargar archivos con usuarios locales, PAM y Microsoft Entra ID
+docs_dir: docs
+strict: true
+
+theme:
+  name: material
+  language: es
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      toggle: {icon: material/weather-night, name: Modo oscuro}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      toggle: {icon: material/weather-sunny, name: Modo claro}
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Inicio: index.md
+  - Uso: uso/index.md
+  - Administración:
+      - Instalación: administracion/instalacion.md
+      - Docker: administracion/docker.md
+      - Gentoo: administracion/gentoo.md
+      - HTTPS con nginx: administracion/https.md
+      - Configuración: administracion/configuracion.md
+      - Microsoft Entra ID: administracion/entra-id.md
+      - Usuarios, roles y permisos: administracion/usuarios-y-permisos.md
+      - Copias de seguridad: administracion/copias-seguridad.md
+      - Actualización: administracion/actualizacion.md
+      - Seguridad en producción: administracion/seguridad.md
+      - Solución de problemas: administracion/solucion-problemas.md
+  - Referencia:
+      - Configuración: referencia/configuracion.md
+      - CLI: referencia/cli.md
+      - API HTTP: referencia/api.md
+      - Auditoría: referencia/auditoria.md
+      - Rutas y variables de entorno: referencia/rutas.md
+  - Arquitectura:
+      - arquitectura/index.md
+      - Flujos: arquitectura/flujos.md
+      - Datos: arquitectura/datos.md
+      - Modelo de seguridad: arquitectura/seguridad.md
+      - Decisiones (ADR):
+          - arquitectura/decisiones/index.md
+          - 0001 Python, Flask y Waitress: arquitectura/decisiones/0001-python-flask-waitress.md
+          - 0002 Paquete src y capas: arquitectura/decisiones/0002-paquete-y-capas.md
+          - 0003 OAuth2 propio: arquitectura/decisiones/0003-oauth2-propio.md
+          - 0004 Firma del id_token: arquitectura/decisiones/0004-firma-id-token.md
+          - 0005 Ajustes web en SQLite: arquitectura/decisiones/0005-ajustes-web-sqlite.md
+          - 0006 Subidas por partes: arquitectura/decisiones/0006-subidas-por-partes.md
+          - 0007 Migraciones versionadas: arquitectura/decisiones/0007-migraciones.md
+          - 0008 Empaquetado con wheels: arquitectura/decisiones/0008-empaquetado.md
+          - 0009 Un solo usuario de servicio: arquitectura/decisiones/0009-usuario-de-servicio.md
+          - 0010 Internacionalización: arquitectura/decisiones/0010-internacionalizacion.md
+          - Plantilla: arquitectura/decisiones/plantilla.md
+  - Desarrollo:
+      - desarrollo/index.md
+      - Extender StorageWeb: desarrollo/extender.md
+      - Documentación: desarrollo/documentacion.md
+      - Releases: desarrollo/releases.md
+  - Proyecto:
+      - Cambios: proyecto/changelog.md
+      - Política de seguridad: proyecto/seguridad.md
+      - Contribuir: proyecto/contribuir.md

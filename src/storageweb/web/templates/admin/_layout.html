@@ -2,11 +2,11 @@
 {% block content %}
 <div class="layout">
   <nav class="sidebar">
-    <h2>Administración</h2>
+    <h2>{{ _("Administration") }}</h2>
     <ul>
-      <li><a href="{{ url_for('admin.users_list') }}" class="{% if request.endpoint.startswith('admin.user') %}active{% endif %}">Usuarios</a></li>
-      <li><a href="{{ url_for('admin.settings_page') }}" class="{% if request.endpoint.startswith('admin.settings') %}active{% endif %}">Ajustes</a></li>
-      <li><a href="{{ url_for('admin.audit_log') }}" class="{% if request.endpoint == 'admin.audit_log' %}active{% endif %}">Auditoría</a></li>
+      <li><a href="{{ url_for('admin.users_list') }}" class="{% if request.endpoint.startswith('admin.user') %}active{% endif %}">{{ _("Users") }}</a></li>
+      <li><a href="{{ url_for('admin.settings_page') }}" class="{% if request.endpoint.startswith('admin.settings') %}active{% endif %}">{{ _("Settings") }}</a></li>
+      <li><a href="{{ url_for('admin.audit_log') }}" class="{% if request.endpoint == 'admin.audit_log' %}active{% endif %}">{{ _("Audit") }}</a></li>
     </ul>
   </nav>
   <section class="content">

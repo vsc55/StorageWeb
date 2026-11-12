@@ -35,6 +35,7 @@ PKG="$ROOT/packaging"
 log() { echo -e "\e[1;34m==>\e[0m $*"; }
 render() {  # render <plantilla> <destino>
   sed -e "s#@APP_USER@#$APP_USER#g" -e "s#@APP_GROUP@#$APP_GROUP#g" -e "s#@APP_DIR@#$APP_DIR#g" \
+      -e "s#@STORAGEWEB_BIN@#$APP_DIR/venv/bin/storageweb#g" \
       -e "s#@CONF_DIR@#$CONF_DIR#g" -e "s#@DATA_DIR@#$DATA_DIR#g" -e "s#@STORAGE_DIR@#$STORAGE_DIR#g" \
       "$1" > "$2"
 }
@@ -75,7 +76,9 @@ else
 fi
 
 log "Instalando servicio systemd y comando storageweb-admin"
-render "$PKG/systemd/storageweb.service" /etc/systemd/system/storageweb.service
+for unit in storageweb.service storageweb-backup.service storageweb-backup.timer; do
+  render "$PKG/systemd/$unit" "/etc/systemd/system/$unit"
+done
 render "$PKG/bin/storageweb-admin" /usr/local/bin/storageweb-admin
 chmod 0755 /usr/local/bin/storageweb-admin
 

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+	<!-- maintainer-needed -->
+	<longdescription lang="es">
+		Servidor web en Python para subir y descargar archivos. Inicio de sesión con usuarios
+		locales, usuarios del sistema (PAM) y Microsoft Entra ID (OAuth2/OIDC propio o MSAL).
+		Roles admin/user, carpeta personal y carpetas compartidas, subidas por partes reanudables.
+	</longdescription>
+	<use>
+		<flag name="msal">Proveedor SSO alternativo basado en <pkg>dev-python/msal</pkg> (el proveedor OAuth2 por defecto no lo necesita)</flag>
+		<flag name="pam">Inicio de sesión con usuarios del sistema mediante <pkg>dev-python/python-pam</pkg></flag>
+	</use>
+</pkgmetadata>
