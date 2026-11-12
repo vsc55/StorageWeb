@@ -29,10 +29,10 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           cache: pip
-          cache-dependency-path: requirements*.txt
+          cache-dependency-path: pyproject.toml
 
-      - name: Instalar dependencias
-        run: python -m pip install -r requirements-dev.txt
+      - name: Instalar el paquete (editable) con dependencias de desarrollo
+        run: python -m pip install -e ".[dev]"
 
       - name: Pytest
         run: python -m pytest -q
@@ -44,12 +44,32 @@ jobs:
       - uses: actions/checkout@v4
       - name: Sintaxis bash/sh
         run: |
-          for f in deploy/*.sh packaging/*.sh deploy/storageweb-admin; do
+          for f in packaging/*.sh packaging/scripts/*.sh packaging/bin/storageweb-admin; do
             echo "-> $f"; bash -n "$f"
           done
       - name: ShellCheck (errores)
-        run: shellcheck --severity=error deploy/*.sh packaging/*.sh deploy/storageweb-admin
+        run: shellcheck --severity=error packaging/*.sh packaging/scripts/*.sh packaging/bin/storageweb-admin
       - name: JSON válido
         run: |
           python3 -m json.tool config/config.example.json > /dev/null
           python3 -m json.tool config/config.dev.json > /dev/null
+
+  wheel:
+    name: Wheel instalable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Construir e instalar el wheel en un venv limpio
+        run: |
+          python -m pip wheel --no-deps -w dist .
+          unzip -l dist/storageweb-*.whl | grep -E "templates/base.html|static/js/app.js|migrations/001_initial.sql"
+          python -m venv /tmp/venv
+          /tmp/venv/bin/pip install dist/storageweb-*.whl
+          cd /tmp
+          /tmp/venv/bin/storageweb --help
+          printf '{"data_dir": "/tmp/sw", "storage": {"home_template": "/tmp/sw/homes/{username}"}}' > /tmp/sw.json
+          /tmp/venv/bin/storageweb --config /tmp/sw.json user-add ci --role admin --password ci-password-123
+          /tmp/venv/bin/storageweb --config /tmp/sw.json check-config

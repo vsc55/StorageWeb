@@ -1,0 +1,14 @@
+#!/bin/sh
+# Ejecuta la CLI de StorageWeb como el usuario del servicio.
+# Ejemplos: sudo storageweb-admin user-add admin --role admin
+#           sudo storageweb-admin --help
+APP_DIR="@APP_DIR@"
+APP_USER="@APP_USER@"
+DATA_DIR="@DATA_DIR@"
+CONFIG="@CONF_DIR@/config.json"
+
+cd "$DATA_DIR" 2>/dev/null || cd /
+if [ "$(id -u)" -eq 0 ]; then
+  exec runuser -u "$APP_USER" -- env STORAGEWEB_CONFIG="$CONFIG" "$APP_DIR/venv/bin/storageweb" "$@"
+fi
+exec sudo -u "$APP_USER" env STORAGEWEB_CONFIG="$CONFIG" "$APP_DIR/venv/bin/storageweb" "$@"

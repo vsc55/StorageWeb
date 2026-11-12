@@ -5,8 +5,8 @@
       "name": "Depurar servidor (config/config.dev.json)",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/run.py",
-      "args": ["--dev", "--no-reload", "--config", "config/config.dev.json"],
+      "module": "storageweb",
+      "args": ["--config", "config/config.dev.json", "serve", "--dev", "--no-reload"],
       "cwd": "${workspaceFolder}",
       "jinja": true,
       "justMyCode": true

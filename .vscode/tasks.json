@@ -5,10 +5,11 @@
   "tasks": [
     {
       "label": "StorageWeb: crear entorno .venv",
+      "detail": "Crea .venv e instala el paquete en modo editable con las dependencias de desarrollo",
       "type": "shell",
-      "command": "python3 -m venv .venv && .venv/bin/python -m pip install -U pip && .venv/bin/python -m pip install -r requirements-dev.txt",
+      "command": "python3 -m venv .venv && .venv/bin/python -m pip install -U pip && .venv/bin/python -m pip install -e '.[dev]'",
       "windows": {
-        "command": "python -m venv .venv; if ($?) { .venv\\Scripts\\python.exe -m pip install -U pip }; if ($?) { .venv\\Scripts\\python.exe -m pip install -r requirements-dev.txt }",
+        "command": "python -m venv .venv; if ($?) { .venv\\Scripts\\python.exe -m pip install -U pip }; if ($?) { .venv\\Scripts\\python.exe -m pip install -e '.[dev]' }",
         "options": {
           "shell": { "executable": "powershell.exe", "args": ["-NoProfile", "-Command"] }
         }
@@ -23,7 +24,7 @@
       "type": "process",
       "command": "${workspaceFolder}/.venv/bin/python",
       "windows": { "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe" },
-      "args": ["run.py", "--dev", "--config", "config/config.dev.json"],
+      "args": ["-m", "storageweb", "--config", "config/config.dev.json", "serve", "--dev"],
       "options": {
         "cwd": "${workspaceFolder}",
         "env": { "PYTHONUNBUFFERED": "1", "PYTHONDONTWRITEBYTECODE": "1" }
@@ -52,7 +53,7 @@
       "type": "process",
       "command": "${workspaceFolder}/.venv/bin/python",
       "windows": { "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe" },
-      "args": ["manage.py", "--config", "config/config.dev.json", "user-add", "${input:devUser}", "--role", "${input:devRole}"],
+      "args": ["-m", "storageweb", "--config", "config/config.dev.json", "user-add", "${input:devUser}", "--role", "${input:devRole}"],
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "shared", "focus": true }
@@ -65,6 +66,17 @@
       "args": ["-m", "pytest", "-q"],
       "options": { "cwd": "${workspaceFolder}" },
       "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "StorageWeb: tests unitarios",
+      "type": "process",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "windows": { "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe" },
+      "args": ["-m", "pytest", "-q", "tests/unit"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "shared", "clear": true }
     }

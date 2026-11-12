@@ -1,22 +1,12 @@
+"""Fixtures comunes."""
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 
 import pytest
-from werkzeug.security import generate_password_hash
 
-PASSWORD = "contraseña-segura"
-
-
-def deep_update(base: dict, override: dict) -> dict:
-    for key, value in override.items():
-        if isinstance(value, dict) and isinstance(base.get(key), dict):
-            deep_update(base[key], value)
-        else:
-            base[key] = value
-    return base
+from tests.helpers import add_user, deep_update, get_csrf, login
 
 
 @pytest.fixture
@@ -41,7 +31,7 @@ def write_config(tmp_path: Path):
 @pytest.fixture
 def make_app(write_config):
     def _make(overrides: dict | None = None):
-        from src import create_app
+        from storageweb import create_app
 
         app = create_app(str(write_config(overrides)))
         app.testing = True
@@ -59,29 +49,15 @@ def client(app):
     return app.test_client()
 
 
-def add_user(app, username: str, password: str | None = PASSWORD, source: str = "local",
-             role: str = "user", **kw) -> int:
-    from src.db import users
+@pytest.fixture
+def db_conn(tmp_path):
+    """Conexión SQLite con el esquema aplicado, sin Flask (tests unitarios)."""
+    from storageweb.db import connect, migrate
 
-    with app.app_context():
-        return users.create(username=username, source=source, role=role,
-                            password_hash=generate_password_hash(password) if password else None, **kw)
-
-
-def csrf_from(html: str) -> str:
-    match = re.search(r'name="csrf-token" content="([^"]+)"', html)
-    assert match, "no se encontró el token CSRF en la página"
-    return match.group(1)
-
-
-def get_csrf(client, url: str = "/login") -> str:
-    return csrf_from(client.get(url).get_data(as_text=True))
-
-
-def login(client, username: str, password: str = PASSWORD, next_url: str = ""):
-    token = get_csrf(client)
-    return client.post("/login", data={"username": username, "password": password,
-                                       "_csrf": token, "next": next_url})
+    conn = connect(str(tmp_path / "unit.db"))
+    migrate(conn)
+    yield conn
+    conn.close()
 
 
 @pytest.fixture

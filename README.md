@@ -13,26 +13,35 @@ Servidor web en Python para subir y descargar archivos. Funciona en Linux, Windo
 ## Estructura del proyecto
 
 ```
-src/                      Código Python (paquete "src")
-  app.py                  create_app(): ensambla la aplicación
-  config/                 defaults.py · loader.py (config.json + validación) · settings.py (ajustes web)
-  db/                     schema.sql · conexión y migraciones · users.py · audit.py · settings.py
-  providers/              Autenticación: local.py · pam.py · oauth2.py · msal_provider.py (base.SSOProvider)
-  core/                   Lógica de negocio: security · storage · permissions · accounts
-  routes/                 Capa HTTP (Flask): auth · files · admin · guards (CSRF, sesión, roles)
-web/                      Frontend
-  templates/              Jinja2 (admin/ para el panel de administración)
-  static/css · static/js
-config/                   config.example.json (producción) · config.dev.json (desarrollo)
-tests/                    pytest
-deploy/                   install.sh · postinstall.sh · storageweb.service · nginx · storageweb-admin
-packaging/                build.sh + nfpm.yaml (zip, .deb, .rpm)
-.github/workflows/        ci.yml (tests en Linux/Windows/macOS) · release.yml (tag vX.Y.Z → release)
-run.py                    Arranque (Waitress; --dev = servidor con recarga automática)
-manage.py                 CLI de administración
+src/storageweb/             Paquete Python (pip install .)
+  app.py                    create_app(): ensambla la aplicación
+  cli.py · __main__.py      CLI "storageweb": serve, user-add, user-list, audit, check-config…
+  settings/                 defaults · loader (config.json + validación) · runtime (ajustes web)
+  db/                       connection (conexión + migraciones) · migrations/NNN_*.sql
+    repositories/           users · audit · settings · uploads (reciben la conexión, sin Flask)
+  providers/                Autenticación: local · pam · oauth2 · msal (interfaz base.SSOProvider)
+  core/                     Lógica de negocio: security · storage · permissions · accounts · uploads
+  web/                      Capa HTTP (Flask)
+    context.py              Conexión a BD y ajustes por petición (único punto de unión con Flask)
+    guards.py               Sesión, CSRF, control de acceso, cabeceras de seguridad
+    views/                  Páginas HTML: auth · files · admin
+    api/                    API JSON (errores en JSON): uploads
+    templates/ · static/    Frontend (Jinja2, CSS, JS)
+config/                     config.example.json (producción) · config.dev.json (desarrollo)
+packaging/                  install.sh · build.sh · nfpm.yaml · scripts/ · systemd/ · nginx/ · bin/
+tests/                      unit/ (sin Flask) · integration/ (aplicación completa) · helpers
+.github/workflows/          ci.yml · release.yml
+pyproject.toml              Dependencias, comando "storageweb" y configuración de pytest
 ```
 
-Las dependencias van en un solo sentido: `routes → core → db/providers → config`. Para añadir un proveedor SSO basta con crear una subclase de `SSOProvider` en `providers/` y registrarla en `providers/__init__.py`.
+**Dependencias entre capas** (en un solo sentido): `web → core → db/providers → settings`.
+- `core`, `db`, `providers` y `settings` no importan Flask: reciben la conexión SQLite y la configuración como argumentos, y se pueden probar sin servidor (`tests/unit`).
+- Para añadir un proveedor SSO, crea una subclase de `SSOProvider` en `providers/` y regístrala en `providers/__init__.py`.
+
+**Migraciones de base de datos:**
+- Para cambiar el esquema, añade `src/storageweb/db/migrations/002_descripcion.sql`, con el siguiente número y sin modificar nunca las ya publicadas.
+- Se aplican solas al arrancar o con `storageweb init-db`, cada una en una transacción.
+- La versión aplicada queda en `PRAGMA user_version`.
 
 ## Instalación en Ubuntu
 
@@ -50,17 +59,17 @@ El paquete incluye las dependencias Python como *wheels*, así que **se instala 
 ### Opción B: desde el código fuente
 
 ```bash
-sudo ./deploy/install.sh --nginx          # añade --pam para permitir usuarios del sistema
+sudo ./packaging/install.sh --nginx       # añade --pam para permitir usuarios del sistema
 sudo storageweb-admin user-add admin --role admin
 ```
 
-Para usar otro usuario de servicio u otras rutas: `sudo APP_USER=svc-files STORAGE_DIR=/datos/files ./deploy/install.sh`.
+Para usar otro usuario de servicio u otras rutas: `sudo APP_USER=svc-files STORAGE_DIR=/datos/files ./packaging/install.sh`.
 
 ### Qué se instala
 
 | Qué | Dónde |
 |---|---|
-| Aplicación + venv | `/opt/storageweb` (propiedad de root, solo lectura para el servicio) |
+| Aplicación | `/opt/storageweb/venv` (venv con el paquete instalado desde `/opt/storageweb/wheels`) |
 | Configuración de arranque | `/etc/storageweb/config.json` (`root:storageweb 0640`) |
 | BD SQLite (usuarios, ajustes web, auditoría) y secret_key | `/var/lib/storageweb` |
 | Archivos | `/srv/storageweb/homes/<usuario>`, `/srv/storageweb/shared`, `/srv/storageweb/public` |
@@ -70,7 +79,7 @@ Para usar otro usuario de servicio u otras rutas: `sudo APP_USER=svc-files STORA
 HTTPS con nginx (Entra ID lo exige):
 
 ```bash
-sudo cp /usr/share/doc/storageweb/nginx-storageweb.conf /etc/nginx/sites-available/storageweb   # o deploy/
+sudo cp /usr/share/storageweb/nginx-storageweb.conf /etc/nginx/sites-available/storageweb
 sudo nano /etc/nginx/sites-available/storageweb      # server_name
 sudo ln -s /etc/nginx/sites-available/storageweb /etc/nginx/sites-enabled/
 sudo certbot --nginx -d files.midominio.com
@@ -163,7 +172,7 @@ API de subida (JSON, requiere sesión y la cabecera `X-CSRF-Token`):
 
 ## Desarrollo (VS Code)
 
-1. Ejecuta **Tasks: Run Task → StorageWeb: crear entorno .venv** (crea `.venv` e instala `requirements-dev.txt`).
+1. Ejecuta **Tasks: Run Task → StorageWeb: crear entorno .venv** (crea `.venv` e instala el paquete en modo editable: `pip install -e ".[dev]"`).
 2. Ejecuta **StorageWeb: crear usuario de pruebas** (pregunta el nombre y el rol, que por defecto es `admin`; la contraseña se pide en el terminal).
 3. Lanza el servidor con **Ctrl+Shift+B** (**StorageWeb: servidor de pruebas (auto-reload)**). Queda en http://127.0.0.1:8080 con `config/config.dev.json`, y se **reinicia solo** al modificar archivos `.py`, la configuración o las plantillas. Los datos se guardan en `.dev/`.
 4. Para depurar con breakpoints, usa **F5 → Depurar servidor** (sin recarga automática).
@@ -171,27 +180,34 @@ API de subida (JSON, requiere sesión y la cabecera `X-CSRF-Token`):
 Sin VS Code:
 
 ```bash
-python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt     # Windows: .venv\Scripts\...
-python manage.py --config config/config.dev.json user-add admin --role admin
-python run.py --dev --config config/config.dev.json
+python -m venv .venv && .venv/bin/pip install -e ".[dev]"      # Windows: .venv\Scripts\pip ...
+storageweb --config config/config.dev.json user-add admin --role admin
+storageweb --config config/config.dev.json serve --dev       # o: python -m storageweb ...
 ```
+
+En Windows o macOS, para usarlo sin desarrollar basta con `pip install storageweb-X.Y.Z-py3-none-any.whl` (de la release) y `storageweb --config config.json serve`.
 
 ## Tests
 
 ```bash
-python -m pytest -q          # o la tarea "StorageWeb: tests" / el panel Testing de VS Code
+python -m pytest -q                 # todos (o la tarea "StorageWeb: tests" / panel Testing)
+python -m pytest -q tests/unit      # solo unitarios: rápidos, sin Flask
 ```
+
+- `tests/unit/`: settings, migraciones, seguridad de rutas y nombres, cuentas y roles con SQLite directo, validación OAuth2 y lógica de subidas.
+- `tests/integration/`: la aplicación completa con el cliente de pruebas de Flask.
 
 Cubren la configuración y los ajustes web, la seguridad de rutas y nombres, el login local, los permisos por rol, el panel de administración, el SSO (OAuth2 con el endpoint de token simulado y MSAL simulado), el alta y los roles de Entra, las operaciones con archivos y la CLI.
 
 ## Releases (GitHub Actions)
 
-- **CI** (`ci.yml`): tests en Ubuntu, Windows y macOS con Python 3.9–3.14, y validación de scripts y JSON.
+- **CI** (`ci.yml`): tests en Ubuntu, Windows y macOS con Python 3.9–3.14; validación de scripts y JSON; construcción e instalación del wheel en un venv limpio.
 - **Release** (`release.yml`): al subir un tag `vX.Y.Z` ejecuta los tests y genera estos ficheros, que adjunta a la release de GitHub:
 
   | Fichero | Contenido |
   |---|---|
-  | `storageweb-X.Y.Z.zip` | Código multiplataforma (Windows, macOS, Linux) |
+  | `storageweb-X.Y.Z-py3-none-any.whl` | Paquete Python: `pip install` en Windows, macOS o Linux |
+  | `storageweb-X.Y.Z.zip` | Código fuente |
   | `storageweb_X.Y.Z_amd64.deb`, `_arm64.deb` | Debian/Ubuntu, con wheels incluidos |
   | `storageweb-X.Y.Z.x86_64.rpm`, `.aarch64.rpm` | RHEL/Rocky/Alma/Fedora/openSUSE |
   | `SHA256SUMS` | Sumas de comprobación |
@@ -204,9 +220,13 @@ git tag v1.0.0 && git push origin v1.0.0
 
 Para generar los paquetes en local (Linux con `nfpm`): `packaging/build.sh 1.0.0 amd64`.
 
-## CLI (`storageweb-admin` / `manage.py`)
+## CLI (`storageweb`)
+
+En el servidor se usa `sudo storageweb-admin …`, que ejecuta `storageweb` como el usuario del servicio y con `/etc/storageweb/config.json`. En desarrollo: `storageweb --config config/config.dev.json …`.
 
 ```bash
+storageweb-admin --help
+storageweb-admin init-db                     # crea la BD o aplica migraciones pendientes
 storageweb-admin user-add <usuario> [--role admin|user] [--source local|entra] [--groups a,b] [--home RUTA]
 storageweb-admin user-passwd <usuario>
 storageweb-admin user-set <usuario> [--role ..] [--groups ..] [--home RUTA|''] [--enable|--disable]

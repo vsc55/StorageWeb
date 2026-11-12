@@ -1,4 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "storageweb"
+dynamic = ["version"]
+description = "Servidor web para subir y descargar archivos con usuarios locales, PAM y Microsoft Entra ID"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "Flask>=3.0,<4",
+    "Werkzeug>=3.0,<4",
+    "waitress>=3.0,<4",
+    "msal>=1.28,<2",
+    "python-pam>=2.0,<3; sys_platform != 'win32'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
+[project.scripts]
+storageweb = "storageweb.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "storageweb.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+storageweb = ["web/templates/*.html", "web/templates/**/*.html", "web/static/**/*",
+              "db/migrations/*.sql"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = ["src", "."]
 addopts = "-ra"
