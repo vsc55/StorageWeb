@@ -4,8 +4,9 @@ import time
 
 import pytest
 
-from storageweb.providers import SSOError, get_sso_provider, oauth2
-from storageweb.providers.base import endpoints
+from storageweb.providers import SSOError, get_sso_provider
+from storageweb.providers.entra import oauth2
+from storageweb.providers.entra.common import endpoints
 from tests.sso_helpers import CLIENT_ID, TENANT, base_claims, entra_cfg, make_jwt
 
 

@@ -1,7 +1,7 @@
 """Botón «Registrar en Entra ID»: código de dispositivo, sondeo y guardado de los ajustes."""
 import pytest
 
-from storageweb.providers import entra_register as er
+from storageweb.providers.entra import register as er
 from tests.helpers import add_user, get_csrf, login
 
 JSON = {"Accept": "application/json"}
@@ -68,7 +68,7 @@ def test_register_flow_end_to_end(admin_client, microsoft):
     assert "entra_app_registered" in client.get("/admin/audit").get_data(as_text=True)
 
     # el paso 4 del asistente muestra lo creado y sus avisos (y luego ya no)
-    from storageweb.providers import entra_check
+    from storageweb.providers.entra import check as entra_check
     entra_check_check = entra_check.check
     entra_check.check = lambda ecfg, uri: [{"key": "metadata", "ok": True, "message": "ok"}]
     try:

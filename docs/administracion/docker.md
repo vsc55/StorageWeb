@@ -23,12 +23,12 @@ docker compose up -d
 
 ## Qué hace el contenedor
 
-1. En el primer arranque genera `/data/config.json` con valores para contenedor:
-   - escucha en `0.0.0.0:8080`;
-   - datos en `/data/db` y archivos en `/data/files`;
-   - una carpeta compartida `compartido`.
+1. En el primer arranque genera `/data/config.json` solo con lo propio del contenedor:
+   - escucha en `0.0.0.0`;
+   - datos en `/data/db`;
+   - carpetas personales en `/data/files/homes`.
 
-   A partir de ahí es tu fichero y puedes editarlo.
+   Lo demás se configura desde la web o con variables de entorno. Lo que pongas en el fichero queda bloqueado en la web (ver [capas de configuración](configuracion.md#capas-de-configuracion)).
 2. Si defines `STORAGEWEB_ADMIN_USER` y ese usuario no existe, lo crea con rol `admin`. La contraseña se pasa por stdin, nunca como argumento visible.
 3. Ejecuta `storageweb serve` como el usuario sin privilegios `storageweb` (uid/gid **10001**).
 
@@ -63,9 +63,11 @@ docker run ... -v storageweb-data:/data -v /srv/archivos:/data/files ...
 | `STORAGEWEB_PROXY_HOPS` | Proxies encadenados delante del contenedor (por defecto `1`) |
 | `STORAGEWEB_MAX_UPLOAD_MB` | Máximo por petición (por defecto `2048`) |
 | `STORAGEWEB_APP_NAME` | Nombre visible |
+| `STORAGEWEB_<RUTA>` | Cualquier ajuste, con `__` entre niveles: `STORAGEWEB_AUTH__ENTRA__CLIENT_ID`. Ver la [referencia](../referencia/configuracion.md) |
+| `STORAGEWEB_SETTINGS_PROFILE` | Perfil de ajustes web, para compartir base de datos entre instancias |
 | `HTTPS_PROXY`, `NO_PROXY` | Proxy de salida para Entra ID |
 
-Todas las variables salvo las de admin y proxy **solo se usan al generar** `config.json` la primera vez. Después, cambia el fichero o usa las páginas de la administración.
+Las variables se leen **en cada arranque** y ganan sobre `config.json` y sobre la web. El ajuste que fijan queda bloqueado en la web, que muestra qué variable lo fija. Para poder cambiarlo desde la web, quita la variable y vuelve a crear el contenedor.
 
 !!! tip "Probar sin HTTPS"
     `-e STORAGEWEB_COOKIE_SECURE=false -e STORAGEWEB_BEHIND_PROXY=false` en un volumen nuevo. Si no, el login vuelve a la página de inicio, porque el navegador no envía la cookie segura por HTTP.

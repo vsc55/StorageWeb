@@ -28,7 +28,7 @@ storageweb [--config RUTA] <comando> [opciones]
 | [`user-exists`](#user-exists) | Código de salida 0 si el usuario existe, 1 si no |
 | [`audit`](#audit) | Muestra el registro de auditoría |
 | [`check-config`](#check-config) | Valida la configuración y avisa si no hay ningún administrador |
-| [`settings-reset`](#settings-reset) | Descarta los ajustes guardados desde la web y vuelve a config.json |
+| [`settings-reset`](#settings-reset) | Descartar los ajustes guardados desde la web y volver a los valores predeterminados |
 | [`ip-list`](#ip-list) | Lista las direcciones IP bloqueadas y permitidas |
 | [`ip-unban`](#ip-unban) | Desbloquea una IP o red (rescate si te has bloqueado) |
 | [`ip-allow`](#ip-allow) | Añade una IP o red a la lista blanca (nunca se bloquea) |
@@ -172,7 +172,7 @@ storageweb check-config
 
 ### `settings-reset` {#settings-reset}
 
-Descarta los ajustes guardados desde la web y vuelve a config.json.
+Descartar los ajustes guardados desde la web y volver a los valores predeterminados.
 
 ```
 storageweb settings-reset

@@ -1,18 +1,19 @@
 {% extends "admin/_layout.html" %}
-{% from "admin/_page.html" import page_kind with context %}
+{% from "admin/_page.html" import page_kind, origin_badge, locked_notice with context %}
 {% block title %}{{ _("Shared folders") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
 <div class="page-head">
   <div>
     <div class="settings-title"><h1>{{ _("Shared folders") }}</h1>{{ page_kind() }}
-      {% if changed %}<span class="origin" title="{{ _('Changed from the web: it takes precedence over config.json.') }}">{{ _("web") }}</span>{% endif %}</div>
+      {{ origin_badge(shares_origin) }}</div>
     <p class="muted small">{{ _("Each folder, who enters and with which permission. Click a folder to change it.") }}</p>
   </div>
   <div class="inline">
     <a class="btn btn-ghost" href="{{ url_for('groups.matrix_view') }}">{{ _("Access matrix") }}</a>
-    <a class="btn btn-primary" href="{{ url_for('access.folder_new') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New shared folder") }}</a>
+    {% if not locked_message %}<a class="btn btn-primary" href="{{ url_for('access.folder_new') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New shared folder") }}</a>{% endif %}
   </div>
 </div>
+{{ locked_notice(locked_message) }}
 
 {% if not rows %}
 <div class="empty card">

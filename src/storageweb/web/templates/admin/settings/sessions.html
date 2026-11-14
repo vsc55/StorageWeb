@@ -55,12 +55,12 @@
         <td class="nowrap small">{{ s['last_seen']|datetime }}</td>
         <td class="actions">
           {% if s['id'] != current_sid %}
-          <form method="post" action="{{ url_for('admin.session_close', sid=s['id']) }}" class="inline">
+          <form method="post" action="{{ url_for('settings.session_close', sid=s['id']) }}" class="inline">
             <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
             <input type="hidden" name="next" value="{{ request.path }}">
             <button class="btn btn-small" type="submit">{{ _("Close") }}</button>
           </form>
-          <form method="post" action="{{ url_for('admin.user_sessions_close', user_id=s['user_id']) }}" class="inline">
+          <form method="post" action="{{ url_for('settings.user_sessions_close', user_id=s['user_id']) }}" class="inline">
             <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
             <input type="hidden" name="next" value="{{ request.path }}">
             <button class="btn btn-small btn-ghost" type="submit" title="{{ _('Close all the sessions of %(name)s', name=s['username']) }}">{{ _("All of the user") }}</button>
@@ -101,7 +101,7 @@
         <td class="nowrap">{{ t['last_used_at']|datetime }}{% if t['last_ip'] %} <span class="muted">· {{ t['last_ip'] }}</span>{% endif %}</td>
         <td class="nowrap">{{ t['expires_at']|datetime if t['expires_at'] else _("never") }}</td>
         <td class="actions">
-          <form method="post" action="{{ url_for('admin.user_token_delete', user_id=t['user_id'], token_id=t['id']) }}" class="inline js-confirm"
+          <form method="post" action="{{ url_for('settings.user_token_delete', user_id=t['user_id'], token_id=t['id']) }}" class="inline js-confirm"
                 data-confirm="{{ _('Revoke the token «%(name)s»?', name=t['name']) }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
             <input type="hidden" name="next" value="{{ request.path }}">
@@ -117,3 +117,4 @@
   </div>
 </section>
 {% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/bulk.js') }}"></script>{% endblock %}

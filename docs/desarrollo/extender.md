@@ -53,11 +53,12 @@ Reglas:
 
 ## Añadir una opción de configuración
 
-1. Añade la clave con su valor por defecto en `settings/defaults.py` (`DEFAULTS`) y su descripción en `DESCRIPTIONS`. Un test falla si falta la descripción.
-2. Si necesita validación o conversión, hazla en `settings/loader.py` (`normalize`) y lanza `ConfigError` con un mensaje claro.
-3. Si debe poder editarse desde la web, debe estar en una de las `RUNTIME_SECTIONS`. Añade el campo en `web/templates/admin/settings.html`, con sus textos en `_()`, y léelo en `_runtime_from_form` (`web/views/admin.py`).
-4. Úsala con `settings()["seccion"]["clave"]` en la web, o recibiéndola como argumento en `core`.
-5. Regenera la referencia: `python tools/gen_docs.py`.
+1. Añade la clave con su valor por defecto en `settings/defaults.py` (`DEFAULTS`).
+2. Regístrala en `settings/fields.py` (`FIELDS`): su documentación (`doc`, para la referencia) y, si se edita en la web, su etiqueta (`label`, el mismo texto que el formulario), su página (`page`, una clave de `web/nav.py`) y los sinónimos del buscador (`words`). Un test falla si falta.
+3. Si necesita validación o conversión, hazla en `settings/loader.py` (`normalize`) y lanza `ConfigError` con un mensaje claro y la ruta del campo.
+4. Si debe poder editarse desde la web, debe estar en una de las `RUNTIME_SECTIONS`. Añade el campo a la plantilla de su página (`web/templates/admin/settings/<sección>.html`) con `{{ origin('ruta') }}` en la etiqueta y `{{ lock('ruta') }}` en el control, y léelo en el parser de la sección (`web/views/settings/forms.py`).
+5. Úsala con `settings()["seccion"]["clave"]` en la web, o recibiéndola como argumento en `core`. Su variable de entorno sale sola (`STORAGEWEB_SECCION__CLAVE`).
+6. Regenera la referencia: `python tools/gen_docs.py`.
 
 ## Añadir una migración de base de datos
 
@@ -69,7 +70,7 @@ Reglas:
 
 ## Añadir un proveedor SSO
 
-1. Crea `providers/mi_proveedor.py` con una subclase de `SSOProvider`:
+1. Crea su carpeta, `providers/mi_proveedor/`, con una subclase de `SSOProvider` (de `providers/base.py`). Todo lo propio de ese proveedor (comprobaciones, directorio, registro) va en la misma carpeta, como en `providers/entra/`:
 
     ```python
     class MiProveedor(SSOProvider):
@@ -83,7 +84,7 @@ Reglas:
     ```
 
 2. Regístralo en `providers/__init__.py` (`SSO_PROVIDERS`) y añade su nombre a `SSO_PROVIDER_NAMES` en `settings/defaults.py`.
-3. Si usa una librería, impórtala dentro de las funciones (como hace `providers/msal.py`). Así la dependencia solo es necesaria si se activa. Declárala como extra opcional en `pyproject.toml`.
+3. Si usa una librería, impórtala dentro de las funciones (como hace `providers/entra/msal.py`). Así la dependencia solo es necesaria si se activa. Declárala como extra opcional en `pyproject.toml`.
 4. Tests: sustituye la llamada de red, como hace la fixture `token_endpoint`, y cubre los errores (`state`, `aud`, caducidad…).
 5. Documenta la opción en [Entra ID](../administracion/entra-id.md).
 
@@ -99,6 +100,6 @@ Llama a `audit.log(conn, "mi_accion", objetivo, username=…, ip=…, detail=…
 
 ## Añadir un comando a la CLI
 
-1. Función `cmd_<nombre>(cfg, conn, args)` en `cli.py`; los guiones del comando se convierten en `_`.
+1. Función `cmd_<nombre>(cfg, conn, args)` en el módulo de su grupo en `cli/` (`users.py`, `config.py`, `security.py`, `backup.py`) y su entrada en `COMMANDS` de `cli/__init__.py`.
 2. Subparser en `build_parser()` con `help=_("…")` en el comando y en **todos** sus argumentos, porque de ahí sale la [referencia](../referencia/cli.md). Después ejecuta `python tools/i18n.py update` y traduce.
 3. Test en `tests/integration/test_cli.py` y `python tools/gen_docs.py`.

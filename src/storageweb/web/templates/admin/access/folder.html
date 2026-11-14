@@ -1,5 +1,5 @@
 {% extends "admin/_layout.html" %}
-{% from "admin/_page.html" import page_kind with context %}
+{% from "admin/_page.html" import page_kind, locked_notice with context %}
 {% from "admin/settings/_macros.html" import save_bar with context %}
 {% block title %}{{ title }} · {{ _("Shared folders") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
@@ -11,9 +11,11 @@
       {% if exists %}<span>{{ _("the folder exists on the server") }}</span>{% else %}<span class="text-danger">{{ _("It does not exist on the server.") }}</span>{% endif %}</p>{% endif %}
   </div>
 </div>
+{{ locked_notice(locked_message) }}
 {% if error %}<div class="flash flash-error" role="alert">{{ _("The changes were not saved: %(error)s", error=error) }}</div>{% endif %}
 
 <form method="post" class="settings-form" data-watch>
+  <fieldset class="plain-fieldset"{% if locked_message %} disabled{% endif %}>
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
   <div class="card form-grid">
     <label><span class="label-row">{{ _("Label") }}</span>
@@ -72,10 +74,11 @@
     </div>
     <p class="muted small">{{ _("Groups: the identifier of a group in People → Groups, a system group or an Entra ID Object ID.") }}</p>
   </section>
-  {{ save_bar() }}
+  </fieldset>
+  {% if not locked_message %}{{ save_bar() }}{% endif %}
 </form>
 
-{% if original %}
+{% if original and not locked_message %}
 <form method="post" action="{{ url_for('access.folder_delete', name=original) }}" class="card section-gap js-confirm"
       data-confirm="{{ _('Remove the shared folder %(name)s? Its files stay on the server.', name=share.label) }}">
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">

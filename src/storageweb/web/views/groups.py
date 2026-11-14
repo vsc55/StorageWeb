@@ -14,13 +14,14 @@ from flask import Blueprint, abort, flash, g, jsonify, redirect, render_template
 
 from ...core import groups as group_core
 from ...core.accounts import SOURCE_LABELS
-from ...providers import entra_directory
-from ...db.repositories import audit, users
+from ...providers.entra import directory as entra_directory
+from ...db.repositories import users
 from ...db.repositories import groups as repo
 from ...i18n import _
 from ...settings import ConfigError, runtime_view
 from ..context import get_db, invalidate_settings, runtime, settings
-from ..guards import admin_required, client_ip, safe_next
+from ..forms import back
+from ..guards import admin_required, audit_event
 
 bp = Blueprint("groups", __name__, url_prefix="/admin/groups")
 
@@ -28,17 +29,13 @@ VIEWS = ("list", "panel")  # vistas de Personas → Grupos; la matriz está en A
 TABS = ("members", "shares", "link")
 
 
-def _audit(action: str, target: str | None = None, detail: str | None = None) -> None:
-    audit.log(get_db(), action, target, username=g.user["username"], ip=client_ip(), detail=detail)
+_audit = audit_event
 
 
 def _shares() -> list[dict]:
     return settings()["storage"]["shares"]
 
 
-def _back(default: str):
-    target = request.form.get("next") or request.args.get("next")
-    return redirect(safe_next(target) if target else default)
 
 
 def _remember(view: str) -> None:
@@ -131,7 +128,7 @@ def new():
             group = repo.get_by_id(get_db(), gid)
             _audit("group_created", group["name"], f"{group['source']}:{group['external_id'] or ''}")
             flash(_("Group «%(name)s» created.", name=group_core.label(group)), "info")
-            return _back(url_for("groups.edit", group_id=gid))
+            return back(url_for("groups.edit", group_id=gid))
     return render_template("admin/groups/form.html", group=None, form=form, next=request.args.get("next", ""))
 
 
@@ -142,7 +139,7 @@ def edit(group_id: int):
     form = dict(group)
     if request.method == "POST" and group["builtin"]:
         flash(_("This group comes with StorageWeb and cannot be changed."), "error")
-        return _back(url_for("groups.edit", group_id=group_id))
+        return back(url_for("groups.edit", group_id=group_id))
     if request.method == "POST":
         data = _form_data()
         try:
@@ -153,7 +150,7 @@ def edit(group_id: int):
         else:
             _audit("group_updated", group["name"], f"{data['source']}:{data['external_id']}")
             flash(_("Changes saved."), "info")
-            return _back(url_for("groups.edit", group_id=group_id))
+            return back(url_for("groups.edit", group_id=group_id))
     return render_template("admin/groups/form.html", group=group, form=form,
                            members=group_core.members(get_db(), group),
                            shares=group_core.shares_of(group, _shares()), next="")
@@ -186,7 +183,7 @@ def member_add(group_id: int):
         _audit("group_member_added", group["name"], user["username"])
         flash(_("«%(user)s» added to the group «%(group)s».", user=user["username"],
                 group=group_core.label(group)), "info")
-    return _back(url_for("groups.edit", group_id=group_id))
+    return back(url_for("groups.edit", group_id=group_id))
 
 
 @bp.route("/<int:group_id>/members/<int:user_id>/remove", methods=["POST"])
@@ -204,7 +201,7 @@ def member_remove(group_id: int, user_id: int):
         _audit("group_member_removed", group["name"], user["username"])
         flash(_("«%(user)s» removed from the group «%(group)s».", user=user["username"],
                 group=group_core.label(group)), "info")
-    return _back(url_for("groups.edit", group_id=group_id))
+    return back(url_for("groups.edit", group_id=group_id))
 
 
 # --------------------------------------------------------------------------- vista B
@@ -266,7 +263,7 @@ def matrix_view():
         if changes:
             new["storage"]["shares"] = shares
             try:
-                runtime().save(get_db(), new, g.user["username"])
+                runtime().save(get_db(), new, g.user["username"], strict=True)
             except ConfigError as exc:
                 flash(_("The changes were not saved: %(error)s", error=exc), "error")
                 return redirect(url_for("groups.matrix_view"))
@@ -280,4 +277,4 @@ def matrix_view():
     names = {r["name"] for r in rows} | {r["external_id"] for r in rows if r["external_id"]}
     unregistered = sorted({ref for s in shares for ref in s["groups"] if ref not in names})
     return render_template("admin/groups/matrix.html", shares=shares, matrix=_matrix(rows, shares),
-                           unregistered=unregistered)
+                           unregistered=unregistered, locked_message=runtime().lock_notice("storage.shares"))

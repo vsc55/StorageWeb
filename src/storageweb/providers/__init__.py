@@ -1,16 +1,17 @@
-"""Proveedores de autenticación.
+"""Proveedores de autenticación, uno por carpeta.
 
-* ``local``  — contraseñas de usuarios locales (SQLite)
-* ``pam``    — usuarios del sistema operativo
-* SSO (``SSO_PROVIDERS``): ``oauth2`` (propio, por defecto) y ``msal``
+* ``local/`` — contraseñas de usuarios locales (SQLite)
+* ``pam/``   — usuarios del sistema operativo
+* ``entra/`` — Microsoft Entra ID: SSO (``oauth2`` propio, por defecto, y ``msal``), comprobación,
+  directorio de grupos y registro de la aplicación
 
-Para añadir otro SSO basta con crear una subclase de ``SSOProvider`` y registrarla aquí.
+Para añadir otro SSO, crea su carpeta con una subclase de ``SSOProvider`` y regístrala aquí.
 """
 from __future__ import annotations
 
 from .base import SSOError, SSOProvider
-from .msal import MsalProvider
-from .oauth2 import OAuth2Provider
+from .entra.msal import MsalProvider
+from .entra.oauth2 import OAuth2Provider
 
 SSO_PROVIDERS: dict[str, type[SSOProvider]] = {
     OAuth2Provider.name: OAuth2Provider,

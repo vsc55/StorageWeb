@@ -15,9 +15,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from ..i18n import _
+from ...i18n import _
 from . import oauth2
-from .base import MS_LOGIN, endpoints
+from .common import MS_LOGIN, endpoints
 
 GRAPH_DEFAULT_SCOPE = "https://graph.microsoft.com/.default"
 
@@ -110,7 +110,7 @@ def check(ecfg: dict, redirect_uri: str) -> list[dict]:
     description = str(token.get("error_description", ""))
     if token.get("access_token"):
         results.append(_result("secret", True, _("The client secret is valid.")))
-        from .entra_directory import can_read_groups  # noqa: PLC0415 (evita un import circular)
+        from .directory import can_read_groups  # noqa: PLC0415 (evita un import circular)
         ok, detail = can_read_groups(token["access_token"])
         results.append(_result("groups", ok, _("The application can read group names (Group.Read.All).") if ok
                                else _("The application cannot read group names: %(error)s. Use «Grant group "

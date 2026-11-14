@@ -7,23 +7,22 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from flask import Blueprint, abort, flash, g, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
 from ...core import groups as group_core
 from ...core import shares as share_core
-from ...db.repositories import audit, users
+from ...db.repositories import users
 from ...db.repositories import groups as group_repo
 from ...i18n import _
 from ..context import get_db, runtime, settings
-from ..guards import admin_required, client_ip
+from ..guards import admin_required, audit_event
 from .groups import entra_names
-from .settings import save_partial
+from .settings.common import save_partial
 
 bp = Blueprint("access", __name__, url_prefix="/admin/access")
 
 
-def _audit(action: str, target: str | None = None, detail: str | None = None) -> None:
-    audit.log(get_db(), action, target, username=g.user["username"], ip=client_ip(), detail=detail)
+_audit = audit_event
 
 
 def _shares() -> list[dict]:
@@ -76,18 +75,35 @@ def _form_share(original: dict | None) -> dict:
     return share_core.with_entries(base, items)
 
 
+def _lock_context() -> dict:
+    """Si las carpetas están fijadas en config.json o en el entorno, se ven pero no se editan."""
+    return {"shares_origin": runtime().origins(get_db()).get("storage.shares"),
+            "locked_message": runtime().lock_notice("storage.shares")}
+
+
+def _refuse_if_locked():
+    notice = runtime().lock_notice("storage.shares")
+    if notice:
+        flash(notice, "error")
+        return redirect(url_for("access.folders"))
+    return None
+
+
 def _render_folder(share: dict, original: str | None, status: int = 200, error: str | None = None):
     directory = _directory()
     title = (share.get("label") or share["name"]) if original else _("New shared folder")
     return render_template("admin/access/folder.html", share=share, original=original, title=title,
                            entries=_describe(share, directory), directory=directory, error=error,
                            exists=bool(share.get("path")) and Path(share["path"]).exists(),
-                           changed="storage.shares" in runtime().changed_paths(get_db()),
-                           LEVEL_LABELS=share_core.LEVEL_LABELS, ENTRY_KIND_LABELS=share_core.KIND_LABELS), status
+                           **_lock_context(), LEVEL_LABELS=share_core.LEVEL_LABELS,
+                           ENTRY_KIND_LABELS=share_core.KIND_LABELS), status
 
 
 def _store(original: str | None):
     """Guarda la carpeta del formulario. Devuelve la respuesta (redirección o el formulario con el error)."""
+    refused = _refuse_if_locked()
+    if refused:
+        return refused
     try:
         share = _form_share(share_core.find(_shares(), original) if original else None)
         new_list = share_core.replace(_shares(), original, share)
@@ -96,7 +112,7 @@ def _store(original: str | None):
                  "path": request.form.get("path", ""), "read_only": False, "users": [], "read_only_users": [],
                  "groups": [], "read_only_groups": []}
         return _render_folder(draft, original, 400, exc.message)
-    _draft, error = save_partial(lambda: {"storage": {"shares": new_list}})
+    _draft, error = save_partial(lambda: {"storage": {"shares": new_list}}, strict=True)
     if error:
         return _render_folder(share, original, 400, str(error))
     if original is None:
@@ -125,8 +141,7 @@ def folders():
     directory = _directory()
     rows = [{"share": s, "entries": _describe(s, directory), "exists": Path(s["path"]).exists()} for s in _shares()]
     return render_template("admin/access/folders.html", rows=rows, LEVEL_LABELS=share_core.LEVEL_LABELS,
-                           changed="storage.shares" in runtime().changed_paths(get_db()),
-                           create_shares=settings()["storage"]["create_shares"])
+                           **_lock_context(), create_shares=settings()["storage"]["create_shares"])
 
 
 @bp.route("/folders/new", methods=["GET", "POST"])
@@ -155,7 +170,10 @@ def folder_delete(name: str):
     share = share_core.find(_shares(), name)
     if share is None:
         abort(404)
-    _draft, error = save_partial(lambda: {"storage": {"shares": share_core.remove(_shares(), name)}})
+    refused = _refuse_if_locked()
+    if refused:
+        return refused
+    _draft, error = save_partial(lambda: {"storage": {"shares": share_core.remove(_shares(), name)}}, strict=True)
     if error:
         flash(_("The changes were not saved: %(error)s", error=error), "error")
         return redirect(url_for("access.folder", name=name))

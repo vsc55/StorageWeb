@@ -1,99 +1,23 @@
-"""Administración web (solo rol admin): Resumen, buscador, usuarios y auditoría.
-
-Los ajustes están en ``settings.py`` y las carpetas compartidas en ``access.py``.
-"""
+"""Usuarios: lista y paneles, ficha, acciones en bloque y edición."""
 from __future__ import annotations
 
 import re
 
-import csv
-import io
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from flask import abort, flash, g, redirect, render_template, request, session, url_for
 
-from flask import (Blueprint, Response, abort, flash, g, jsonify, redirect, render_template, request, session,
-                   url_for)
-
-from ...core import accounts, maintenance
-from ...core import shares as share_core
-from ...core import groups as group_core
-from ...core.permissions import ADMIN, PERMISSION_LABELS, ROLE_LABELS, permissions_for
-from ...core.storage import explain_access
-from ...db.repositories import api_tokens, audit, users
-from ...db.repositories import ip_rules as ip_repo
-from ...db.repositories import sessions as session_repo
-from ...db.repositories import groups as group_repo
-from ...i18n import _, ngettext
-from ...settings import PERMISSIONS, ROLES
-from .. import nav, search as admin_search
-from ..context import admin_alerts, boot_config, get_db, settings
-from ..guards import admin_required, client_ip, safe_next
-
-bp = Blueprint("admin", __name__, url_prefix="/admin")
-
-
-def _audit(action: str, target: str | None = None, detail: str | None = None) -> None:
-    audit.log(get_db(), action, target, username=g.user["username"], ip=client_ip(), detail=detail)
-
-
-def _split(value: str) -> list[str]:
-    return [x.strip() for x in re.split(r"[,\n]", value or "") if x.strip()]
-
-
-@bp.context_processor
-def _labels():
-    return {"ROLE_LABELS": ROLE_LABELS, "SOURCE_LABELS": accounts.SOURCE_LABELS,
-            "PERMISSION_LABELS": PERMISSION_LABELS, "ROLES": ROLES}
-
-
-# --------------------------------------------------------------------------- Resumen y buscador
-
-def _alert_links(found: list[dict]) -> list[dict]:
-    return [{**a, "url": nav.PAGES[a["page"]].url() + (f"#{a['anchor']}" if a["anchor"] else "")} for a in found]
-
-
-def _network_alerts() -> list[dict]:
-    """Avisos de Red y HTTPS (dependen de cómo llega esta petición, así que solo salen en el Resumen)."""
-    from .settings import network_context  # noqa: PLC0415 (evita la importación circular)
-    notes = network_context(settings())["notes"]
-    return [{"level": level, "key": "network", "title": text, "detail": "", "page": "network",
-             "action": _("Review the network"), "anchor": ""} for level, text in notes if level in ("warn", "danger")]
-
-
-@bp.route("/")
-@admin_required
-def index():
-    conn, cfg = get_db(), settings()
-    found = _alert_links(admin_alerts() + _network_alerts())
-    sessions = session_repo.list_all(conn)
-    bans = ip_repo.list_rules(conn, "ban")
-    backups = maintenance.list_backups(boot_config())
-    day_ago = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(timespec="seconds")
-    shares = [{"share": s, "exists": Path(s["path"]).exists() or cfg["storage"]["create_shares"],
-               "entries": share_core.entries(s)} for s in cfg["storage"]["shares"]]
-    auth = cfg["auth"]
-    methods = [label for on, label in ((auth["local"]["enabled"], _("Local")), (auth["pam"]["enabled"], "PAM"),
-                                      (auth["entra"]["enabled"], "Entra ID")) if on]
-    return render_template(
-        "admin/overview.html", alerts=found, user_counts=users.counts(conn), groups=len(group_repo.list_all(conn)),
-        online=len({r["user_id"] for r in sessions}), tokens=len(api_tokens.list_all(conn)), shares=shares,
-        role_perms=[PERMISSION_LABELS[p] for p in PERMISSIONS if cfg["permissions"]["user"][p]],
-        methods=methods, failed_logins=audit.count_since(conn, "login_failed", day_ago),
-        bans=len(bans), auto_bans=sum(1 for b in bans if b["automatic"]),
-        public_url=cfg["network"]["public_url"], newest_backup=backups[0] if backups else None,
-        backup_count=len(backups), db_size=maintenance.db_stats(conn, boot_config()["database"])["size"],
-        recent=audit.recent(conn, 6), z={zone.key: zone for zone in nav.ZONES})
-
-
-@bp.route("/search")
-@admin_required
-def search():
-    """Buscador de la administración: JSON para el diálogo (Ctrl+K) o una página de resultados sin JavaScript."""
-    query = request.args.get("q", "").strip()
-    results = admin_search.find(query, get_db(), settings())
-    if request.args.get("format") == "json":
-        return jsonify(query=query, results=results)
-    return render_template("admin/search.html", query=query, results=results)
+from ....core import accounts
+from ....core import groups as group_core
+from ....core.permissions import ADMIN, PERMISSION_LABELS, permissions_for
+from ....core.storage import explain_access
+from ....db.repositories import api_tokens, audit, users
+from ....db.repositories import groups as group_repo
+from ....db.repositories import sessions as session_repo
+from ....i18n import _, ngettext
+from ....settings import PERMISSIONS, ROLES
+from ...context import get_db, settings
+from ...forms import back, split_list
+from ...guards import admin_required, audit_event
+from . import bp
 
 
 # --------------------------------------------------------------------------- usuarios
@@ -111,11 +35,6 @@ def _initials(user) -> str:
     name = (user["display_name"] or user["username"].split("@")[0]).strip()
     parts = [p for p in re.split(r"[\s._-]+", name) if p]
     return ("".join(p[0] for p in parts[:2]) if len(parts) > 1 else name[:2]).upper()
-
-
-def _back(default: str):
-    target = request.form.get("next") or request.args.get("next")
-    return redirect(safe_next(target) if target else default)
 
 
 def _user_filters() -> dict:
@@ -175,13 +94,13 @@ def users_bulk():
     ids = [int(x) for x in request.form.getlist("ids") if x.isdigit()]
     if action not in BULK_ACTIONS or not ids:
         flash(_("Select some users and an action."), "error")
-        return _back(url_for("admin.users_list"))
+        return back(url_for("admin.users_list"))
     group = None
     if action == "add_group":
         group = group_repo.get_by_id(get_db(), request.form.get("group_id", type=int) or 0)
         if group is None:
             flash(_("Choose the group."), "error")
-            return _back(url_for("admin.users_list"))
+            return back(url_for("admin.users_list"))
     done, errors = 0, []
     for uid in ids:
         user = users.get_by_id(get_db(), uid)
@@ -190,14 +109,14 @@ def users_bulk():
         try:
             if action in ("disable", "enable"):
                 accounts.set_enabled(get_db(), user, g.user, action == "enable")
-                _audit("user_enabled" if action == "enable" else "user_disabled", user["username"], user["source"])
+                audit_event("user_enabled" if action == "enable" else "user_disabled", user["username"], user["source"])
             elif action in ("role_user", "role_admin"):
                 role = ADMIN if action == "role_admin" else "user"
                 accounts.set_role(get_db(), user, g.user, role)
-                _audit("user_updated", user["username"], f"role={role}")
+                audit_event("user_updated", user["username"], f"role={role}")
             else:
                 group_core.add_member(get_db(), group, user)
-                _audit("group_member_added", group["name"], user["username"])
+                audit_event("group_member_added", group["name"], user["username"])
         except accounts.AccountError as exc:
             errors.append(f"{user['username']}: {exc.message}")
         else:
@@ -206,7 +125,7 @@ def users_bulk():
         flash(ngettext("Done for %(num)s user.", "Done for %(num)s users.", done), "info")
     for error in errors:
         flash(error, "error")
-    return _back(url_for("admin.users_list"))
+    return back(url_for("admin.users_list"))
 
 
 def _user_detail(user) -> dict:
@@ -262,11 +181,11 @@ def user_status(user_id: int):
     except accounts.AccountError as exc:
         flash(exc.message, "error")
     else:
-        _audit("user_enabled" if enabled else "user_disabled", user["username"], user["source"])
+        audit_event("user_enabled" if enabled else "user_disabled", user["username"], user["source"])
         message = _("User «%(name)s» enabled.", name=user["username"]) if enabled else \
             _("User «%(name)s» disabled: they can no longer sign in.", name=user["username"])
         flash(message, "info")
-    return _back(url_for("admin.user_edit", user_id=user_id))
+    return back(url_for("admin.user_edit", user_id=user_id))
 
 
 def _user_form_data() -> dict:
@@ -287,7 +206,7 @@ def user_new():
     form = {"source": "local", "role": "user", "enabled": True}
     if request.method == "POST":
         form = {**_user_form_data(), "username": request.form.get("username", "").strip(),
-                "source": request.form.get("source", "local"), "groups": _split(request.form.get("groups", ""))}
+                "source": request.form.get("source", "local"), "groups": split_list(request.form.get("groups", ""))}
         try:
             uid = accounts.create_account(get_db(), 
                 username=form["username"], source=form["source"], role=form["role"],
@@ -296,7 +215,7 @@ def user_new():
         except accounts.AccountError as exc:
             flash(exc.message, "error")
         else:
-            _audit("user_created", form["username"], f"{form['source']}:{form['role']}")
+            audit_event("user_created", form["username"], f"{form['source']}:{form['role']}")
             flash(_("User «%(name)s» created.", name=form["username"]), "info")
             return redirect(url_for("admin.user_edit", user_id=uid))
         form.pop("password", None)
@@ -319,11 +238,11 @@ def user_edit(user_id: int):
             form.update({k: v for k, v in data.items() if k != "password"})
         else:
             detail = f"role={data['role']} enabled={data['enabled']}" + (" password" if data["password"] else "")
-            _audit("user_updated", user["username"], detail)
+            audit_event("user_updated", user["username"], detail)
             flash(_("Changes saved."), "info")
-            return _back(url_for("admin.user_edit", user_id=user_id))
+            return back(url_for("admin.user_edit", user_id=user_id))
         if request.form.get("next"):
-            return _back(url_for("admin.user_edit", user_id=user_id))
+            return back(url_for("admin.user_edit", user_id=user_id))
     return render_template("admin/user_form.html", user=user, form=form, sources=accounts.SOURCES,
                            **_user_detail(user))
 
@@ -336,7 +255,7 @@ def _user_groups_context(user) -> dict:
     known = {g["name"] for g in group_repo.list_all(get_db())} | \
         {g["external_id"] for g in group_repo.list_all(get_db()) if g["external_id"]}
     unknown = sorted(group_core.split(user["external_groups"]) - names - known)
-    from .groups import entra_names
+    from ..groups import entra_names
     return {"memberships": rows, "unknown_groups": unknown,
             "unknown_names": entra_names(unknown) if user["source"] == "entra" else {},
             "addable_groups": [g for g in group_repo.list_all(get_db()) if g["id"] not in mine]}
@@ -350,10 +269,10 @@ def user_group_add(user_id: int):
     if user is None or group is None:
         abort(404)
     group_core.add_member(get_db(), group, user)
-    _audit("group_member_added", group["name"], user["username"])
+    audit_event("group_member_added", group["name"], user["username"])
     flash(_("«%(user)s» added to the group «%(group)s».", user=user["username"],
             group=group_core.label(group)), "info")
-    return _back(url_for("admin.user_edit", user_id=user_id))
+    return back(url_for("admin.user_edit", user_id=user_id))
 
 
 @bp.route("/users/<int:user_id>/delete", methods=["POST"])
@@ -367,83 +286,6 @@ def user_delete(user_id: int):
     except accounts.AccountError as exc:
         flash(exc.message, "error")
         return redirect(url_for("admin.user_edit", user_id=user_id))
-    _audit("user_deleted", user["username"])
+    audit_event("user_deleted", user["username"])
     flash(_("User «%(name)s» deleted (their files have not been removed).", name=user["username"]), "info")
     return redirect(url_for("admin.users_list"))
-
-
-# --------------------------------------------------------------------------- sesiones y tokens
-
-@bp.route("/sessions")
-@admin_required
-def sessions_list():
-    return redirect(url_for("settings.section", name="sessions"))
-
-
-@bp.route("/sessions/<sid>/close", methods=["POST"])
-@admin_required
-def session_close(sid: str):
-    row = session_repo.get(get_db(), sid)
-    if row is not None:
-        session_repo.delete(get_db(), sid)
-        user = users.get_by_id(get_db(), row["user_id"])
-        _audit("session_closed", user["username"] if user else None, row["ip"])
-        flash(_("Session closed."), "info")
-    return _back(url_for("settings.section", name="sessions"))
-
-
-@bp.route("/users/<int:user_id>/sessions/close", methods=["POST"])
-@admin_required
-def user_sessions_close(user_id: int):
-    user = users.get_by_id(get_db(), user_id)
-    if user is None:
-        abort(404)
-    keep = g.get("session_id") if user_id == g.user["id"] else None
-    closed = session_repo.delete_for_user(get_db(), user_id, keep=keep)
-    _audit("sessions_closed", user["username"], str(closed))
-    flash(ngettext("%(num)s session closed.", "%(num)s sessions closed.", closed), "info")
-    return _back(url_for("admin.user_edit", user_id=user_id))
-
-
-@bp.route("/users/<int:user_id>/tokens/<int:token_id>/delete", methods=["POST"])
-@admin_required
-def user_token_delete(user_id: int, token_id: int):
-    token = api_tokens.get(get_db(), token_id)
-    user = users.get_by_id(get_db(), user_id)
-    if token is None or user is None or token["user_id"] != user_id:
-        abort(404)
-    api_tokens.delete(get_db(), token_id)
-    _audit("api_token_revoked", user["username"], token["name"])
-    flash(_("Token «%(name)s» revoked.", name=token["name"]), "info")
-    return _back(url_for("admin.user_edit", user_id=user_id))
-
-
-# --------------------------------------------------------------------------- auditoría
-
-@bp.route("/audit")
-@admin_required
-def audit_log():
-    username = request.args.get("user", "").strip() or None
-    action = request.args.get("action", "").strip() or None
-    rows = audit.recent(get_db(), limit=500, username=username, action=action)
-    return render_template("admin/audit.html", rows=rows, user_filter=username or "",
-                           action_filter=action or "")
-
-
-@bp.route("/audit/export.csv")
-@admin_required
-def audit_export():
-    """Toda la auditoría (o la filtrada) en CSV, con BOM para que Excel respete los acentos."""
-    username = request.args.get("user", "").strip() or None
-    action = request.args.get("action", "").strip() or None
-    rows = audit.recent(get_db(), limit=1_000_000, username=username, action=action)
-    out = io.StringIO()
-    out.write("\ufeff")
-    writer = csv.writer(out)
-    writer.writerow(["ts", "username", "action", "target", "ip", "detail"])
-    for r in rows:
-        writer.writerow([r["ts"], r["username"] or "", r["action"], r["target"] or "", r["ip"] or "", r["detail"] or ""])
-    _audit("audit_exported", None, f"{len(rows)} rows")
-    name = f"storageweb-audit-{datetime.now(timezone.utc):%Y%m%d-%H%M}.csv"
-    return Response(out.getvalue(), mimetype="text/csv; charset=utf-8",
-                    headers={"Content-Disposition": f'attachment; filename="{name}"'})

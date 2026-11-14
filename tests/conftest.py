@@ -42,11 +42,23 @@ def write_config(tmp_path: Path):
 
 @pytest.fixture
 def make_app(write_config):
+    """App de prueba. Los ajustes editables van a la base de datos (como si los hubiera guardado un
+    admin desde la web) y en config.json solo queda lo de arranque: así se pueden cambiar en los tests.
+    Para probar campos bloqueados por config.json, escribe el fichero con ``write_config``."""
     def _make(overrides: dict | None = None):
         from storageweb import create_app
+        from storageweb.db.repositories import settings as settings_repo
+        from storageweb.settings import RUNTIME_KEY, runtime_part
+        from storageweb.web.context import get_db
 
-        app = create_app(str(write_config(overrides)))
+        path = write_config(overrides)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        runtime = runtime_part(data)
+        path.write_text(json.dumps({k: v for k, v in data.items() if k not in runtime}), encoding="utf-8")
+        app = create_app(str(path))
         app.testing = True
+        with app.app_context():
+            settings_repo.put(get_db(), RUNTIME_KEY, runtime, "tests")
         return app
     return _make
 

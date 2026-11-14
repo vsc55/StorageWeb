@@ -58,7 +58,7 @@ La forma más rápida es el **asistente**: *Seguridad → Inicio de sesión → 
 !!! tip "Probar conexión"
     El botón *Probar conexión* comprueba la configuración guardada sin que nadie inicie sesión: que el tenant existe (metadatos OIDC), que la aplicación existe y la Redirect URI está registrada (petición a `/authorize` con `prompt=none`) y que el secreto es válido y no ha caducado (token de aplicación con `client_credentials`). Necesita salida a `login.microsoftonline.com`. Con endpoints propios solo comprueba los metadatos del `issuer`.
 
-También se puede configurar a mano en **Seguridad → Inicio de sesión** o en `config.json`:
+También se puede configurar a mano en **Seguridad → Inicio de sesión**, o fijarlo en `config.json` o con variables `STORAGEWEB_AUTH__ENTRA__…`. Lo que fijes así queda bloqueado en la web, y el registro y la renovación del secreto no lo pueden cambiar:
 
 ```json
 "entra": {

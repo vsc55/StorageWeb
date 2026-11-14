@@ -27,8 +27,8 @@ import urllib.request
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from ..i18n import _
-from .base import MS_LOGIN
+from ...i18n import _
+from .common import MS_LOGIN
 
 # Microsoft Graph Command Line Tools (el cliente de Connect-MgGraph): cliente público de
 # Microsoft que admite el flujo de código de dispositivo y cualquier permiso delegado de Graph.

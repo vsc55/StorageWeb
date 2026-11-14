@@ -1,23 +1,12 @@
 (function () {
   "use strict";
 
-  // Con JavaScript, las acciones por fila pasan a la barra de selección y al panel de detalle
-  document.documentElement.classList.add("js");
-
   var form = document.getElementById("upload-form");
   var input = document.getElementById("file-input");
   var dropzone = document.getElementById("dropzone");
   var panel = document.getElementById("upload-panel");
   var csrf = document.querySelector('meta[name="csrf-token"]').getAttribute("content");
-  // Traducciones: el servidor entrega {texto_fuente: traducción} en <script id="i18n-messages">
-  var MESSAGES = {};
-  try { MESSAGES = JSON.parse(document.getElementById("i18n-messages").textContent); } catch (e) { MESSAGES = {}; }
-  function t(message, params) {
-    var text = MESSAGES[message] || message;
-    return text.replace(/%\((\w+)\)s/g, function (m, key) {
-      return params && params[key] !== undefined ? params[key] : m;
-    });
-  }
+  var t = window.SW.t;
 
   var MAX_RETRIES = 8;
   var current = { xhr: null, id: null, cancelled: false };
@@ -138,11 +127,16 @@
     var list = Array.prototype.slice.call(files);
     var tooBig = list.filter(function (f) { return maxFile && f.size > maxFile; });
     if (tooBig.length) {
-      alert(t("These files exceed the maximum size allowed (%(max)s):", {max: fmt(maxFile)}) + "\n" +
-            tooBig.map(function (f) { return f.name; }).join("\n"));
       list = list.filter(function (f) { return tooBig.indexOf(f) < 0; });
-      if (!list.length) return;
+      window.SW.alert(t("These files exceed the maximum size allowed (%(max)s):", {max: fmt(maxFile)}) + "\n" +
+                      tooBig.map(function (f) { return f.name; }).join("\n"))
+        .then(function () { if (list.length) startUpload(list); });
+      return;
     }
+    startUpload(list);
+  }
+
+  function startUpload(list) {
 
     var total = list.reduce(function (s, f) { return s + f.size; }, 0) || 1;
     var done = 0, errors = [], bar = panel.querySelector(".bar"),
@@ -171,23 +165,28 @@
 
     chain.then(function () {
       window.onbeforeunload = null;
-      if (errors.length) alert(t("Could not upload:") + "\n" + errors.join("\n"));
-      window.location.reload();
+      if (!errors.length) { window.location.reload(); return; }
+      window.SW.alert(t("Could not upload:") + "\n" + errors.join("\n")).then(function () { window.location.reload(); });
     });
   }
 
   if (panel) {
     document.getElementById("upload-cancel").addEventListener("click", function () {
-      if (!confirm(t("Cancel the upload?"))) return;
-      current.cancelled = true;
-      if (current.xhr) current.xhr.abort();
-      if (current.id) {
-        var xhr = new XMLHttpRequest();
-        xhr.open("DELETE", form.dataset.api + "/" + current.id);
-        xhr.setRequestHeader("X-CSRF-Token", csrf);
-        xhr.send();
-      }
+      window.SW.confirm(t("Cancel the upload?"), { danger: true }).then(function (ok) {
+        if (ok) cancelUpload();
+      });
     });
+  }
+
+  function cancelUpload() {
+    current.cancelled = true;
+    if (current.xhr) current.xhr.abort();
+    if (current.id) {
+      var xhr = new XMLHttpRequest();
+      xhr.open("DELETE", form.dataset.api + "/" + current.id);
+      xhr.setRequestHeader("X-CSRF-Token", csrf);
+      xhr.send();
+    }
   }
 
   if (input) {
@@ -214,17 +213,17 @@
 
   // ------------------------------------------------------------------ acciones de la tabla
 
-  document.querySelectorAll("form.js-confirm").forEach(function (f) {
-    f.addEventListener("submit", function (e) {
-      if (!confirm(f.dataset.confirm || t("Are you sure?"))) e.preventDefault();
-    });
-  });
-
   document.querySelectorAll("form.js-rename").forEach(function (f) {
     f.addEventListener("submit", function (e) {
-      var name = prompt(t("New name:"), f.dataset.name);
-      if (!name || name === f.dataset.name) { e.preventDefault(); return; }
-      f.querySelector('input[name="name"]').value = name;
+      if (f.dataset.renamed === "1") { delete f.dataset.renamed; return; }
+      e.preventDefault();
+      window.SW.prompt(t("New name:"), f.dataset.name).then(function (name) {
+        name = (name || "").trim();
+        if (!name || name === f.dataset.name) return;
+        f.querySelector('input[name="name"]').value = name;
+        f.dataset.renamed = "1";
+        f.submit();
+      });
     });
   });
 
@@ -334,7 +333,11 @@
   }
 
   function deleteMany(sel) {
-    if (!confirm(t("Delete %(num)s items? This cannot be undone.", { num: sel.length }))) return;
+    window.SW.confirm(t("Delete %(num)s items? This cannot be undone.", { num: sel.length }), { danger: true })
+      .then(function (ok) { if (ok) deleteNow(sel); });
+  }
+
+  function deleteNow(sel) {
     var forms = sel.map(function (r) { return r.querySelector("form.js-delete"); }).filter(Boolean);
     var chain = Promise.resolve();
     forms.forEach(function (f) {
@@ -344,7 +347,7 @@
       });
     });
     chain.then(function () { window.location.reload(); },
-               function () { alert(t("Network error.")); window.location.reload(); });
+               function () { window.SW.alert(t("Network error.")).then(function () { window.location.reload(); }); });
   }
 
   function runAction(action) {

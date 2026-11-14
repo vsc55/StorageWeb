@@ -6,7 +6,7 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 
 from storageweb.db.repositories import users
-from storageweb.providers import msal, oauth2
+from storageweb.providers.entra import msal, oauth2
 from storageweb.web.context import get_db
 from tests.helpers import add_user, get_csrf
 from tests.sso_helpers import CLIENT_ID, TENANT, entra_cfg, finish_login, start_login

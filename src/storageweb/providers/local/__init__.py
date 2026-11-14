@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from ..i18n import _
+from ...i18n import _
 
 MIN_PASSWORD_LENGTH = 10
 

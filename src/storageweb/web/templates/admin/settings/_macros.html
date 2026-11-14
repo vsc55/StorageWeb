@@ -1,13 +1,20 @@
 {# Piezas de las páginas de ajustes (importar «with context») #}
+{% from "admin/_page.html" import origin_badge with context %}
 
-{# Valor cambiado en la web: etiqueta y botón para volver al de config.json #}
-{# También deja un ancla (#f-auth-entra-client_id) para que el buscador lleve al campo #}
+{# Origen del valor de un campo: «modificado» (web, con Restablecer al predeterminado) o bloqueado por
+   config.json o por una variable de entorno. Deja también un ancla (#f-auth-entra-client_id) para el buscador. #}
 {% macro origin(path) -%}
 <span class="field-anchor" id="f-{{ path|replace('.', '-') }}"></span>
-{%- if path in changed %}<span class="origin" title="{{ _('Changed from the web: it takes precedence over config.json.') }}">{{ _("web") }}</span>
-<button class="link-btn small" type="submit" form="reset-field-form" name="path" value="{{ path }}"
-        title="{{ _('Use the value of config.json again') }}">{{ _("Reset") }}</button>{% endif %}
+{%- set o = origins.get(path) %} {{ origin_badge(o, path) }}
+{%- if o == 'web' %}
+<button class="link-btn small js-reset-field" type="submit" form="reset-field-form" name="path" value="{{ path }}"
+        data-default="{{ form_default(path)|tojson|forceescape }}"
+        title="{{ _('Back to the default value: %(value)s', value=default_text(path)) }}">{{ _("Reset") }}</button>{% endif %}
 {%- endmacro %}
+
+{# Atributos de los controles de un campo: a qué ajuste pertenecen (para Restablecer) y, si está bloqueado
+   (config.json o entorno), desactivado: no se edita ni se envía #}
+{% macro lock(path) -%}{{ " " }}data-field="{{ path }}"{% if is_locked(path) %} disabled{% endif %}{%- endmacro %}
 
 {% macro err_class(path) -%}{% if error_field and (error_field == path or error_field.startswith(path ~ '.')) %} has-error{% endif %}{%- endmacro %}
 

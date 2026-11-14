@@ -10,6 +10,7 @@ from pathlib import Path
 
 from ..i18n import _, format_datetime, ngettext
 from . import maintenance
+from .network import warnings as network_warnings
 
 SECRET_WARN_DAYS = 30
 
@@ -26,11 +27,13 @@ def secret_days(entra: dict) -> int | None:
     return (datetime.fromisoformat(entra["secret_expires"]) - datetime.now(timezone.utc)).days
 
 
-def collect(cfg: dict, boot: dict, maint_state: dict) -> list[dict]:
+def collect(cfg: dict, boot: dict, maint_state: dict, locked: dict | None = None,
+            network: dict | None = None) -> list[dict]:
     """Avisos actuales, del más grave al menos.
 
-    ``cfg`` son los ajustes efectivos, ``boot`` los de arranque y ``maint_state`` lo que guarda
-    :func:`maintenance.state` (cuándo se intentó cada tarea).
+    ``cfg`` son los ajustes efectivos, ``boot`` los de arranque, ``maint_state`` lo que guarda
+    :func:`maintenance.state` (cuándo se intentó cada tarea), ``locked`` los campos fijados fuera de la
+    web (``RuntimeSettings.locked()``) y ``network`` el diagnóstico de la petición (``core.network``).
     """
     alerts: list[dict] = []
     entra = cfg["auth"]["entra"]
@@ -67,6 +70,21 @@ def collect(cfg: dict, boot: dict, maint_state: dict) -> list[dict]:
                                  _("The newest backup is from %(date)s.", date=format_datetime(newest)) if newest
                                  else _("There is no backup yet."),
                                  "backups", _("See the backups")))
+    for level, text in (network_warnings(network) if network else []):
+        alerts.append(_alert(level, "network", text, "", "network", _("Review the network")))
+
+    if locked:
+        files = sum(1 for source in locked.values() if source == "file")
+        envs = len(locked) - files
+        parts = []
+        if files:
+            parts.append(ngettext("%(num)s in config.json", "%(num)s in config.json", files))
+        if envs:
+            parts.append(ngettext("%(num)s in environment variables", "%(num)s in environment variables", envs))
+        alerts.append(_alert("info", "locked", ngettext("%(num)s setting is locked", "%(num)s settings are locked",
+                                                        len(locked)),
+                             " · ".join(parts), "system", _("See which ones"), "layers-title"))
+
     order = {"danger": 0, "warn": 1, "info": 2}
     return sorted(alerts, key=lambda a: order[a["level"]])
 

@@ -32,11 +32,10 @@ def test_admin_closes_a_session(app, admin):
     ana = app.test_client()
     login(ana, "ana")
     assert ana.get("/f/home/").status_code == 200
-    assert client.get("/admin/sessions").location.endswith("/admin/settings/sessions")
     html = client.get("/admin/settings/sessions").get_data(as_text=True)
     assert "ana" in html and "Sesiones abiertas" in html
     sid = _sessions(app, "ana")[0]["id"]
-    client.post(f"/admin/sessions/{sid}/close", data={"_csrf": token})
+    client.post(f"/admin/settings/sessions/{sid}/close", data={"_csrf": token})
     assert ana.get("/f/home/").status_code == 302                     # fuera en la siguiente petición
 
 
@@ -47,7 +46,7 @@ def test_close_all_sessions_of_user_and_disable(app, admin):
     login(a1, "ana")
     login(a2, "ana")
     assert len(_sessions(app, "ana")) == 2
-    client.post(f"/admin/users/{uid}/sessions/close", data={"_csrf": token})
+    client.post(f"/admin/settings/sessions/user/{uid}/close", data={"_csrf": token})
     assert _sessions(app, "ana") == [] and a1.get("/f/home/").status_code == 302
     login(a1, "ana")
     client.post(f"/admin/users/{uid}/status", data={"_csrf": token, "enabled": "0"})

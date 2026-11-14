@@ -1,11 +1,7 @@
-"""Interfaz común de los proveedores SSO."""
+"""Interfaz común de los proveedores SSO (independiente del proveedor de identidad)."""
 from __future__ import annotations
 
-import urllib.parse
-
-MS_LOGIN = "https://login.microsoftonline.com"
 BASE_SCOPES = ["openid", "profile", "email"]
-MULTI_TENANT = {"common", "organizations", "consumers"}
 
 
 class SSOError(Exception):
@@ -13,17 +9,6 @@ class SSOError(Exception):
         super().__init__(f"{code}: {description}" if description else code)
         self.code = code
         self.description = description
-
-
-def endpoints(ecfg: dict) -> dict:
-    """Endpoints OAuth2 de Entra ID calculados a partir del tenant (o los configurados)."""
-    tenant = ecfg.get("tenant_id", "")
-    return {
-        "authorize": ecfg.get("authorize_url") or f"{MS_LOGIN}/{tenant}/oauth2/v2.0/authorize",
-        "token": ecfg.get("token_url") or f"{MS_LOGIN}/{tenant}/oauth2/v2.0/token",
-        "issuer": ecfg.get("issuer") or f"{MS_LOGIN}/{tenant}/v2.0",
-        "logout": ecfg.get("logout_url") or f"{MS_LOGIN}/{tenant}/oauth2/v2.0/logout",
-    }
 
 
 class SSOProvider:
@@ -46,5 +31,5 @@ class SSOProvider:
         raise NotImplementedError
 
     def logout_url(self, post_logout_redirect_uri: str) -> str:
-        query = urllib.parse.urlencode({"post_logout_redirect_uri": post_logout_redirect_uri})
-        return f"{endpoints(self.cfg)['logout']}?{query}"
+        """URL de cierre de sesión en el proveedor (vacía si no tiene)."""
+        return ""

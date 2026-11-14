@@ -6,10 +6,11 @@
 #    La contraseña sale de STORAGEWEB_ADMIN_PASSWORD o de STORAGEWEB_ADMIN_PASSWORD_FILE (secrets).
 # 3. Ejecuta "storageweb <argumentos>" (por defecto "serve").
 #
-# Variables para la configuración generada (solo se usan la primera vez):
-#   STORAGEWEB_PORT (8080)  STORAGEWEB_BEHIND_PROXY (true)  STORAGEWEB_COOKIE_SECURE (true)
-#   STORAGEWEB_MAX_UPLOAD_MB (2048)  STORAGEWEB_APP_NAME (StorageWeb)
-#   STORAGEWEB_PUBLIC_URL (vacía; FQDN, p. ej. files.empresa.es: se asume HTTPS)  STORAGEWEB_PROXY_HOPS (1)
+# La configuración generada solo lleva lo propio del contenedor (escucha en 0.0.0.0 y rutas del
+# volumen /data). El resto se cambia desde la web o con variables de entorno, que se leen en cada
+# arranque y bloquean el campo en la web: STORAGEWEB_<RUTA> con __ entre niveles
+# (STORAGEWEB_AUTH__ENTRA__CLIENT_ID) y los nombres cortos STORAGEWEB_PORT, STORAGEWEB_BEHIND_PROXY,
+# STORAGEWEB_COOKIE_SECURE, STORAGEWEB_MAX_UPLOAD_MB, STORAGEWEB_PROXY_HOPS y STORAGEWEB_PUBLIC_URL.
 set -e
 
 CONFIG="${STORAGEWEB_CONFIG:-/data/config.json}"
@@ -20,34 +21,12 @@ if [ ! -f "$CONFIG" ]; then
   mkdir -p "$(dirname "$CONFIG")"
   python - "$CONFIG" <<'EOF'
 import json
-import os
 import sys
 
-
-def flag(name, default):
-    return os.environ.get(name, default).strip().lower() in ("1", "true", "yes", "on")
-
-
 cfg = {
-    "app_name": os.environ.get("STORAGEWEB_APP_NAME", "StorageWeb"),
-    "server": {
-        "host": "0.0.0.0",
-        "port": int(os.environ.get("STORAGEWEB_PORT", "8080")),
-        "behind_proxy": flag("STORAGEWEB_BEHIND_PROXY", "true"),
-        "proxy_hops": int(os.environ.get("STORAGEWEB_PROXY_HOPS", "1")),
-        "max_upload_mb": int(os.environ.get("STORAGEWEB_MAX_UPLOAD_MB", "2048")),
-    },
-    "network": {"public_url": os.environ.get("STORAGEWEB_PUBLIC_URL", "")},
+    "server": {"host": "0.0.0.0"},
     "data_dir": "/data/db",
-    "session": {"cookie_secure": flag("STORAGEWEB_COOKIE_SECURE", "true")},
-    "storage": {
-        "home_template": "/data/files/homes/{username}",
-        "create_home": True,
-        "create_shares": True,
-        "shares": [{"name": "compartido", "label": "Compartido", "path": "/data/files/shared",
-                    "read_only": False, "users": ["*"], "groups": []}],
-    },
-    "auth": {"local": {"enabled": True}, "pam": {"enabled": False}},
+    "storage": {"home_template": "/data/files/homes/{username}"},
 }
 with open(sys.argv[1], "w", encoding="utf-8") as fh:
     json.dump(cfg, fh, indent=2, ensure_ascii=False)

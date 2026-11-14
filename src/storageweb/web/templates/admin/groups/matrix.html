@@ -1,11 +1,13 @@
 {% extends "admin/_layout.html" %}
 {% from "admin/groups/_macros.html" import source_badge with context %}
+{% from "admin/_page.html" import locked_notice with context %}
+{% from "admin/settings/_macros.html" import save_bar with context %}
 {% block title %}{{ _("Access matrix") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
 <div class="page-head">
   <div>
     <h1>{{ _("Access matrix") }}</h1>
-    <p class="muted small">{{ _("What each group can do in each shared folder.") }}</p>
+    <p class="muted small">{{ _("What each group can do in each shared folder.") }} {{ _("Change a cell to give or remove access.") }}</p>
   </div>
   <div class="inline">
     <a class="btn btn-ghost" href="{{ url_for('access.folders') }}">{{ _("Shared folders") }}</a>
@@ -13,6 +15,7 @@
   </div>
 </div>
 
+{{ locked_notice(locked_message) }}
 {% if not shares %}
   <div class="empty"><p>{{ _("There are no shared folders.") }} <a href="{{ url_for('access.folder_new') }}">{{ _("New shared folder") }}</a></p></div>
 {% elif not matrix %}
@@ -24,7 +27,8 @@
   <span><span class="swatch swatch-none"></span>{{ _("No access") }}</span>
 </div>
 
-<form method="post" id="access-matrix">
+<form method="post" id="access-matrix" class="settings-form" data-watch>
+<fieldset class="plain-fieldset"{% if locked_message %} disabled{% endif %}>
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
   <div class="table-scroll">
   <table class="files matrix">
@@ -69,12 +73,8 @@
   </table>
   </div>
 
-  <div class="matrix-bar sticky-actions">
-    <span class="small" id="matrix-status" aria-live="polite">{{ _("Change a cell to give or remove access.") }}</span>
-    <span class="toolbar-spacer"></span>
-    <a class="btn btn-ghost" href="{{ url_for('groups.matrix_view') }}">{{ _("Discard") }}</a>
-    <button class="btn btn-primary" type="submit">{{ _("Save") }}</button>
-  </div>
+  {{ save_bar() }}
+</fieldset>
 </form>
 
 {% if unregistered %}
@@ -83,3 +83,4 @@
 {% endif %}
 {% endif %}
 {% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/matrix.js') }}"></script>{% endblock %}

@@ -99,16 +99,15 @@ def test_secret_key_from_config(tmp_path):
     assert ensure_secret_key(cfg) == "fija"
 
 
-def test_overrides_replace_sections(tmp_path):
-    p = _cfg(tmp_path, {"app_name": "Fichero", "storage": {"shares": [{"name": "a", "path": "x"}]},
-                        "auth": {"entra": {"client_secret": "del-fichero", "role_mappings": {"G1": "admin"}}}})
-    cfg = load_config(p, overrides={"app_name": "Web", "storage": {"shares": []},
-                                    "auth": {"entra": {"client_secret": "", "role_mappings": {}}},
+def test_file_wins_over_web_settings(tmp_path):
+    """config.json gana sobre los ajustes web campo a campo; lo que no fija lo deciden la web o los predeterminados."""
+    p = _cfg(tmp_path, {"app_name": "Fichero", "auth": {"entra": {"role_mappings": {"G1": "admin"}}}})
+    cfg = load_config(p, overrides={"app_name": "Web", "storage": {"shares": []}, "default_locale": "es",
+                                    "auth": {"entra": {"role_mappings": {}, "client_id": "web"}},
                                     "server": {"port": 1}})
-    assert cfg["app_name"] == "Web"
-    assert cfg["storage"]["shares"] == []
-    assert cfg["auth"]["entra"]["role_mappings"] == {}          # se pueden borrar mapeos
-    assert cfg["auth"]["entra"]["client_secret"] == "del-fichero"  # secreto vacío = el del fichero
+    assert cfg["app_name"] == "Fichero"
+    assert cfg["auth"]["entra"]["role_mappings"] == {"g1": "admin"}
+    assert cfg["default_locale"] == "es" and cfg["auth"]["entra"]["client_id"] == "web"
     assert cfg["server"]["port"] == 8080                       # server no es editable desde la web
 
 
@@ -151,11 +150,32 @@ def test_mask_secrets(tmp_path):
     assert cfg["auth"]["entra"]["client_secret"] == "s3cr3t"
 
 
-def test_overrides_merge_over_file_field_by_field(tmp_path):
-    """Los ajustes web se combinan sobre config.json: lo que no cambian sigue viniendo del fichero."""
-    p = _cfg(tmp_path, {"auth": {"entra": {"tenant_id": "del-fichero", "client_id": "c"}}})
-    cfg = load_config(p, overrides={"auth": {"entra": {"client_id": "web"}}})
-    assert cfg["auth"]["entra"]["tenant_id"] == "del-fichero" and cfg["auth"]["entra"]["client_id"] == "web"
+def test_environment_wins_over_everything(tmp_path):
+    p = _cfg(tmp_path, {"app_name": "Fichero", "server": {"port": 9000}})
+    env = {"STORAGEWEB_APP_NAME": "Entorno", "STORAGEWEB_PORT": "7000", "STORAGEWEB_AUTH__ENTRA__SCOPES": "a, b",
+           "STORAGEWEB_SECURITY__IPBAN_ENABLED": "false", "STORAGEWEB_STORAGE__SHARES": '[{"name": "x", "path": "/x"}]',
+           "STORAGEWEB_LANG": "es", "STORAGEWEB_CONFIG": "no-cuenta"}
+    cfg = load_config(p, overrides={"app_name": "Web"}, environ=env)
+    assert cfg["app_name"] == "Entorno" and cfg["server"]["port"] == 7000
+    assert cfg["auth"]["entra"]["scopes"] == ["a", "b"] and cfg["security"]["ipban_enabled"] is False
+    assert [s["name"] for s in cfg["storage"]["shares"]] == ["x"]
+
+
+@pytest.mark.parametrize("name, value", [("STORAGEWEB_SERVER__PORT", "mucho"),
+                                         ("STORAGEWEB_SECURITY__API_TOKENS", "quizá"),
+                                         ("STORAGEWEB_STORAGE__SHARES", "[roto")])
+def test_invalid_environment_values(tmp_path, name, value):
+    with pytest.raises(ConfigError, match=name):
+        load_config(tmp_path / "nada.json", environ={name: value})
+
+
+def test_env_names():
+    from storageweb.settings import env_name, setting_paths
+
+    assert env_name("auth.entra.client_id") == "STORAGEWEB_AUTH__ENTRA__CLIENT_ID"
+    assert env_name("app_name") == "STORAGEWEB_APP_NAME"
+    paths = setting_paths()
+    assert "storage.shares" in paths and "auth.entra.role_mappings" in paths and "auth.entra" not in paths
 
 
 def test_diff_and_paths_helpers():
@@ -170,14 +190,35 @@ def test_diff_and_paths_helpers():
     assert drop_path({"auth": {"entra": {"tenant_id": "x"}}}, "auth.entra.tenant_id") == {}
 
 
-def test_runtime_saves_only_differences(tmp_path, db_conn):
+def test_runtime_saves_only_differences_from_defaults(tmp_path, db_conn):
     from storageweb.settings import RuntimeSettings, read_config_file, runtime_view
 
     p = _cfg(tmp_path, {"app_name": "Fichero"})
     rt = RuntimeSettings(*read_config_file(p))
     view = runtime_view(rt.current(db_conn))
     view["security"]["lockout_minutes"] = 42
+    view["app_name"] = "Intento"                      # bloqueado por config.json: no se guarda
     assert rt.save(db_conn, view, "root") == {"security": {"lockout_minutes": 42}}
-    assert rt.changed_paths(db_conn) == {"security.lockout_minutes"}
-    rt.reset_path(db_conn, "security.lockout_minutes", "root")
-    assert rt.overrides(db_conn) == {} and rt.changed_paths(db_conn) == set()
+    assert rt.current(db_conn)["app_name"] == "Fichero"
+    assert rt.origins(db_conn) == {"security.lockout_minutes": "web", "app_name": "file"}
+    assert rt.modified_paths(db_conn) == {"security.lockout_minutes", "app_name"}
+    rt.reset_path(db_conn, "security.lockout_minutes", "root")     # vuelve al predeterminado
+    assert rt.overrides(db_conn) == {} and rt.current(db_conn)["security"]["lockout_minutes"] == 15
+    with pytest.raises(ConfigError, match="config.json"):
+        rt.reset_path(db_conn, "app_name", "root")
+
+
+def test_runtime_locks_and_strict_save(tmp_path, db_conn):
+    from storageweb.settings import RuntimeSettings, read_config_file, runtime_view
+
+    p = _cfg(tmp_path, {"storage": {"shares": []}})
+    rt = RuntimeSettings(*read_config_file(p), env_cfg={"auth": {"entra": {"client_id": "env"}}})
+    assert rt.locked() == {"storage.shares": "file", "auth.entra.client_id": "env"}
+    assert rt.lock_of("storage.shares") == "file" and rt.lock_of("auth.entra.client_id") == "env"
+    assert rt.lock_of("auth.entra.tenant_id") is None
+    view = runtime_view(rt.current(db_conn))
+    view["auth"]["entra"]["client_id"] = "otro"
+    with pytest.raises(ConfigError, match="STORAGEWEB_AUTH__ENTRA__CLIENT_ID"):
+        rt.save(db_conn, view, "root", strict=True)
+    rt.save(db_conn, view, "root")                     # sin strict, el campo bloqueado se ignora
+    assert rt.current(db_conn)["auth"]["entra"]["client_id"] == "env" and rt.overrides(db_conn) == {}

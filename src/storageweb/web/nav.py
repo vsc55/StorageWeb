@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from flask import request, url_for
 
 from ..i18n import _l
+from ..settings import fields
 
 
 @dataclass(frozen=True)
@@ -95,7 +96,7 @@ ZONES: tuple[Zone, ...] = (
                   words="mantenimiento retención copias automáticas retention"),
         _settings("backups", _l("Backups and database"), "op", _l("Create, download and delete backups"),
                   words="copias seguridad backup restaurar base datos compactar vacuum"),
-        _settings("system", _l("Information"), "info", _l("Startup settings and values changed from the web"),
+        _settings("system", _l("Information"), "info", _l("Startup settings and where each value comes from"),
                   words="sistema información versión config.json system info"),
     ), _l("The server itself: name, network, maintenance and backups.")),
 )
@@ -105,19 +106,9 @@ ZONE_OF: dict[str, Zone] = {p.key: z for z in ZONES for p in z.pages}
 KIND_LABELS = {"config": _l("Configuration · applies when saved"), "op": _l("Operation · applies at once"),
                "info": _l("Read only")}
 
-# Sección de ajustes donde se edita cada campo de la configuración (para «web» y restablecer)
-_PATH_PAGES = (("storage.shares", "folders"), ("storage.", "storage"), ("permissions.", "permissions"),
-               ("auth.", "auth"), ("security.", "security"), ("network.", "network"),
-               ("maintenance.", "maintenance"), ("branding.", "general"), ("app_name", "general"),
-               ("default_locale", "general"))
-
-
 def page_for_path(path: str) -> str:
     """Clave de la página que edita un campo (``auth.entra.client_id`` → ``auth``)."""
-    for prefix, key in _PATH_PAGES:
-        if path == prefix.rstrip(".") or path.startswith(prefix):
-            return key
-    return "system"
+    return fields.page_of(path)
 
 
 def current() -> tuple[Zone | None, Page | None]:
@@ -132,11 +123,11 @@ def current() -> tuple[Zone | None, Page | None]:
     return None, None
 
 
-def context(changed_paths) -> dict:
-    """Variables de plantilla: zona y página actuales y cambios «web» por página."""
+def context(modified_paths) -> dict:
+    """Variables de plantilla: zona y página actuales y valores no predeterminados por página."""
     zone, page = current()
     per_page: dict[str, int] = {}
-    for path in changed_paths:
+    for path in modified_paths:
         key = page_for_path(path)
         per_page[key] = per_page.get(key, 0) + 1
     return {"nav_zones": ZONES, "nav_zone": zone, "nav_page": page, "nav_overview": OVERVIEW,

@@ -20,8 +20,8 @@ Estas páginas **no se editan a mano**. Se generan desde el código con `tools/g
 
 | Página | Fuente |
 |---|---|
-| `referencia/configuracion.md` | `DEFAULTS` y `DESCRIPTIONS` de `settings/defaults.py` |
-| `referencia/cli.md` | `build_parser()` de `cli.py` |
+| `referencia/configuracion.md` | `DEFAULTS` de `settings/defaults.py`, `FIELDS` de `settings/fields.py` y las variables de `settings/env.py` |
+| `referencia/cli.md` | `build_parser()` de `cli/__init__.py` |
 | `referencia/api.md` | `docs/referencia/openapi.yaml` |
 
 ```bash

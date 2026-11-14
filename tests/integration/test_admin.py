@@ -192,13 +192,16 @@ def test_settings_sections_render(admin):
 @pytest.mark.parametrize("section", ["general", "storage", "permissions", "auth", "security", "network",
                                      "maintenance"])
 def test_settings_roundtrip_unchanged(app, admin, section):
+    from storageweb.settings import runtime_view
     from storageweb.web.context import runtime
 
     client, _ = admin
+    with app.app_context():
+        before = runtime_view(runtime().current(get_db()))
     resp = client.post(f"/admin/settings/{section}", data=settings_form(client, section))
     assert resp.status_code == 302, resp.get_data(as_text=True)
     with app.app_context():
-        assert runtime().overrides(get_db()) == {}      # guardar sin cambios no deja nada en la web
+        assert runtime_view(runtime().current(get_db())) == before   # guardar sin cambios no cambia nada
 
 
 def test_settings_change_applies_immediately(app, admin, tmp_path):
@@ -290,7 +293,7 @@ def test_secret_kept_when_blank_and_never_shown(app, admin):
 
 
 def test_settings_origin_and_field_reset(app, make_app, admin):
-    """Solo se guarda lo cambiado; cada campo cambiado se marca y se puede devolver a config.json."""
+    """Cada campo que no tiene su valor predeterminado se marca y se puede devolver a ese valor."""
     from storageweb.web.context import runtime, settings
 
     client, token = admin
@@ -301,11 +304,14 @@ def test_settings_origin_and_field_reset(app, make_app, admin):
     data["lockout_minutes"] = ["30"]
     client.post("/admin/settings/security", data=data)
     with app.app_context():
-        assert runtime().overrides(get_db()) == {"app_name": "Desde la web", "security": {"lockout_minutes": 30}}
+        saved = runtime().overrides(get_db())
+        assert saved["app_name"] == "Desde la web" and saved["security"] == {"lockout_minutes": 30}
     html = client.get("/admin/settings/general").get_data(as_text=True)
-    assert 'value="app_name"' in html and "Restablecer" in html and "1 web" in html
+    assert 'value="app_name"' in html and "Restablecer" in html and "modificado" in html
+    assert "Volver al valor predeterminado: StorageWeb" in html
     html = client.get("/admin/settings/system").get_data(as_text=True)
-    assert "<code>app_name</code>" in html and "<code>security.lockout_minutes</code>" in html
+    # Lista de Información: la etiqueta del campo y, al lado, su ruta
+    assert "Nombre de la aplicación</a>" in html and "security.lockout_minutes</code>" in html
 
     resp = client.post("/admin/settings/reset-field", data={"_csrf": token, "path": "app_name"})
     assert resp.location.endswith("/admin/settings/general")

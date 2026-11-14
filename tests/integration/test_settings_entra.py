@@ -1,7 +1,7 @@
 """Ajustes de Entra ID: asistente de configuración y prueba de conexión."""
 import pytest
 
-from storageweb.providers import entra_check
+from storageweb.providers.entra import check as entra_check
 from tests.helpers import add_user, get_csrf, login
 
 

@@ -22,7 +22,7 @@
 ## Estructura
 
 ```
-src/storageweb/   settings · db · providers · core · web (views, api, templates, static) · cli
+src/storageweb/   settings · db · providers (local/ · pam/ · entra/) · core · web (views, api, templates, static) · cli/
 tests/            unit/ (sin Flask) · integration/ (app completa) · helpers.py · sso_helpers.py
 docs/             esta documentación (MkDocs)
 tools/            gen_docs.py

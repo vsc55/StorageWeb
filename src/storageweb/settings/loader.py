@@ -1,7 +1,11 @@
 """Lectura, combinación y validación de la configuración.
 
-Orden de prioridad (de menor a mayor):
-    DEFAULTS  <  config.json  <  ajustes guardados desde la web (solo RUNTIME_SECTIONS)
+Capas, de menor a mayor prioridad (cada una gana campo a campo sobre las anteriores):
+
+    DEFAULTS  <  ajustes web (SQLite, solo RUNTIME_SECTIONS)  <  config.json  <  variables de entorno
+
+Un campo fijado en config.json o en el entorno queda **bloqueado**: la web lo muestra pero no lo
+puede cambiar. Combinar capas: ``layers.py``; variables de entorno: ``env.py``.
 """
 from __future__ import annotations
 
@@ -15,84 +19,13 @@ import sys
 from pathlib import Path
 
 from ..i18n import LOCALES, _
-from .defaults import (DEFAULTS, LEAF_PATHS, PERMISSIONS, ROLES, RUNTIME_SECTIONS, SECRET_FIELDS,
-                       SSO_PROVIDER_NAMES)
+from .env import env_config
+from .errors import ConfigError
+from .layers import _get, _set, merge_overrides
+from .defaults import DEFAULTS, PERMISSIONS, ROLES, RUNTIME_SECTIONS, SECRET_FIELDS, SSO_PROVIDER_NAMES
 
 SHARE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
-
-
-class ConfigError(Exception):
-    """Configuración no válida. ``field`` es la ruta del ajuste afectado (``storage.home_template``)."""
-
-    def __init__(self, message: str = "", field: str | None = None):
-        super().__init__(message)
-        self.field = field
-
-
-def deep_merge(base: dict, override: dict) -> dict:
-    out = copy.deepcopy(base)
-    for key, value in override.items():
-        if isinstance(value, dict) and isinstance(out.get(key), dict):
-            out[key] = deep_merge(out[key], value)
-        else:
-            out[key] = copy.deepcopy(value)
-    return out
-
-
-def merge_overrides(base: dict, override: dict, path: tuple = ()) -> dict:
-    """Combina ajustes web sobre ``base`` campo a campo (salvo los ``LEAF_PATHS``)."""
-    out = copy.deepcopy(base)
-    for key, value in override.items():
-        here = path + (key,)
-        if isinstance(value, dict) and isinstance(out.get(key), dict) and here not in LEAF_PATHS:
-            out[key] = merge_overrides(out[key], value, here)
-        else:
-            out[key] = copy.deepcopy(value)
-    return out
-
-
-def diff_overrides(base: dict, new: dict, path: tuple = ()) -> dict:
-    """Lo mínimo que hay que guardar para que ``new`` resulte de combinarlo sobre ``base``."""
-    out = {}
-    for key, value in new.items():
-        here = path + (key,)
-        old = base.get(key) if isinstance(base, dict) else None
-        if isinstance(value, dict) and isinstance(old, dict) and here not in LEAF_PATHS:
-            sub = diff_overrides(old, value, here)
-            if sub:
-                out[key] = sub
-        elif value != old:
-            out[key] = copy.deepcopy(value)
-    return out
-
-
-def leaf_paths(tree: dict, path: tuple = ()) -> set[str]:
-    """Rutas ("auth.entra.tenant_id") de los valores de un árbol de ajustes."""
-    paths = set()
-    for key, value in tree.items():
-        here = path + (key,)
-        if isinstance(value, dict) and value and here not in LEAF_PATHS:
-            paths |= leaf_paths(value, here)
-        else:
-            paths.add(".".join(here))
-    return paths
-
-
-def drop_path(tree: dict, dotted: str) -> dict:
-    """Copia de ``tree`` sin la ruta indicada (y sin los diccionarios que queden vacíos)."""
-    out = copy.deepcopy(tree)
-    keys = dotted.split(".")
-    stack = [out]
-    for key in keys[:-1]:
-        node = stack[-1].get(key)
-        if not isinstance(node, dict):
-            return out
-        stack.append(node)
-    stack[-1].pop(keys[-1], None)
-    for i in range(len(keys) - 2, -1, -1):
-        if not stack[i + 1]:
-            stack[i].pop(keys[i], None)
-    return out
+PROFILE_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 def default_config_path() -> Path:
@@ -120,19 +53,8 @@ def read_config_file(path: str | os.PathLike | None = None) -> tuple[dict, Path]
     return data, cfg_path
 
 
-def _get(d: dict, path: tuple):
-    for key in path:
-        d = d.get(key, {}) if isinstance(d, dict) else {}
-    return d
-
-
-def _set(d: dict, path: tuple, value) -> None:
-    for key in path[:-1]:
-        d = d.setdefault(key, {})
-    d[path[-1]] = value
-
-
-def _apply_overrides(cfg: dict, file_cfg: dict, overrides: dict) -> dict:
+def _apply_overrides(cfg: dict, overrides: dict) -> dict:
+    """Aplica los ajustes web (solo las secciones editables) campo a campo."""
     for section in RUNTIME_SECTIONS:
         if section not in overrides:
             continue
@@ -143,12 +65,6 @@ def _apply_overrides(cfg: dict, file_cfg: dict, overrides: dict) -> dict:
             cfg[section] = merge_overrides(cfg[section], value, (section,))
         else:
             cfg[section] = value
-    # Un secreto vacío en los ajustes web significa "usar el de config.json"
-    for path in SECRET_FIELDS:
-        if path[0] in overrides and not _get(cfg, path):
-            file_value = _get(file_cfg, path)
-            if file_value:
-                _set(cfg, path, file_value)
     return cfg
 
 
@@ -233,11 +149,14 @@ def _positive_int(value, field: str) -> int:
     return number
 
 
-def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None) -> dict:
-    """Combina DEFAULTS + config.json + ajustes web, resuelve rutas y valida."""
-    cfg = deep_merge(DEFAULTS, file_cfg)
+def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env_cfg: dict | None = None) -> dict:
+    """Combina DEFAULTS < ajustes web < config.json < entorno, resuelve rutas y valida."""
+    cfg = copy.deepcopy(DEFAULTS)
     if overrides:
-        cfg = _apply_overrides(cfg, file_cfg, overrides)
+        cfg = _apply_overrides(cfg, overrides)
+    cfg = merge_overrides(cfg, file_cfg)
+    if env_cfg:
+        cfg = merge_overrides(cfg, env_cfg)
     base_dir = cfg_path.resolve().parent
     cfg["_config_path"] = str(cfg_path)
 
@@ -359,15 +278,19 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None) -> 
     brand["logo"] = str(brand.get("logo") or "").strip()
     if brand["logo"] and not re.match(r"^logo\.(png|jpg|jpeg|webp|svg)$", brand["logo"]):
         raise ConfigError(_("branding.logo is not valid"), "branding.logo")
+    cfg["settings_profile"] = str(cfg["settings_profile"] or "default").strip()
+    if not PROFILE_RE.match(cfg["settings_profile"]):
+        raise ConfigError(_("settings_profile can only contain letters, digits, _ and -"), "settings_profile")
     cfg["app_name"] = str(cfg["app_name"]).strip() or DEFAULTS["app_name"]
     if cfg["default_locale"] not in LOCALES:
         raise ConfigError(_("default_locale must be one of: %(values)s", values=", ".join(LOCALES)), "default_locale")
     return cfg
 
 
-def load_config(path: str | os.PathLike | None = None, overrides: dict | None = None) -> dict:
+def load_config(path: str | os.PathLike | None = None, overrides: dict | None = None, environ=None) -> dict:
+    """Configuración efectiva: config.json + variables de entorno (+ ajustes web si se pasan)."""
     file_cfg, cfg_path = read_config_file(path)
-    return normalize(file_cfg, cfg_path, overrides)
+    return normalize(file_cfg, cfg_path, overrides, env_config(environ))
 
 
 def ensure_secret_key(cfg: dict) -> str:
@@ -393,6 +316,3 @@ def mask_secrets(cfg: dict) -> dict:
     return out
 
 
-def runtime_view(cfg: dict) -> dict:
-    """Extrae las secciones editables desde la web."""
-    return {k: copy.deepcopy(cfg[k]) for k in RUNTIME_SECTIONS}

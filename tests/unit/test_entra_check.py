@@ -1,7 +1,7 @@
 """Comprobación de la configuración de Entra ID (sin red: se simulan las respuestas de Microsoft)."""
 import pytest
 
-from storageweb.providers import entra_check, entra_directory, oauth2
+from storageweb.providers.entra import check as entra_check, directory as entra_directory, oauth2
 
 ECFG = {"tenant_id": "t1", "client_id": "c1", "client_secret": "s", "timeout_seconds": 5}
 REDIRECT = "https://files.example.com/auth/entra/callback"

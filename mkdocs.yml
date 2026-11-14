@@ -86,6 +86,7 @@ nav:
           - 0010 Internacionalización: arquitectura/decisiones/0010-internacionalizacion.md
           - 0011 Grupos gestionados: arquitectura/decisiones/0011-grupos-gestionados.md
           - 0012 Administración por zonas: arquitectura/decisiones/0012-administracion-por-zonas.md
+          - 0013 Capas de configuración: arquitectura/decisiones/0013-capas-de-configuracion.md
           - Plantilla: arquitectura/decisiones/plantilla.md
   - Desarrollo:
       - desarrollo/index.md

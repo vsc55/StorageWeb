@@ -41,12 +41,12 @@ flowchart LR
 | Nombres de archivo maliciosos | `safe_filename`: solo el último componente, sin caracteres de control ni reservados, NFC, ≤ 255 bytes, sin nombres reservados de Windows | `core/security.py` |
 | CSRF | Token aleatorio por sesión, comparado en tiempo constante, en POST/PUT/DELETE (formularios y `X-CSRF-Token`) | `web/guards.py` |
 | Robo o fijación de sesión | Cookie `HttpOnly`, `Secure` y `SameSite=Lax`; la sesión se limpia al iniciar y al cerrar sesión; caducidad | `app.py`, `guards.start_session` |
-| Fuerza bruta y enumeración de usuarios | Bloqueo por IP y por usuario; hash ficticio para igualar tiempos | `core/security.LoginThrottle`, `providers/local.py` |
+| Fuerza bruta y enumeración de usuarios | Bloqueo por IP y por usuario; hash ficticio para igualar tiempos | `core/security.LoginThrottle`, `providers/local/` |
 | Open redirect tras el login | `safe_next` solo admite rutas relativas del propio sitio | `web/guards.py` |
 | XSS | Escape automático de Jinja; CSP `default-src 'self'` sin scripts ni estilos inline | `templates/`, `guards.set_security_headers` |
 | Clickjacking | `X-Frame-Options: DENY` y `frame-ancestors 'none'` | ídem |
 | Escalada de privilegios en la app | Permisos comprobados en el servidor en cada acción (también en cada parte de una subida); rol admin protegido (último admin, auto-degradación) | `core/permissions.py`, `core/accounts.py` |
-| Suplantación con SSO | `state`, `nonce`, PKCE; validación de `iss`, `aud`, `azp`, `exp`, `nbf` y `tid`; nunca se vincula a una cuenta local o PAM del mismo nombre | `providers/oauth2.py`, `core/accounts.py` |
+| Suplantación con SSO | `state`, `nonce`, PKCE; validación de `iss`, `aud`, `azp`, `exp`, `nbf` y `tid`; nunca se vincula a una cuenta local o PAM del mismo nombre | `providers/entra/oauth2.py`, `core/accounts.py` |
 | Agotar disco o memoria | Límite por petición y por archivo; comprobación de espacio libre; streaming en subidas y descargas; limpieza de subidas abandonadas | `core/uploads.py` |
 | Fuga de secretos | `client_secret` nunca se muestra en la web; `config.json` en `0640`; copias en `0600` | `settings/`, `core/backup.py` |
 | Compromiso del proceso | Usuario sin privilegios; systemd con `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, `RestrictAddressFamilies` | `packaging/systemd/` |

@@ -11,7 +11,7 @@ from ..db.repositories import audit, sessions, users
 from ..i18n import _, _l
 from ..settings.defaults import ROLES
 from ..providers import local, pam
-from ..providers.base import MULTI_TENANT
+from ..providers.entra.common import MULTI_TENANT
 from . import groups as group_core
 from .permissions import ADMIN, USER
 

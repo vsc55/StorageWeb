@@ -1,9 +1,9 @@
 """Nombres de grupos de Entra ID, renovación del secreto y lectura de grupos (Microsoft simulado)."""
 import pytest
 
-from storageweb.providers import entra_directory as ed
-from storageweb.providers import entra_register as er
-from storageweb.providers import oauth2
+from storageweb.providers.entra import directory as ed
+from storageweb.providers.entra import register as er
+from storageweb.providers.entra import oauth2
 
 ECFG = {"tenant_id": "t1", "client_id": "c1", "client_secret": "s", "timeout_seconds": 5}
 G1, G2 = "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"

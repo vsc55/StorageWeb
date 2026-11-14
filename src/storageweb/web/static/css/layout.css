@@ -1,0 +1,99 @@
+/* Estructura de la aplicación: barra lateral, menú de cuenta, perfil y páginas públicas */
+
+/* --- estructura de la aplicación --- */
+.app { display: flex; min-height: 100vh; }
+.rail { flex: 0 0 76px; background: var(--rail-bg); color: var(--rail-fg); display: flex; flex-direction: column;
+        align-items: center; gap: 4px; padding: 12px 0; position: sticky; top: 0; height: 100vh;
+        z-index: 30; }  /* por encima de las barras sticky del contenido (Guardar ajustes, matriz) */
+.rail-brand { width: 40px; height: 40px; border-radius: 10px; background: var(--primary); color: #fff;
+              display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+.rail-brand .icon { width: 20px; height: 20px; }
+.rail-group { display: flex; flex-direction: column; gap: 4px; padding-top: 8px; margin-top: 4px;
+              border-top: 1px solid #2a3240; }
+.rail-item { width: 64px; padding: 8px 4px 6px; border-radius: 10px; color: var(--rail-fg); display: flex;
+             flex-direction: column; align-items: center; gap: 4px; font-size: 10.5px; text-align: center; }
+.rail-item:hover { text-decoration: none; background: var(--rail-active); color: #fff; }
+.rail-item.active { background: var(--rail-active); color: #fff; }
+.rail-item .icon { width: 20px; height: 20px; }
+.rail-label { line-height: 1.15; }
+.rail-spacer { flex: 1 1 auto; }
+
+/* --- menú de cuenta --- */
+.account { position: relative; margin-top: 8px; }
+.account summary { list-style: none; }
+.account summary::-webkit-details-marker { display: none; }
+.avatar { width: 40px; height: 40px; border-radius: 50%; background: #7c5cdb; color: #fff; display: flex;
+          align-items: center; justify-content: center; font-weight: 600; font-size: 13px; cursor: pointer;
+          flex: 0 0 auto; }
+summary.avatar { box-shadow: 0 0 0 2px var(--rail-bg); }
+.account[open] summary.avatar, summary.avatar.active { box-shadow: 0 0 0 2px var(--rail-bg), 0 0 0 4px #7c5cdb; }
+.avatar-lg { width: 44px; height: 44px; font-size: 15px; cursor: default; }
+.account-menu { position: absolute; left: 54px; bottom: 0; z-index: 20; width: 300px; background: var(--bg);
+                color: var(--fg); border: 1px solid var(--line); border-radius: 14px; padding: 8px;
+                box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 2px; }
+.account-head { display: flex; gap: 12px; align-items: center; padding: 10px 10px 12px; margin-bottom: 4px;
+                border-bottom: 1px solid var(--line); }
+.account-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.account-who strong { word-break: break-word; }
+.menu-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 0; border-radius: 8px;
+             background: transparent; color: var(--fg); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.menu-item:hover { background: var(--bg-hover); text-decoration: none; }
+.menu-danger { color: var(--danger); }
+.menu-section { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; }
+.menu-label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.menu-form { margin: 4px 0 0; padding-top: 4px; border-top: 1px solid var(--line); }
+.menu-foot { padding: 6px 10px 4px; }
+
+.app-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.page { padding: 20px 28px 32px; width: 100%; }
+
+/* --- perfil --- */
+.profile-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 20px; align-items: start; }
+.card-title { margin: 0; font-size: 16px; font-weight: 600; }
+.form-grid .card-title { margin-top: 6px; }
+.theme-field { border: 0; padding: 0; margin: 0; min-width: 0; }
+.theme-field legend { padding: 0; margin-bottom: 4px; }
+.theme-options { display: flex; flex-wrap: wrap; gap: 10px; }
+.theme-option { flex-direction: column; align-items: center; gap: 6px; color: var(--fg); cursor: pointer; }
+.theme-option input { position: absolute; opacity: 0; }
+.theme-swatch { display: flex; width: 76px; height: 50px; border-radius: 10px; overflow: hidden; border: 2px solid var(--line); }
+.theme-swatch span { flex: 1 1 0; }
+.theme-swatch-light span { background: #ffffff; } .theme-swatch-light span:first-child { background: #111827; flex: 0 0 18px; }
+.theme-swatch-dark span { background: #14171d; } .theme-swatch-dark span:first-child { background: #0b0e13; flex: 0 0 18px; }
+.theme-swatch-system span:first-child { background: linear-gradient(135deg, #ffffff 50%, #14171d 50%); }
+.theme-swatch-system span:last-child { display: none; }
+.theme-option input:checked + .theme-swatch { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-soft); }
+.theme-option input:focus-visible + .theme-swatch { outline: 2px solid var(--primary); outline-offset: 2px; }
+.public-tools { display: flex; gap: 8px; align-items: center; }
+
+/* --- páginas públicas (login) --- */
+.public-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px;
+              border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; color: var(--fg); }
+.brand:hover { text-decoration: none; }
+.brand-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--primary); color: #fff; display: flex;
+              align-items: center; justify-content: center; }
+.public-main { padding: 0 16px; }
+.footer { text-align: center; font-size: 12px; padding: 24px 0 32px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 24px; }
+.login-card { max-width: 380px; margin: 60px auto; }
+.login-card h1 { margin-top: 0; font-size: 22px; }
+.stack { display: flex; flex-direction: column; gap: 14px; }
+.divider { text-align: center; margin: 18px 0; color: var(--muted); border-top: 1px solid var(--line); }
+.divider span { position: relative; top: -11px; background: var(--bg); padding: 0 8px; }
+
+/* --- móvil --- */
+@media (max-width: 720px) {
+  .app { flex-direction: column; }
+  .rail { flex: 0 0 auto; height: auto; position: relative; z-index: 30; flex-direction: row; flex-wrap: wrap; justify-content: flex-start;
+          padding: 6px 8px; gap: 2px; }
+  .rail-brand { margin: 0 6px 0 0; width: 36px; height: 36px; }
+  .rail-group { flex-direction: row; border-top: 0; border-left: 1px solid #2a3240; padding: 0 0 0 4px; margin: 0; }
+  .rail { flex-wrap: nowrap; overflow-x: auto; }  /* con todas las zonas no cabe: se desliza */
+  .rail-group, .rail-item, .account { flex: 0 0 auto; }
+  .rail-item { width: auto; flex-direction: row; padding: 8px 10px; }
+  .account { margin: 0 0 0 auto; }
+  .account-menu { left: auto; right: 0; top: 48px; bottom: auto; width: min(300px, calc(100vw - 16px)); }
+  .profile-grid { grid-template-columns: 1fr; }
+  .page { padding: 16px; }
+}

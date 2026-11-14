@@ -13,6 +13,7 @@ RUNTIME_SECTIONS = ("app_name", "default_locale", "branding", "network", "storag
 
 # Campos secretos: nunca se muestran en la web; si se guardan vacíos se conserva el valor anterior.
 SECRET_FIELDS = (("auth", "entra", "client_secret"),)
+SECRET_PATHS = frozenset(".".join(p) for p in SECRET_FIELDS)
 
 # Diccionarios que se tratan como un único valor al combinar ajustes web y config.json (no campo a
 # campo): vaciarlos en la web debe dejarlos vacíos, no heredar las claves del fichero.
@@ -38,6 +39,9 @@ DEFAULTS: dict = {
     "data_dir": "data",
     # Vacío = <data_dir>/storageweb.db
     "database": "",
+    # Juego de ajustes web que usa esta instancia: varias instancias pueden compartir base de datos
+    # con ajustes distintos, como si cada una tuviera su config.json
+    "settings_profile": "default",
     # Nombre público (FQDN) con el que entran los usuarios: "files.empresa.es" (se asume HTTPS). Se usa
     # para las URLs externas: la de vuelta de Entra ID y la de salida. Vacío = el host de cada petición.
     "network": {
@@ -145,104 +149,7 @@ DEFAULTS: dict = {
 
 # Descripción de cada opción. Es la fuente de docs/referencia/configuracion.md
 # (tools/gen_docs.py); un test comprueba que todas las claves de DEFAULTS están descritas.
-DESCRIPTIONS: dict[str, str] = {
-    "app_name": "Nombre que se muestra en la cabecera y en el título de las páginas.",
-    "default_locale": "Idioma por defecto de la interfaz (`en` o `es`) cuando el usuario no ha elegido uno y el "
-                      "navegador no indica ninguno disponible.",
-    "server.host": "Dirección en la que escucha el servidor. Con un proxy inverso delante, `127.0.0.1`.",
-    "server.port": "Puerto TCP de escucha.",
-    "server.threads": "Hilos de Waitress para atender peticiones en paralelo.",
-    "server.behind_proxy": "Confiar en las cabeceras `X-Forwarded-*` (IP real, HTTPS, host) de un proxy inverso. "
-                           "Actívalo solo si hay un proxy delante.",
-    "server.proxy_hops": "Número de proxies inversos encadenados delante del servicio (nginx = `1`; una CDN o un "
-                         "balanceador más nginx = `2`). Se confía en ese número de valores de `X-Forwarded-*`, "
-                         "incluido `X-Forwarded-Prefix` para servir bajo una subruta.",
-    "network.public_url": "Nombre público (FQDN) por el que entran los usuarios: `files.empresa.es`, con puerto "
-                          "o subruta si hace falta (`files.empresa.es/archivos`). Se asume HTTPS; escribe "
-                          "`http://` delante solo para pruebas en local. Se usa para las URLs externas: la de "
-                          "vuelta de Entra ID (si `auth.entra.redirect_uri` está vacía) y la de salida. Vacío = el "
-                          "host de cada petición. Se puede cambiar desde la web.",
-    "server.max_upload_mb": "Tamaño máximo de cada petición HTTP: cada parte de una subida y la subida clásica sin "
-                            "JavaScript. No limita el tamaño de los archivos (ver `storage.max_file_size_mb`).",
-    "secret_key": "Clave para firmar las cookies de sesión. Vacía = se genera y guarda en `<data_dir>/secret_key`.",
-    "data_dir": "Carpeta de datos del servicio (base de datos, `secret_key`, copias de seguridad).",
-    "database": "Ruta del fichero SQLite. Vacía = `<data_dir>/storageweb.db`.",
-    "session.lifetime_hours": "Duración de la sesión iniciada, en horas.",
-    "session.cookie_secure": "Enviar la cookie de sesión solo por HTTPS. Debe ser `true` en producción; "
-                             "`false` solo para pruebas en `http://localhost`.",
-    "storage.home_template": "Ruta de la carpeta personal. Debe contener `{username}`, que se sustituye por el "
-                             "nombre de usuario saneado.",
-    "storage.create_home": "Crear la carpeta personal en el primer acceso del usuario.",
-    "storage.create_shares": "Crear las carpetas compartidas si no existen (útil en desarrollo y Docker).",
-    "storage.show_hidden": "Mostrar archivos y carpetas que empiezan por punto.",
-    "storage.max_file_size_mb": "Tamaño máximo por archivo en MB; `0` = sin límite.",
-    "storage.shares": "Lista de carpetas compartidas (ver los campos de cada elemento abajo).",
-    "storage.shares[].name": "Identificador en la URL (`/f/<name>/`): letras, números, `_` y `-`. `home` está reservado.",
-    "storage.shares[].label": "Nombre visible. Por defecto, `name`.",
-    "storage.shares[].path": "Ruta en el servidor. Relativa = respecto a la carpeta del `config.json`.",
-    "storage.shares[].read_only": "Solo lectura: únicamente se permite descargar, también a los administradores.",
-    "storage.shares[].users": "Usuarios con acceso; `[\"*\"]` = todos.",
-    "storage.shares[].read_only_users": "Usuarios de `users` que solo pueden leer; `\"*\"` = todos los que "
-                                        "entran por `[\"*\"]`. Quien entra también por un grupo con escritura puede escribir.",
-    "storage.shares[].groups": "Grupos con acceso: identificador de un grupo de *Personas → Grupos*, "
-                               "grupo del sistema, u Object ID/App Role de Entra ID.",
-    "storage.shares[].read_only_groups": "Grupos de `groups` que solo pueden leer (los edita la matriz de "
-                                         "accesos). Quien entra también por otro grupo o por `users` con escritura puede escribir.",
-    "permissions.user.upload": "El rol `user` puede subir archivos.",
-    "permissions.user.download": "El rol `user` puede descargar archivos.",
-    "permissions.user.mkdir": "El rol `user` puede crear carpetas.",
-    "permissions.user.rename": "El rol `user` puede renombrar archivos y carpetas.",
-    "permissions.user.delete": "El rol `user` puede eliminar archivos y carpetas.",
-    "auth.local.enabled": "Permitir el inicio de sesión de usuarios locales (guardados en SQLite).",
-    "auth.pam.enabled": "Permitir el inicio de sesión de usuarios del sistema operativo mediante PAM (Linux/macOS).",
-    "auth.pam.service": "Servicio PAM que se usa para autenticar.",
-    "auth.pam.allowed_groups": "Si no está vacío, solo entran los miembros de estos grupos del sistema.",
-    "auth.pam.admin_groups": "Los miembros de estos grupos del sistema reciben el rol `admin`.",
-    "auth.pam.use_system_home": "Usar el home real del usuario (`/home/<usuario>`) en vez de `storage.home_template`.",
-    "auth.entra.enabled": "Activar el inicio de sesión con Microsoft Entra ID.",
-    "auth.entra.provider": "Implementación: `oauth2` (propia, sin descubrimiento por red) o `msal` (librería de Microsoft).",
-    "auth.entra.tenant_id": "Directory (tenant) ID. También admite `organizations` o `common` (multi-tenant).",
-    "auth.entra.client_id": "Application (client) ID del registro de aplicación.",
-    "auth.entra.client_secret": "Secreto del registro de aplicación. Nunca se muestra en la web.",
-    "auth.entra.redirect_uri": "URL de vuelta registrada en Entra ID, p. ej. `https://files.midominio.com/auth/entra/callback`. "
-                               "Vacía = se calcula a partir de la petición.",
-    "auth.entra.scopes": "Scopes adicionales a `openid profile email`.",
-    "auth.entra.button_label": "Texto del botón de inicio de sesión. Vacío = texto por defecto en el idioma del usuario.",
-    "auth.entra.username_claim": "Claim del id_token que se usa como nombre de usuario.",
-    "auth.entra.strip_domain": "Quitar el dominio del nombre de usuario (`juan@contoso.com` → `juan`). "
-                               "Cuidado con las colisiones con usuarios locales.",
-    "auth.entra.allowed_groups": "Grupos (Object ID) o App Roles permitidos; vacío = cualquier usuario del tenant.",
-    "auth.entra.auto_provision": "Crear el usuario automáticamente en su primer inicio de sesión. Si es `false`, "
-                                 "solo entran los usuarios dados de alta antes por un administrador.",
-    "auth.entra.default_role": "Rol de los usuarios nuevos cuando no aplica ningún mapeo (`user` o `admin`).",
-    "auth.entra.role_mappings": "Grupo (Object ID) o App Role → rol, p. ej. `{\"StorageWeb.Admin\": \"admin\"}`. "
-                                "Si coinciden varios, gana `admin`.",
-    "auth.entra.sync_role_on_login": "Con `role_mappings` definidos, recalcular el rol en cada inicio de sesión.",
-    "auth.entra.single_logout": "Cerrar también la sesión de Microsoft al salir.",
-    "auth.entra.authorize_url": "Solo `oauth2`: endpoint de autorización propio (nubes soberanas u otro proveedor OIDC).",
-    "auth.entra.token_url": "Solo `oauth2`: endpoint de token propio.",
-    "auth.entra.issuer": "Solo `oauth2`: valor esperado del claim `iss`.",
-    "auth.entra.logout_url": "Endpoint de cierre de sesión propio.",
-    "auth.entra.timeout_seconds": "Tiempo máximo de espera al endpoint de token, en segundos.",
-    "security.max_login_failures": "Intentos fallidos (por IP o por usuario) antes de bloquear temporalmente el login.",
-    "security.lockout_minutes": "Duración del bloqueo tras demasiados intentos fallidos, en minutos.",
-    "security.ipban_enabled": "Bloquear automáticamente las IPs con muchas infracciones (contraseñas erróneas, "
-                              "CSRF no válido, tokens de API no válidos). Las direcciones de loopback y las de la "
-                              "lista blanca nunca se bloquean.",
-    "security.ipban_threshold": "Infracciones que bloquean una IP.",
-    "security.ipban_window_minutes": "Ventana en la que se cuentan las infracciones, en minutos.",
-    "security.ipban_minutes": "Duración del bloqueo automático, en minutos; `0` = hasta que un admin lo quite.",
-    "security.api_tokens": "Permitir tokens de API personales (`Authorization: Bearer sw_…`) para scripts.",
-    "maintenance.audit_retention_days": "Días que se conserva la auditoría; `0` = siempre. La limpieza se hace "
-                                        "una vez al día.",
-    "maintenance.backup_interval_hours": "Cada cuántas horas hace el servicio una copia de seguridad en "
-                                         "`<data_dir>/backups`; `0` = nunca (puedes usar el timer de systemd).",
-    "maintenance.backup_keep": "Copias que se conservan en `<data_dir>/backups`; las más antiguas se borran.",
-    "branding.primary_color": "Color principal de la interfaz (`#rrggbb`). Vacío = el de serie.",
-    "branding.logo": "Logo propio: lo rellena la subida desde *Sistema → General y marca* (`logo.png`, `logo.svg`…).",
-    "auth.entra.secret_expires": "Fecha de caducidad del `client_secret` (ISO 8601). La rellenan el registro "
-                                 "automático y la renovación; con ella se avisa a los admins 30 días antes.",
-}
+# La documentación de cada campo (y su etiqueta, página y sinónimos) está en settings/fields.py
 
 # Campos de cada elemento de storage.shares (lista; no aparecen en DEFAULTS)
 SHARE_FIELDS = ("name", "label", "path", "read_only", "users", "read_only_users", "groups",

@@ -5,7 +5,8 @@ requiere conexión con login.microsoftonline.com también al iniciar el login.
 """
 from __future__ import annotations
 
-from .base import BASE_SCOPES, MS_LOGIN, SSOError, SSOProvider
+from ..base import BASE_SCOPES, SSOError
+from .common import MS_LOGIN, EntraProvider
 
 
 def _msal_app(ecfg: dict):
@@ -18,7 +19,7 @@ def _msal_app(ecfg: dict):
     )
 
 
-class MsalProvider(SSOProvider):
+class MsalProvider(EntraProvider):
     name = "msal"
 
     def begin(self, redirect_uri: str) -> tuple[str, dict]:

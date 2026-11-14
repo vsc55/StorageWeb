@@ -19,11 +19,11 @@ Las dependencias van **en un solo sentido**: una capa solo importa las que está
 
 ```mermaid
 flowchart TB
-    web["web/ — Flask<br/>views (HTML) · api (JSON) · guards · context"]
+    web["web/ — Flask<br/>views (HTML) · api (JSON) · guards · context · nav · templating"]
     core["core/ — lógica de negocio<br/>accounts · storage · permissions · uploads · backup · security"]
-    prov["providers/<br/>local · pam · oauth2 · msal"]
+    prov["providers/<br/>local/ · pam/ · entra/ (oauth2 · msal · check · directory · register)"]
     db["db/<br/>connection · migrations · repositories"]
-    settings["settings/<br/>defaults · loader · runtime"]
+    settings["settings/<br/>defaults · fields · layers · env · loader · runtime"]
     web --> core --> db --> settings
     core --> prov
     web --> settings
@@ -31,13 +31,13 @@ flowchart TB
 
 | Paquete | Responsabilidad | Depende de Flask |
 |---|---|---|
-| `storageweb.settings` | Valores por defecto, carga y validación de `config.json`, ajustes web con caché por revisión (`RuntimeSettings`) | No |
+| `storageweb.settings` | Configuración por capas ([ADR 0013](decisiones/0013-capas-de-configuracion.md)): valores por defecto, registro de campos (`fields`), combinación de capas (`layers`), variables de entorno (`env`), carga y validación de `config.json` (`loader`) y ajustes web con caché por revisión y bloqueos (`RuntimeSettings`) | No |
 | `storageweb.db` | Conexión SQLite, migraciones versionadas, repositorios por entidad. **Todos reciben la conexión como argumento** | No |
-| `storageweb.providers` | Autenticación: contraseñas locales, PAM y proveedores SSO con la interfaz `SSOProvider` (`begin`/`complete`) | No |
+| `storageweb.providers` | Autenticación, **una carpeta por proveedor**: `local/` (contraseñas), `pam/` y `entra/` (SSO `oauth2` y `msal` con la interfaz `SSOProvider` de `base.py`, más la comprobación, el directorio de grupos y el registro de la aplicación en Microsoft Graph) | No |
 | `storageweb.core` | Reglas de negocio: cuentas y roles, raíces de almacenamiento, permisos, subidas por partes, copias, saneado de rutas y nombres | No |
 | `storageweb.web` | HTTP: vistas HTML, API JSON, CSRF, control de acceso y cabeceras. `web/context.py` es **el único punto** que une Flask (`g`, `current_app`) con el resto | Sí |
 | `storageweb.i18n` | Idioma activo (`ContextVar`), traducción (`_`, `_l`, `ngettext`) y formatos de fecha y tamaño. Catálogos en `locale/`. Ver [ADR 0010](decisiones/0010-internacionalizacion.md) | No |
-| `storageweb.cli` | Comando `storageweb` (servidor y administración) | Solo para `serve` |
+| `storageweb.cli` | Comando `storageweb` (servidor y administración), un módulo por grupo de comandos | Solo para `serve` |
 
 Con esta separación, la lógica se prueba sin servidor (`tests/unit`, unos 3 segundos) y la capa web queda delgada: traduce HTTP a llamadas de `core`. El razonamiento está en el [ADR 0002](decisiones/0002-paquete-y-capas.md).
 

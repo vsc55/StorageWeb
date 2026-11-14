@@ -56,11 +56,12 @@ def test_default_locale_setting(make_app):
     assert '<html lang="en" ' in html
 
 
-def test_invalid_default_locale(make_app):
+def test_invalid_default_locale(write_config):
+    from storageweb import create_app
     from storageweb.settings import ConfigError
 
     with pytest.raises(ConfigError, match="default_locale"):
-        make_app({"default_locale": "fr"})
+        create_app(str(write_config({"default_locale": "fr"})))
 
 
 def test_switch_language_anonymous_survives_login(app, client):

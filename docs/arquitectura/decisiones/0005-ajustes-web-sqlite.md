@@ -1,6 +1,6 @@
 # 0005. Ajustes web en SQLite con prioridad sobre `config.json`
 
-- **Estado:** Aceptada
+- **Estado:** Sustituida en parte por [0013](0013-capas-de-configuracion.md) (orden de prioridad)
 - **Fecha:** 2026-11-11
 
 ## Contexto

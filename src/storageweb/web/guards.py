@@ -10,6 +10,7 @@ from flask import abort, g, redirect, request, session, url_for
 from ..core import ipban, tokens
 from ..core.permissions import is_admin
 from ..db.connection import now_iso
+from ..db.repositories import audit
 from ..db.repositories import sessions as session_repo
 from ..db.repositories import users
 from ..i18n import LOCALES, _, reset_locale, set_locale
@@ -179,3 +180,8 @@ def set_security_headers(response):
     if request.is_secure:
         response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
     return response
+
+
+def audit_event(action: str, target: str | None = None, detail: str | None = None) -> None:
+    """Registra en la auditoría una acción del usuario de la petición (con su IP)."""
+    audit.log(get_db(), action, target, username=g.user["username"], ip=client_ip(), detail=detail)

@@ -6,7 +6,7 @@ import pytest
 
 from storageweb.core import ipban
 from storageweb.db.repositories import ip_rules
-from storageweb.providers import entra_check, entra_directory, entra_register
+from storageweb.providers.entra import check as entra_check, directory as entra_directory, register as entra_register
 from storageweb.web.context import get_db
 from tests.helpers import PASSWORD, add_user, get_csrf, login
 
@@ -154,7 +154,7 @@ def test_secret_expiry_banner_and_rotation(entra_admin, monkeypatch):
 
     app, client, token = entra_admin
     html = client.get("/f/home/").get_data(as_text=True)
-    assert "caducó" in html and "Renuévalo" in html
+    assert "El secreto de Entra ID ha caducado" in html and "Renovar el secreto" in html
     monkeypatch.setattr(entra_register, "rotate_secret", lambda tok, cid: {
         "client_secret": "nuevo", "secret_expires": "2099-01-01T00:00:00+00:00"})
     client.post("/admin/settings/entra/rotate", data={"_csrf": token})
@@ -164,7 +164,7 @@ def test_secret_expiry_banner_and_rotation(entra_admin, monkeypatch):
     with app.test_request_context():
         en = settings()["auth"]["entra"]
     assert en["client_secret"] == "nuevo" and en["secret_expires"].startswith("2099")
-    assert "Renuévalo" not in client.get("/f/home/").get_data(as_text=True)
+    assert "Renovar el secreto" not in client.get("/f/home/").get_data(as_text=True)
     assert "entra_secret_rotated" in client.get("/admin/audit").get_data(as_text=True)
 
 

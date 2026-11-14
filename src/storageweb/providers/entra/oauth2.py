@@ -18,7 +18,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from .base import BASE_SCOPES, MS_LOGIN, MULTI_TENANT, SSOError, SSOProvider, endpoints
+from ..base import BASE_SCOPES, SSOError
+from .common import MS_LOGIN, MULTI_TENANT, EntraProvider, endpoints
 
 CLOCK_SKEW = 300    # segundos de tolerancia en exp/nbf
 FLOW_MAX_AGE = 600  # el usuario tiene 10 min para completar el login
@@ -116,7 +117,7 @@ def validate_id_token(id_token: str, ecfg: dict, nonce: str) -> dict:
     return claims
 
 
-class OAuth2Provider(SSOProvider):
+class OAuth2Provider(EntraProvider):
     name = "oauth2"
 
     def begin(self, redirect_uri: str) -> tuple[str, dict]:

@@ -64,7 +64,22 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 - La API JSON devuelve todos sus errores en JSON, incluidos los de CSRF.
 - `auth.entra.button_label` pasa a estar vacío por defecto: así el botón se muestra traducido. Si lo personalizas, se muestra tal cual.
 - Los logs del servidor se escriben en inglés.
-- Los ajustes web se combinan con `config.json` campo a campo (antes, sección por sección sobre los valores por defecto) y solo se guarda la diferencia. Auditoría: `settings_updated` indica la sección y hay una acción nueva, `settings_field_reset`.
+- **Configuración por capas**, campo a campo: valores predeterminados < ajustes web < `config.json` < variables de entorno (antes la web ganaba sobre `config.json`).
+  - Lo que fijan `config.json` o una variable queda **bloqueado** en la web, con su origen a la vista. El Resumen cuenta cuántos ajustes están bloqueados.
+  - *Restablecer* vuelve al **valor predeterminado**. Cada campo modificado lleva la etiqueta **modificado**, el submenú cuenta por página los ajustes que no tienen su valor predeterminado, y *Sistema → Información* los lista con su valor y su origen.
+  - Variables `STORAGEWEB_<RUTA>` (con `__` entre niveles) para cualquier ajuste, leídas en cada arranque. Se mantienen los nombres cortos de Docker.
+  - **Perfiles de ajustes** (`settings_profile`): varias instancias pueden compartir base de datos con ajustes web distintos.
+  - Solo se guarda la diferencia con los valores predeterminados. Auditoría: `settings_updated` indica la sección y hay una acción nueva, `settings_field_reset`.
+- **Código reorganizado** sin cambios de comportamiento:
+  - proveedores en una carpeta cada uno (`providers/local/`, `pam/`, `entra/`);
+  - registro único de los campos de configuración (`settings/fields.py`);
+  - ajustes web, administración y CLI partidos en paquetes por tema;
+  - los avisos del Resumen, el contador de la barra lateral y el banner salen de un único sitio;
+  - CSS y JavaScript repartidos por tema, y cada script solo en las páginas que lo usan.
+- Usuarios y grupos se quedan con dos vistas definitivas, *Lista* y *Paneles*.
+- Las confirmaciones, avisos y peticiones de texto (borrar, renombrar, descartar cambios…) usan un modal propio con el diseño de la aplicación en lugar de las ventanas del navegador. El botón de confirmar lleva el nombre de la acción y, en las destructivas, el foco empieza en *Cancelar*.
+- En los ajustes, los campos cambiados y sin guardar se resaltan, y las pestañas y apartados que los contienen llevan un punto. *Descartar* descarta los cambios pendientes de todas las páginas tras una sola confirmación.
+- El `config.json` de los paquetes y el que genera Docker solo traen lo de arranque y la plantilla de las carpetas personales; lo demás se configura en la web.
 - En la ficha de usuario, los grupos se gestionan como fichas (añadir y quitar) en lugar de un campo de texto. `--groups` de `user-add` y `user-set` asigna grupos manuales y crea como locales los que no existan.
 
 ### Notas de actualización
@@ -74,10 +89,14 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 - La migración 004 crea los grupos: los de los usuarios locales pasan a ser grupos locales con pertenencia manual, y los de Entra ID y PAM aparecen como *grupos sin dar de alta* hasta que les des nombre. Las carpetas que usaban Object IDs siguen funcionando.
 - La migración 006 crea las tablas de sesiones, reglas de IP y tokens de API. Las sesiones abiertas antes de actualizar se registran solas en su siguiente petición.
 - La migración 005 crea el grupo de serie `admins`. Si ya tenías un grupo local llamado `admins`, se renombra a `admins-local` con sus miembros, y las carpetas que usaban `admins` pasan a dar acceso a los administradores.
-- **El idioma por defecto es el inglés.** Para mantener la interfaz en español, pon `"default_locale": "es"` en `config.json` o en *Administration → Settings*.
+- **El idioma por defecto es el inglés.** Para mantener la interfaz en español, elígelo en *System → General and branding* o pon `"default_locale": "es"` en `config.json`; en el fichero, quedará bloqueado en la web.
+- **`config.json` gana sobre la web.** Todo campo de `config.json` queda bloqueado en la web. Si tu fichero viene de una versión anterior y lo trae todo, deja solo lo de arranque (`server`, `data_dir`, `database`, `secret_key`, `session`) y lo que quieras fijar: lo demás vuelve a ser editable desde la web.
+- **Docker:** las variables `STORAGEWEB_*` ya no se copian a `config.json`. Se leen en cada arranque y bloquean el ajuste en la web.
 
 ### Corregido
 
+- En *Mi perfil*, copiar el token de API recién creado y las confirmaciones (cerrar sesiones, revocar tokens) no funcionaban: la página no cargaba ningún script.
+- En el móvil, la barra superior con todas las zonas se desborda: ahora se desliza en horizontal.
 - Los grupos asignados a mano a un usuario de Entra ID o PAM ya no se pierden en su siguiente inicio de sesión.
 
 ## [1.0.0] - 2026-11-11

@@ -1,24 +1,51 @@
 # Configuración
 
-## Dos niveles de configuración
+## Capas de configuración
 
 ```mermaid
 flowchart LR
-    D[Valores por defecto] --> F[config.json] --> W[Ajustes web<br/>SQLite] --> E((Configuración<br/>efectiva))
+    D[Valores<br/>predeterminados] --> W[Ajustes web<br/>SQLite] --> F[config.json] --> V[Variables de<br/>entorno] --> E((Configuración<br/>efectiva))
 ```
 
-| Nivel | Dónde | Qué | Cuándo se aplica |
-|---|---|---|---|
-| **`config.json`** | `/etc/storageweb/config.json` (paquetes), `/data/config.json` (Docker) | Todo. Lo de arranque (`server`, `data_dir`, `database`, `secret_key`, `session`) **solo** se puede configurar aquí | Al reiniciar el servicio |
-| **Ajustes web** | Páginas de la administración, guardados en la base de datos | `app_name`, `default_locale`, `branding`, `network`, `storage`, `permissions`, `auth`, `security` y `maintenance` | Al momento, sin reiniciar |
+Cada valor sale de la capa con más prioridad que lo fije, **campo a campo**:
 
-- **Prioridad:** los ajustes web ganan sobre `config.json`, **campo a campo**. Solo se guarda lo que cambias en la web; lo demás sigue saliendo de `config.json`, también si lo cambias después en el fichero.
-- **Origen de cada valor:** los valores cambiados en la web llevan la etiqueta **web** y un botón *Restablecer* que vuelve al de `config.json`; el submenú de cada zona cuenta cuántos hay por página. *Sistema → Información* los lista todos.
-- **Vuelta atrás completa:** *Sistema → Información → Restablecer todo a config.json* (en la web) o `storageweb-admin settings-reset` descartan los ajustes web.
-- **Secretos:** el `client_secret` de Entra ID nunca se muestra. Si dejas el campo vacío, se conserva el actual o el de `config.json`.
+| Capa | Dónde | Qué | En la web |
+|---|---|---|---|
+| **Predeterminado** | El propio StorageWeb | Todo | Sin etiqueta |
+| **Ajustes web** | Páginas de la administración, guardados en la base de datos | `app_name`, `default_locale`, `branding`, `network`, `storage`, `permissions`, `auth`, `security` y `maintenance` | Etiqueta **modificado** y botón *Restablecer*, que vuelve al predeterminado |
+| **`config.json`** | `/etc/storageweb/config.json` (paquetes), `/data/config.json` (Docker) | Todo | El campo queda **bloqueado** (🔒 config.json) |
+| **Variable de entorno** | `STORAGEWEB_<RUTA>`, con `__` entre niveles: `STORAGEWEB_AUTH__ENTRA__CLIENT_ID` | Todo | El campo queda **bloqueado** (🔒 entorno, con el nombre de la variable) |
+
+- **Arranque:** `server`, `data_dir`, `database`, `secret_key`, `session` y `settings_profile` solo se configuran en `config.json` o con variables, y requieren reiniciar el servicio: hacen falta antes de abrir la base de datos.
+- **Bloqueados:** lo que fijan `config.json` o una variable se ve en la web pero no se puede cambiar ni restablecer. Para editarlo desde la web, quítalo del fichero (o quita la variable) y reinicia. El Resumen avisa de cuántos ajustes están bloqueados.
+- **Valores no predeterminados:** el submenú de cada zona cuenta, por página, los ajustes que no tienen su valor predeterminado, vengan de donde vengan. *Sistema → Información* los lista todos con su valor y su origen.
+- **Vuelta atrás completa:** *Sistema → Información → Restablecer todos los ajustes web* o `storageweb-admin settings-reset` descartan los ajustes web; lo que fijan `config.json` y el entorno no cambia.
+- **Secretos:** el `client_secret` de Entra ID nunca se muestra. Si dejas el campo vacío, se conserva el actual.
 
 !!! note "¿Cuál uso?"
-    Para un servidor gestionado con Ansible, Puppet o similares, usa `config.json` y no toques los ajustes web. Para una instalación administrada desde el navegador, usa los ajustes web. Mezclar ambos funciona, pero la web gana.
+    - **Desde el navegador:** deja en `config.json` solo lo de arranque (es lo que traen los paquetes y la imagen Docker) y configura lo demás en la web.
+    - **Ansible, Puppet, Kubernetes…:** pon en `config.json` o en variables lo que deba ser fijo. La web lo muestra bloqueado y nadie lo cambia por error.
+
+### Variables de entorno
+
+El nombre es `STORAGEWEB_` más la ruta del campo en mayúsculas, con `__` entre niveles. La [referencia de configuración](../referencia/configuracion.md) da el nombre de cada una.
+
+```bash
+STORAGEWEB_APP_NAME="Archivos Empresa"
+STORAGEWEB_AUTH__ENTRA__ENABLED=true
+STORAGEWEB_AUTH__ENTRA__CLIENT_ID=00000000-0000-0000-0000-000000000000
+STORAGEWEB_AUTH__PAM__ALLOWED_GROUPS=storageweb-users,contabilidad
+STORAGEWEB_STORAGE__SHARES='[{"name": "comun", "path": "/srv/comun", "users": ["*"]}]'
+```
+
+- **Booleanos:** `true`/`false` (también `1`/`0`, `yes`/`no`, `on`/`off`).
+- **Listas y objetos:** JSON. Las listas de texto también se pueden separar por comas.
+- **Nombres cortos:** se mantienen `STORAGEWEB_PUBLIC_URL`, `STORAGEWEB_PORT`, `STORAGEWEB_BEHIND_PROXY`, `STORAGEWEB_PROXY_HOPS`, `STORAGEWEB_MAX_UPLOAD_MB` y `STORAGEWEB_COOKIE_SECURE`.
+- Un valor no válido impide arrancar, con un error que nombra la variable.
+
+### Varias configuraciones en una base de datos
+
+`settings_profile` (o `STORAGEWEB_SETTINGS_PROFILE`) elige el **perfil** de ajustes web que usa la instancia. Por defecto es `default`. Varias instancias pueden compartir base de datos con ajustes distintos, igual que si cada una tuviera su `config.json`: por ejemplo, una de pruebas y otra de producción. Lo demás de la base de datos (usuarios, grupos, sesiones, auditoría) es común. `settings-reset` solo descarta el perfil de la instancia.
 
 ## La administración
 

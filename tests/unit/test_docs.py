@@ -16,10 +16,10 @@ _spec.loader.exec_module(gen_docs)
 
 
 def test_every_option_is_described():
-    from storageweb.settings.defaults import DESCRIPTIONS
+    from storageweb.settings.fields import FIELDS as DESCRIPTIONS
 
     documented = gen_docs.documented_keys()
-    assert documented - set(DESCRIPTIONS) == set(), "opciones sin descripción en DESCRIPTIONS"
+    assert documented - set(DESCRIPTIONS) == set(), "opciones sin entrada en settings/fields.py"
     assert set(DESCRIPTIONS) - documented == set(), "descripciones de opciones que ya no existen"
 
 

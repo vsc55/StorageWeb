@@ -81,11 +81,11 @@ sequenceDiagram
 ```mermaid
 flowchart LR
     F[Formulario de una sección<br/>/admin/settings/auth] --> M[merge sobre los<br/>ajustes efectivos]
-    M --> V{normalize<br/>config.json + borrador}
+    M --> V{normalize<br/>predeterminados < borrador<br/>< config.json < entorno}
     V -- error --> R[400 con el borrador y<br/>el error junto al campo]
-    V -- ok --> D[diff con config.json]
+    V -- ok --> D[diff con los predeterminados<br/>sin los campos bloqueados]
     D --> P[settings.put<br/>revision += 1]
     P --> C[Cada petición:<br/>¿revision cambió? → recalcular]
 ```
 
-La revisión se lee en cada petición, una consulta trivial. Por eso todos los hilos aplican los cambios al momento, sin reiniciar y sin mensajes entre procesos.
+Los campos que fijan `config.json` o el entorno no se guardan: la web los muestra bloqueados. La revisión se lee en cada petición, una consulta trivial. Por eso todos los hilos aplican los cambios al momento, sin reiniciar y sin mensajes entre procesos.

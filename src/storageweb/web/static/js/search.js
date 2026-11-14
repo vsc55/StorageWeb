@@ -8,12 +8,7 @@
   var input = dialog.querySelector("input[name=q]");
   var list = document.getElementById("admin-search-results");
   var url = form.getAttribute("data-search-url");
-  var catalog = {};
-  try { catalog = JSON.parse(document.getElementById("i18n-messages").textContent); } catch (e) { /* sin traducciones */ }
-  function t(text, params) {
-    var out = catalog[text] || text;
-    return out.replace(/%\((\w+)\)s/g, function (m, key) { return params && key in params ? params[key] : m; });
-  }
+  var t = window.SW.t;
 
   var items = [];
   var active = 0;

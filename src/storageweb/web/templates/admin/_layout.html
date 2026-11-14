@@ -11,7 +11,7 @@
       <li><a class="zone-link{% if here %} active{% endif %}" href="{{ p.url() }}"{% if here %} aria-current="page"{% endif %}>
         <span>{{ p.label }}</span>
         {% if p.key in nav_alert_pages %}<span class="dot dot-danger" title="{{ _('Needs attention') }}"></span>
-        {% elif nav_changed.get(p.key) %}<span class="pill pill-web" title="{{ _('Values changed from the web') }}">{{ ngettext("%(num)s web", "%(num)s web", nav_changed[p.key]) }}</span>{% endif %}
+        {% elif nav_changed.get(p.key) %}<span class="pill pill-web" title="{{ ngettext('%(num)s setting does not have its default value', '%(num)s settings do not have their default value', nav_changed[p.key]) }}">{{ nav_changed[p.key] }}</span>{% endif %}
       </a></li>
       {% endfor %}
     </ul>
@@ -23,4 +23,4 @@
   </div>
 </div>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='js/admin.js') }}"></script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/admin/forms.js') }}"></script>{% block page_scripts %}{% endblock %}{% endblock %}

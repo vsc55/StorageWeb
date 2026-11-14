@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from storageweb.providers import entra_register as er
+from storageweb.providers.entra import register as er
 
 
 def _token(**claims):

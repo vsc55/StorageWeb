@@ -10,7 +10,7 @@ from ...i18n import _
 from ...i18n import normalize as normalize_locale
 from ...providers import SSOError, get_sso_provider
 from ..context import external_url, get_db, settings, throttle
-from ..guards import clear_session, client_ip, end_session, safe_next, start_session
+from ..guards import client_ip, end_session, safe_next, start_session
 
 bp = Blueprint("auth", __name__)
 

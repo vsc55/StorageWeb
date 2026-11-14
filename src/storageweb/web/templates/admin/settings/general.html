@@ -1,13 +1,13 @@
 {% extends "admin/settings/_layout.html" %}
-{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar with context %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
 {% block section %}
 {{ form_start() }}
   <div class="card form-grid">
     <label class="{{ err_class('app_name') }}"><span class="label-row">{{ _("Application name") }} {{ origin('app_name') }}</span>
-      <input type="text" name="app_name" value="{{ cfg.app_name }}" maxlength="80">
+      <input{{ lock('app_name') }} type="text" name="app_name" value="{{ cfg.app_name }}" maxlength="80">
       {{ field_error('app_name') }}</label>
     <label class="{{ err_class('default_locale') }}"><span class="label-row">{{ _("Default language") }} {{ origin('default_locale') }}</span>
-      <select name="default_locale">
+      <select{{ lock('default_locale') }} name="default_locale">
         {% for code, name in locales %}<option value="{{ code }}" {% if cfg.default_locale == code %}selected{% endif %}>{{ name }}</option>{% endfor %}
       </select>
       <small class="muted">{{ _("Used when the user has not chosen one and the browser does not ask for an available language.") }}</small>
@@ -15,9 +15,9 @@
 
     <h3 class="card-title span2">{{ _("Brand") }}</h3>
     <div class="span2 brand-color{{ err_class('branding.primary_color') }}">
-      <label class="check"><input type="checkbox" name="custom_color" {% if cfg.branding.primary_color %}checked{% endif %}>
+      <label class="check"><input{{ lock('branding.primary_color') }} type="checkbox" name="custom_color" {% if cfg.branding.primary_color %}checked{% endif %}>
         <span class="label-row">{{ _("Use my own main color") }} {{ origin('branding.primary_color') }}</span></label>
-      <input type="color" name="primary_color" value="{{ cfg.branding.primary_color or '#2563eb' }}" aria-label="{{ _('Main color') }}">
+      <input{{ lock('branding.primary_color') }} type="color" name="primary_color" value="{{ cfg.branding.primary_color or '#2563eb' }}" aria-label="{{ _('Main color') }}">
       <small class="muted">{{ _("Buttons, links and highlights. It is used in the light and the dark theme.") }}</small>
       {{ field_error('branding.primary_color') }}
     </div>
@@ -34,7 +34,7 @@
     <form method="post" action="{{ url_for('settings.branding_logo') }}" enctype="multipart/form-data" class="inline">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
       <label class="sr-only" for="logo-file">{{ _("Logo") }}</label>
-      <input type="file" id="logo-file" name="logo" accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml" required>
+      <input{{ lock('branding.logo') }} type="file" id="logo-file" name="logo" accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml" required>
       <button class="btn" type="submit">{{ _("Upload") }}</button>
     </form>
     {% if brand.logo %}

@@ -62,7 +62,7 @@ Cada acción relevante se guarda en la tabla `audit_log`. Se puede consultar en 
 | `backup_failed` | Falló una copia automática | Error |
 | `branding_logo_updated` | Logo propio subido | Fichero |
 | `branding_logo_removed` | Logo propio quitado |  |
-| `settings_field_reset` | Un ajuste vuelve al valor de config.json (*Restablecer*) | Ruta del ajuste |
+| `settings_field_reset` | Un ajuste vuelve a su valor predeterminado (*Restablecer*) | Ruta del ajuste |
 | `settings_reset` | Ajustes web descartados (web o `settings-reset`) | |
 | `upload` | Archivo subido | Tamaño en bytes |
 | `download` | Archivo descargado | |

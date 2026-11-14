@@ -16,8 +16,8 @@ import time
 import urllib.parse
 
 from . import oauth2
-from .base import endpoints
-from .entra_register import GRAPH, RegisterError, _message, _request
+from .common import endpoints
+from .register import GRAPH, RegisterError, _message, _request
 
 TOKEN_TTL = 50 * 60
 NAME_TTL = 60 * 60

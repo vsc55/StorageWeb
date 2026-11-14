@@ -154,7 +154,7 @@
       <li><svg class="icon" aria-hidden="true"><use href="#i-monitor"></use></svg>
         <span class="access-text"><strong>{{ s['user_agent']|ua_summary }}</strong>
           <span class="muted small">{{ s['ip'] or '—' }} · {{ _("active %(when)s", when=s['last_seen']|datetime) }}</span></span>
-        <form method="post" action="{{ url_for('admin.session_close', sid=s['id']) }}" class="inline">
+        <form method="post" action="{{ url_for('settings.session_close', sid=s['id']) }}" class="inline">
           <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
           <button class="link-btn small" type="submit">{{ _("Close") }}</button></form></li>
       {% else %}
@@ -164,14 +164,14 @@
       <li><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg>
         <span class="access-text"><strong>{{ t['name'] }}</strong>
           <span class="muted small"><code>{{ t['prefix'] }}…</code> · {{ t['scope'] }} · {{ _("last used %(when)s", when=t['last_used_at']|datetime) }}</span></span>
-        <form method="post" action="{{ url_for('admin.user_token_delete', user_id=user['id'], token_id=t['id']) }}" class="inline js-confirm"
+        <form method="post" action="{{ url_for('settings.user_token_delete', user_id=user['id'], token_id=t['id']) }}" class="inline js-confirm"
               data-confirm="{{ _('Revoke the token «%(name)s»?', name=t['name']) }}">
           <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
           <button class="link-btn small" type="submit">{{ _("Revoke") }}</button></form></li>
       {% endfor %}
     </ul>
     {% if user_sessions %}
-    <form method="post" action="{{ url_for('admin.user_sessions_close', user_id=user['id']) }}" class="inline">
+    <form method="post" action="{{ url_for('settings.user_sessions_close', user_id=user['id']) }}" class="inline">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
       <button class="btn btn-small" type="submit">{{ _("Close all their sessions") }}</button></form>
     {% endif %}
@@ -184,3 +184,4 @@
 {% endif %}
 </div>
 {% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/user-form.js') }}"></script>{% endblock %}

@@ -1,12 +1,12 @@
 {% extends "admin/settings/_layout.html" %}
-{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar with context %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
 {% block section %}
 {{ form_start() }}
   <div class="card form-grid">
     {% set pub = cfg.network.public_url %}
     <h3 class="card-title span2">{{ _("Public name (FQDN)") }}</h3>
     <label class="span2{{ err_class('network.public_url') }}"><span class="label-row">{{ _("Name users type in the browser") }} {{ origin('network.public_url') }}</span>
-      <input type="text" name="public_url" value="{{ pub[8:] if pub.startswith('https://') else pub }}" class="mono"
+      <input{{ lock('network.public_url') }} type="text" name="public_url" value="{{ pub[8:] if pub.startswith('https://') else pub }}" class="mono"
              placeholder="files.example.com" autocapitalize="off" spellcheck="false">
       <small class="muted">{{ _("Only the name, e.g. files.example.com (HTTPS is assumed). Add a port or a path if needed: files.example.com/files. Write http:// in front only for local tests. Used for the Entra ID return address and other external links. Empty = the host of each request (now %(base)s).", base=seen.base) }}</small>
       {% if pub %}<small class="muted">{{ _("Resulting address: %(url)s", url=pub) }}</small>{% endif %}

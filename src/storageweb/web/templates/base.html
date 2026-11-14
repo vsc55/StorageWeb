@@ -6,7 +6,10 @@
   <meta name="color-scheme" content="{{ 'light dark' if current_theme == 'system' else current_theme }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{% block title %}{{ app_name }}{% endblock %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/files.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
   {% if brand.color %}<link rel="stylesheet" href="{{ url_for('brand.stylesheet', v=brand.version) }}">{% endif %}
   {% if brand.logo %}<link rel="icon" href="{{ url_for('brand.logo', v=brand.version) }}">{% endif %}
   {# Textos del JavaScript (no se ejecuta: permitido por la CSP) #}
@@ -119,19 +122,16 @@
 <main class="public-main">
 {% endif %}
 
-    {% if entra_secret_alert and not (nav_page and nav_page.key == 'overview') %}
+    {% if banner_alert and not (nav_page and nav_page.key == 'overview') %}
     <div class="flashes" role="alert">
-      <div class="flash flash-error">
-        {% if entra_secret_alert.days < 0 %}{{ _("The Entra ID client secret expired on %(date)s: users cannot sign in with Microsoft.", date=entra_secret_alert.date|datetime) }}
-        {% else %}{{ ngettext("The Entra ID client secret expires in %(num)s day (%(date)s).", "The Entra ID client secret expires in %(num)s days (%(date)s).", entra_secret_alert.days, date=entra_secret_alert.date|datetime) }}{% endif %}
-        <a href="{{ url_for('settings.section', name='auth') }}">{{ _("Renew it") }}</a>
-      </div>
+      <div class="flash flash-error"><strong>{{ banner_alert.title }}</strong>{% if banner_alert.detail %} · {{ banner_alert.detail }}{% endif %}
+        <a href="{{ banner_alert.url }}">{{ banner_alert.action }}</a></div>
     </div>
     {% endif %}
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
       <div class="flashes" role="status">
-        {% for cat, msg in messages %}<div class="flash flash-{{ cat }}">{{ msg }}</div>{% endfor %}
+        {% for cat, msg in messages|unique %}<div class="flash flash-{{ cat }}">{{ msg }}</div>{% endfor %}
       </div>
       {% endif %}
     {% endwith %}
@@ -144,6 +144,7 @@
 </main>
 <footer class="footer muted">StorageWeb {{ app_version }}</footer>
 {% endif %}
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
 {% if is_admin %}
 <dialog class="palette" id="admin-search" aria-label="{{ _('Search the administration') }}">
   <form method="get" action="{{ url_for('admin.search') }}" role="search" data-search-url="{{ url_for('admin.search', format='json') }}">

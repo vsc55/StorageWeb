@@ -5,7 +5,7 @@
     python tools/gen_docs.py --check  # falla si algún fichero está desactualizado (CI)
 
 Fuentes únicas de verdad:
-    docs/referencia/configuracion.md  <- storageweb.settings.defaults (DEFAULTS + DESCRIPTIONS)
+    docs/referencia/configuracion.md  <- storageweb.settings (DEFAULTS + fields.FIELDS)
     docs/referencia/cli.md            <- storageweb.cli.build_parser()
     docs/referencia/api.md            <- docs/referencia/openapi.yaml
 """
@@ -20,7 +20,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from storageweb import i18n  # noqa: E402
-from storageweb.settings.defaults import (DEFAULTS, DESCRIPTIONS, RUNTIME_SECTIONS,  # noqa: E402
+from storageweb.settings.env import ENV_ALIASES, env_name  # noqa: E402
+from storageweb.settings.fields import FIELDS  # noqa: E402
+from storageweb.settings.defaults import (DEFAULTS, RUNTIME_SECTIONS,  # noqa: E402
                                           SECRET_FIELDS, SHARE_FIELDS)
 
 # La documentación está en español: la ayuda de la CLI se genera con ese catálogo
@@ -60,16 +62,25 @@ def _md(value) -> str:
 def render_config() -> str:
     secrets = {".".join(p) for p in SECRET_FIELDS}
     lines = [HEADER, "# Referencia de configuración\n\n",
-             "Todas las opciones de `config.json`, con su valor por defecto. Las rutas relativas se resuelven "
-             "respecto a la carpeta donde está el `config.json`.\n\n",
-             "- **Web**: «Sí» = se puede cambiar desde las páginas de la administración (se aplica al momento y tiene "
-             "prioridad sobre `config.json`). «No» = solo en `config.json` y requiere reiniciar el servicio.\n",
+             "Todas las opciones, con su valor por defecto y su variable de entorno. Las rutas relativas se "
+             "resuelven respecto a la carpeta donde está el `config.json`.\n\n",
+             "Cada valor sale de la capa con más prioridad que lo fije, campo a campo: **predeterminado** < "
+             "**ajustes web** < **`config.json`** < **variable de entorno**. Lo que fijan `config.json` o una "
+             "variable queda bloqueado en la web.\n\n",
+             "- **Web**: «Sí» = se puede cambiar desde las páginas de la administración (se aplica al momento) "
+             "si no lo fijan `config.json` ni el entorno. «No» = de arranque: solo `config.json` o el entorno, "
+             "y requiere reiniciar el servicio.\n",
+             "- **Variable**: `STORAGEWEB_` + la ruta en mayúsculas con `__` entre niveles. Las listas y los "
+             "objetos van en JSON (las listas de texto también separadas por comas); los booleanos, "
+             "`true`/`false`.\n",
              "- Los valores secretos nunca se muestran en la web.\n\n"]
     leaves = config_leaves(DEFAULTS)
     sections: dict[str, list] = {}
     for path, value in leaves:
         sections.setdefault(path.split(".")[0], []).append((path, value))
-    titles = {"app_name": "General", "secret_key": "General", "data_dir": "General", "database": "General",
+    titles = {"app_name": "General", "default_locale": "General", "secret_key": "General", "data_dir": "General",
+              "database": "General", "settings_profile": "General", "network": "Red (`network`)",
+              "maintenance": "Mantenimiento (`maintenance`)", "branding": "Marca (`branding`)",
               "server": "Servidor (`server`)", "session": "Sesión (`session`)",
               "storage": "Almacenamiento (`storage`)", "permissions": "Permisos (`permissions`)",
               "auth": "Autenticación (`auth`)", "security": "Seguridad (`security`)"}
@@ -78,18 +89,21 @@ def render_config() -> str:
         grouped.setdefault(titles.get(top, top), []).extend(items)
     for title, items in grouped.items():
         lines.append(f"## {title}\n\n")
-        lines.append("| Clave | Tipo | Por defecto | Web | Descripción |\n|---|---|---|---|---|\n")
+        lines.append("| Clave | Tipo | Por defecto | Web | Variable | Descripción |\n|---|---|---|---|---|---|\n")
         for path, value in items:
             web = "Sí" if path.split(".")[0] in RUNTIME_SECTIONS else "No"
             default = "*(secreto)*" if path in secrets and value else _md(value)
-            lines.append(f"| `{path}` | {_type(value)} | {default} | {web} | {DESCRIPTIONS[path]} |\n")
+            env = f"`{env_name(path)}`" + "".join(f"<br>`{alias}`" for alias, target in ENV_ALIASES.items()
+                                                  if target == path)
+            lines.append(f"| `{path}` | {_type(value)} | {default} | {web} | {env} | {FIELDS[path].doc} |\n")
             if path == "storage.shares":
                 for field in SHARE_FIELDS:
                     key = f"storage.shares[].{field}"
-                    lines.append(f"| `{key}` | | | Sí | {DESCRIPTIONS[key]} |\n")
+                    lines.append(f"| `{key}` | | | Sí | | {FIELDS[key].doc} |\n")
         lines.append("\n")
     lines.append("## Ejemplo\n\nEl fichero `config/config.example.json` del repositorio (instalado en "
-                 "`/etc/storageweb/config.json` por los paquetes) es un punto de partida completo.\n")
+                 "`/etc/storageweb/config.json` por los paquetes) solo trae lo de arranque y la plantilla de las "
+                 "carpetas personales: así lo demás se puede cambiar desde la web.\n")
     return "".join(lines)
 
 

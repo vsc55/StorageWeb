@@ -17,19 +17,21 @@
     </form>
   </div>
 
+  {% set urgent = alerts|rejectattr('level', 'equalto', 'info')|list %}
+  {% set notes = alerts|selectattr('level', 'equalto', 'info')|list %}
   <section class="alert-list" aria-labelledby="alerts-title">
-    {% if alerts %}
-    <h2 class="section-label" id="alerts-title">{{ ngettext("Needs your attention · %(num)s", "Needs your attention · %(num)s", alerts|length) }}</h2>
-    {% for a in alerts %}
+    {% if urgent %}
+    <h2 class="section-label" id="alerts-title">{{ ngettext("Needs your attention · %(num)s", "Needs your attention · %(num)s", urgent|length) }}</h2>
+    {% else %}
+    <h2 class="sr-only" id="alerts-title">{{ _("Notices") }}</h2>
+    <p class="all-good">{{ _("Everything is in order: nothing needs your attention.") }}</p>
+    {% endif %}
+    {% for a in urgent + notes %}
     <div class="alert alert-{{ a.level }}">
       <span class="alert-text"><strong>{{ a.title }}</strong>{% if a.detail %} <span class="muted">· {{ a.detail }}</span>{% endif %}</span>
       <a class="btn btn-small{% if a.level == 'danger' %} btn-danger{% endif %}" href="{{ a.url }}">{{ a.action }}</a>
     </div>
     {% endfor %}
-    {% else %}
-    <h2 class="sr-only" id="alerts-title">{{ _("Notices") }}</h2>
-    <p class="all-good">{{ _("Everything is in order: nothing needs your attention.") }}</p>
-    {% endif %}
   </section>
 
   <div class="zone-cards">

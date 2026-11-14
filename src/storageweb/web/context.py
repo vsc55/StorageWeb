@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from sqlite3 import Connection
 
-from flask import current_app, g
+from flask import current_app, g, request
 
-from ..core import alerts, maintenance
+from ..core import alerts, maintenance, network
 from ..core.security import LoginThrottle
 from ..db import connect
 from ..settings import RuntimeSettings
@@ -73,8 +73,25 @@ def external_url(endpoint: str, **values) -> str:
     return f"{parts.scheme}://{parts.netloc}{prefix}{path}"
 
 
+def network_diagnosis(cfg: dict | None = None) -> dict:
+    """Diagnóstico de red de esta petición (``core.network.diagnose`` con lo que ve Flask)."""
+    orig = request.environ.get("werkzeug.proxy_fix.orig", {})
+    facts = {"scheme": request.scheme, "host": request.host, "prefix": request.script_root or "/",
+             "client": request.remote_addr or "", "peer": orig.get("REMOTE_ADDR") or request.remote_addr or "",
+             "base": request.host_url.rstrip("/") + request.script_root}
+    headers = {h: request.headers.get(h, "") for h in network.FORWARDED_HEADERS}
+    return network.diagnose(facts, headers, cfg or settings(), boot_config())
+
+
 def admin_alerts() -> list[dict]:
-    """Avisos para los administradores (una vez por petición: los usan la barra lateral y el Resumen)."""
+    """Avisos para los administradores, con el enlace a la página donde se resuelven.
+
+    Se calculan una vez por petición; los usan el Resumen, el número de la barra lateral y el banner.
+    """
     if "admin_alerts" not in g:
-        g.admin_alerts = alerts.collect(settings(), boot_config(), maintenance.state(get_db()))
+        from . import nav  # noqa: PLC0415 (nav necesita el contexto de la aplicación ya creado)
+        found = alerts.collect(settings(), boot_config(), maintenance.state(get_db()), runtime().locked(),
+                               network_diagnosis())
+        g.admin_alerts = [{**a, "url": nav.PAGES[a["page"]].url() + (f"#{a['anchor']}" if a["anchor"] else "")}
+                          for a in found]
     return g.admin_alerts

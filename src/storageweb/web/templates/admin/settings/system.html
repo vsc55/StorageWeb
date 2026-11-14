@@ -1,7 +1,8 @@
 {% extends "admin/settings/_layout.html" %}
+{% from "admin/_page.html" import origin_badge with context %}
 {% block section %}
 <div class="card">
-  <h3 class="card-title">{{ _("Startup (config.json only, requires restarting the service)") }}</h3>
+  <h3 class="card-title">{{ _("Startup (config.json or environment only, requires restarting the service)") }}</h3>
   <dl class="kv section-gap">
     <dt>{{ _("Configuration file") }}</dt><dd><code>{{ boot.config_path }}</code></dd>
     <dt>{{ _("Database") }}</dt><dd><code>{{ boot.database }}</code></dd>
@@ -11,26 +12,39 @@
   </dl>
 </div>
 
-<div class="card section-gap">
-  <h3 class="card-title">{{ _("Changed from the web") }}</h3>
-  {% if changed_list %}
-  <p class="muted small">{{ _("These values take precedence over config.json.") }}
-    {% if info %}{{ _("Last change: %(date)s by %(user)s.", date=info['updated_at']|datetime, user=info['updated_by'] or '—') }}{% endif %}</p>
-  <ul class="changed-list">
-    {% for path in changed_list %}
-    <li><code>{{ path }}</code>
-      <button class="link-btn small" type="submit" form="reset-field-form" name="path" value="{{ path }}">{{ _("Reset") }}</button></li>
-    {% endfor %}
-  </ul>
-  <form method="post" action="{{ url_for('settings.reset') }}" class="js-confirm section-gap"
-        data-confirm="{{ _('Discard all settings saved from the web and go back to config.json?') }}">
-    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-    <button class="btn btn-danger" type="submit">{{ _("Reset everything to config.json") }}</button>
-  </form>
+<section class="card section-gap" aria-labelledby="layers-title">
+  <h3 class="card-title" id="layers-title">{{ _("Where each value comes from") }}</h3>
+  <p class="muted small">{{ _("Each layer wins over the previous one, field by field: default values < settings saved from the web < config.json < environment variables. What config.json or an environment variable sets is locked here.") }}
+    {{ _("Web settings profile: %(profile)s.", profile=profile) }}
+    {% if info %}{{ _("Last change from the web: %(date)s by %(user)s.", date=info['updated_at']|datetime, user=info['updated_by'] or '—') }}{% endif %}</p>
+  {% if origin_rows %}
+  <div class="table-scroll section-gap">
+  <table class="files small">
+    <thead><tr><th>{{ _("Setting") }}</th><th>{{ _("Value") }}</th><th>{{ _("Origin") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr></thead>
+    <tbody>
+      {% for row in origin_rows %}
+      <tr>
+        <td><a href="{{ row.url }}">{{ row.label }}</a>{% if row.label != row.path %} <code class="muted small">{{ row.path }}</code>{% endif %}</td>
+        <td class="value-cell">{{ row.value }}</td>
+        <td class="nowrap">{{ origin_badge(row.origin, row.path, show_env=True) }}</td>
+        <td class="actions">{% if row.origin == 'web' %}<button class="link-btn small" type="submit" form="reset-field-form" name="path" value="{{ row.path }}"
+                title="{{ _('Back to the default value: %(value)s', value=default_text(row.path)) }}">{{ _("Reset") }}</button>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
   {% else %}
-  <p class="muted small">{{ _("Nothing: every value comes from config.json.") }}</p>
+  <p class="muted small">{{ _("Every setting has its default value.") }}</p>
   {% endif %}
-</div>
+  {% if origin_rows|selectattr('origin', 'equalto', 'web')|list %}
+  <form method="post" action="{{ url_for('settings.reset') }}" class="js-confirm section-gap"
+        data-confirm="{{ _('Discard all the settings saved from the web and go back to the default values? What config.json and the environment set does not change.') }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button class="btn btn-danger" type="submit">{{ _("Reset all web settings to the default values") }}</button>
+  </form>
+  {% endif %}
+</section>
 
 <details class="card section-gap">
   <summary>{{ _("Effective configuration (JSON, secrets hidden)") }}</summary>

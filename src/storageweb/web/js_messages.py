@@ -28,6 +28,19 @@ JS_MESSAGES = [
     N_("Waiting for you to sign in…"),
     N_("Signed in. Registering the application in Entra ID…"),
     N_("Nothing found for «%(query)s»."),
+    N_("default (save to apply)"),
+    N_("here"),
+    N_("Accept"),
+    N_("Cancel"),
+    N_("OK"),
+    N_("unsaved"),
+    N_("Unsaved changes"),
+    N_("Discard"),
+    N_("Save all"),
+    N_("Discard the unsaved changes of the other pages?"),
+    N_("Discard the %(count)s unsaved changes of every page?"),
+    N_("1 unsaved change"),
+    N_("Save"),
 ]
 
 

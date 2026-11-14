@@ -1,5 +1,4 @@
 {
-  "app_name": "StorageWeb (DEV)",
   "server": {
     "host": "127.0.0.1",
     "port": 8080,
@@ -12,34 +11,6 @@
     "cookie_secure": false
   },
   "storage": {
-    "home_template": "../.dev/homes/{username}",
-    "create_home": true,
-    "create_shares": true,
-    "show_hidden": true,
-    "shares": [
-      {
-        "name": "compartido",
-        "label": "Compartido",
-        "path": "../.dev/shared",
-        "read_only": false,
-        "users": ["*"],
-        "groups": []
-      }
-    ]
-  },
-  "auth": {
-    "local": { "enabled": true },
-    "pam": { "enabled": false },
-    "entra": {
-      "enabled": false,
-      "auto_provision": true,
-      "default_role": "user",
-      "role_mappings": {},
-      "provider": "oauth2",
-      "tenant_id": "",
-      "client_id": "",
-      "client_secret": "",
-      "redirect_uri": "http://localhost:8080/auth/entra/callback"
-    }
+    "home_template": "../.dev/homes/{username}"
   }
 }

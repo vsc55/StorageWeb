@@ -1,7 +1,7 @@
 """Fixtures de los tests de integración (aplicación Flask completa)."""
 import pytest
 
-from storageweb.providers import oauth2
+from storageweb.providers.entra import oauth2
 from tests.sso_helpers import base_claims, entra_cfg, make_jwt
 
 
