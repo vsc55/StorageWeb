@@ -125,18 +125,11 @@ class SMBBackend(RemoteBackend):
         except OSError as exc:
             raise _error(exc) from exc
 
-    def rename(self, rel: str, new_name: str) -> str:
-        rel = clean_rel(rel)
-        new_rel = join_rel(rel.rpartition("/")[0], new_name)
-        if self.stat(rel) is None:
-            raise FileNotFoundError(rel)
-        if self.exists(new_rel):
-            raise FileExistsError(new_name)
+    def _move(self, rel: str, new_rel: str, entry: Entry) -> None:
         try:
             self.client.rename(self._unc(rel), self._unc(new_rel))
         except OSError as exc:
             raise _error(exc) from exc
-        return new_rel
 
     def _remove_tree(self, rel: str) -> None:
         for item in self.listdir(rel):

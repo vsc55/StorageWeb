@@ -48,7 +48,10 @@ markdown_extensions:
 
 nav:
   - Inicio: index.md
-  - Uso: uso/index.md
+  - Uso:
+      - uso/index.md
+      - Unidad de red (WebDAV): uso/unidad-de-red.md
+      - Extensión de VS Code: uso/vscode.md
   - Administración:
       - Instalación: administracion/instalacion.md
       - Docker: administracion/docker.md
@@ -90,6 +93,7 @@ nav:
           - 0013 Capas de configuración: arquitectura/decisiones/0013-capas-de-configuracion.md
           - 0014 Almacenamiento externo: arquitectura/decisiones/0014-almacenamiento-externo.md
           - 0015 Extensiones que se registran solas: arquitectura/decisiones/0015-extensiones-que-se-descubren.md
+          - 0016 Conectar aplicaciones con el navegador: arquitectura/decisiones/0016-conectar-aplicaciones-con-el-navegador.md
           - Plantilla: arquitectura/decisiones/plantilla.md
   - Desarrollo:
       - desarrollo/index.md

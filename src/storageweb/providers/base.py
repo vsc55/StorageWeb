@@ -132,7 +132,8 @@ class AuthMethod:
         """Comprueba la contraseña. ``user`` es la cuenta si ya existe (o ``None``)."""
         raise NotImplementedError
 
-    # --- SSO
+    # --- SSO (opciones comunes en su configuración: auto_provision, default_role, role_mappings,
+    #     sync_role_on_login y auto_login, que manda /login directamente al proveedor)
     def login_button(self, section: dict) -> LoginButton:
         return LoginButton(str(self.label))
 

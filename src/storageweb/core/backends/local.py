@@ -5,8 +5,8 @@ import os
 import shutil
 from pathlib import Path
 
-from ..security import UPLOAD_TMP_PREFIX, PathError, resolve_entry, resolve_inside
-from .base import Backend, Entry, clean_rel, is_safe_name
+from ..security import UPLOAD_TMP_PREFIX, resolve_entry, resolve_inside
+from .base import Backend, Entry, clean_rel, name_of, parent_rel
 
 
 class LocalBackend(Backend):
@@ -57,16 +57,10 @@ class LocalBackend(Backend):
     def mkdir(self, rel: str) -> None:
         self._path(rel).mkdir()
 
-    def rename(self, rel: str, new_name: str) -> str:
-        if not is_safe_name(new_name):  # también lo comprueba la vista: aquí, por si acaso
-            raise PathError(new_name)
-        entry = resolve_entry(self.base, clean_rel(rel))  # el último elemento puede ser un symlink
-        dest = entry.parent / new_name
-        if dest.exists() or dest.is_symlink():
-            raise FileExistsError(new_name)
-        entry.rename(dest)
-        parent = clean_rel(rel).rpartition("/")[0]
-        return f"{parent}/{new_name}".lstrip("/")
+    def _move(self, rel: str, new_rel: str, entry: Entry) -> None:
+        src = resolve_entry(self.base, rel)  # el último elemento puede ser un symlink: se mueve el enlace
+        dst = resolve_inside(self.base, parent_rel(new_rel)) / name_of(new_rel)
+        src.rename(dst)
 
     def delete(self, rel: str) -> None:
         entry = resolve_entry(self.base, clean_rel(rel))

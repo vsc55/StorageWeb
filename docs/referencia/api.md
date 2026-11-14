@@ -20,6 +20,7 @@ La especificación completa está en [`openapi.yaml`](openapi.yaml) (OpenAPI 3.1
 | `PUT` | `/api/uploads/{upload_id}` | Enviar una parte |
 | `DELETE` | `/api/uploads/{upload_id}` | Cancelar una subida |
 | `POST` | `/api/uploads/{upload_id}/complete` | Finalizar una subida |
+| `POST` | `/connect/token` | Canjear la autorización de una aplicación |
 
 ## `GET /healthz`
 
@@ -133,5 +134,29 @@ Autenticación: `csrf`, `session`
 | `403` | Sin permiso de subida en esa carpeta (rol o carpeta de solo lectura) — `error` |
 | `404` | La subida o la carpeta no existe, o pertenece a otro usuario — `error` |
 | `409` | Faltan bytes por recibir — `error`, `received` |
+
+## `POST /connect/token`
+
+**Canjear la autorización de una aplicación.** Segundo paso de *conectar una aplicación iniciando sesión en el navegador* (OAuth con PKCE, la
+extensión de VS Code): la aplicación abrió `/connect/<aplicación>?redirect_uri=…&challenge=…&state=…`
+en el navegador, el usuario aceptó y volvió a la aplicación con `code`. Aquí lo canjea con el
+`verifier` cuyo SHA-256 (base64url) era `challenge`, y recibe un token de API para ese equipo.
+El código es de un solo uso (también si el canje falla) y caduca a los 5 minutos. Sin cookies ni CSRF:
+el secreto es el verifier. Un canje fallido cuenta como infracción para el bloqueo de IPs.
+
+Autenticación: ninguna
+
+Cuerpo (`application/json`):
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `code` * | string | El `code` de la vuelta a la aplicación |
+| `verifier` * | string | El secreto de la aplicación (43-128 caracteres, RFC 7636) |
+
+| Respuesta | Descripción |
+|---|---|
+| `200` | Token creado (cabecera `Cache-Control: no-store`) — `username`, `token`, `name`, `days` |
+| `400` | Código inválido, caducado, ya usado o con otro verifier (`{"error": "invalid_grant"}`) |
+| `403` | Los tokens de API están desactivados (`security.api_tokens`) |
 
 `*` = obligatorio.

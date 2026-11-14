@@ -22,7 +22,7 @@ sudo nginx -t && sudo systemctl reload nginx
 
 | Directiva | Valor | Por qué |
 |---|---|---|
-| `client_max_body_size` | ≥ `server.max_upload_mb` | Tamaño máximo de petición. Las subidas desde el navegador van en partes de hasta 32 MB, pero la subida sin JavaScript usa una sola petición. |
+| `client_max_body_size` | ≥ `server.max_upload_mb` | Tamaño máximo de petición. Las subidas desde el navegador van en partes de hasta 32 MB, pero la subida sin JavaScript y la [unidad de red](../uso/unidad-de-red.md) (WebDAV) usan una sola petición por archivo. |
 | `proxy_request_buffering off` | | Las subidas pasan directas a la aplicación, sin copia temporal en nginx. |
 | `proxy_buffering off` y `proxy_max_temp_file_size 0` | | Descargas en streaming sin límite (por defecto nginx guarda hasta 1 GB en temporal). |
 | `proxy_read_timeout`, `proxy_send_timeout` | `300s` | Son tiempos de inactividad, no de duración total. |

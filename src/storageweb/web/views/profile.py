@@ -10,7 +10,7 @@ from ...db.repositories import sessions as session_repo
 from ...i18n import LOCALES, _, _l, locale_display_name, ngettext
 from ...i18n import normalize as normalize_locale
 from ...providers import local
-from ..context import get_db, settings
+from ..context import external_url, get_db, settings
 from ..guards import client_ip, login_required, safe_next
 
 bp = Blueprint("profile", __name__)
@@ -81,6 +81,8 @@ def profile():
         user_theme=normalize_theme(user["theme"]) or "system",
         my_sessions=session_repo.list_all(get_db(), user["id"]), current_sid=g.get("session_id"),
         tokens_enabled=settings()["security"]["api_tokens"], my_tokens=api_tokens.list_for_user(get_db(), user["id"]),
+        webdav=settings()["security"]["webdav"], webdav_passwords=settings()["security"]["webdav_passwords"],
+        webdav_url=external_url("dav.root"), own_password=stores_password(user["source"]),
         new_token=session.pop("new_token", None), SCOPE_LABELS=tokens.SCOPE_LABELS, EXPIRY_DAYS=tokens.EXPIRY_DAYS)
 
 
@@ -149,6 +151,23 @@ def token_create():
     else:
         session["new_token"] = plain  # se muestra una sola vez
         _audit("api_token_created", request.form.get("name", "").strip())
+    return redirect(url_for("profile.profile") + "#tokens")
+
+
+@bp.route("/profile/tokens/<int:token_id>/rotate", methods=["POST"])
+@login_required
+def token_rotate(token_id: int):
+    """Rotar: un secreto nuevo para el mismo token (nombre, alcance y caducidad); el anterior deja de valer."""
+    if not settings()["security"]["api_tokens"]:
+        abort(403, description=_("API tokens are disabled."))
+    try:
+        plain, _token_id = tokens.rotate(get_db(), g.user, api_tokens.get(get_db(), token_id))
+    except tokens.TokenError:
+        abort(404)
+    session["new_token"] = plain  # se muestra una sola vez
+    token = api_tokens.get(get_db(), _token_id)
+    _audit("api_token_rotated", token["name"])
+    flash(_("Token «%(name)s» rotated: copy the new one; the previous one no longer works.", name=token["name"]), "info")
     return redirect(url_for("profile.profile") + "#tokens")
 
 

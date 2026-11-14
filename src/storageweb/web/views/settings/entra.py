@@ -88,6 +88,7 @@ def _form(method) -> dict:
         "role_mappings": _role_mappings(),
         "sync_role_on_login": checked("entra_sync_role_on_login"),
         "single_logout": checked("entra_single_logout"),
+        "auto_login": checked("entra_auto_login"),
         "authorize_url": f.get("entra_authorize_url", "").strip(),
         "token_url": f.get("entra_token_url", "").strip(),
         "issuer": f.get("entra_issuer", "").strip(),

@@ -33,7 +33,7 @@ def test_openapi_matches_routes(app):
                   for method in item if method in ("get", "post", "put", "delete")}
     actual = set()
     for rule in app.url_map.iter_rules():
-        if rule.rule.startswith("/api/") or rule.rule == "/healthz":
+        if rule.rule.startswith("/api/") or rule.rule in ("/healthz", "/connect/token"):  # las rutas JSON
             path = re.sub(r"<(?:[a-z]+:)?([a-z_]+)>", r"{\1}", rule.rule)
             actual |= {(path, m) for m in rule.methods - {"HEAD", "OPTIONS"}}
     assert actual == documented

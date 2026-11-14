@@ -30,18 +30,28 @@ def for_user(conn: Connection, username: str, limit: int = 10) -> list:
         (username, username, username, int(limit))).fetchall()
 
 
-def recent(conn: Connection, limit: int = 100, username: str | None = None,
-           action: str | None = None) -> list:
-    query, params = "SELECT * FROM audit_log WHERE 1=1", []
+def _filters(username: str | None, action: str | None) -> tuple[str, list]:
+    where, params = " WHERE 1=1", []
     if username:
-        query += " AND username = ?"
+        where += " AND username = ?"
         params.append(username)
     if action:
-        query += " AND action = ?"
+        where += " AND action = ?"
         params.append(action)
-    query += " ORDER BY id DESC LIMIT ?"
-    params.append(int(limit))
-    return conn.execute(query, params).fetchall()
+    return where, params
+
+
+def recent(conn: Connection, limit: int = 100, username: str | None = None,
+           action: str | None = None, offset: int = 0) -> list:
+    """Las más recientes primero; ``offset`` para paginar."""
+    where, params = _filters(username, action)
+    return conn.execute(f"SELECT * FROM audit_log{where} ORDER BY id DESC LIMIT ? OFFSET ?",
+                        [*params, int(limit), max(int(offset), 0)]).fetchall()
+
+
+def count(conn: Connection, username: str | None = None, action: str | None = None) -> int:
+    where, params = _filters(username, action)
+    return conn.execute(f"SELECT COUNT(*) FROM audit_log{where}", params).fetchone()[0]
 
 
 def count_since(conn: Connection, action: str, since_iso: str) -> int:

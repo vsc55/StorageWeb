@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: StorageWeb VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-14 16:49+0100\n"
+"POT-Creation-Date: 2026-11-14 22:56+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -15,6 +15,26 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
+
+#: storageweb/patterns.py
+#, python-format
+msgid "Exceptions with «!» are not supported: %(pattern)s"
+msgstr ""
+
+#: storageweb/patterns.py
+#, python-format
+msgid "Invalid pattern: %(pattern)s"
+msgstr ""
+
+#: storageweb/patterns.py
+#, python-format
+msgid "This pattern would hide everything: %(pattern)s"
+msgstr ""
+
+#: storageweb/patterns.py
+#, python-format
+msgid "Too many patterns (at most %(n)s)."
+msgstr ""
 
 #: storageweb/cli/__init__.py
 msgid "StorageWeb: server and administration"
@@ -597,6 +617,26 @@ msgstr ""
 msgid "The file is not a valid %(type)s image."
 msgstr ""
 
+#: storageweb/core/connect.py
+msgid "Unknown application."
+msgstr ""
+
+#: storageweb/core/connect.py
+msgid "The return address is not allowed for this application."
+msgstr ""
+
+#: storageweb/core/connect.py
+msgid "Incomplete request: start again from the application."
+msgstr ""
+
+#: storageweb/core/connect.py
+msgid "Invalid scope or expiry."
+msgstr ""
+
+#: storageweb/core/connect.py
+msgid "Too many pending authorizations. Try again in a few minutes."
+msgstr ""
+
 #: storageweb/core/groups.py storageweb/providers/local/method.py
 msgid "Local"
 msgstr ""
@@ -907,6 +947,11 @@ msgstr ""
 msgid "The configured folder does not exist on the server."
 msgstr ""
 
+#: storageweb/core/storage.py
+#, python-format
+msgid "«%(name)s» is not allowed here."
+msgstr ""
+
 #: storageweb/core/tokens.py
 msgid "Read (list and download)"
 msgstr ""
@@ -922,6 +967,10 @@ msgstr ""
 
 #: storageweb/core/tokens.py
 msgid "Invalid expiry."
+msgstr ""
+
+#: storageweb/core/tokens.py
+msgid "Token not found."
 msgstr ""
 
 #: storageweb/core/uploads.py
@@ -1020,6 +1069,10 @@ msgstr ""
 msgid ""
 "The certificate of the server could not be verified (%(error)s). If the server uses its own "
 "certificate, disable «Check the certificate»."
+msgstr ""
+
+#: storageweb/core/backends/base.py
+msgid "A folder cannot be moved or copied inside itself."
 msgstr ""
 
 #: storageweb/core/backends/base.py
@@ -1251,7 +1304,7 @@ msgstr ""
 msgid "In Nextcloud and ownCloud, better an app password (Settings → Security)."
 msgstr ""
 
-#: storageweb/core/backends/webdav.py
+#: storageweb/core/backends/webdav.py storageweb/web/templates/profile.html
 msgid "Address"
 msgstr ""
 
@@ -1384,6 +1437,10 @@ msgstr ""
 
 #: storageweb/providers/entra/method.py storageweb/web/templates/admin/settings/auth/entra.html
 msgid "Recalculate the role on every sign-in according to the mapping"
+msgstr ""
+
+#: storageweb/providers/entra/method.py storageweb/web/templates/admin/settings/auth/entra.html
+msgid "Sign in directly with Microsoft (skip the sign-in page)"
 msgstr ""
 
 #: storageweb/providers/entra/method.py storageweb/web/templates/admin/settings/auth/entra.html
@@ -1645,6 +1702,10 @@ msgid "Show hidden files"
 msgstr ""
 
 #: storageweb/settings/fields.py storageweb/web/templates/admin/settings/storage.html
+msgid "Hidden for everyone"
+msgstr ""
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/storage.html
 msgid "Maximum size per file (MB)"
 msgstr ""
 
@@ -1694,6 +1755,14 @@ msgstr ""
 
 #: storageweb/settings/fields.py storageweb/web/templates/admin/settings/security.html
 msgid "Allow personal API tokens"
+msgstr ""
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/security.html
+msgid "Network drive (WebDAV)"
+msgstr ""
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/security.html
+msgid "Also accept the account password in WebDAV"
 msgstr ""
 
 #: storageweb/settings/fields.py storageweb/web/templates/admin/settings/maintenance.html
@@ -1920,7 +1989,7 @@ msgstr ""
 msgid "Your IP address is blocked. Contact the administrator."
 msgstr ""
 
-#: storageweb/web/guards.py storageweb/web/views/profile.py
+#: storageweb/web/guards.py storageweb/web/views/connect.py storageweb/web/views/profile.py
 msgid "API tokens are disabled."
 msgstr ""
 
@@ -2033,7 +2102,7 @@ msgid "Accept"
 msgstr ""
 
 #: storageweb/web/js_messages.py storageweb/web/templates/admin/settings/entra_register.html
-#: storageweb/web/templates/browse.html
+#: storageweb/web/templates/browse.html storageweb/web/templates/connect.html
 msgid "Cancel"
 msgstr ""
 
@@ -2251,7 +2320,8 @@ msgstr ""
 msgid "Actions"
 msgstr ""
 
-#: storageweb/web/search.py storageweb/web/templates/admin/users.html
+#: storageweb/web/search.py storageweb/web/templates/admin/audit.html
+#: storageweb/web/templates/admin/users.html
 msgid "Pages"
 msgstr ""
 
@@ -2309,6 +2379,11 @@ msgstr ""
 
 #: storageweb/web/templates/base.html
 msgid "Sign out"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/admin/user_form.html
+#: storageweb/web/templates/base.html storageweb/web/templates/profile.html
+msgid "Close"
 msgstr ""
 
 #: storageweb/web/templates/admin/overview.html storageweb/web/templates/admin/search.html
@@ -2479,6 +2554,91 @@ msgstr ""
 msgid "Open"
 msgstr ""
 
+#: storageweb/web/templates/connect.html
+#, python-format
+msgid "Connect %(app)s"
+msgstr ""
+
+#: storageweb/web/templates/connect.html
+msgid "Done"
+msgstr ""
+
+#: storageweb/web/templates/connect.html
+#, python-format
+msgid "Go back to %(app)s: it is now connected to your account."
+msgstr ""
+
+#: storageweb/web/templates/connect.html
+#, python-format
+msgid "If the browser asks whether to open %(app)s, accept. If nothing happens, use the button."
+msgstr ""
+
+#: storageweb/web/templates/connect.html
+#, python-format
+msgid "Open %(app)s"
+msgstr ""
+
+#: storageweb/web/templates/connect.html
+msgid "You can close this tab. The access appears in My profile → API tokens, where you can revoke it."
+msgstr ""
+
+#: storageweb/web/templates/connect.html
+msgid "Access not granted"
+msgstr ""
+
+#: storageweb/web/templates/connect.html
+#, python-format
+msgid "%(app)s was not connected. You can close this tab."
+msgstr ""
+
+#: storageweb/web/templates/connect.html
+#, python-format
+msgid "Back to %(app)s"
+msgstr ""
+
+#: storageweb/web/templates/connect.html
+#, python-format
+msgid "%(app)s wants to access your files as %(user)s."
+msgstr ""
+
+#: storageweb/web/templates/connect.html
+#, python-format
+msgid "Computer: %(device)s"
+msgstr ""
+
+#: storageweb/web/templates/connect.html
+#, python-format
+msgid ""
+"It gets an API token: it can do with your files what you can (never the administration). Allow it"
+" only if you started this from %(app)s."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/connect.html
+#: storageweb/web/templates/profile.html
+msgid "Scope"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/connect.html
+#: storageweb/web/templates/profile.html
+msgid "Expires"
+msgstr ""
+
+#: storageweb/web/templates/connect.html storageweb/web/templates/profile.html
+#, python-format
+msgid "in %(num)s day"
+msgid_plural "in %(num)s days"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/connect.html
+#: storageweb/web/templates/profile.html
+msgid "never"
+msgstr ""
+
+#: storageweb/web/templates/connect.html
+msgid "Allow"
+msgstr ""
+
 #: storageweb/web/templates/error.html
 #, python-format
 msgid "Error %(code)s"
@@ -2573,11 +2733,6 @@ msgstr ""
 msgid "active %(when)s"
 msgstr ""
 
-#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/admin/user_form.html
-#: storageweb/web/templates/profile.html
-msgid "Close"
-msgstr ""
-
 #: storageweb/web/templates/profile.html
 msgid "Close the other sessions"
 msgstr ""
@@ -2621,6 +2776,18 @@ msgstr ""
 msgid "last used %(when)s"
 msgstr ""
 
+#: storageweb/web/templates/profile.html
+#, python-format
+msgid ""
+"Rotate the token «%(name)s»? You get a new secret with the same name, scope and expiry, and the "
+"current one stops working at once: whatever uses it (scripts, network drive, VS Code) needs the "
+"new one."
+msgstr ""
+
+#: storageweb/web/templates/profile.html
+msgid "Rotate"
+msgstr ""
+
 #: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/admin/user_form.html
 #: storageweb/web/templates/profile.html
 #, python-format
@@ -2640,27 +2807,37 @@ msgstr ""
 msgid "e.g. nightly backup"
 msgstr ""
 
-#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/profile.html
-msgid "Scope"
+#: storageweb/web/templates/profile.html
+msgid "Create token"
 msgstr ""
 
-#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/profile.html
-msgid "Expires"
+#: storageweb/web/templates/profile.html
+msgid "Network drive"
+msgstr ""
+
+#: storageweb/web/templates/profile.html
+msgid ""
+"Your folders as a drive in the file explorer (Windows, macOS, Linux) or with rclone, Cyberduck or"
+" WinSCP."
 msgstr ""
 
 #: storageweb/web/templates/profile.html
 #, python-format
-msgid "in %(num)s day"
-msgid_plural "in %(num)s days"
-msgstr[0] ""
-msgstr[1] ""
-
-#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/profile.html
-msgid "never"
+msgid "User: %(user)s"
 msgstr ""
 
 #: storageweb/web/templates/profile.html
-msgid "Create token"
+msgid "Password: an API token (create one above; «read only» if you only need to read)."
+msgstr ""
+
+#: storageweb/web/templates/profile.html
+msgid "You can also use your password."
+msgstr ""
+
+#: storageweb/web/templates/profile.html
+msgid ""
+"Windows: File Explorer → This PC → Map network drive → paste the address. macOS: Finder → Go → "
+"Connect to Server."
 msgstr ""
 
 #: storageweb/web/templates/admin/_layout.html
@@ -2697,6 +2874,42 @@ msgstr ""
 
 #: storageweb/web/templates/admin/_page.html
 msgid "changed"
+msgstr ""
+
+#: storageweb/web/templates/admin/audit.html storageweb/web/templates/admin/users.html
+#, python-format
+msgid "%(first)s–%(last)s of %(total)s"
+msgstr ""
+
+#: storageweb/web/templates/admin/audit.html
+msgid "Per page"
+msgstr ""
+
+#: storageweb/web/templates/admin/audit.html storageweb/web/templates/admin/users.html
+msgid "Apply"
+msgstr ""
+
+#: storageweb/web/templates/admin/audit.html
+msgid "First"
+msgstr ""
+
+#: storageweb/web/templates/admin/audit.html storageweb/web/templates/admin/settings/entra_setup.html
+#: storageweb/web/templates/admin/users.html
+msgid "Previous"
+msgstr ""
+
+#: storageweb/web/templates/admin/audit.html
+#, python-format
+msgid "Page %(page)s of %(pages)s"
+msgstr ""
+
+#: storageweb/web/templates/admin/audit.html storageweb/web/templates/admin/settings/entra_setup.html
+#: storageweb/web/templates/admin/users.html
+msgid "Next"
+msgstr ""
+
+#: storageweb/web/templates/admin/audit.html
+msgid "Last"
 msgstr ""
 
 #: storageweb/web/templates/admin/audit.html
@@ -3135,10 +3348,6 @@ msgstr ""
 msgid "Group…"
 msgstr ""
 
-#: storageweb/web/templates/admin/users.html
-msgid "Apply"
-msgstr ""
-
 #: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/_macros.html
 msgid "Status"
 msgstr ""
@@ -3153,19 +3362,6 @@ msgstr ""
 
 #: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/panel.html
 msgid "No users."
-msgstr ""
-
-#: storageweb/web/templates/admin/users.html
-#, python-format
-msgid "%(first)s–%(last)s of %(total)s"
-msgstr ""
-
-#: storageweb/web/templates/admin/settings/entra_setup.html storageweb/web/templates/admin/users.html
-msgid "Previous"
-msgstr ""
-
-#: storageweb/web/templates/admin/settings/entra_setup.html storageweb/web/templates/admin/users.html
-msgid "Next"
 msgstr ""
 
 #: storageweb/web/templates/admin/access/folder.html
@@ -4362,6 +4558,19 @@ msgid ""
 "this stops every existing token."
 msgstr ""
 
+#: storageweb/web/templates/admin/settings/security.html
+#, python-format
+msgid ""
+"Users connect %(url)s as a network drive (Windows, macOS, Linux) or with rclone, with their user "
+"name and an API token as the password."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/security.html
+msgid ""
+"Local and system (PAM) users only. Disabled is safer: a token can be revoked and limited to "
+"reading, and Entra ID users only have tokens."
+msgstr ""
+
 #: storageweb/web/templates/admin/settings/sessions.html
 #, python-format
 msgid "%(num)s session"
@@ -4474,6 +4683,13 @@ msgstr ""
 
 #: storageweb/web/templates/admin/settings/storage.html
 msgid "0 = no limit; uploads are sent in parts"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/storage.html
+msgid ""
+"One pattern per line, like .gitignore: «Thumbs.db» or «*.tmp» anywhere, «.git/» only folders, "
+"«/private» from the root of each folder. They are not listed and cannot be opened or created "
+"(web, network drive and API); the files stay on disk."
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/system.html
@@ -4642,6 +4858,13 @@ msgstr ""
 #: storageweb/web/templates/admin/settings/auth/entra.html
 #, python-format
 msgid "Empty = %(uri)s. It must be registered in Entra ID → Authentication → Web."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/auth/entra.html
+#, python-format
+msgid ""
+"On computers joined to Entra ID (Intune) users get in without typing anything. %(url)s still "
+"shows the page, for local users and to get in if Microsoft fails."
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/auth/entra.html
@@ -4828,6 +5051,10 @@ msgstr ""
 msgid "Could not sign in with %(method)s."
 msgstr ""
 
+#: storageweb/web/views/dav.py
+msgid "This is a WebDAV folder of StorageWeb: connect it as a network drive or with a WebDAV client."
+msgstr ""
+
 #: storageweb/web/views/files.py
 msgid "This folder is read-only."
 msgstr ""
@@ -4980,6 +5207,11 @@ msgid "%(num)s session closed."
 msgid_plural "%(num)s sessions closed."
 msgstr[0] ""
 msgstr[1] ""
+
+#: storageweb/web/views/profile.py
+#, python-format
+msgid "Token «%(name)s» rotated: copy the new one; the previous one no longer works."
+msgstr ""
 
 #: storageweb/web/views/profile.py storageweb/web/views/settings/sessions.py
 #, python-format

@@ -16,7 +16,7 @@ Cada acción relevante se guarda en la tabla `audit_log`. Se puede consultar en 
 | Acción | Cuándo | `detail` |
 |---|---|---|
 | `login` | Inicio de sesión correcto | Origen: `local`, `pam` o `entra` |
-| `login_failed` | Contraseña incorrecta o error del proveedor SSO | `entra:<código>` en SSO |
+| `login_failed` | Contraseña incorrecta, error del proveedor SSO o credenciales de la unidad de red no válidas | `entra:<código>` en SSO; en WebDAV, `webdav:bad_token`, `webdav:bad_password` o `webdav:password_not_allowed` (se usó la contraseña de la cuenta sin estar admitida) |
 | `login_blocked` | Intento durante un bloqueo por intentos fallidos | |
 | `login_denied` | Cuenta de Entra rechazada (tenant, grupo, conflicto, no dada de alta, desactivada) | `entra:<motivo>` |
 | `logout` | Cierre de sesión | |
@@ -51,7 +51,9 @@ Cada acción relevante se guarda en la tabla `audit_log`. Se puede consultar en 
 | `entra_groups_granted` | Se concedió `Group.Read.All` a la aplicación (*target* = Client ID) |  |
 | `session_closed` | Un admin o el propio usuario cerró una sesión | IP de la sesión |
 | `sessions_closed` | Se cerraron varias sesiones: las de un usuario (web o `sessions-close`), todas (*target* `*`), las seleccionadas (`selected`) o las inactivas (`idle>Nh`) | Número de sesiones |
-| `api_token_created` | El usuario creó un token de API | Nombre del token |
+| `api_token_created` | El usuario creó un token de API (en *Mi perfil*, o una aplicación al canjear su autorización: detalle `connect`) | Nombre del token |
+| `app_authorized` | El usuario permitió a una aplicación (la extensión de VS Code) conectarse a su cuenta desde el navegador; el token se crea al canjearlo (`api_token_created`) | Nombre del equipo |
+| `api_token_rotated` | El usuario rotó un token de API (*Mi perfil*): uno nuevo con el mismo nombre, alcance y caducidad; el anterior deja de valer | Nombre del token |
 | `api_token_revoked` | Token de API revocado por su usuario o por un admin | Nombre del token |
 | `ip_banned` | IP bloqueada (automática por infracciones o manual) | `auto:<tipo>:<n>` o `manual:<motivo>` |
 | `ip_unbanned` | IP desbloqueada (web o `ip-unban`) |  |

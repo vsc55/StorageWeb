@@ -50,6 +50,8 @@ def _writable_dir(root_name: str, rel: str) -> tuple[dict, str]:
     try:
         root = storage.find_root(g.user, cfg, root_name)
         dir_rel = backends.clean_rel(rel)
+        if storage.is_hidden(cfg, dir_rel):
+            raise PathError(dir_rel)
         is_dir = root["backend"].is_dir(dir_rel)
     except (storage.RootNotFound, PathError):
         abort(404, description=_("Folder not found"))
@@ -88,6 +90,7 @@ def init():
     root, dir_rel = _writable_dir(str(data.get("root", "")), str(data.get("path", "")))
     try:
         filename = safe_filename(str(data.get("name", "")))
+        storage.check_visible_name(settings(), backends.join_rel(dir_rel, filename))
     except ValueError as exc:
         abort(400, description=str(exc))
     size = core.validate_size(data.get("size"), settings()["storage"]["max_file_size_mb"])

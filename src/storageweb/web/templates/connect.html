@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Connect %(app)s", app=app.label) }} · {{ app_name }}{% endblock %}
+{% block content %}
+<section class="card login-card connect-card stack">
+  {% if done == "allowed" %}
+  <h1>{{ _("Done") }}</h1>
+  <p>{{ _("Go back to %(app)s: it is now connected to your account.", app=app.label) }}</p>
+  <p class="muted small">{{ _("If the browser asks whether to open %(app)s, accept. If nothing happens, use the button.", app=app.label) }}</p>
+  <a class="btn btn-primary" id="connect-return" href="{{ target }}" data-auto="1">{{ _("Open %(app)s", app=app.label) }}</a>
+  <p class="muted small">{{ _("You can close this tab. The access appears in My profile → API tokens, where you can revoke it.") }}</p>
+  {% elif done == "denied" %}
+  <h1>{{ _("Access not granted") }}</h1>
+  <p>{{ _("%(app)s was not connected. You can close this tab.", app=app.label) }}</p>
+  <a class="btn" id="connect-return" href="{{ target }}" data-auto="1">{{ _("Back to %(app)s", app=app.label) }}</a>
+  {% else %}
+  <h1>{{ _("Connect %(app)s", app=app.label) }}</h1>
+  <p>{{ _("%(app)s wants to access your files as %(user)s.", app=app.label, user=current_user['username']) }}
+    {% if device %}<br><span class="muted small">{{ _("Computer: %(device)s", device=device) }}</span>{% endif %}</p>
+  <p class="muted small">{{ _("It gets an API token: it can do with your files what you can (never the administration). Allow it only if you started this from %(app)s.", app=app.label) }}</p>
+  <form method="post" action="{{ url_for('connect.authorize', client=client) }}" class="stack">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="redirect_uri" value="{{ redirect_uri }}">
+    <input type="hidden" name="state" value="{{ state }}">
+    <input type="hidden" name="challenge" value="{{ challenge }}">
+    <input type="hidden" name="device" value="{{ device }}">
+    <label>{{ _("Scope") }}<select name="scope">{% for k, v in SCOPE_LABELS.items() %}<option value="{{ k }}" {% if k == 'write' %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+    <label>{{ _("Expires") }}<select name="days">
+      {% for d in EXPIRY_DAYS %}<option value="{{ d }}" {% if d == 365 %}selected{% endif %}>{{ ngettext("in %(num)s day", "in %(num)s days", d) if d else _("never") }}</option>{% endfor %}
+    </select></label>
+    <div class="connect-actions">
+      <button class="btn btn-primary" type="submit" name="action" value="allow">{{ _("Allow") }}</button>
+      <button class="btn" type="submit" name="action" value="deny">{{ _("Cancel") }}</button>
+    </div>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}{% if done %}<script src="{{ url_for('static', filename='js/connect.js') }}"></script>{% endif %}{% endblock %}

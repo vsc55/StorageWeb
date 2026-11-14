@@ -18,6 +18,7 @@ import secrets
 import sys
 from pathlib import Path
 
+from .. import patterns
 from ..i18n import LOCALES, _
 from .env import env_config
 from .errors import ConfigError
@@ -203,6 +204,10 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     storage["home_template"] = tmpl
     for key in ("create_home", "create_shares", "show_hidden"):
         storage[key] = bool(storage[key])
+    try:
+        storage["hidden"] = patterns.normalize(_str_list(storage.get("hidden") or [], "storage.hidden"))
+    except patterns.PatternError as exc:
+        raise ConfigError(str(exc), "storage.hidden") from exc
     storage["max_file_size_mb"] = _non_negative_int(storage["max_file_size_mb"], "storage.max_file_size_mb")
 
     seen = {"home"}
@@ -263,6 +268,8 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     sec["ipban_window_minutes"] = _positive_int(sec["ipban_window_minutes"], "security.ipban_window_minutes")
     sec["ipban_minutes"] = _non_negative_int(sec["ipban_minutes"], "security.ipban_minutes")
     sec["api_tokens"] = bool(sec["api_tokens"])
+    sec["webdav"] = bool(sec["webdav"])
+    sec["webdav_passwords"] = bool(sec["webdav_passwords"])
 
     # --- mantenimiento
     maint = cfg["maintenance"]

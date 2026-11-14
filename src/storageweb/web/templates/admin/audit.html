@@ -1,5 +1,41 @@
 {% extends "admin/_layout.html" %}
 {% block title %}{{ _("Audit") }} · {{ app_name }}{% endblock %}
+{% macro pager(where) %}
+{# La misma paginación encima y debajo de la tabla, con los registros por página #}
+{% set args = request.args.to_dict() %}
+<nav class="pager pager-{{ where }}" aria-label="{{ _('Pages') }}">
+  <span class="muted small">{% if total %}{{ _("%(first)s–%(last)s of %(total)s", first=(page - 1) * page_size + 1, last=[page * page_size, total]|min, total=total) }}{% endif %}</span>
+  <span class="inline">
+    <form method="get" class="inline small">
+      {% if user_filter %}<input type="hidden" name="user" value="{{ user_filter }}">{% endif %}
+      {% if action_filter %}<input type="hidden" name="action" value="{{ action_filter }}">{% endif %}
+      <label class="inline">{{ _("Per page") }}
+        <select name="per_page" class="js-autosubmit" aria-label="{{ _('Per page') }}">
+          {% for n in PAGE_SIZES %}<option value="{{ n }}" {% if n == page_size %}selected{% endif %}>{{ n }}</option>{% endfor %}
+        </select></label>
+      <noscript><button class="btn btn-small" type="submit">{{ _("Apply") }}</button></noscript>
+    </form>
+    {% if pages > 1 %}
+    {% if page > 1 %}
+    <a class="btn btn-small" href="{{ url_for('admin.audit_log', **dict(args, page=1)) }}">{{ _("First") }}</a>
+    <a class="btn btn-small" href="{{ url_for('admin.audit_log', **dict(args, page=page - 1)) }}">{{ _("Previous") }}</a>
+    {% else %}
+    <button class="btn btn-small" type="button" disabled>{{ _("First") }}</button>
+    <button class="btn btn-small" type="button" disabled>{{ _("Previous") }}</button>
+    {% endif %}
+    <span class="small muted">{{ _("Page %(page)s of %(pages)s", page=page, pages=pages) }}</span>
+    {% if page < pages %}
+    <a class="btn btn-small" href="{{ url_for('admin.audit_log', **dict(args, page=page + 1)) }}">{{ _("Next") }}</a>
+    <a class="btn btn-small" href="{{ url_for('admin.audit_log', **dict(args, page=pages)) }}">{{ _("Last") }}</a>
+    {% else %}
+    <button class="btn btn-small" type="button" disabled>{{ _("Next") }}</button>
+    <button class="btn btn-small" type="button" disabled>{{ _("Last") }}</button>
+    {% endif %}
+    {% endif %}
+  </span>
+</nav>
+{% endmacro %}
+
 {% block admin_content %}
 <div class="page-head"><h1>{{ _("Audit") }}</h1>
   <a class="small" href="{{ url_for('settings.section', name='maintenance') }}">{{ _("Retention and cleanup") }}</a></div>
@@ -12,6 +48,7 @@
   <a class="btn btn-ghost" href="{{ url_for('admin.audit_export', user=user_filter or None, action=action_filter or None) }}">{{ _("Export CSV") }}</a>
 </form>
 
+{{ pager('top') }}
 <table class="files small">
   <thead><tr><th>{{ _("Date") }}</th><th>{{ _("User") }}</th><th>{{ _("Action") }}</th><th>{{ _("Object") }}</th>
              <th>IP</th><th>{{ _("Detail") }}</th></tr></thead>
@@ -30,4 +67,6 @@
     {% endfor %}
   </tbody>
 </table>
+
+{{ pager('bottom') }}
 {% endblock %}

@@ -268,16 +268,9 @@ class FTPBackend(RemoteBackend):
                 raise FileExistsError(rel)
             ftp.mkd(self._p(rel))
 
-    def rename(self, rel: str, new_name: str) -> str:
-        rel = clean_rel(rel)
-        new_rel = join_rel(posixpath.dirname(rel), new_name)
+    def _move(self, rel: str, new_rel: str, entry: Entry) -> None:
         with self.client.session() as ftp:
-            if self._stat(ftp, rel) is None:
-                raise FileNotFoundError(rel)
-            if self._stat(ftp, new_rel) is not None:
-                raise FileExistsError(new_name)
             ftp.rename(self._p(rel), self._p(new_rel))
-        return new_rel
 
     def _remove_tree(self, ftp, rel: str) -> None:
         for item in self._entries(ftp, rel):

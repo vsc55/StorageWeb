@@ -66,6 +66,10 @@ En *Mi perfil* ves los dispositivos en los que tienes la sesión abierta y puede
 
 Si necesitas usar tus archivos desde un script, crea un **token de API** en *Mi perfil*: elige si solo puede leer o también escribir, y cuándo caduca. Se muestra una sola vez; guárdalo como una contraseña. Ejemplos de uso en la [guía de seguridad](../administracion/seguridad.md#sesiones-y-tokens-de-api).
 
+Cada token tiene dos acciones: **Rotar** te da un secreto nuevo con el mismo nombre, alcance y caducidad (contada desde hoy) y anula el anterior en el acto; úsalo si crees que alguien lo ha visto, o para renovarlo antes de que caduque. Lo que lo use (un script, la unidad de red, la extensión de VS Code) necesitará el nuevo. **Revocar** lo anula sin crear otro.
+
+Con un token también puedes conectar tus carpetas como **unidad de red** en Windows, macOS o Linux: ver [Unidad de red](unidad-de-red.md). Y con la [extensión de VS Code](vscode.md) puedes trabajar con tus archivos desde el editor y sincronizar una carpeta del equipo; al **iniciar sesión en el navegador** desde ella, StorageWeb te pregunta si la permites y crea un token llamado «Visual Studio Code (*nombre del equipo*)», que puedes revocar aquí como cualquier otro.
+
 ## Cerrar sesión
 
 Pulsa **Salir** arriba a la derecha. Si tu organización lo ha configurado, también se cierra tu sesión de Microsoft.

@@ -23,8 +23,8 @@ from pathlib import Path
 
 from ...i18n import _
 from ...settings import location_types
-from .base import (Backend, BackendError, Entry, RemoteBackend, UnavailableBackend, clean_rel, is_safe_name, join_rel,
-                   name_of, parent_rel)
+from .base import (Backend, BackendError, Entry, RemoteBackend, UnavailableBackend, clean_rel, copy_between,
+                   is_safe_name, join_rel, name_of, parent_rel)
 from .local import LocalBackend
 
 TYPES: dict[str, type[RemoteBackend]] = {}
@@ -106,5 +106,6 @@ def staging_dir(cfg: dict) -> Path:
 discover()
 
 __all__ = ["CLIENT_FACTORIES", "TYPES", "Backend", "BackendError", "Entry", "LocalBackend", "RemoteBackend",
-           "UnavailableBackend", "address", "backend_for", "clean_rel", "clear_clients", "discover", "find_location",
+           "UnavailableBackend", "address", "backend_for", "clean_rel", "clear_clients", "copy_between", "discover",
+           "find_location",
            "is_safe_name", "join_rel", "name_of", "parent_rel", "register", "staging_dir", "type_of"]

@@ -130,8 +130,14 @@
     {% endif %}
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-      <div class="flashes" role="status">
-        {% for cat, msg in messages|unique %}<div class="flash flash-{{ cat }}">{{ msg }}</div>{% endfor %}
+      {# Avisos emergentes abajo a la derecha: los de error se quedan hasta cerrarlos; los demás se van solos (common.js) #}
+      <div class="toasts" aria-live="polite">
+        {% for cat, msg in messages|unique %}
+        <div class="toast toast-{{ cat }}"{% if cat == 'error' %} role="alert"{% else %} role="status"{% endif %}>
+          <span class="toast-text">{{ msg }}</span>
+          <button type="button" class="toast-close" aria-label="{{ _('Close') }}" title="{{ _('Close') }}">×</button>
+        </div>
+        {% endfor %}
       </div>
       {% endif %}
     {% endwith %}

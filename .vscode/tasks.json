@@ -59,6 +59,28 @@
       "presentation": { "reveal": "always", "panel": "shared", "focus": true }
     },
     {
+      "label": "StorageWeb: cambiar contraseña de un usuario",
+      "detail": "Usuarios locales; pide la contraseña nueva en el terminal. También en Personas → Usuarios",
+      "type": "process",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "windows": { "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe" },
+      "args": ["-m", "storageweb", "--config", "config/config.dev.json", "user-passwd", "${input:devUser}"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "focus": true }
+    },
+    {
+      "label": "StorageWeb: empaquetar la extensión de VS Code",
+      "detail": "clients/vscode/dist/storageweb-sync-<versión>.vsix y, si quieres, la instala en este VS Code",
+      "type": "process",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "windows": { "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe" },
+      "args": ["tools/build_vsix.py", "${input:installVsix}"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
       "label": "StorageWeb: tests",
       "type": "process",
       "command": "${workspaceFolder}/.venv/bin/python",
@@ -135,6 +157,16 @@
       "type": "promptString",
       "description": "Nombre del usuario local de pruebas (la contraseña se pedirá en el terminal)",
       "default": "admin"
+    },
+    {
+      "id": "installVsix",
+      "type": "pickString",
+      "description": "¿Instalar la extensión en este VS Code al terminar? (luego, recargar la ventana)",
+      "options": [
+        { "label": "Sí: generar el .vsix e instalarlo", "value": "--install" },
+        { "label": "No: solo generar el .vsix", "value": "--no-install" }
+      ],
+      "default": "--install"
     },
     {
       "id": "devRole",

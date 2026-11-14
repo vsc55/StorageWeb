@@ -35,15 +35,12 @@
           {% if r.read_only %}<span class="pill">{{ _("read-only") }}</span>{% endif %}
         </a>
         {% if is_current %}
+        {# Como el Explorador: en cada nivel del camino, todas sus carpetas; las del camino, desplegadas #}
         <ul class="tree-list">
-          {% for c in crumbs %}
-          <li><a class="tree-item level-{{ [loop.index, 6]|min }}{% if loop.last %} active{% endif %}"
-                 href="{{ url_for('files.browse', root=root.name, sub=c.rel) }}" {% if loop.last %}aria-current="page"{% endif %}>
-            <svg class="icon icon-sm folder-icon" aria-hidden="true"><use href="#i-folder"></use></svg><span class="tree-name">{{ c.name }}</span></a></li>
-          {% endfor %}
-          {% for e in entries if e.is_dir %}
-          <li><a class="tree-item level-{{ [crumbs|length + 1, 6]|min }}" href="{{ url_for('files.browse', root=root.name, sub=e.rel) }}">
-            <svg class="icon icon-sm folder-icon" aria-hidden="true"><use href="#i-folder"></use></svg><span class="tree-name">{{ e.name }}</span></a></li>
+          {% for n in tree %}
+          <li><a class="tree-item level-{{ [n.level, 6]|min }}{% if n.current %} active{% elif n.open %} on-path{% endif %}"
+                 href="{{ url_for('files.browse', root=root.name, sub=n.rel) }}" {% if n.current %}aria-current="page"{% endif %}>
+            <svg class="icon icon-sm folder-icon" aria-hidden="true"><use href="#i-folder"></use></svg><span class="tree-name">{{ n.name }}</span></a></li>
           {% endfor %}
         </ul>
         {% endif %}

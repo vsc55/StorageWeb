@@ -101,10 +101,16 @@
             <span class="muted small"><code>{{ t['prefix'] }}…</code> · {{ SCOPE_LABELS[t['scope']] }} ·
               {{ _("expires %(when)s", when=t['expires_at']|datetime) if t['expires_at'] else _("does not expire") }} ·
               {{ _("last used %(when)s", when=t['last_used_at']|datetime) }}</span></span>
+          <span class="token-actions">
+          <form method="post" action="{{ url_for('profile.token_rotate', token_id=t['id']) }}" class="inline js-confirm"
+                data-confirm="{{ _('Rotate the token «%(name)s»? You get a new secret with the same name, scope and expiry, and the current one stops working at once: whatever uses it (scripts, network drive, VS Code) needs the new one.', name=t['name']) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="link-btn small" type="submit">{{ _("Rotate") }}</button></form>
           <form method="post" action="{{ url_for('profile.token_delete', token_id=t['id']) }}" class="inline js-confirm"
                 data-confirm="{{ _('Revoke the token «%(name)s»?', name=t['name']) }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <button class="link-btn small" type="submit">{{ _("Revoke") }}</button></form></li>
+            <button class="link-btn small" type="submit">{{ _("Revoke") }}</button></form>
+          </span></li>
         {% else %}
         <li class="muted small">{{ _("You have no tokens.") }}</li>
         {% endfor %}
@@ -118,6 +124,19 @@
         </select></label>
         <div class="span2"><button class="btn btn-primary" type="submit">{{ _("Create token") }}</button></div>
       </form>
+    </section>
+    {% endif %}
+
+    {% if webdav and (tokens_enabled or webdav_passwords) %}
+    <section class="card stack" id="webdav" aria-labelledby="webdav-title">
+      <h2 class="card-title" id="webdav-title">{{ _("Network drive") }}</h2>
+      <p class="muted small">{{ _("Your folders as a drive in the file explorer (Windows, macOS, Linux) or with rclone, Cyberduck or WinSCP.") }}</p>
+      <div class="copy-row"><input type="text" readonly value="{{ webdav_url }}" id="webdav-url" class="mono" aria-label="{{ _('Address') }}">
+        <button type="button" class="btn js-copy" data-copy="#webdav-url">{{ _("Copy") }}</button></div>
+      <p class="small">{{ _("User: %(user)s", user=user['username']) }} ·
+        {% if tokens_enabled %}{{ _("Password: an API token (create one above; «read only» if you only need to read).") }}{% endif %}
+        {% if webdav_passwords and own_password %}{{ _("You can also use your password.") }}{% endif %}</p>
+      <p class="muted small">{{ _("Windows: File Explorer → This PC → Map network drive → paste the address. macOS: Finder → Go → Connect to Server.") }}</p>
     </section>
     {% endif %}
   </div>

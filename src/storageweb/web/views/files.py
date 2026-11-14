@@ -4,19 +4,19 @@ Las operaciones van al ``backend`` de cada raíz (disco local, S3 o SMB) con rut
 """
 from __future__ import annotations
 
-import mimetypes
 import secrets
 from datetime import datetime, timezone
 
-from flask import (Blueprint, abort, current_app, flash, g, jsonify, redirect, render_template, request, send_file,
-                   url_for)
+from flask import Blueprint, abort, current_app, flash, g, jsonify, redirect, render_template, request, url_for
 
+from ... import patterns
 from ...core import backends, storage, tokens
 from ...core.permissions import PERMISSION_LABELS, effective_for_root, permissions_for
 from ...core.security import UPLOAD_TMP_PREFIX, PathError, safe_filename
 from ...db.repositories import audit
 from ...i18n import _, ngettext
 from ..context import boot_config, get_db, settings
+from ..downloads import send_entry
 from ..guards import client_ip, login_required
 
 bp = Blueprint("files", __name__)
@@ -31,9 +31,12 @@ def _root(name: str) -> dict:
 
 def _rel(sub: str) -> str:
     try:
-        return backends.clean_rel(sub)
+        rel = backends.clean_rel(sub)
     except PathError:
         abort(404)
+    if storage.is_hidden(settings(), rel):
+        abort(404)  # oculto para todos (storage.hidden): como si no existiera
+    return rel
 
 
 def _stat(root: dict, rel: str):
@@ -95,7 +98,9 @@ def browse(root, sub):
         sort = request.args.get("sort", "name")
         sort = sort if sort in storage.SORT_KEYS else "name"
         descending = request.args.get("order") == "desc"
-        entries = storage.list_directory(r, rel, settings()["storage"]["show_hidden"], sort, descending)
+        hidden = patterns.of(settings())
+        entries = storage.list_directory(r, rel, settings()["storage"]["show_hidden"], sort, descending,
+                                         hidden=hidden)
     except PermissionError:
         abort(403, description=_("The service is not allowed to read this folder."))
     except backends.BackendError as exc:
@@ -108,25 +113,10 @@ def browse(root, sub):
     parent = "/".join(rel.split("/")[:-1]) if rel else None
     return render_template("browse.html", root=r, roots=storage.available_roots(g.user, settings()),
                            rel=rel, crumbs=storage.breadcrumbs(rel), parent=parent, entries=entries,
+                           tree=storage.folder_tree(r, rel, settings()["storage"]["show_hidden"], hidden, entries),
                            perms=_perms(r), max_upload_mb=boot_config()["server"]["max_upload_mb"],
                            sort=sort, descending=descending,
                            max_file_size_mb=settings()["storage"]["max_file_size_mb"])
-
-
-def _stream(root: dict, rel: str, name: str):
-    """Descarga desde S3 o SMB: el fichero remoto con ``seek`` sirve rangos (reanudar, vídeo)."""
-    try:
-        fh, size, mtime = root["backend"].open(rel)
-    except FileNotFoundError:
-        abort(404)
-    except backends.BackendError as exc:
-        abort(502, description=exc.message)
-    rv = send_file(fh, as_attachment=True, download_name=name, conditional=False, max_age=0,
-                   mimetype=mimetypes.guess_type(name)[0] or "application/octet-stream")
-    rv.content_length = size  # send_file no sabe el tamaño de un fichero que no está en disco
-    rv.last_modified = datetime.fromtimestamp(mtime, timezone.utc) if mtime else None
-    rv.set_etag(f"{int(mtime)}-{size}")
-    return rv.make_conditional(request.environ, accept_ranges=True, complete_length=size)
 
 
 @bp.route("/download/<root>/<path:sub>")
@@ -139,10 +129,7 @@ def download(root, sub):
     if entry is None or entry.is_dir:
         abort(404)
     _audit("download", r, rel)
-    local = r["backend"].local_path(rel)
-    if local is not None:
-        return send_file(local, as_attachment=True, download_name=local.name, conditional=True, max_age=0)
-    return _stream(r, rel, entry.name)
+    return send_entry(r, rel, entry)
 
 
 @bp.route("/upload/<root>/", defaults={"sub": ""}, methods=["POST"])
@@ -161,6 +148,7 @@ def upload(root, sub):
             continue
         try:
             name = safe_filename(item.filename)
+            storage.check_visible_name(settings(), backends.join_rel(rel, name))
         except ValueError as exc:
             errors.append(f"{item.filename}: {exc}")
             continue
@@ -204,6 +192,7 @@ def mkdir(root, sub):
     try:
         name = safe_filename(request.form.get("name", ""))
         new_rel = backends.join_rel(rel, name)
+        storage.check_visible_name(settings(), new_rel)
         r["backend"].mkdir(new_rel)
         _audit("mkdir", r, new_rel)
         flash(_("Folder «%(name)s» created.", name=name), "info")
@@ -227,6 +216,7 @@ def rename(root, sub):
     parent = backends.parent_rel(rel)
     try:
         new_name = safe_filename(request.form.get("name", ""))
+        storage.check_visible_name(settings(), backends.join_rel(parent, new_name))
         r["backend"].rename(rel, new_name)
         _audit("rename", r, rel, detail=new_name)
         flash(_("Renamed."), "info")

@@ -12,7 +12,6 @@ from __future__ import annotations
 import base64
 import hashlib
 import io
-import posixpath
 import stat as statmod
 import threading
 from pathlib import Path
@@ -219,19 +218,11 @@ class SFTPBackend(RemoteBackend):
         except OSError as exc:
             raise _error(exc) from exc
 
-    def rename(self, rel: str, new_name: str) -> str:
-        rel = clean_rel(rel)
-        new_rel = join_rel(posixpath.dirname(rel), new_name)
-        if self.stat(rel) is None:
-            raise FileNotFoundError(rel)
-        if self.exists(new_rel):
-            raise FileExistsError(new_name)
-        sftp = self._sftp()
+    def _move(self, rel: str, new_rel: str, entry: Entry) -> None:
         try:
-            sftp.rename(self._p(rel), self._p(new_rel))
+            self._sftp().rename(self._p(rel), self._p(new_rel))
         except OSError as exc:
             raise _error(exc) from exc
-        return new_rel
 
     def _remove_tree(self, sftp, rel: str) -> None:
         for item in self.listdir(rel):

@@ -48,6 +48,28 @@ def create(conn: Connection, user, *, name: str, scope: str, days: int) -> tuple
     return plain, token_id
 
 
+def original_days(token) -> int:
+    """La caducidad con la que se creó (la más cercana de EXPIRY_DAYS); 0 = no caduca."""
+    if not token["expires_at"]:
+        return 0
+    try:
+        span = datetime.fromisoformat(token["expires_at"]) - datetime.fromisoformat(token["created_at"])
+    except (TypeError, ValueError):
+        return 90
+    days = span.total_seconds() / 86400
+    return min((d for d in EXPIRY_DAYS if d), key=lambda d: abs(d - days))
+
+
+def rotate(conn: Connection, user, token) -> tuple[str, int]:
+    """Cambia el secreto de un token: uno nuevo con el mismo nombre, alcance y caducidad (contada desde hoy), y
+    el anterior deja de valer. Solo el dueño (el admin no debe ver el secreto de otro). Devuelve (en claro, id)."""
+    if token is None or token["user_id"] != user["id"]:
+        raise TokenError(_("Token not found."))
+    plain, token_id = create(conn, user, name=token["name"], scope=token["scope"], days=original_days(token))
+    repo.delete(conn, token["id"])
+    return plain, token_id
+
+
 def authenticate(conn: Connection, plain: str, ip: str | None = None):
     """Devuelve (usuario, token) o None si el token no existe, caducó o su usuario está desactivado."""
     if not plain or not plain.startswith(PREFIX) or len(plain) > 100:

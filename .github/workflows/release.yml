@@ -1,7 +1,8 @@
 name: Release
 
 # Al publicar un tag vX.Y.Z (p. ej. `git tag v1.2.0 && git push origin v1.2.0`) se ejecutan los tests,
-# se generan wheel, zip, tar.gz, deb, rpm y el overlay de Gentoo, se publica la imagen Docker en
+# se generan wheel, zip, tar.gz, deb, rpm, el overlay de Gentoo y la extensión de VS Code (.vsix, con la
+# misma versión), se publica la imagen Docker en
 # ghcr.io/<owner>/<repo>, se publica la documentación en GitHub Pages y se crea la release de GitHub.
 # También se puede lanzar a mano (Actions > Release > Run workflow) para probar el build sin publicar.
 on:
@@ -58,6 +59,12 @@ jobs:
           VENDOR: ${{ github.repository_owner }}
           HOMEPAGE: ${{ github.server_url }}/${{ github.repository }}
         run: bash packaging/build.sh "${{ steps.version.outputs.version }}" amd64 arm64
+
+      - name: Extensión de VS Code (.vsix)
+        run: |
+          python tools/build_vsix.py --version "${{ steps.version.outputs.version }}" --out dist
+          unzip -p "dist/storageweb-sync-${{ steps.version.outputs.version }}.vsix" extension/package.json \
+            | grep -q '"version": "${{ steps.version.outputs.version }}"'
 
       - name: Inspeccionar paquetes
         run: |

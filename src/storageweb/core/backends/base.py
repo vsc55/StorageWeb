@@ -9,6 +9,7 @@ from __future__ import annotations
 import io
 import posixpath
 import re
+import secrets
 import shutil
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
@@ -17,7 +18,7 @@ from typing import BinaryIO
 
 from ...i18n import _
 from ...settings.location_types import LocationSchema
-from ..security import PathError
+from ..security import UPLOAD_TMP_PREFIX, PathError
 
 
 @dataclass
@@ -186,8 +187,8 @@ class Backend:
         """Crea una carpeta. :class:`FileExistsError` si ya existe algo con ese nombre."""
         raise NotImplementedError
 
-    def rename(self, rel: str, new_name: str) -> str:
-        """Renombra dentro de la misma carpeta y devuelve la ruta nueva."""
+    def _move(self, rel: str, new_rel: str, entry: Entry) -> None:
+        """Mueve ``rel`` a ``new_rel`` (ya comprobado: existe, el destino está libre y su carpeta existe)."""
         raise NotImplementedError
 
     def delete(self, rel: str) -> None:
@@ -206,6 +207,39 @@ class Backend:
         raise NotImplementedError
 
     # ------------------------------------------------------------------ comunes
+    def move(self, rel: str, new_rel: str) -> str:
+        """Mueve o renombra dentro de la misma raíz y devuelve la ruta nueva.
+
+        :class:`FileNotFoundError` si no existe el origen o la carpeta de destino,
+        :class:`FileExistsError` si el destino ya existe y :class:`BackendError` si se intenta meter
+        una carpeta dentro de sí misma.
+        """
+        rel, new_rel = clean_rel(rel), clean_rel(new_rel)
+        if not rel or not new_rel:
+            raise PathError(rel or new_rel)
+        if new_rel == rel or new_rel.startswith(rel + "/"):
+            raise BackendError(_("A folder cannot be moved or copied inside itself."))
+        entry = self.stat(rel)
+        if entry is None:
+            raise FileNotFoundError(rel)
+        if self.exists(new_rel):
+            raise FileExistsError(name_of(new_rel))
+        if not self.is_dir(parent_rel(new_rel)):
+            raise FileNotFoundError(parent_rel(new_rel))
+        self._move(rel, new_rel, entry)
+        return new_rel
+
+    def rename(self, rel: str, new_name: str) -> str:
+        """Renombra dentro de la misma carpeta y devuelve la ruta nueva."""
+        if not is_safe_name(new_name):
+            raise PathError(new_name)
+        return self.move(rel, join_rel(parent_rel(rel), new_name))
+
+    def copy(self, rel: str, new_rel: str) -> str:
+        """Copia un archivo o una carpeta (con todo) dentro de la misma raíz."""
+        copy_between(self, rel, self, new_rel)
+        return clean_rel(new_rel)
+
     def check(self) -> None:
         """Comprueba la conexión y el acceso a la raíz; :class:`BackendError` si falla."""
         if not self.root_exists():
@@ -309,3 +343,37 @@ class RemoteBackend(Backend):
     def missing_library(cls, library: str) -> BackendError:
         return BackendError(_("%(type)s needs the %(library)s library: pip install 'storageweb[%(extra)s]'.",
                               type=cls.schema.short_label, library=library, extra=cls.schema.extra))
+
+
+def copy_between(src: Backend, src_rel: str, dst: Backend, dst_rel: str) -> None:
+    """Copia de un backend a otro (o al mismo): un archivo, o una carpeta con todo su contenido.
+
+    Los archivos pasan por la zona local del destino (``staging_dir``) y se guardan con ``store``, así
+    que funciona entre cualquier par de almacenamientos (disco, S3, SFTP…).
+    """
+    src_rel, dst_rel = clean_rel(src_rel), clean_rel(dst_rel)
+    if not dst_rel:
+        raise PathError(dst_rel)
+    if src is dst and (dst_rel == src_rel or dst_rel.startswith(src_rel + "/")):
+        raise BackendError(_("A folder cannot be moved or copied inside itself."))
+    entry = src.stat(src_rel)
+    if entry is None:
+        raise FileNotFoundError(src_rel)
+    if dst.exists(dst_rel):
+        raise FileExistsError(name_of(dst_rel))
+    if not dst.is_dir(parent_rel(dst_rel)):
+        raise FileNotFoundError(parent_rel(dst_rel))
+    if entry.is_dir:
+        dst.mkdir(dst_rel)
+        for child in src.listdir(src_rel):
+            if is_safe_name(child.name) and not child.name.startswith(UPLOAD_TMP_PREFIX):
+                copy_between(src, join_rel(src_rel, child.name), dst, join_rel(dst_rel, child.name))
+        return
+    tmp = dst.staging_dir(parent_rel(dst_rel)) / f"{UPLOAD_TMP_PREFIX}{secrets.token_hex(8)}.part"
+    try:
+        fh, _size, _mtime = src.open(src_rel)
+        with fh, open(tmp, "wb") as out:
+            shutil.copyfileobj(fh, out, 1024 * 1024)
+        dst.store(tmp, dst_rel)
+    finally:
+        tmp.unlink(missing_ok=True)

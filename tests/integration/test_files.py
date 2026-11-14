@@ -317,3 +317,20 @@ def test_row_data_for_details_panel(logged, home):
     assert 'data-name="informe.pdf"' in html and 'data-dir="0"' in html
     assert 'data-kind="Archivo PDF"' in html and 'data-size="1,5 KB"' in html
     assert 'data-href="/download/home/informe.pdf"' in html
+
+
+def test_folder_tree_shows_siblings_on_every_level(logged, home):
+    """El árbol de la izquierda, como el Explorador: al entrar en una carpeta no desaparecen sus hermanas."""
+    import re
+    client, _ = logged
+    for rel in ("Codigo/src/app", "Codigo/docs", "Prueba/x", "Otra"):
+        (home / rel).mkdir(parents=True, exist_ok=True)
+    (home / "suelto.txt").write_bytes(b"x")
+    html = client.get("/f/home/Codigo/src/").get_data(as_text=True)
+    tree = html[html.index('class="tree"'):html.index('class="listing"')]
+    names = re.findall(r'level-(\d) ?([a-z-]*)"[^>]*>\s*<svg[^>]*>.*?</svg><span class="tree-name">([^<]+)<', tree, re.S)
+    assert [(lvl, name) for lvl, _cls, name in names] == [
+        ("1", "Codigo"), ("2", "docs"), ("2", "src"), ("3", "app"), ("1", "Otra"), ("1", "Prueba")]
+    states = {name: cls for _lvl, cls, name in names}
+    assert states["src"] == "active" and states["Codigo"] == "on-path" and states["Prueba"] == ""
+    assert "suelto.txt" not in tree, "solo carpetas"

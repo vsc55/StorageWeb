@@ -19,6 +19,7 @@ Un ADR (*Architecture Decision Record*) explica **por qué** se tomó una decisi
 | [0013](0013-capas-de-configuracion.md) | Capas de configuración: web < config.json < entorno | Aceptada |
 | [0014](0014-almacenamiento-externo.md) | Almacenamiento externo: backends por raíz | Aceptada |
 | [0015](0015-extensiones-que-se-descubren.md) | Extensiones que se registran solas | Aceptada |
+| [0016](0016-conectar-aplicaciones-con-el-navegador.md) | Conectar aplicaciones iniciando sesión en el navegador (PKCE) | Aceptada |
 
 ## Cómo proponer uno
 

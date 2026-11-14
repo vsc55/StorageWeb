@@ -88,10 +88,20 @@ FIELDS: dict[str, Field] = {
         page="storage",
         words="compartidas crear shares"),
     "storage.show_hidden": Field(
-        doc="Mostrar archivos y carpetas que empiezan por punto.",
+        doc="Mostrar en la web los archivos y carpetas que empiezan por punto. La unidad de red (WebDAV) los muestra siempre.",
         label=_l("Show hidden files"),
         page="storage",
         words="ocultos punto hidden dotfiles"),
+    "storage.hidden": Field(
+        doc="Archivos y carpetas **ocultos para todos**: no se listan ni se pueden abrir ni crear, ni en la web ni por "
+            "WebDAV ni por la API (la extensión de VS Code tampoco los sincroniza). Patrones como los de `.gitignore`, "
+            "sobre la ruta dentro de cada carpeta: `Thumbs.db`, `*.tmp` (en cualquier sitio), `.git/` (solo carpetas), "
+            "`/privado` (desde la raíz). Los archivos siguen en el disco. Es para no mostrar cosas (basura del sistema, "
+            "carpetas técnicas), no un control de acceso: para eso, los permisos de las carpetas. La lista no se envía a "
+            "los clientes.",
+        label=_l("Hidden for everyone"),
+        page="storage",
+        words="ocultar ocultos patrones ignorar gitignore excluir hidden"),
     "storage.max_file_size_mb": Field(
         doc="Tamaño máximo por archivo en MB; `0` = sin límite.",
         label=_l("Maximum size per file (MB)"),
@@ -184,6 +194,19 @@ FIELDS: dict[str, Field] = {
         label=_l("Allow personal API tokens"),
         page="security",
         words="api tokens scripts"),
+    "security.webdav": Field(
+        doc=("Unidad de red: servidor WebDAV en `/dav/` (Windows, macOS, Linux, rclone…). Se entra con el nombre "
+             "de usuario y un token de API como contraseña. Necesita `api_tokens` salvo que se admita la "
+             "contraseña de la cuenta."),
+        label=_l("Network drive (WebDAV)"),
+        page="security",
+        words="webdav unidad red network drive dav rclone mapear windows finder"),
+    "security.webdav_passwords": Field(
+        doc=("Admitir también la contraseña de la cuenta (usuarios locales y PAM) en WebDAV. Desactivado: solo "
+             "tokens, que se pueden revocar y limitar a lectura."),
+        label=_l("Also accept the account password in WebDAV"),
+        page="security",
+        words="webdav contraseña password"),
     "maintenance.audit_retention_days": Field(
         doc="Días que se conserva la auditoría; `0` = siempre. La limpieza se hace una vez al día.",
         label=_l("Keep the audit log (days)"),

@@ -259,7 +259,7 @@ def test_msal_provider(entra_app, monkeypatch):
     client = entra_app(provider="msal", scopes=["openid", "User.Read"]).test_client()
     resp = client.get("/auth/entra/login")
     assert resp.location.startswith("https://login.microsoftonline.com/")
-    assert client.get("/auth/entra/callback?code=x&state=zzz").location.endswith("/login")
+    assert client.get("/auth/entra/callback?code=x&state=zzz").location.endswith("/login?manual=1")
     client.get("/auth/entra/login")
     assert client.get("/auth/entra/callback?code=x&state=abc").location == "/"
 
@@ -271,3 +271,38 @@ def test_msal_unreachable(entra_app, monkeypatch):
     client = entra_app(provider="msal").test_client()
     resp = client.get("/auth/entra/login")
     assert "/login" in resp.location
+
+
+# --------------------------------------------------------------------------- entrar directamente con Microsoft
+
+def test_auto_login(entra_app, token_endpoint):
+    app = entra_app(auto_login=True)
+    client = app.test_client()
+    # /login (y cualquier página protegida) van directamente a Microsoft, conservando «next»
+    resp = client.get("/login?next=/f/home/")
+    assert resp.status_code == 302 and resp.location.startswith("/auth/entra/login") and "next=/f/home/" in resp.location
+    assert client.get("/f/home/").location.startswith("/login")
+    # ?manual=1 muestra la página (usuarios locales, rescate)
+    page = client.get("/login?manual=1").get_data(as_text=True)
+    assert 'name="password"' in page and "Microsoft" in page
+    # Entrar, salir: tras salir no se vuelve a entrar solo
+    _url, q = start_login(client, token_endpoint)
+    assert finish_login(client, q["state"]).status_code == 302
+    csrf = get_csrf(client, "/f/home/")
+    resp = client.post("/logout", data={"_csrf": csrf})
+    assert resp.location.endswith("/login?manual=1")
+    # Un error del proveedor tampoco entra en bucle
+    _url, q = start_login(client, token_endpoint)
+    resp = client.get(f"/auth/entra/callback?state={q['state']}&error=access_denied")
+    assert "manual=1" in resp.location
+    # Con la opción desactivada, /login muestra la página
+    assert entra_app().test_client().get("/login").status_code == 200
+
+
+def test_auto_login_setting_in_the_admin(entra_app):
+    from tests.helpers import login
+    app = entra_app()
+    add_user(app, "root", role="admin")
+    client = app.test_client()
+    login(client, "root")
+    assert 'name="entra_auto_login"' in client.get("/admin/settings/auth").get_data(as_text=True)

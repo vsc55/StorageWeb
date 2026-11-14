@@ -10,6 +10,7 @@
 .tree-item { display: flex; align-items: center; gap: 7px; padding: 6px 8px; border-radius: 6px; color: var(--fg); }
 .tree-item:hover { text-decoration: none; background: var(--bg-hover); }
 .tree-item.active { background: var(--primary-soft); color: var(--primary-ink); font-weight: 600; }
+.tree-item.on-path { font-weight: 600; }  /* carpetas por encima de la actual */
 .tree-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tree-item.level-1 { padding-left: 28px; } .tree-item.level-2 { padding-left: 44px; }
 .tree-item.level-3 { padding-left: 60px; } .tree-item.level-4 { padding-left: 76px; }

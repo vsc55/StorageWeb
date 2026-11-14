@@ -32,6 +32,12 @@ def login():
         return redirect(safe_next(request.args.get("next")))
     form_enabled = bool(_enabled(cfg, sso=False))
     next_url = request.values.get("next", "")
+    if request.method == "GET" and not request.args.get("manual"):
+        # Entrar directamente con el proveedor SSO (en un equipo unido a Entra ID, sin escribir nada).
+        # Tras salir o tras un error se vuelve con «?manual=1»: si no, se entraría otra vez en bucle.
+        auto = next((m for m in _enabled(cfg, sso=True) if m.section(cfg).get("auto_login")), None)
+        if auto is not None:
+            return redirect(url_for("auth.sso_login", method=auto.key, next=next_url))
 
     if request.method == "POST" and form_enabled:
         username = (request.form.get("username") or "").strip()
@@ -81,11 +87,11 @@ def logout():
     end_session()
     cfg = settings()
     if method is not None and method.sso and method.enabled(cfg):
-        url = method.logout_url(method.section(cfg), external_url("auth.login"))
+        url = method.logout_url(method.section(cfg), external_url("auth.login", manual=1))
         if url:  # cerrar también la sesión en el proveedor
             return redirect(url)
     flash(_("You have signed out."), "info")
-    return redirect(url_for("auth.login"))
+    return redirect(url_for("auth.login", manual=1))
 
 
 def redirect_uri(key: str, section: dict) -> str:
@@ -106,14 +112,14 @@ def sso_login(method: str):
     m = _sso_method(method)
     cfg = settings()
     if not m.enabled(cfg):
-        return redirect(url_for("auth.login"))
+        return redirect(url_for("auth.login", manual=1))
     section = m.section(cfg)
     try:
         auth_url, flow = m.begin(section, redirect_uri(m.key, section))
     except Exception:  # p. ej. MSAL sin conexión al descubrir la autoridad
         current_app.logger.exception("Could not start the SSO login")
         flash(_("Could not contact the identity provider."), "error")
-        return redirect(url_for("auth.login"))
+        return redirect(url_for("auth.login", manual=1))
     session["sso"] = {"method": m.key, "flow": flow, "next": request.args.get("next", "")}
     return redirect(auth_url)
 
@@ -123,23 +129,23 @@ def sso_callback(method: str):
     m = _sso_method(method)
     cfg = settings()
     if not m.enabled(cfg):
-        return redirect(url_for("auth.login"))
+        return redirect(url_for("auth.login", manual=1))
     ip = client_ip()
     pending = session.pop("sso", None) or {}
     if not pending.get("flow") or pending.get("method") != m.key:
         flash(_("The sign-in session expired. Try again."), "error")
-        return redirect(url_for("auth.login"))
+        return redirect(url_for("auth.login", manual=1))
     try:
         user = accounts.complete_sso(get_db(), cfg, m.key, pending["flow"], request.args.to_dict(), ip=ip)
     except SSOError as exc:
         current_app.logger.warning("SSO error: %s", exc)
         audit.log(get_db(), "login_failed", ip=ip, detail=f"{m.key}:{exc.code}")
         flash(_("Could not sign in with %(method)s.", method=m.label), "error")
-        return redirect(url_for("auth.login"))
+        return redirect(url_for("auth.login", manual=1))
     except accounts.AccountError as exc:
         audit.log(get_db(), "login_denied", ip=ip, detail=f"{m.key}:{exc.code}")
         flash(exc.message, "error")
-        return redirect(url_for("auth.login"))
+        return redirect(url_for("auth.login", manual=1))
 
     start_session(user)
     audit.log(get_db(), "login", username=user["username"], ip=ip, detail=m.key)

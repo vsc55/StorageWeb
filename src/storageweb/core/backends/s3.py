@@ -179,14 +179,7 @@ class S3Backend(RemoteBackend):
         self.client.copy_object(Bucket=self.bucket, Key=dst, CopySource={"Bucket": self.bucket, "Key": src})
         self.client.delete_object(Bucket=self.bucket, Key=src)
 
-    def rename(self, rel: str, new_name: str) -> str:
-        rel = clean_rel(rel)
-        new_rel = join_rel(rel.rpartition("/")[0], new_name)
-        entry = self.stat(rel)
-        if entry is None:
-            raise FileNotFoundError(rel)
-        if self.exists(new_rel):
-            raise FileExistsError(new_name)
+    def _move(self, rel: str, new_rel: str, entry: Entry) -> None:
         try:
             if entry.is_dir:
                 old_prefix, new_prefix = self._dir_prefix(rel), self._dir_prefix(new_rel)
@@ -196,7 +189,6 @@ class S3Backend(RemoteBackend):
                 self._copy_delete(self._key(rel), self._key(new_rel))
         except Exception as exc:  # noqa: BLE001
             raise _error(exc) from exc
-        return new_rel
 
     def delete(self, rel: str) -> None:
         entry = self.stat(rel)

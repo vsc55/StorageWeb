@@ -23,8 +23,8 @@ El workflow `release.yml` hace el resto:
 
 | Job | Qué hace |
 |---|---|
-| `tests` | Toda la CI: tests en 3 sistemas, scripts, wheel, imagen Docker, documentación y traducciones |
-| `build` | Wheel, zip y tar.gz, `.deb` y `.rpm` (amd64 y arm64) y overlay de Gentoo. Instala el `.deb` en el runner y lo prueba |
+| `tests` | Toda la CI: tests en 3 sistemas, scripts, wheel, imagen Docker, extensión de VS Code, documentación y traducciones |
+| `build` | Wheel, zip y tar.gz, `.deb` y `.rpm` (amd64 y arm64), overlay de Gentoo y la extensión de VS Code (`storageweb-sync-X.Y.Z.vsix`, con la misma versión). Instala el `.deb` en el runner y lo prueba |
 | `docker` | Imagen multi-arquitectura en `ghcr.io/<owner>/<repo>` (`X.Y.Z`, `X.Y`, `latest`) |
 | `gentoo` | `emerge` del ebuild en `gentoo/stage3`. Informativo: no bloquea la release |
 | `docs` | Publica la documentación en GitHub Pages |

@@ -162,29 +162,21 @@ class AzureBlobBackend(RemoteBackend):
         except Exception as exc:  # noqa: BLE001
             raise _error(exc) from exc
 
-    def _move(self, src: str, dst: str) -> None:
+    def _move_blob(self, src: str, dst: str) -> None:
         downloader = self.container.download_blob(src)
         self.container.upload_blob(dst, IterStream(downloader.chunks()), overwrite=False, length=downloader.size)
         self.container.delete_blob(src)
 
-    def rename(self, rel: str, new_name: str) -> str:
-        rel = clean_rel(rel)
-        new_rel = join_rel(rel.rpartition("/")[0], new_name)
-        entry = self.stat(rel)
-        if entry is None:
-            raise FileNotFoundError(rel)
-        if self.exists(new_rel):
-            raise FileExistsError(new_name)
+    def _move(self, rel: str, new_rel: str, entry: Entry) -> None:
         try:
             if entry.is_dir:
                 old_prefix, new_prefix = self._dir_prefix(rel), self._dir_prefix(new_rel)
                 for name in self._names_under(old_prefix):
-                    self._move(name, new_prefix + name[len(old_prefix):])
+                    self._move_blob(name, new_prefix + name[len(old_prefix):])
             else:
-                self._move(self._key(rel), self._key(new_rel))
+                self._move_blob(self._key(rel), self._key(new_rel))
         except Exception as exc:  # noqa: BLE001
             raise _error(exc) from exc
-        return new_rel
 
     def delete(self, rel: str) -> None:
         entry = self.stat(rel)

@@ -1,4 +1,6 @@
 """Copias de seguridad y restauración (sin Flask)."""
+from __future__ import annotations
+
 import io
 import json
 import os

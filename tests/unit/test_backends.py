@@ -78,6 +78,48 @@ def test_store_list_open_and_seek(backend, tmp_path):
         backend.open("docs/sub")
 
 
+def test_move_and_copy(backend, tmp_path):
+    backend.ensure_root()
+    backend.mkdir("a")
+    backend.mkdir("b")
+    _put(backend, tmp_path, "a/f.txt", b"uno")
+    backend.mkdir("a/sub")
+    _put(backend, tmp_path, "a/sub/g.txt", b"dos")
+    # Mover un archivo a otra carpeta y una carpeta entera dentro de otra
+    assert backend.move("a/f.txt", "b/f.txt") == "b/f.txt"
+    assert backend.stat("a/f.txt") is None and backend.is_file("b/f.txt")
+    backend.move("a/sub", "b/sub")
+    assert backend.is_file("b/sub/g.txt") and backend.stat("a/sub") is None
+    with pytest.raises(FileExistsError):
+        backend.move("b/f.txt", "b/sub/g.txt")
+    with pytest.raises(FileNotFoundError):
+        backend.move("b/f.txt", "no-existe/f.txt")
+    with pytest.raises(BackendError):
+        backend.move("b", "b/sub/b")  # una carpeta dentro de sí misma
+    # Copiar un archivo y una carpeta con su contenido
+    backend.copy("b/f.txt", "a/copia.txt")
+    backend.copy("b", "a/b2")
+    fh, _, _ = backend.open("a/b2/sub/g.txt")
+    with fh:
+        assert fh.read() == b"dos"
+    assert backend.is_file("b/f.txt") and backend.is_file("a/copia.txt")
+    with pytest.raises(BackendError):
+        backend.copy("a", "a/dentro")
+
+
+def test_copy_between_backends(backend, tmp_path):
+    """De cualquier almacenamiento al disco local (y vuelta): lo que hace WebDAV entre carpetas."""
+    backend.ensure_root()
+    backend.mkdir("d")
+    _put(backend, tmp_path, "d/x.bin", bytes(range(256)) * 50)
+    (tmp_path / "otro").mkdir()
+    local = LocalBackend(tmp_path / "otro", tmp_path / "st2")
+    backends.copy_between(backend, "d", local, "copia")
+    assert (tmp_path / "otro" / "copia" / "x.bin").read_bytes() == bytes(range(256)) * 50
+    backends.copy_between(local, "copia/x.bin", backend, "d/vuelta.bin")
+    assert backend.stat("d/vuelta.bin").size == 256 * 50
+
+
 def test_unique_rel_rename_and_delete(backend, tmp_path):
     backend.ensure_root()
     _put(backend, tmp_path, "a.txt", b"1")

@@ -1,7 +1,7 @@
 """Páginas de error traducidas (las descripciones de Werkzeug están en inglés)."""
 from __future__ import annotations
 
-from flask import Flask, render_template
+from flask import Flask, Response, render_template, request
 from werkzeug.exceptions import HTTPException
 
 from ..core.security import PathError
@@ -32,6 +32,8 @@ def _render_error(code: int, name, description: str | None):
 def register_error_handlers(app: Flask) -> None:
     @app.errorhandler(HTTPException)
     def handle_http_error(exc: HTTPException):
+        if request.blueprint == "dav":  # WebDAV: solo el código, sin la página (los clientes no la muestran)
+            return Response(f"{exc.code} {exc.name}", exc.code, mimetype="text/plain")
         # Si la descripción es la genérica de Werkzeug (en inglés), se usa la traducida
         description = exc.description
         if description == type(exc).description:

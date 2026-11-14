@@ -346,6 +346,31 @@ def test_audit_page_filters(app, admin):
     assert "nadie" not in html
 
 
+def test_audit_pagination(app, admin):
+    from storageweb.db.repositories import audit as audit_repo
+    client, _ = admin
+    with app.app_context():
+        conn = get_db()
+        for i in range(250):
+            audit_repo.log(conn, "upload", f"home:/archivo-{i:03d}.txt", username="ana", ip="127.0.0.1")
+    html = client.get("/admin/audit?user=ana").get_data(as_text=True)
+    assert "archivo-249" in html and "archivo-150" in html and "archivo-149" not in html  # 100 por página
+    assert "de 250" in html and "Página 1 de 3" in html
+    html = client.get("/admin/audit?user=ana&page=3").get_data(as_text=True)
+    assert "archivo-049" in html and "archivo-000" in html and "archivo-050" not in html
+    assert "201–250 de 250" in html
+    assert "user=ana" in html and "page=2" in html          # los enlaces conservan el filtro
+    assert "archivo-000" in client.get("/admin/audit?user=ana&page=99").get_data(as_text=True)  # la última
+    assert html.count('aria-label="Páginas"') == 2, "encima y debajo de la tabla"
+
+    # Registros por página: los elegidos, y se mantienen al pasar de página
+    html = client.get("/admin/audit?user=ana&per_page=25").get_data(as_text=True)
+    assert "Página 1 de 10" in html and "archivo-225" in html and "archivo-224" not in html
+    assert 'value="25" selected' in html and "per_page=25" in html and "page=2" in html
+    assert "Página 1 de 3" in client.get("/admin/audit?user=ana&per_page=7").get_data(as_text=True)  # no válido: 100
+    assert "Página 1 de 1" not in client.get("/admin/audit?user=ana&per_page=500").get_data(as_text=True)
+
+
 # --------------------------------------------------------------------------- activar / desactivar
 
 def _toggle(client, token, uid, enabled, **extra):

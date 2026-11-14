@@ -207,3 +207,36 @@ def test_own_session_can_be_closed_from_the_list(app, admin):
     assert '<div class="muted small">root</div>' not in html  # el usuario no se repite si es el nombre visible
     client.post("/logout", data={"_csrf": token})
     assert _sessions(app) == [] and client.get("/f/home/").status_code == 302
+
+
+def test_rotate_token(app, client, user_token):
+    """Rotar: secreto nuevo con el mismo nombre, alcance y caducidad; el anterior deja de valer en el acto."""
+    from storageweb.db.repositories import api_tokens, audit
+    old = user_token("read")
+    api = app.test_client()
+    assert api.get("/f/home/", headers=_bearer(old)).status_code == 200
+    with app.app_context():
+        user = users.get_by_username(get_db(), "ana")
+        [before] = api_tokens.list_for_user(get_db(), user["id"])
+    csrf = get_csrf(client, "/profile")
+    resp = client.post(f"/profile/tokens/{before['id']}/rotate", data={"_csrf": csrf})
+    assert resp.status_code == 302 and resp.location.endswith("/profile#tokens")
+    html = client.get("/profile").get_data(as_text=True)
+    new = re.search(r'value="(sw_[A-Za-z0-9_\-]+)"', html).group(1)
+    assert new != old and "rotado" in html
+    assert api.get("/f/home/", headers=_bearer(old)).status_code == 401, "el anterior ya no vale"
+    resp = api.get("/f/home/", headers=_bearer(new))
+    assert resp.status_code == 200 and resp.get_json()["permissions"] == ["download"], "mismo alcance"
+    with app.app_context():
+        [after] = api_tokens.list_for_user(get_db(), user["id"])
+        assert after["name"] == "script-read" and after["scope"] == "read" and after["id"] != before["id"]
+        assert after["expires_at"] and after["expires_at"] > before["expires_at"][:10]
+        assert "api_token_rotated" in [r["action"] for r in audit.recent(get_db(), 5)]
+
+    # De otro usuario, no: 404 (y su token sigue valiendo)
+    add_user(app, "otro")
+    other = app.test_client()
+    login(other, "otro")
+    assert other.post(f"/profile/tokens/{after['id']}/rotate",
+                      data={"_csrf": get_csrf(other, "/profile")}).status_code == 404
+    assert api.get("/f/home/", headers=_bearer(new)).status_code == 200

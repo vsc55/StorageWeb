@@ -1,0 +1,525 @@
+{
+  "name": "storageweb-sync",
+  "displayName": "StorageWeb",
+  "description": "%description%",
+  "version": "0.4.0",
+  "publisher": "storageweb",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "storageweb",
+    "webdav",
+    "sync",
+    "sincronizar"
+  ],
+  "main": "./src/extension.js",
+  "l10n": "./l10n",
+  "activationEvents": [
+    "onStartupFinished",
+    "onFileSystem:storageweb"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "%untrusted%"
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "storageweb.link",
+        "title": "%cmd.link%",
+        "category": "StorageWeb",
+        "icon": "$(link)"
+      },
+      {
+        "command": "storageweb.syncNow",
+        "title": "%cmd.syncNow%",
+        "category": "StorageWeb",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "storageweb.openInBrowser",
+        "title": "%cmd.openInBrowser%",
+        "category": "StorageWeb",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "storageweb.showLog",
+        "title": "%cmd.showLog%",
+        "category": "StorageWeb",
+        "icon": "$(output)"
+      },
+      {
+        "command": "storageweb.unlink",
+        "title": "%cmd.unlink%",
+        "category": "StorageWeb",
+        "icon": "$(debug-disconnect)"
+      },
+      {
+        "command": "storageweb.signOut",
+        "title": "%cmd.signOut%",
+        "category": "StorageWeb"
+      },
+      {
+        "command": "storageweb.menu",
+        "title": "%cmd.menu%",
+        "category": "StorageWeb"
+      },
+      {
+        "command": "storageweb.addServer",
+        "title": "%cmd.addServer%",
+        "category": "StorageWeb",
+        "icon": "$(add)"
+      },
+      {
+        "command": "storageweb.editServer",
+        "title": "%cmd.editServer%",
+        "category": "StorageWeb",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "storageweb.setToken",
+        "title": "%cmd.setToken%",
+        "category": "StorageWeb",
+        "icon": "$(key)"
+      },
+      {
+        "command": "storageweb.removeServer",
+        "title": "%cmd.removeServer%",
+        "category": "StorageWeb",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "storageweb.refresh",
+        "title": "%cmd.refresh%",
+        "category": "StorageWeb",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "storageweb.refreshNode",
+        "title": "%cmd.refreshNode%",
+        "category": "StorageWeb",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "storageweb.openRemote",
+        "title": "%cmd.openRemote%",
+        "category": "StorageWeb",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "storageweb.newFolder",
+        "title": "%cmd.newFolder%",
+        "category": "StorageWeb",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "storageweb.uploadFiles",
+        "title": "%cmd.uploadFiles%",
+        "category": "StorageWeb",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "storageweb.uploadFolder",
+        "title": "%cmd.uploadFolder%",
+        "category": "StorageWeb",
+        "icon": "$(file-directory-create)"
+      },
+      {
+        "command": "storageweb.download",
+        "title": "%cmd.download%",
+        "category": "StorageWeb",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "storageweb.rename",
+        "title": "%cmd.rename%",
+        "category": "StorageWeb"
+      },
+      {
+        "command": "storageweb.delete",
+        "title": "%cmd.delete%",
+        "category": "StorageWeb",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "storageweb.addToWorkspace",
+        "title": "%cmd.addToWorkspace%",
+        "category": "StorageWeb",
+        "icon": "$(root-folder)"
+      },
+      {
+        "command": "storageweb.syncWithLocal",
+        "title": "%cmd.syncWithLocal%",
+        "category": "StorageWeb",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "storageweb.exclude",
+        "title": "%cmd.exclude%",
+        "category": "StorageWeb",
+        "icon": "$(eye-closed)"
+      },
+      {
+        "command": "storageweb.editExcludes",
+        "title": "%cmd.editExcludes%",
+        "category": "StorageWeb",
+        "icon": "$(exclude)"
+      },
+      {
+        "command": "storageweb.pause",
+        "title": "%cmd.pause%",
+        "category": "StorageWeb",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "storageweb.resume",
+        "title": "%cmd.resume%",
+        "category": "StorageWeb",
+        "icon": "$(debug-start)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "storageweb",
+          "title": "StorageWeb",
+          "icon": "media/storageweb.svg"
+        }
+      ]
+    },
+    "views": {
+      "storageweb": [
+        {
+          "id": "storageweb.servers",
+          "name": "%view.servers%",
+          "icon": "media/storageweb.svg",
+          "contextualTitle": "StorageWeb"
+        },
+        {
+          "id": "storageweb.syncs",
+          "name": "%view.syncs%",
+          "icon": "media/storageweb.svg",
+          "contextualTitle": "StorageWeb"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "storageweb.servers",
+        "contents": "%welcome.servers%"
+      },
+      {
+        "view": "storageweb.syncs",
+        "contents": "%welcome.syncs%"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "storageweb.menu",
+          "when": "false"
+        },
+        {
+          "command": "storageweb.refreshNode",
+          "when": "false"
+        },
+        {
+          "command": "storageweb.openRemote",
+          "when": "false"
+        },
+        {
+          "command": "storageweb.newFolder",
+          "when": "false"
+        },
+        {
+          "command": "storageweb.uploadFiles",
+          "when": "false"
+        },
+        {
+          "command": "storageweb.uploadFolder",
+          "when": "false"
+        },
+        {
+          "command": "storageweb.download",
+          "when": "false"
+        },
+        {
+          "command": "storageweb.rename",
+          "when": "false"
+        },
+        {
+          "command": "storageweb.delete",
+          "when": "false"
+        },
+        {
+          "command": "storageweb.addToWorkspace",
+          "when": "false"
+        },
+        {
+          "command": "storageweb.syncWithLocal",
+          "when": "false"
+        },
+        {
+          "command": "storageweb.exclude",
+          "when": "resourceScheme == file"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "storageweb.addServer",
+          "when": "view == storageweb.servers",
+          "group": "navigation@1"
+        },
+        {
+          "command": "storageweb.refresh",
+          "when": "view == storageweb.servers",
+          "group": "navigation@2"
+        },
+        {
+          "command": "storageweb.link",
+          "when": "view == storageweb.syncs",
+          "group": "navigation@1"
+        },
+        {
+          "command": "storageweb.syncNow",
+          "when": "view == storageweb.syncs",
+          "group": "navigation@2"
+        },
+        {
+          "command": "storageweb.pause",
+          "when": "view == storageweb.syncs && !storageweb.allPaused",
+          "group": "navigation@2.5"
+        },
+        {
+          "command": "storageweb.resume",
+          "when": "view == storageweb.syncs && storageweb.allPaused",
+          "group": "navigation@2.5"
+        },
+        {
+          "command": "storageweb.showLog",
+          "when": "view == storageweb.syncs",
+          "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "storageweb.refreshNode",
+          "when": "view == storageweb.servers && viewItem == server",
+          "group": "inline@1"
+        },
+        {
+          "command": "storageweb.editServer",
+          "when": "view == storageweb.servers && viewItem == server",
+          "group": "1_edit@1"
+        },
+        {
+          "command": "storageweb.setToken",
+          "when": "view == storageweb.servers && viewItem == server",
+          "group": "1_edit@2"
+        },
+        {
+          "command": "storageweb.openInBrowser",
+          "when": "view == storageweb.servers && viewItem == server",
+          "group": "2_open@1"
+        },
+        {
+          "command": "storageweb.refreshNode",
+          "when": "view == storageweb.servers && viewItem == server",
+          "group": "2_open@2"
+        },
+        {
+          "command": "storageweb.removeServer",
+          "when": "view == storageweb.servers && viewItem == server",
+          "group": "9_remove@1"
+        },
+        {
+          "command": "storageweb.uploadFiles",
+          "when": "view == storageweb.servers && viewItem =~ /^(root|folder)$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "storageweb.newFolder",
+          "when": "view == storageweb.servers && viewItem =~ /^(root|folder)$/",
+          "group": "inline@2"
+        },
+        {
+          "command": "storageweb.syncWithLocal",
+          "when": "view == storageweb.servers && viewItem =~ /^(root|folder)$/",
+          "group": "1_sync@1"
+        },
+        {
+          "command": "storageweb.addToWorkspace",
+          "when": "view == storageweb.servers && viewItem =~ /^(root|folder)$/",
+          "group": "1_sync@2"
+        },
+        {
+          "command": "storageweb.newFolder",
+          "when": "view == storageweb.servers && viewItem =~ /^(root|folder)$/",
+          "group": "2_new@1"
+        },
+        {
+          "command": "storageweb.uploadFiles",
+          "when": "view == storageweb.servers && viewItem =~ /^(root|folder)$/",
+          "group": "2_new@2"
+        },
+        {
+          "command": "storageweb.uploadFolder",
+          "when": "view == storageweb.servers && viewItem =~ /^(root|folder)$/",
+          "group": "2_new@3"
+        },
+        {
+          "command": "storageweb.refreshNode",
+          "when": "view == storageweb.servers && viewItem =~ /^(root|folder)$/",
+          "group": "2_new@4"
+        },
+        {
+          "command": "storageweb.openRemote",
+          "when": "view == storageweb.servers && viewItem == file",
+          "group": "1_open@1"
+        },
+        {
+          "command": "storageweb.download",
+          "when": "view == storageweb.servers && viewItem =~ /^(root|folder|file)$/",
+          "group": "3_transfer@1"
+        },
+        {
+          "command": "storageweb.openInBrowser",
+          "when": "view == storageweb.servers && viewItem =~ /^(root|folder|file)$/",
+          "group": "4_open@1"
+        },
+        {
+          "command": "storageweb.rename",
+          "when": "view == storageweb.servers && viewItem =~ /^(folder|file)$/",
+          "group": "8_modify@1"
+        },
+        {
+          "command": "storageweb.delete",
+          "when": "view == storageweb.servers && viewItem =~ /^(folder|file)$/",
+          "group": "8_modify@2"
+        },
+        {
+          "command": "storageweb.syncNow",
+          "when": "view == storageweb.syncs && viewItem =~ /^sync(-notoken)?$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "storageweb.pause",
+          "when": "view == storageweb.syncs && viewItem =~ /^sync(-notoken)?$/",
+          "group": "inline@2"
+        },
+        {
+          "command": "storageweb.resume",
+          "when": "view == storageweb.syncs && viewItem == sync-paused",
+          "group": "inline@1"
+        },
+        {
+          "command": "storageweb.pause",
+          "when": "view == storageweb.syncs && viewItem =~ /^sync(-notoken)?$/",
+          "group": "1_sync@0"
+        },
+        {
+          "command": "storageweb.resume",
+          "when": "view == storageweb.syncs && viewItem == sync-paused",
+          "group": "1_sync@0"
+        },
+        {
+          "command": "storageweb.syncNow",
+          "when": "view == storageweb.syncs && viewItem =~ /^sync/",
+          "group": "1_sync@1"
+        },
+        {
+          "command": "storageweb.openInBrowser",
+          "when": "view == storageweb.syncs && viewItem =~ /^sync/",
+          "group": "1_sync@2"
+        },
+        {
+          "command": "storageweb.showLog",
+          "when": "view == storageweb.syncs && viewItem =~ /^sync/",
+          "group": "1_sync@3"
+        },
+        {
+          "command": "storageweb.editExcludes",
+          "when": "view == storageweb.syncs && viewItem =~ /^sync/",
+          "group": "2_config@1"
+        },
+        {
+          "command": "storageweb.unlink",
+          "when": "view == storageweb.syncs && viewItem =~ /^sync/",
+          "group": "9_remove@1"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "storageweb.exclude",
+          "when": "resourceScheme == file && !explorerResourceIsRoot",
+          "group": "storageweb@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "StorageWeb",
+      "properties": {
+        "storageweb.server": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "%cfg.server%"
+        },
+        "storageweb.username": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "%cfg.username%"
+        },
+        "storageweb.remoteFolder": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "%cfg.remoteFolder%"
+        },
+        "storageweb.autoSync": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "markdownDescription": "%cfg.autoSync%"
+        },
+        "storageweb.pollSeconds": {
+          "type": "number",
+          "default": 60,
+          "minimum": 15,
+          "scope": "resource",
+          "markdownDescription": "%cfg.pollSeconds%"
+        },
+        "storageweb.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "resource",
+          "markdownDescription": "%cfg.exclude%"
+        },
+        "storageweb.useGitignore": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "markdownDescription": "%cfg.useGitignore%"
+        },
+        "storageweb.confirmDeletesOver": {
+          "type": "number",
+          "default": 10,
+          "minimum": 0,
+          "scope": "resource",
+          "markdownDescription": "%cfg.confirmDeletesOver%"
+        }
+      }
+    }
+  }
+}

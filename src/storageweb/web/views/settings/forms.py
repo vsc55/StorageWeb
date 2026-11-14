@@ -58,6 +58,7 @@ def _storage() -> dict:
         "home_template": request.form.get("home_template", "").strip(),
         "create_home": checked("create_home"), "create_shares": checked("create_shares"), "show_hidden": checked("show_hidden"),
         "max_file_size_mb": form_int("max_file_size_mb", "storage.max_file_size_mb", _("Maximum size per file")),
+        "hidden": [line.strip() for line in request.form.get("hidden", "").splitlines() if line.strip()],
     }}
 
 
@@ -78,6 +79,8 @@ def _security() -> dict:
         "ipban_window_minutes": form_int("ipban_window_minutes", "security.ipban_window_minutes", _("Window")),
         "ipban_minutes": form_int("ipban_minutes", "security.ipban_minutes", _("Block duration")),
         "api_tokens": checked("api_tokens"),
+        "webdav": checked("webdav"),
+        "webdav_passwords": checked("webdav_passwords"),
     }}
 
 

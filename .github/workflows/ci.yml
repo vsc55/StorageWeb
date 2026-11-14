@@ -105,6 +105,36 @@ jobs:
         if: failure()
         run: docker logs sw || true
 
+  vscode:
+    name: Extensión de VS Code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      # Sin npm ni pnpm: la extensión no tiene dependencias
+      - name: Tests del motor de sincronización (Node)
+        run: node --test clients/vscode/test
+      - name: Contra un StorageWeb real (dos equipos sincronizando)
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pytest -q tests/integration/test_vscode_extension.py -rs
+      - name: Empaquetar el .vsix
+        run: |
+          python tools/build_vsix.py --out dist
+          unzip -l dist/storageweb-sync-*.vsix | grep -E "extension.vsixmanifest|extension/package.json|extension/src/extension.js"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: storageweb-vscode
+          path: dist/*.vsix
+          if-no-files-found: error
+
   docs:
     name: Documentación y traducciones
     runs-on: ubuntu-latest

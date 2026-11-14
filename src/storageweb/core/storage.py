@@ -7,7 +7,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+from typing import Callable
 
+from .. import patterns
 from ..db.repositories.users import groups_of
 from ..i18n import _, format_datetime, format_size
 from . import backends
@@ -136,9 +138,21 @@ def find_root(user, cfg: dict, name: str) -> dict:
 SORT_KEYS = ("name", "size", "mtime")
 
 
+def is_hidden(cfg: dict, rel: str, is_dir: bool = True) -> bool:
+    """¿Está oculta para todos (``storage.hidden``)? Sin saber si es carpeta, se trata como tal (lo más estricto)."""
+    return bool(rel) and patterns.of(cfg)(rel, is_dir)
+
+
+def check_visible_name(cfg: dict, rel: str) -> None:
+    """Para crear o renombrar: un nombre oculto para todos no se puede usar. Lanza ValueError."""
+    if is_hidden(cfg, rel):
+        raise ValueError(_("«%(name)s» is not allowed here.", name=backends.name_of(rel)))
+
+
 def list_directory(root: dict, rel: str, show_hidden: bool, sort: str = "name",
-                   descending: bool = False) -> list[dict]:
-    """Contenido de una carpeta: las carpetas siempre primero, luego ordenado por ``sort``."""
+                   descending: bool = False, hidden: Callable[[str, bool], bool] | None = None) -> list[dict]:
+    """Contenido de una carpeta: las carpetas siempre primero, luego ordenado por ``sort``. ``hidden``: lo que
+    no se muestra a nadie (``patterns.of(cfg)``)."""
     base_rel = backends.clean_rel(rel)
     entries = []
     for entry in root["backend"].listdir(base_rel):
@@ -147,6 +161,8 @@ def list_directory(root: dict, rel: str, show_hidden: bool, sort: str = "name",
         if not backends.is_safe_name(entry.name):  # un servidor remoto no puede colar «..» ni «a/b»
             continue
         if not show_hidden and entry.name.startswith("."):
+            continue
+        if hidden and hidden(f"{base_rel}/{entry.name}".lstrip("/"), entry.is_dir):
             continue
         ext = "" if entry.is_dir else Path(entry.name).suffix.lstrip(".").upper()
         entries.append({
@@ -166,6 +182,43 @@ def list_directory(root: dict, rel: str, show_hidden: bool, sort: str = "name",
     entries.sort(key=keys[sort], reverse=descending)
     entries.sort(key=lambda e: not e["is_dir"])        # carpetas primero (sort estable)
     return entries
+
+
+TREE_MAX_LEVELS = 8
+
+
+def folder_tree(root: dict, rel: str, show_hidden: bool, hidden: Callable[[str, bool], bool] | None = None,
+                current: list[dict] | None = None) -> list[dict]:
+    """El árbol de carpetas del panel lateral, como el Explorador: en cada nivel del camino hasta ``rel``, todas
+    sus carpetas (las hermanas también), con las del camino desplegadas. Filas en orden de pintado:
+    ``{name, rel, level, open, current}``. ``current``: el listado de ``rel`` si ya se tiene (no se repite).
+
+    Una carpeta de encima que no se pueda listar (sin permiso, almacenamiento remoto caído) o más honda que
+    TREE_MAX_LEVELS solo aporta su paso del camino."""
+    parts = rel.split("/") if rel else []
+    rows: list[dict] = []
+
+    def level(dir_rel: str, depth: int) -> None:
+        on_path = parts[depth - 1] if depth <= len(parts) else None   # la siguiente carpeta del camino
+        dirs = None
+        if depth <= TREE_MAX_LEVELS:
+            try:
+                listing = current if dir_rel == rel and current is not None else \
+                    list_directory(root, dir_rel, show_hidden, hidden=hidden)
+                dirs = sorted((e for e in listing if e["is_dir"]), key=lambda e: e["name"].lower())
+            except (backends.BackendError, PermissionError, OSError, PathError):
+                dirs = None
+        if dirs is None:  # solo el camino
+            dirs = [{"name": on_path, "rel": "/".join(parts[:depth])}] if on_path else []
+        for e in dirs:
+            opened = on_path is not None and e["name"] == on_path
+            rows.append({"name": e["name"], "rel": e["rel"], "level": depth, "open": opened,
+                         "current": opened and depth == len(parts)})
+            if opened and depth < len(parts) + 1:
+                level(e["rel"], depth + 1)
+
+    level("", 1)
+    return rows
 
 
 def breadcrumbs(rel: str) -> list[dict]:

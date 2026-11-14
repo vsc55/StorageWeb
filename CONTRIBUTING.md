@@ -14,6 +14,7 @@
    python tools/gen_docs.py --check
    python tools/i18n.py check
    mkdocs build --strict
+   node --test clients/vscode/test      # si tocas la extensión de VS Code (Node 18+, sin npm)
    ```
 6. Abre un pull request describiendo qué cambia y por qué, y añade una entrada en `CHANGELOG.md` → *Sin publicar*.
 

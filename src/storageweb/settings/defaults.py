@@ -65,6 +65,8 @@ DEFAULTS: dict = {
         # Crea las carpetas de los shares si no existen (útil en desarrollo)
         "create_shares": False,
         "show_hidden": False,
+        # Patrones (como .gitignore) de lo que no existe para nadie: ni se lista ni se abre ni se crea
+        "hidden": [],
         # Tamaño máximo por archivo en MB (0 = sin límite). Las subidas se hacen por partes,
         # así que no dependen de server.max_upload_mb (que limita cada petición).
         "max_file_size_mb": 0,
@@ -96,6 +98,10 @@ DEFAULTS: dict = {
         "ipban_minutes": 60,
         # Tokens de API personales (Authorization: Bearer sw_…)
         "api_tokens": True,
+        # Unidad de red (WebDAV en /dav/): se entra con el usuario y un token de API como contraseña
+        "webdav": True,
+        # Admitir también la contraseña de la cuenta (usuarios locales y PAM) en WebDAV
+        "webdav_passwords": False,
     },
     "maintenance": {
         # 0 = conservar toda la auditoría

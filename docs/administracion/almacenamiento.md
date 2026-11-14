@@ -196,6 +196,27 @@ Como en S3, las carpetas son prefijos (una carpeta vacía es un blob `carpeta/`)
 - Si `storage.locations` está en `config.json` o en `STORAGEWEB_STORAGE__LOCATIONS` (JSON), la página se ve pero no se puede editar.
 - El nombre de una ubicación no cambia una vez creada (las carpetas lo usan), y no se puede quitar mientras alguna carpeta la use. Quitarla no borra ningún archivo.
 
+## Ocultar archivos para todos
+
+En *Acceso → Carpetas personales*, **Ocultos para todos** (`storage.hidden`, se aplica a **todas** las carpetas, también a las compartidas): patrones, uno por línea, como los de `.gitignore`. Lo que coincide **no existe para nadie**: no se lista, no se puede abrir ni descargar, y no se puede crear, subir ni renombrar con ese nombre. Vale para la web, la unidad de red (WebDAV) y la API. Los archivos que ya estaban **siguen en el disco**: se ven en cuanto se quita el patrón.
+
+```text
+Thumbs.db          # ese nombre en cualquier carpeta (sin distinguir mayúsculas)
+desktop.ini
+.DS_Store
+*.tmp              # por extensión
+.git/              # solo carpetas con ese nombre, con todo lo de dentro
+/privado           # solo en la raíz de cada carpeta (personal o compartida)
+docs/borradores/*.bak
+```
+
+Se aplican a la ruta dentro de cada carpeta de StorageWeb (la personal o cada compartida). No se admiten excepciones (`!`), ni patrones que lo ocultarían todo (`*`).
+
+!!! warning "No es un control de acceso"
+    Sirve para **no mostrar** lo que estorba (basura del sistema, carpetas técnicas), no para proteger datos: para que alguien no vea algo, usa los permisos de las carpetas. La lista de patrones no se envía nunca a los clientes. Pero, si alguien pide una ruta concreta que está oculta, la respuesta de WebDAV lo indica (`X-StorageWeb-Hidden: 1`), para que la extensión de VS Code no borre ese archivo del equipo creyendo que se borró en el servidor.
+
+`storage.show_hidden` es otra cosa: solo decide si **la web** muestra los archivos que empiezan por punto. La unidad de red los muestra siempre.
+
 ## Limitaciones
 
 - Los archivos no se mueven al cambiar una carpeta de sitio: cópialos antes (por ejemplo con `rclone copy` o `aws s3 sync`).

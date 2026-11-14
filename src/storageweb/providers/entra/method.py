@@ -25,6 +25,7 @@ def _validate(section: dict, cfg: dict) -> None:
     section["role_mappings"] = checks.role_mappings(section["role_mappings"], "auth.entra.role_mappings")
     section["timeout_seconds"] = checks.positive_int(section["timeout_seconds"], "auth.entra.timeout_seconds")
     section["secret_expires"] = checks.iso_datetime(section.get("secret_expires"), "auth.entra.secret_expires")
+    section["auto_login"] = bool(section.get("auto_login"))
     if section["enabled"]:
         required = ["client_id", "client_secret"]
         custom_endpoints = all(section.get(k) for k in ("authorize_url", "token_url", "issuer"))
@@ -65,6 +66,9 @@ CONFIG = AuthConfig(
         # True: con role_mappings definidos, el rol se recalcula en cada login
         "sync_role_on_login": True,
         "single_logout": False,
+        # True: /login va directamente a Microsoft (en equipos unidos a Entra ID, sin escribir nada).
+        # /login?manual=1 sigue mostrando la página para entrar con usuario y contraseña
+        "auto_login": False,
         # Solo oauth2: endpoints propios (Entra soberano u otro proveedor OIDC)
         "authorize_url": "",
         "token_url": "",
@@ -118,6 +122,12 @@ CONFIG = AuthConfig(
         "sync_role_on_login": Field(doc="Con `role_mappings` definidos, recalcular el rol en cada inicio de sesión.",
                                     label=_l("Recalculate the role on every sign-in according to the mapping"),
                                     page="auth"),
+        "auto_login": Field(
+            doc=("Ir directamente a Microsoft sin mostrar la página de inicio de sesión. En equipos unidos a Entra ID "
+                 "(Intune) se entra sin escribir nada. `/login?manual=1` sigue mostrando la página (usuarios locales, "
+                 "rescate)."),
+            label=_l("Sign in directly with Microsoft (skip the sign-in page)"), page="auth",
+            words="entra automático directo sso transparente intune skip login"),
         "single_logout": Field(doc="Cerrar también la sesión de Microsoft al salir.",
                                label=_l("Also sign out of Microsoft when signing out"), page="auth",
                                words="entra cerrar sesión logout"),

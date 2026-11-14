@@ -92,6 +92,14 @@ El nombre de usuario es el UPN (`juan@contoso.com`) y su carpeta personal es `ho
 !!! warning "Cuentas con el mismo nombre"
     Una cuenta de Entra **nunca** se vincula automáticamente con un usuario local o PAM del mismo nombre: el login se rechaza para evitar suplantaciones. Si `strip_domain` está activo, `juan@contoso.com` se convierte en `juan`, lo que facilita estas colisiones.
 
+## Entrar directamente con Microsoft
+
+Con *Entrar directamente con Microsoft* (`auth.entra.auto_login`), la página de inicio de sesión no se muestra: `/login` va directamente a Microsoft. En los equipos unidos a Entra ID (Intune), Edge y Chrome ya tienen la sesión de Windows, así que el usuario entra **sin escribir nada** (con el MFA y el acceso condicional de la organización).
+
+- `/login?manual=1` sigue mostrando la página: para los usuarios locales y para entrar si Microsoft falla.
+- Tras **salir**, o si el inicio de sesión con Microsoft falla, se vuelve a la página (`?manual=1`) en lugar de volver a entrar solo.
+- La unidad de red (WebDAV) no puede usar la sesión de Windows: allí se entra con un token ([Unidad de red](../uso/unidad-de-red.md)).
+
 ## Comprobaciones de seguridad del login
 
 - `state` (CSRF), `nonce` y PKCE (S256);

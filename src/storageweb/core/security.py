@@ -74,7 +74,11 @@ def resolve_entry(base: Path, sub: str) -> Path:
 
 
 class LoginThrottle:
-    """Bloqueo temporal tras N intentos fallidos (por IP y por usuario). En memoria."""
+    """Bloqueo temporal tras N intentos fallidos (por IP y por usuario). En memoria.
+
+    ``scope`` separa contadores: los fallos de la unidad de red (``"dav"``) no bloquean el inicio de
+    sesión en la web, y al revés (una unidad mal configurada reintenta sola y bloquearía al usuario).
+    """
 
     def __init__(self, max_failures: int = 5, lockout_seconds: int = 900):
         self.max_failures = max_failures
@@ -87,8 +91,9 @@ class LoginThrottle:
         self.lockout = lockout_seconds
 
     @staticmethod
-    def _keys(ip: str, username: str) -> list[str]:
-        return [f"ip:{ip}", f"user:{username.lower()}"]
+    def _keys(ip: str, username: str, scope: str = "") -> list[str]:
+        prefix = f"{scope}:" if scope else ""
+        return [f"{prefix}ip:{ip}", f"{prefix}user:{username.lower()}"]
 
     def _prune(self, key: str, now: float) -> list[float]:
         items = [t for t in self._fails.get(key, []) if now - t < self.lockout]
@@ -98,18 +103,18 @@ class LoginThrottle:
             self._fails.pop(key, None)
         return items
 
-    def is_blocked(self, ip: str, username: str) -> bool:
+    def is_blocked(self, ip: str, username: str, scope: str = "") -> bool:
         now = time.monotonic()
         with self._lock:
-            return any(len(self._prune(k, now)) >= self.max_failures for k in self._keys(ip, username))
+            return any(len(self._prune(k, now)) >= self.max_failures for k in self._keys(ip, username, scope))
 
-    def failure(self, ip: str, username: str) -> None:
+    def failure(self, ip: str, username: str, scope: str = "") -> None:
         now = time.monotonic()
         with self._lock:
-            for k in self._keys(ip, username):
+            for k in self._keys(ip, username, scope):
                 self._prune(k, now)
                 self._fails.setdefault(k, []).append(now)
 
-    def success(self, ip: str, username: str) -> None:
+    def success(self, ip: str, username: str, scope: str = "") -> None:
         with self._lock:
-            self._fails.pop(f"user:{username.lower()}", None)
+            self._fails.pop(self._keys(ip, username, scope)[1], None)

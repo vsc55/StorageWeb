@@ -1,13 +1,18 @@
 """Protecciones HTTP: sesión, CSRF, control de acceso y cabeceras de seguridad."""
 from __future__ import annotations
 
+import base64
+import binascii
+import hashlib
 import hmac
 import secrets
+import threading
+import time
 from functools import wraps
 
 from flask import abort, g, redirect, request, session, url_for
 
-from ..core import ipban, tokens
+from ..core import accounts, ipban, tokens
 from ..core.permissions import is_admin
 from ..db.connection import now_iso
 from ..db.repositories import audit
@@ -15,7 +20,7 @@ from ..db.repositories import sessions as session_repo
 from ..db.repositories import users
 from ..i18n import LOCALES, _, reset_locale, set_locale
 from ..i18n import normalize as normalize_locale
-from .context import get_db, settings
+from .context import get_db, settings, throttle
 
 
 def client_ip() -> str:
@@ -33,8 +38,10 @@ def csrf_token() -> str:
 def check_csrf() -> None:
     if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
         return
-    if g.get("api_token") is not None:
-        return  # sin cookies no hay CSRF posible: el token va en la cabecera
+    if g.get("api_token") is not None or request.blueprint == DAV_BLUEPRINT:
+        return  # sin cookies no hay CSRF posible: las credenciales van en la cabecera
+    if request.endpoint == CONNECT_TOKEN_ENDPOINT:
+        return  # canje de un código de /connect: no usa la sesión, el secreto es el verifier (PKCE)
     expected = session.get("_csrf")
     sent = request.headers.get("X-CSRF-Token") or request.form.get("_csrf")
     if not expected or not sent or not hmac.compare_digest(expected, sent):
@@ -78,7 +85,9 @@ def end_session() -> None:
 
 
 TOUCH_SECONDS = 60
-TOKEN_BLUEPRINTS = ("files", "uploads", "health")
+DAV_BLUEPRINT = "dav"
+TOKEN_BLUEPRINTS = ("files", "uploads", "health", DAV_BLUEPRINT)
+CONNECT_TOKEN_ENDPOINT = "connect.token"
 
 
 def select_locale() -> None:
@@ -102,6 +111,9 @@ def load_current_user() -> None:
     g.api_token = None
     g.session_id = None
     header = request.headers.get("Authorization", "")
+    if request.blueprint == DAV_BLUEPRINT:
+        _load_dav_user(header)  # WebDAV: solo credenciales en la cabecera, nunca la cookie del navegador
+        return
     if header[:7].lower() == "bearer ":
         _load_token_user(header[7:].strip())
         return
@@ -139,6 +151,67 @@ def _load_token_user(plain: str) -> None:
     g.user, g.api_token = found
     if request.blueprint not in TOKEN_BLUEPRINTS:
         abort(403, description=_("API tokens can only be used to list, download and upload files."))
+
+
+# Contraseñas de cuenta ya comprobadas en WebDAV (los clientes envían las credenciales en cada petición
+# y comprobar el hash cada vez es lento): huella de usuario+contraseña → (id, hash guardado, caducidad).
+# Si la contraseña cambia, el hash guardado ya no coincide y se vuelve a comprobar.
+_DAV_CACHE: dict[str, tuple[int, str | None, float]] = {}
+_DAV_CACHE_LOCK = threading.Lock()
+DAV_CACHE_SECONDS = 60
+
+
+def _dav_cache_key(username: str, password: str) -> str:
+    return hashlib.sha256(f"{username.lower()}\0{password}".encode()).hexdigest()
+
+
+def _load_dav_user(header: str) -> None:
+    """WebDAV: ``Basic usuario:token`` (o la contraseña de la cuenta si se permite) o ``Bearer token``."""
+    cfg = settings()
+    if not cfg["security"]["webdav"]:
+        abort(404)
+    if header[:7].lower() == "bearer ":
+        _load_token_user(header[7:].strip())
+        return
+    if header[:6].lower() != "basic ":
+        return  # sin credenciales: la vista responde 401 para que el cliente las pida
+    try:
+        username, _sep, password = base64.b64decode(header[6:].strip()).decode("utf-8").partition(":")
+    except (binascii.Error, UnicodeDecodeError):
+        abort(400)
+    username = username.rpartition("\\")[2].strip()  # Windows puede enviar «EQUIPO\usuario»
+    ip, limiter = client_ip(), throttle()
+    limiter.configure(cfg["security"]["max_login_failures"], cfg["security"]["lockout_minutes"] * 60)
+    if not username or limiter.is_blocked(ip, username, DAV_BLUEPRINT):
+        return
+    user, token, reason = None, None, "bad_password"
+    if password.startswith(tokens.PREFIX):
+        reason = "bad_token"
+        found = tokens.authenticate(get_db(), password, ip) if cfg["security"]["api_tokens"] else None
+        if found and found[0]["username"].lower() == username.lower():
+            user, token = found
+    elif not cfg["security"]["webdav_passwords"]:
+        # La contraseña de la cuenta no se admite: no puede acertar, así que no cuenta como intento (si no,
+        # una unidad mal configurada, que reintenta sola, bloquearía al usuario o a la IP de la oficina)
+        audit.log(get_db(), "login_failed", username=username, ip=ip, detail="webdav:password_not_allowed")
+        return
+    else:
+        key = _dav_cache_key(username, password)
+        with _DAV_CACHE_LOCK:
+            cached = _DAV_CACHE.get(key)
+        user = users.get_by_id(get_db(), cached[0]) if cached and cached[2] > time.monotonic() else None
+        if user is None or not user["enabled"] or user["password_hash"] != cached[1]:
+            user = accounts.authenticate_password(get_db(), cfg, username, password)
+            if user is not None:
+                with _DAV_CACHE_LOCK:
+                    _DAV_CACHE[key] = (user["id"], user["password_hash"], time.monotonic() + DAV_CACHE_SECONDS)
+    if user is None:
+        limiter.failure(ip, username, DAV_BLUEPRINT)
+        audit.log(get_db(), "login_failed", username=username, ip=ip, detail=f"webdav:{reason}")
+        ipban.offense(get_db(), cfg, ip, "login_failed")
+        return
+    limiter.success(ip, username, DAV_BLUEPRINT)
+    g.user, g.api_token = user, token
 
 
 def login_required(view):

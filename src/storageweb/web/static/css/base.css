@@ -101,6 +101,23 @@ label.btn-primary { color: var(--primary-fg); }
 .flash { padding: 10px 14px; border-radius: var(--radius); background: var(--ok-bg); }
 .flash-error { background: var(--err-bg); }
 
+/* Avisos emergentes (los mensajes de una acción): abajo a la derecha, encima de todo */
+.toasts { position: fixed; right: 16px; bottom: 16px; z-index: 1000; display: flex; flex-direction: column; gap: 8px;
+  width: min(420px, calc(100vw - 32px)); pointer-events: none; }
+.toast { pointer-events: auto; display: flex; align-items: flex-start; gap: 10px; padding: 12px 10px 12px 14px;
+  background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-left: 4px solid var(--primary);
+  border-radius: var(--radius); box-shadow: var(--shadow); font-size: 14px; animation: toast-in .18s ease-out; }
+.toast-error { border-left-color: var(--danger); }
+.toast-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.toast-close { flex: 0 0 auto; background: none; border: 0; color: var(--muted); font-size: 18px; line-height: 1;
+  padding: 0 4px; cursor: pointer; border-radius: 6px; }
+.toast-close:hover { color: var(--fg); background: var(--bg-hover); }
+.toast.is-leaving { opacity: 0; transform: translateY(6px); transition: opacity .2s, transform .2s; }
+/* Con la barra de «Guardar» a la vista (ajustes con cambios), los avisos van encima para no taparla */
+body:has(.save-bar:not(.is-idle)) .toasts { bottom: 84px; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } .toast.is-leaving { transition: none; } }
+
 /* --- selector segmentado (idioma, tema) --- */
 .segmented { display: inline-flex; margin: 0; padding: 2px; gap: 2px; border: 1px solid var(--line); border-radius: 9px;
              background: var(--bg-soft); }

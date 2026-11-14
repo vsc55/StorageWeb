@@ -108,6 +108,31 @@
     });
   });
 
+  // Avisos emergentes: cerrar, y los que no son de error se van solos (no mientras el ratón o el foco estén encima)
+  document.querySelectorAll(".toast").forEach(function (toast) {
+    var timer = null;
+    function close() {
+      toast.classList.add("is-leaving");
+      setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 220);
+    }
+    function schedule() {
+      if (toast.classList.contains("toast-error")) return;
+      clearTimeout(timer);
+      timer = setTimeout(close, 6000);
+    }
+    var button = toast.querySelector(".toast-close");
+    if (button) button.addEventListener("click", close);
+    toast.addEventListener("mouseenter", function () { clearTimeout(timer); });
+    toast.addEventListener("focusin", function () { clearTimeout(timer); });
+    toast.addEventListener("mouseleave", schedule);
+    schedule();
+  });
+
+  // Desplegables que envían su formulario al cambiar (p. ej. registros por página)
+  document.querySelectorAll("select.js-autosubmit").forEach(function (s) {
+    s.addEventListener("change", function () { if (s.form) s.form.submit(); });
+  });
+
   // Copiar al portapapeles
   document.querySelectorAll(".js-copy").forEach(function (b) {
     b.addEventListener("click", function () {

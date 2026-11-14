@@ -52,7 +52,8 @@ Cada valor sale de la capa con más prioridad que lo fije, campo a campo: **pred
 | `storage.home_template` | texto | `"data/homes/{username}"` | Sí | `STORAGEWEB_STORAGE__HOME_TEMPLATE` | Ruta de la carpeta personal. Debe contener `{username}`, que se sustituye por el nombre de usuario saneado. |
 | `storage.create_home` | booleano | `true` | Sí | `STORAGEWEB_STORAGE__CREATE_HOME` | Crear la carpeta personal en el primer acceso del usuario. |
 | `storage.create_shares` | booleano | `false` | Sí | `STORAGEWEB_STORAGE__CREATE_SHARES` | Crear las carpetas compartidas si no existen (útil en desarrollo y Docker). |
-| `storage.show_hidden` | booleano | `false` | Sí | `STORAGEWEB_STORAGE__SHOW_HIDDEN` | Mostrar archivos y carpetas que empiezan por punto. |
+| `storage.show_hidden` | booleano | `false` | Sí | `STORAGEWEB_STORAGE__SHOW_HIDDEN` | Mostrar en la web los archivos y carpetas que empiezan por punto. La unidad de red (WebDAV) los muestra siempre. |
+| `storage.hidden` | lista | `[]` | Sí | `STORAGEWEB_STORAGE__HIDDEN` | Archivos y carpetas **ocultos para todos**: no se listan ni se pueden abrir ni crear, ni en la web ni por WebDAV ni por la API (la extensión de VS Code tampoco los sincroniza). Patrones como los de `.gitignore`, sobre la ruta dentro de cada carpeta: `Thumbs.db`, `*.tmp` (en cualquier sitio), `.git/` (solo carpetas), `/privado` (desde la raíz). Los archivos siguen en el disco. Es para no mostrar cosas (basura del sistema, carpetas técnicas), no un control de acceso: para eso, los permisos de las carpetas. La lista no se envía a los clientes. |
 | `storage.max_file_size_mb` | entero | `0` | Sí | `STORAGEWEB_STORAGE__MAX_FILE_SIZE_MB` | Tamaño máximo por archivo en MB; `0` = sin límite. |
 | `storage.shares` | lista | `[]` | Sí | `STORAGEWEB_STORAGE__SHARES` | Lista de carpetas compartidas (ver los campos de cada elemento abajo). |
 | `storage.shares[].name` | | | Sí | | Identificador en la URL (`/f/<name>/`): letras, números, `_` y `-`. `home` está reservado. |
@@ -106,6 +107,7 @@ Cada valor sale de la capa con más prioridad que lo fije, campo a campo: **pred
 | `auth.entra.role_mappings` | objeto | `{}` | Sí | `STORAGEWEB_AUTH__ENTRA__ROLE_MAPPINGS` | Grupo (Object ID) o App Role → rol, p. ej. `{"StorageWeb.Admin": "admin"}`. Si coinciden varios, gana `admin`. |
 | `auth.entra.sync_role_on_login` | booleano | `true` | Sí | `STORAGEWEB_AUTH__ENTRA__SYNC_ROLE_ON_LOGIN` | Con `role_mappings` definidos, recalcular el rol en cada inicio de sesión. |
 | `auth.entra.single_logout` | booleano | `false` | Sí | `STORAGEWEB_AUTH__ENTRA__SINGLE_LOGOUT` | Cerrar también la sesión de Microsoft al salir. |
+| `auth.entra.auto_login` | booleano | `false` | Sí | `STORAGEWEB_AUTH__ENTRA__AUTO_LOGIN` | Ir directamente a Microsoft sin mostrar la página de inicio de sesión. En equipos unidos a Entra ID (Intune) se entra sin escribir nada. `/login?manual=1` sigue mostrando la página (usuarios locales, rescate). |
 | `auth.entra.authorize_url` | texto | `""` | Sí | `STORAGEWEB_AUTH__ENTRA__AUTHORIZE_URL` | Solo `oauth2`: endpoint de autorización propio (nubes soberanas u otro proveedor OIDC). |
 | `auth.entra.token_url` | texto | `""` | Sí | `STORAGEWEB_AUTH__ENTRA__TOKEN_URL` | Solo `oauth2`: endpoint de token propio. |
 | `auth.entra.issuer` | texto | `""` | Sí | `STORAGEWEB_AUTH__ENTRA__ISSUER` | Solo `oauth2`: valor esperado del claim `iss`. |
@@ -124,6 +126,8 @@ Cada valor sale de la capa con más prioridad que lo fije, campo a campo: **pred
 | `security.ipban_window_minutes` | entero | `10` | Sí | `STORAGEWEB_SECURITY__IPBAN_WINDOW_MINUTES` | Ventana en la que se cuentan las infracciones, en minutos. |
 | `security.ipban_minutes` | entero | `60` | Sí | `STORAGEWEB_SECURITY__IPBAN_MINUTES` | Duración del bloqueo automático, en minutos; `0` = hasta que un admin lo quite. |
 | `security.api_tokens` | booleano | `true` | Sí | `STORAGEWEB_SECURITY__API_TOKENS` | Permitir tokens de API personales (`Authorization: Bearer sw_…`) para scripts. |
+| `security.webdav` | booleano | `true` | Sí | `STORAGEWEB_SECURITY__WEBDAV` | Unidad de red: servidor WebDAV en `/dav/` (Windows, macOS, Linux, rclone…). Se entra con el nombre de usuario y un token de API como contraseña. Necesita `api_tokens` salvo que se admita la contraseña de la cuenta. |
+| `security.webdav_passwords` | booleano | `false` | Sí | `STORAGEWEB_SECURITY__WEBDAV_PASSWORDS` | Admitir también la contraseña de la cuenta (usuarios locales y PAM) en WebDAV. Desactivado: solo tokens, que se pueden revocar y limitar a lectura. |
 
 ## Mantenimiento (`maintenance`)
 

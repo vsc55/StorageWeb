@@ -244,14 +244,7 @@ class WebDAVBackend(RemoteBackend):
         except WebDAVError as exc:
             raise _error(exc) from exc
 
-    def rename(self, rel: str, new_name: str) -> str:
-        rel = clean_rel(rel)
-        new_rel = join_rel(posixpath.dirname(rel), new_name)
-        entry = self.stat(rel)
-        if entry is None:
-            raise FileNotFoundError(rel)
-        if self.exists(new_rel):
-            raise FileExistsError(new_name)
+    def _move(self, rel: str, new_rel: str, entry: Entry) -> None:
         suffix = "/" if entry.is_dir else ""
         try:
             self.client.request("MOVE", self._p(rel) + suffix,
@@ -259,9 +252,8 @@ class WebDAVBackend(RemoteBackend):
                                 ok=(201, 204))
         except WebDAVError as exc:
             if exc.status == 412:
-                raise FileExistsError(new_name) from exc
+                raise FileExistsError(name_of(new_rel)) from exc
             raise _error(exc) from exc
-        return new_rel
 
     def delete(self, rel: str) -> None:
         entry = self.stat(rel)
