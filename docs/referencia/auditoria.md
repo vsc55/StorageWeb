@@ -37,6 +37,10 @@ Cada acción relevante se guarda en la tabla `audit_log`. Se puede consultar en 
 | `share_created` | Carpeta compartida creada en *Acceso → Carpetas compartidas* (*target* = carpeta) | Ruta |
 | `share_updated` | Carpeta compartida guardada (nombre, ruta o quién entra) | `quién=nivel, …` |
 | `share_deleted` | Carpeta compartida quitada (los archivos se quedan en el servidor) | Ruta |
+| `location_created` | Ubicación de almacenamiento creada en *Sistema → Almacenamiento externo* (*target* = ubicación) | Dirección (`s3://…`, `\servidorecurso`) |
+| `location_updated` | Ubicación de almacenamiento guardada | Dirección |
+| `location_tested` | Prueba de conexión de una ubicación | `ok` o el error |
+| `location_deleted` | Ubicación quitada (los archivos se quedan donde estaban) | Dirección |
 | `profile_updated` | El usuario guarda su perfil | Campos guardados |
 | `password_changed` | El usuario cambia su contraseña desde su perfil | |
 | `password_change_failed` | Intento de cambio de contraseña con la contraseña actual incorrecta | |

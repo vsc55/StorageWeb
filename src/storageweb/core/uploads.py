@@ -4,21 +4,21 @@ Flujo:
     1. init:     se valida nombre, tamaño y espacio libre; se crea ``.sw-upload-<id>.part`` vacío
     2. append:   se añaden partes en orden; el offset debe coincidir con el tamaño actual del .part
                  (si no, 409 con el offset correcto para que el cliente continúe desde ahí)
-    3. finalize: con el tamaño completo se renombra atómicamente al nombre final (sin sobrescribir)
+    3. finalize: con el tamaño completo se guarda con el nombre final (sin sobrescribir)
 
-El progreso real es el tamaño del ``.part`` en disco, así que una subida interrumpida (corte de red,
+El ``.part`` está en la zona local del backend (``Backend.staging_dir``): en el disco del servidor,
+junto al destino (al terminar, renombrado atómico); con S3 o SMB, en ``<data_dir>/uploads`` (al
+terminar se envía). El progreso real es su tamaño, así que una subida interrumpida (corte de red,
 recarga de la página, reinicio del servidor) puede continuar donde se quedó.
 """
 from __future__ import annotations
 
-import os
-import shutil
 from pathlib import Path
 from typing import BinaryIO
 
 from ..i18n import _
 from .security import UPLOAD_TMP_PREFIX
-from .storage import unique_path
+from .backends import Backend, BackendError
 
 MB = 1024 * 1024
 MAX_CHUNK = 32 * MB          # tamaño de parte que usa el navegador
@@ -56,12 +56,12 @@ def validate_size(size, max_file_size_mb: int) -> int:
     return size
 
 
-def check_space(directory: Path, size: int) -> None:
-    try:
-        free = shutil.disk_usage(directory).free
-    except OSError:
-        return
-    if size + DISK_MARGIN > free:
+def check_space(backend: Backend, dir_rel: str, size: int) -> None:
+    """Espacio para el archivo: en el destino si es el disco del servidor; si no, en la zona local."""
+    free = backend.free_space(dir_rel)
+    if free is None:
+        free = backend.staging_free()
+    if free is not None and size + DISK_MARGIN > free:
         raise UploadError(_("Not enough space on the server for this file"), 507)
 
 
@@ -91,12 +91,16 @@ def append(part: Path, stream: BinaryIO, offset: int, total: int) -> int:
     return current + written
 
 
-def finalize(part: Path, directory: Path, filename: str, total: int) -> Path:
+def finalize(part: Path, backend: Backend, dir_rel: str, filename: str, total: int) -> str:
+    """Guarda la subida completa como ``filename`` (o ``filename (1)``…) y devuelve su ruta relativa."""
     size = received(part)
     if size != total:
         raise UploadError(_("The upload is incomplete"), 409, received=size)
-    final = unique_path(directory, filename)
-    os.replace(part, final)
+    try:
+        final = backend.unique_rel(dir_rel, filename)
+        backend.store(part, final)
+    except BackendError as exc:
+        raise UploadError(exc.message, 502) from exc
     return final
 
 

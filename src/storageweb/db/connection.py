@@ -6,6 +6,9 @@ en una transacción. La versión aplicada se guarda en ``PRAGMA user_version``.
 Reglas para añadir una migración:
   * Nuevo fichero con el siguiente número (``002_...sql``); nunca modificar una ya publicada.
   * Debe ser SQL válido para SQLite y no incluir BEGIN/COMMIT (se añaden automáticamente).
+  * Si reconstruye una tabla (crear la nueva, copiar, borrar la vieja y renombrar), empieza por la
+    línea ``-- foreign_keys: off``: se desactivan las claves ajenas durante la migración (si no, borrar
+    la tabla vieja borraría en cascada sus filas relacionadas) y se comprueban antes de confirmarla.
 """
 from __future__ import annotations
 
@@ -16,6 +19,7 @@ from pathlib import Path
 
 MIGRATIONS_DIR = Path(__file__).with_name("migrations")
 _MIGRATION_RE = re.compile(r"^(\d{3})_[a-z0-9_]+\.sql$")
+FK_OFF_MARKER = "-- foreign_keys: off"
 
 
 def now_iso() -> str:
@@ -56,11 +60,21 @@ def migrate(conn: sqlite3.Connection) -> list[int]:
         if version <= current:
             continue
         sql = path.read_text(encoding="utf-8")
+        rebuild = sql.lstrip().startswith(FK_OFF_MARKER)
+        if rebuild:
+            conn.execute("PRAGMA foreign_keys=OFF")  # no tiene efecto dentro de una transacción
         try:
-            conn.executescript(f"BEGIN;\n{sql}\nPRAGMA user_version = {version};\nCOMMIT;")
+            conn.executescript(f"BEGIN;\n{sql}\nPRAGMA user_version = {version};")
+            broken = conn.execute("PRAGMA foreign_key_check").fetchall()
+            if broken:
+                raise sqlite3.IntegrityError(f"Migration {version:03d} breaks foreign keys: {len(broken)} rows")
+            conn.commit()
         except sqlite3.Error:
             conn.rollback()
             raise
+        finally:
+            if rebuild:
+                conn.execute("PRAGMA foreign_keys=ON")
         applied.append(version)
     return applied
 

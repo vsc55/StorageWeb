@@ -6,15 +6,21 @@ from pathlib import Path
 
 from ..db import connect
 from ..db.repositories import audit
-from ..i18n import _
+from ..i18n import _, _l
 from ..settings import ConfigError, load_config
-from .common import _fail
+from .common import _fail, command
 
 
 def _backup_dir(cfg, args) -> Path:
     return Path(args.output) if args.output else Path(cfg["data_dir"]) / "backups"
 
 
+def _backup_args(p):
+    p.add_argument("--output", help=_("Destination folder (default <data_dir>/backups)"))
+    p.add_argument("--keep", type=int, help=_("Keep only the N most recent backups in the folder"))
+
+
+@command("backup", _l("Back up the database, config.json and secret_key"), _backup_args, order=140)
 def cmd_backup(cfg, conn, args):
     from ..core import backup
 
@@ -26,6 +32,11 @@ def cmd_backup(cfg, conn, args):
     print(path)
 
 
+def _backup_list_args(p):
+    p.add_argument("--output", help=_("Backup folder (default <data_dir>/backups)"))
+
+
+@command("backup-list", _l("List the backups in a folder"), _backup_list_args, order=141)
 def cmd_backup_list(cfg, conn, args):
     from ..core import backup
 
@@ -38,6 +49,14 @@ def cmd_backup_list(cfg, conn, args):
             print(_("%(path)s  (not valid: %(error)s)", path=path, error=exc))
 
 
+def _restore_args(p):
+    p.add_argument("archive", help=_("storageweb-backup-*.tar.gz file"))
+    p.add_argument("--force", action="store_true",
+                   help=_("Replace the existing database (a copy .antes-de-restaurar-* is kept first)"))
+    p.add_argument("--config-to", help=_("Write the config.json from the backup to this path"))
+
+
+@command("restore", _l("Restore a backup (with the service stopped)"), _restore_args, needs_db=False, order=142)
 def cmd_restore(args) -> int:
     """Se ejecuta sin abrir antes la base de datos (podría no existir o estar dañada)."""
     from ..core import backup

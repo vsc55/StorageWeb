@@ -37,18 +37,20 @@
   <fieldset class="span2 source-cards">
     <legend>{{ _("Where the members come from") }}</legend>
     <label class="source-card"><input type="radio" name="source" value="local" {% if form.source == 'local' %}checked{% endif %}>
-      <span><strong>{{ _("Local") }}</strong><span class="muted small">{{ _("Members are added by hand.") }}</span></span></label>
-    <label class="source-card"><input type="radio" name="source" value="entra" {% if form.source == 'entra' %}checked{% endif %}>
-      <span><strong>Entra ID</strong><span class="muted small">{{ _("Synchronized on each sign-in from a group or App Role.") }}</span></span></label>
-    <label class="source-card"><input type="radio" name="source" value="pam" {% if form.source == 'pam' %}checked{% endif %}>
-      <span><strong>{{ _("System (PAM)") }}</strong><span class="muted small">{{ _("Members of a group of the server.") }}</span></span></label>
+      <span><strong>{{ GROUP_SOURCE_LABELS['local'] }}</strong><span class="muted small">{{ _("Members are added by hand.") }}</span></span></label>
+    {# Un origen por método de inicio de sesión que trae grupos (providers.AuthMethod.external_groups) #}
+    {% set methods = group_methods() %}
+    {% for m in methods %}
+    <label class="source-card"><input type="radio" name="source" value="{{ m.key }}" {% if form.source == m.key %}checked{% endif %}{% if m.search %} data-directory-search="{{ m.search }}"{% endif %}>
+      <span><strong>{{ m.label }}</strong><span class="muted small">{{ m.hint }}</span></span></label>
+    {% endfor %}
   </fieldset>
-  <label class="span2">{{ _("External group") }} <small class="muted">({{ _("Entra ID: Object ID of the group or App Role name. System: group name.") }})</small>
+  <label class="span2">{{ _("External group") }} <small class="muted">({{ methods|map(attribute='id_help')|join(' ') }})</small>
     <input type="text" name="external_id" value="{{ form.external_id or '' }}" maxlength="200" class="mono"
-           list="entra-groups" autocomplete="off" data-entra-search="{{ url_for('groups.entra_search') }}">
-    <datalist id="entra-groups"></datalist>
-    <small class="muted js-only">{{ _("For Entra ID you can type the start of the group name and choose it.") }}</small>
-    <small class="muted">{{ _("Leave it empty for local groups. For Entra ID the id_token must include the «groups» or «roles» claim.") }}</small>
+           list="directory-groups" autocomplete="off" data-directory-input>
+    <datalist id="directory-groups"></datalist>
+    {% if methods|selectattr('search')|list %}<small class="muted js-only">{{ _("With %(sources)s you can type the start of the group name and choose it.", sources=methods|selectattr('search')|map(attribute='label')|join(', ')) }}</small>{% endif %}
+    <small class="muted">{{ _("Leave it empty for local groups.") }}</small>
   </label>
 {%- endmacro %}
 

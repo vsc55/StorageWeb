@@ -185,7 +185,7 @@ def test_grant_groups_and_group_names(entra_admin, monkeypatch):
         gc.sync_external(get_db(), uid, "entra", [gid])
     html = client.get("/admin/groups/list").get_data(as_text=True)
     assert "<strong>Sistemas</strong>" in html and "label=Sistemas" in html
-    assert client.get("/admin/groups/entra/search?q=Sis").get_json()["groups"][0]["name"] == "Sistemas"
+    assert client.get("/admin/groups/directory/entra/search?q=Sis").get_json()["groups"][0]["name"] == "Sistemas"
     html = client.get(f"/admin/users/{uid}").get_data(as_text=True)
     assert "<strong>Sistemas</strong>" in html
 

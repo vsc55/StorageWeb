@@ -5,18 +5,18 @@ aplica al guardar). La vista por grupos de lo mismo es la matriz de accesos (``g
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
 from ...core import groups as group_core
+from ...core import locations as location_core
 from ...core import shares as share_core
 from ...db.repositories import users
 from ...db.repositories import groups as group_repo
-from ...i18n import _
+from ...i18n import _, _l
 from ..context import get_db, runtime, settings
 from ..guards import admin_required, audit_event
-from .groups import entra_names
+from .. import search
+from .groups import directory_lookup
 from .settings.common import save_partial
 
 bp = Blueprint("access", __name__, url_prefix="/admin/access")
@@ -39,8 +39,8 @@ def _directory() -> dict:
         if row["external_id"]:
             groups[row["external_id"].lower()] = info
     refs = {ref for s in _shares() for ref in s["groups"] if ref not in groups}
-    for ref, name in entra_names(sorted(refs)).items():
-        groups[ref] = {"label": name, "source": "entra", "members": None}
+    for ref, (source, name) in directory_lookup(sorted(refs)).items():
+        groups[ref] = {"label": name, "source": source, "members": None}
     people = {u["username"].lower(): u["display_name"] or u["username"] for u in users.list_all(get_db())}
     return {"groups": groups, "users": people, "group_rows": rows}
 
@@ -70,7 +70,8 @@ def _form_share(original: dict | None) -> dict:
         items.append({"kind": f.get("add_kind", "group"), "ref": f.get("add_ref", ""),
                       "level": f.get("add_level", "write")})
     base = {"name": f.get("name", original["name"] if original else "").strip(),
-            "label": f.get("label", "").strip(), "path": f.get("path", "").strip(),
+            "label": f.get("label", "").strip(), "location": f.get("location", "").strip(),
+            "path": f.get("path", "").strip(),
             "read_only": f.get("read_only") == "on"}
     return share_core.with_entries(base, items)
 
@@ -94,7 +95,9 @@ def _render_folder(share: dict, original: str | None, status: int = 200, error: 
     title = (share.get("label") or share["name"]) if original else _("New shared folder")
     return render_template("admin/access/folder.html", share=share, original=original, title=title,
                            entries=_describe(share, directory), directory=directory, error=error,
-                           exists=bool(share.get("path")) and Path(share["path"]).exists(),
+                           exists=location_core.local_exists(share.get("location", ""), share.get("path", "")),
+                           where=location_core.where(settings(), share.get("location", ""), share.get("path", "")),
+                           locations=settings()["storage"]["locations"],
                            **_lock_context(), LEVEL_LABELS=share_core.LEVEL_LABELS,
                            ENTRY_KIND_LABELS=share_core.KIND_LABELS), status
 
@@ -109,14 +112,14 @@ def _store(original: str | None):
         new_list = share_core.replace(_shares(), original, share)
     except share_core.ShareError as exc:
         draft = {"name": request.form.get("name", original or ""), "label": request.form.get("label", ""),
-                 "path": request.form.get("path", ""), "read_only": False, "users": [], "read_only_users": [],
+                 "location": request.form.get("location", ""), "path": request.form.get("path", ""), "read_only": False, "users": [], "read_only_users": [],
                  "groups": [], "read_only_groups": []}
         return _render_folder(draft, original, 400, exc.message)
     _draft, error = save_partial(lambda: {"storage": {"shares": new_list}}, strict=True)
     if error:
         return _render_folder(share, original, 400, str(error))
     if original is None:
-        _audit("share_created", share["name"], share["path"])
+        _audit("share_created", share["name"], location_core.where(settings(), share["location"], share["path"]))
         flash(_("Shared folder «%(label)s» created.", label=share["label"] or share["name"]), "info")
     else:
         _audit("share_updated", share["name"], _entries_detail(share))
@@ -139,7 +142,9 @@ def index():
 @admin_required
 def folders():
     directory = _directory()
-    rows = [{"share": s, "entries": _describe(s, directory), "exists": Path(s["path"]).exists()} for s in _shares()]
+    cfg = settings()
+    rows = [{"share": s, "entries": _describe(s, directory), "where": location_core.where(cfg, s["location"], s["path"]),
+             "exists": location_core.local_exists(s["location"], s["path"])} for s in _shares()]
     return render_template("admin/access/folders.html", rows=rows, LEVEL_LABELS=share_core.LEVEL_LABELS,
                            **_lock_context(), create_shares=settings()["storage"]["create_shares"])
 
@@ -149,7 +154,7 @@ def folders():
 def folder_new():
     if request.method == "POST":
         return _store(None)
-    return _render_folder({"name": "", "label": "", "path": "", "read_only": False, "users": [],
+    return _render_folder({"name": "", "label": "", "location": "", "path": "", "read_only": False, "users": [],
                            "read_only_users": [], "groups": [], "read_only_groups": []}, None)
 
 
@@ -177,6 +182,17 @@ def folder_delete(name: str):
     if error:
         flash(_("The changes were not saved: %(error)s", error=error), "error")
         return redirect(url_for("access.folder", name=name))
-    _audit("share_deleted", name, share["path"])
+    _audit("share_deleted", name, location_core.where(settings(), share["location"], share["path"]))
     flash(_("Shared folder «%(label)s» removed. Its files are still on the server.", label=share["label"]), "info")
     return redirect(url_for("access.folders"))
+
+
+search.action("folder", _l("New shared folder"), "access.folder_new",
+              words="crear carpeta compartida share add create", order=30)
+
+
+@search.provider("share", _l("Shared folders"), order=30)
+def _search_shares(terms, conn, cfg):
+    return [search.item("share", s["label"], f"/f/{s['name']}", url_for("access.folder", name=s["name"]),
+                        icon="folder")
+            for s in cfg["storage"]["shares"] if search.matches(terms, s["label"], s["name"], s["path"])]

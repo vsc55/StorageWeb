@@ -1,0 +1,85 @@
+{% extends "admin/_layout.html" %}
+{% from "admin/_page.html" import page_kind, locked_notice with context %}
+{% from "admin/settings/_macros.html" import save_bar with context %}
+{# Formulario genérico: las opciones, etiquetas y ayudas salen del esquema del tipo (schema), que
+   declara su backend en core/backends/<tipo>.py. Un tipo nuevo no necesita tocar esta plantilla. #}
+{% macro option_field(o) -%}
+{% set value = loc[o.name] %}
+{% if o.kind == 'bool' %}
+<label class="check span2"><input type="checkbox" name="{{ o.name }}" {% if value %}checked{% endif %}>
+  <span>{{ o.label }}{% if o.help %} <small class="muted">{{ o.help }}</small>{% endif %}</span></label>
+{% else %}
+<label><span class="label-row">{{ o.label }}</span>
+  {% if o.kind == 'secret' %}
+  <input type="password" name="{{ o.name }}" value="" autocomplete="new-password"
+         placeholder="{{ _('(unchanged)') if has_secret[o.name] else o.placeholder }}">
+  {% elif o.kind == 'multiline' %}
+  <textarea name="{{ o.name }}" rows="4" class="mono" autocomplete="off" spellcheck="false"
+            placeholder="{{ _('(unchanged)') if has_secret[o.name] else o.placeholder }}"></textarea>
+  {% elif o.kind == 'port' %}
+  <input type="number" name="{{ o.name }}" value="{{ value }}" min="1" max="65535"{% if o.required %} required{% endif %}>
+  {% else %}
+  <input type="{{ 'url' if o.kind == 'url' else 'text' }}" name="{{ o.name }}" value="{{ value }}" class="mono"
+         {% if o.section == 'credentials' %}autocomplete="off" {% endif %}placeholder="{{ o.placeholder }}"{% if o.required %} required{% endif %}>
+  {% endif %}
+  {% if o.help %}<small class="muted">{{ o.help }}</small>{% endif %}</label>
+{% endif %}
+{%- endmacro %}
+{% block title %}{{ title }} · {{ _("Storage locations") }} · {{ app_name }}{% endblock %}
+{% block admin_content %}
+<p class="small"><a href="{{ url_for('locations.index') }}">← {{ _("Storage locations") }}</a></p>
+<div class="page-head">
+  <div>
+    <div class="settings-title"><h1>{{ title }}</h1>{{ page_kind() }}</div>
+    <p class="muted small">{{ schema.label }}{% if original %} ·
+      {% if used_by %}{{ _("Used by: %(names)s", names=used_by|join(", ")) }}{% else %}{{ _("No folder uses it yet.") }}{% endif %}{% endif %}</p>
+  </div>
+  {% if original %}
+  <form method="post" action="{{ url_for('locations.test', name=original) }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button class="btn" type="submit">{{ _("Test the connection") }}</button>
+  </form>
+  {% endif %}
+</div>
+{{ locked_notice(locked_message) }}
+{% if error %}<div class="flash flash-error" role="alert">{{ _("The changes were not saved: %(error)s", error=error) }}</div>{% endif %}
+
+<form method="post" class="settings-form" data-watch>
+  <fieldset class="plain-fieldset"{% if locked_message %} disabled{% endif %}>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="type" value="{{ loc.type }}">
+  <div class="card form-grid">
+    <label><span class="label-row">{{ _("Label") }}</span>
+      <input type="text" name="label" value="{{ loc.label }}" placeholder="{{ schema.label_placeholder }}"></label>
+    <label><span class="label-row">{{ _("Name") }}</span>
+      <input type="text" name="name" value="{{ loc.name }}" required pattern="[A-Za-z0-9_\-]+" maxlength="64" placeholder="{{ schema.name_placeholder }}"{% if original %} readonly{% endif %}>
+      <small class="muted">{{ _("Letters, digits, _ and -. It cannot be changed later: folders refer to it.") }}</small></label>
+  </div>
+
+  {% for section, options in schema.sections() %}
+  <section class="card form-grid" aria-labelledby="sec-{{ section }}">
+    <h2 class="card-title span2" id="sec-{{ section }}">{{ _("Credentials") if section == 'credentials' else schema.place_title }}</h2>
+    {% for o in options %}{{ option_field(o) }}{% endfor %}
+    {% if section == 'credentials' and schema.credentials_help %}<p class="muted small span2">{{ schema.credentials_help }}</p>{% endif %}
+  </section>
+  {% endfor %}
+  {% if schema.secrets %}<p class="muted small">{{ _("Secrets are stored in the database of StorageWeb and never shown again; leave them empty to keep the saved ones.") }}</p>{% endif %}
+  </fieldset>
+  {% if not locked_message %}
+  <div class="inline section-gap">
+    <button class="btn" type="submit" name="then" value="test">{{ _("Save and test the connection") }}</button>
+  </div>
+  {{ save_bar() }}
+  {% endif %}
+</form>
+
+{% if original and not locked_message %}
+<form method="post" action="{{ url_for('locations.delete', name=original) }}" class="card section-gap js-confirm"
+      data-confirm="{{ _('Remove the storage location %(name)s? Its files stay where they are.', name=loc.label) }}">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <h2 class="card-title">{{ _("Remove the location") }}</h2>
+  <p class="muted small">{{ _("Only possible when no folder uses it. The files are not deleted.") }}</p>
+  <button class="btn btn-danger" type="submit"{% if used_by %} disabled{% endif %}>{{ _("Remove storage location") }}</button>
+</form>
+{% endif %}
+{% endblock %}

@@ -6,7 +6,8 @@ from flask import Flask, g
 from .. import __version__, i18n
 from ..core import branding
 from ..core.permissions import ROLE_LABELS, is_admin
-from ..settings import env_name
+from .. import providers
+from ..settings import env_name, location_types
 from . import js_messages, nav
 from .context import admin_alerts, get_db, runtime, settings
 from .guards import csrf_token
@@ -53,6 +54,8 @@ def init_templating(app: Flask) -> None:
     app.jinja_env.filters["filesize"] = i18n.format_size
     app.jinja_env.filters["ua_summary"] = ua_summary
     app.jinja_env.globals["env_name"] = env_name
+    app.jinja_env.globals["location_type"] = location_types.get  # esquema de un tipo de ubicación (S3, SMB…)
+    app.jinja_env.globals["auth_method"] = providers.get  # método de inicio de sesión de un origen (local, entra…)
 
     @app.context_processor
     def inject_globals():

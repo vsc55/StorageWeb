@@ -5,6 +5,7 @@ from collections import namedtuple
 import pytest
 
 from storageweb.core import uploads as core
+from storageweb.core.backends import local as local_backend
 from storageweb.db.repositories import uploads as repo
 
 from tests.helpers import add_user, get_csrf, login
@@ -137,7 +138,7 @@ def test_unlimited_size_shown(logged):
 def test_not_enough_space(logged, monkeypatch):
     client, token = logged
     Usage = namedtuple("Usage", "total used free")
-    monkeypatch.setattr(core.shutil, "disk_usage", lambda p: Usage(100, 90, 10 * core.MB))
+    monkeypatch.setattr(local_backend.shutil, "disk_usage", lambda p: Usage(100, 90, 10 * core.MB))
     r = init(client, token, size=core.MB)
     assert r.status_code == 507
 

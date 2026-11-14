@@ -63,30 +63,107 @@ Reglas:
 ## Añadir una migración de base de datos
 
 1. Crea `src/storageweb/db/migrations/002_descripcion.sql` con el siguiente número. **Nunca** modifiques una migración ya publicada.
-2. SQL válido para SQLite, sin `BEGIN`/`COMMIT` (se añaden solos). SQLite tiene un `ALTER TABLE` limitado; para cambios complejos, crea una tabla nueva, copia los datos y renómbrala.
+2. SQL válido para SQLite, sin `BEGIN`/`COMMIT` (se añaden solos). SQLite tiene un `ALTER TABLE` limitado; para cambios complejos, crea una tabla nueva, copia los datos y renómbrala. En ese caso empieza el fichero con la línea `-- foreign_keys: off`: si no, borrar la tabla vieja borraría en cascada sus filas relacionadas (sesiones, pertenencias…). El migrador comprueba las claves ajenas antes de confirmar (ejemplo: `007_open_sources.sql`).
 3. Añade o actualiza las funciones del repositorio en `db/repositories/`.
 4. Los tests de `tests/unit/test_migrations.py` comprueban la numeración y la idempotencia. Añade uno con datos si la migración los transforma.
 5. Actualiza [Datos](../arquitectura/datos.md) y añade una nota en el `CHANGELOG.md`.
 
-## Añadir un proveedor SSO
+## Añadir un método de inicio de sesión
 
-1. Crea su carpeta, `providers/mi_proveedor/`, con una subclase de `SSOProvider` (de `providers/base.py`). Todo lo propio de ese proveedor (comprobaciones, directorio, registro) va en la misma carpeta, como en `providers/entra/`:
+Los métodos (local, PAM, Entra ID…) se descubren solos: **una carpeta nueva** en `src/storageweb/providers/`, sin tocar las cuentas, los grupos, el login, el Resumen, la CLI ni los ajustes.
+
+1. Crea `providers/mi_metodo/` con un módulo (por ejemplo `method.py`) que defina una subclase de `AuthMethod` (`providers/base.py`) con su `key`, su `label` y su configuración:
 
     ```python
-    class MiProveedor(SSOProvider):
-        name = "mi_proveedor"
+    from ...i18n import _l
+    from ...settings import checks
+    from ...settings.auth_methods import AuthConfig
+    from ...settings.fields import Field
+    from ..base import AuthMethod, Identity
 
-        def begin(self, redirect_uri: str) -> tuple[str, dict]:
-            ...  # URL de autorización y flow (dict serializable) para la sesión
 
-        def complete(self, flow: dict, args: dict) -> dict:
-            ...  # validar y devolver los claims (oid/sub, preferred_username, groups, roles, name, tid)
+    def _validate(section, cfg):                      # normaliza en el sitio o lanza ConfigError
+        section["groups"] = checks.str_list(section["groups"], "auth.ldap.groups", lower=True)
+
+
+    class LdapMethod(AuthMethod):
+        key = "ldap"                                  # auth.ldap y users.source = "ldap"
+        label = "LDAP"
+        description = _l("Directory accounts (LDAP)")
+        password = True                               # entra con el formulario de usuario y contraseña
+        provisions = True                             # crea la cuenta en el primer inicio de sesión
+        external_groups = True                        # trae grupos (pertenencias sincronizadas)
+        group_hint = _l("Synchronized on each sign-in from an LDAP group.")
+        config = AuthConfig(
+            key="ldap",
+            defaults={"enabled": False, "url": "", "bind_password": "", "groups": []},
+            fields={"enabled": Field(doc="Activar LDAP.", label="LDAP", page="auth"),
+                    "url": Field(doc="`ldaps://servidor`.", label=_l("Server"), page="auth"),
+                    "bind_password": Field(doc="Contraseña de la cuenta de servicio.", label=_l("Password"),
+                                           page="auth"),
+                    "groups": Field(doc="Grupos permitidos.", label=_l("Allowed groups"), page="auth")},
+            validate=_validate, secrets=("bind_password",))
+
+        def verify(self, section, user, username, password):
+            ...                                       # Identity(username, groups=[…], role=None) o None
     ```
 
-2. Regístralo en `providers/__init__.py` (`SSO_PROVIDERS`) y añade su nombre a `SSO_PROVIDER_NAMES` en `settings/defaults.py`.
-3. Si usa una librería, impórtala dentro de las funciones (como hace `providers/entra/msal.py`). Así la dependencia solo es necesaria si se activa. Declárala como extra opcional en `pyproject.toml`.
-4. Tests: sustituye la llamada de red, como hace la fixture `token_endpoint`, y cubre los errores (`state`, `aud`, caducidad…).
-5. Documenta la opción en [Entra ID](../administracion/entra-id.md).
+2. **Qué sabe hacer** (atributos de `AuthMethod`): `password` (con `verify`) o `sso` (con `login_button`, `begin`, `complete` y, si cierra sesión en el proveedor, `logout_url`); `stores_password`, `provisions`, `external_groups`, `lowercase_usernames`. Opcional: `notices` (avisos del Resumen), `network_notes` (diagnóstico de red), `directory` (nombres y búsqueda de grupos). `complete` lanza `AuthDenied` si la persona no puede entrar.
+3. **Configuración**: sus valores por defecto, la descripción de cada campo (`doc`, para la referencia; `label`, `page="auth"` y `words` para la web y el buscador), los secretos y su validación van en su `AuthConfig`. Se incorporan solos a `DEFAULTS["auth"]`, a la referencia generada y a las variables de entorno (`STORAGEWEB_AUTH__LDAP__URL`). Los métodos SSO usan además las opciones comunes `auto_provision`, `default_role`, `role_mappings` y `sync_role_on_login`.
+4. **Ajustes**: sin hacer nada, su tarjeta en *Seguridad → Inicio de sesión* sale de `admin/settings/auth/_generic.html` (interruptor y campos de primer nivel) y el formulario se lee solo. Para una tarjeta propia, crea `admin/settings/auth/<método>.html` (y, si necesita formularios aparte, `<método>_forms.html`); para un formulario propio, registra un lector con `@auth_forms.form_parser("<método>")` en un módulo de `web/views/settings/` (como `entra.py`).
+5. **SSO**: las rutas `/auth/<método>/login` y `/auth/<método>/callback` ya existen. El botón del login sale de `login_button` (texto, clase CSS e icono del sprite).
+6. **Dependencias**: impórtalas dentro de las funciones (como `providers/entra/msal.py`) y declara un extra opcional en `pyproject.toml`.
+7. **Tests**: `tests/unit/test_auth_methods.py` define dos métodos completos en el propio test (uno de contraseña y uno SSO) y comprueba la configuración, el login, el SSO, los grupos, el Resumen y la página de ajustes.
+
+## Añadir un tipo de almacenamiento externo
+
+Los tipos de ubicación (S3, SMB…) se descubren solos: basta con **un fichero nuevo** en `src/storageweb/core/backends/`, sin tocar el cargador de ajustes, las plantillas ni la documentación generada ([ADR 0014](../arquitectura/decisiones/0014-almacenamiento-externo.md)).
+
+```python
+# core/backends/webdav.py
+from ...i18n import _l
+from ...settings.location_types import LocationSchema, Option
+from .base import RemoteBackend
+
+
+class WebDAVBackend(RemoteBackend):
+    schema = LocationSchema(
+        kind="webdav",                       # valor de storage.locations[].type
+        label=_l("WebDAV (Nextcloud, ownCloud…)"), short_label="WebDAV",
+        doc="Servidor WebDAV.",              # referencia generada (en español)
+        place_title=_l("Server"), extra="webdav",
+        options=(
+            Option("url", _l("Address"), "URL del servidor.", kind="url", required=True),
+            Option("username", _l("User"), "Usuario.", section="credentials"),
+            Option("password", _l("Password"), "Contraseña.", kind="secret", section="credentials"),
+        ),
+    )
+
+    @classmethod
+    def connect(cls, location):              # una vez por proceso y ubicación
+        try:
+            import webdav3.client
+        except ImportError as exc:
+            raise cls.missing_library("webdavclient3") from exc
+        ...
+
+    @classmethod
+    def create(cls, client, location, base, staging):
+        return cls(client, base, staging)    # base = ruta de la carpeta dentro de la ubicación
+
+    @classmethod
+    def address(cls, location, path=""):
+        return f"{location['url'].rstrip('/')}/{path}".rstrip("/")
+
+    # + las operaciones de Backend: stat, listdir, open (con seek), mkdir, rename, delete, store,
+    #   root_exists, ensure_root (ver core/backends/base.py y s3.py como ejemplo)
+```
+
+- **Opciones** (`Option.kind`): `text`, `path` (ruta relativa, sin `..`), `url`, `secret` (nunca se muestra; vacío al editar = se conserva), `bool` y `port`. Con ellas el cargador valida, la web pinta el formulario (`section`: `place` o `credentials`) y `tools/gen_docs.py` escribe la tabla del tipo.
+- **Errores:** traduce los de la biblioteca a `BackendError` con un mensaje para el usuario; `FileNotFoundError` y `FileExistsError` se dejan pasar.
+- **Dependencia:** impórtala dentro de `connect` y declárala como extra en `pyproject.toml` (y en `EXTRAS` del `Dockerfile` si va en la imagen).
+- **Tests:** un cliente falso en `tests/fakes.py` y el tipo en la batería común de `tests/unit/test_backends.py` (fixture `backend`). `tests/unit/test_location_types.py` muestra un tipo completo definido en el propio test.
+- Después: `tools/i18n.py update` (y traducir) y `tools/gen_docs.py`.
 
 ## Añadir un endpoint de la API
 
@@ -100,6 +177,18 @@ Llama a `audit.log(conn, "mi_accion", objetivo, username=…, ip=…, detail=…
 
 ## Añadir un comando a la CLI
 
-1. Función `cmd_<nombre>(cfg, conn, args)` en el módulo de su grupo en `cli/` (`users.py`, `config.py`, `security.py`, `backup.py`) y su entrada en `COMMANDS` de `cli/__init__.py`.
-2. Subparser en `build_parser()` con `help=_("…")` en el comando y en **todos** sus argumentos, porque de ahí sale la [referencia](../referencia/cli.md). Después ejecuta `python tools/i18n.py update` y traduce.
+1. Función `cmd_<nombre>(cfg, conn, args)` en el módulo de su grupo en `cli/` (`users.py`, `config.py`, `security.py`, `backup.py` o uno nuevo) con el decorador `@command("nombre", _l("Ayuda"), argumentos, order=…)` de `cli/common.py`. `argumentos(parser)` añade sus opciones; con `needs_db=False` la función recibe solo `args` y devuelve el código de salida. `cli/__init__.py` descubre los comandos solo.
+2. Todos los textos con `_("…")` (también la ayuda de cada argumento), porque de ahí sale la [referencia](../referencia/cli.md). Después ejecuta `python tools/i18n.py update` y traduce.
 3. Test en `tests/integration/test_cli.py` y `python tools/gen_docs.py`.
+
+## Añadir un aviso al Resumen
+
+En el módulo de `core` que sabe del asunto, registra una función con `@alerts.source("nombre", order=…)` (`core/alerts.py`). Recibe un `Context` (`cfg`, `boot`, `maint_state`, `locked`, `network`) y devuelve una lista de `alerts.alert(level, key, título, detalle, página, acción, ancla)`; `page` es una clave de `web/nav.py`. `collect` importa todo `core` antes de recorrer el registro. Ejemplos: `_missing_folders` en `core/shares.py`, `_stale_backups` en `core/maintenance.py`. Los métodos de inicio de sesión aportan los suyos con `AuthMethod.notices`.
+
+## Añadir una tarea de mantenimiento
+
+Con `@maintenance.task("nombre", every=lambda cfg: horas, order=…)` sobre una función `(conn, cfg)` en su módulo de `core` (ejemplo: `prune` en `core/ipban.py`). `every` devuelve cada cuántas horas toca según los ajustes (`0` = desactivada). `run_due` las ejecuta en el hilo de mantenimiento, apunta cuándo se hizo cada una en `maintenance_state` y, si una falla, la registra y sigue con las demás.
+
+## Añadir algo al buscador (Ctrl+K)
+
+En el módulo web de la página: `search.action(icono, _l("Título"), endpoint, args, ancla, sinónimos, order=…)` para una acción frecuente, y `@search.provider("tipo", _l("Grupo"), order=…)` sobre `fn(terms, conn, cfg)` que devuelve `search.item(...)` para buscar entidades (usa `search.matches`, que no distingue tildes). Ejemplos: usuarios en `web/views/admin/users.py`, ubicaciones en `web/views/locations.py`.

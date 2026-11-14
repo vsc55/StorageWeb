@@ -1,93 +1,86 @@
 """Avisos para los administradores: lo que necesita atención (Resumen y globo de la barra lateral).
 
+Cada módulo de ``core`` aporta los suyos con el decorador :func:`source` (las copias en
+``maintenance``, las carpetas en ``shares``, la red en ``network``, los métodos de inicio de sesión en
+``auth``, que pregunta a cada proveedor); :func:`collect` los reúne sin saber de qué tratan.
+
 Cada aviso dice en qué página se resuelve (``page``, una clave de ``web/nav.py``) para que la web
 pueda enlazarlo. ``level`` es ``danger``, ``warn`` o ``info``; los ``info`` no cuentan en el globo.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 
-from ..i18n import _, format_datetime, ngettext
-from . import maintenance
-from .network import warnings as network_warnings
+from .. import registry
+from ..i18n import _, ngettext
 
-SECRET_WARN_DAYS = 30
+LEVELS = {"danger": 0, "warn": 1, "info": 2}
 
 
-def _alert(level: str, key: str, title: str, detail: str, page: str, action: str, anchor: str = "") -> dict:
+@dataclass(frozen=True)
+class Context:
+    """Lo que necesitan las fuentes de avisos.
+
+    ``cfg`` son los ajustes efectivos, ``boot`` los de arranque, ``maint_state`` lo que guarda
+    ``maintenance.state`` (cuándo se intentó cada tarea), ``locked`` los campos fijados fuera de la
+    web (``RuntimeSettings.locked()``) y ``network`` el diagnóstico de la petición (``core.network``).
+    """
+    cfg: dict
+    boot: dict
+    maint_state: dict
+    locked: dict
+    network: dict | None
+
+
+Source = Callable[[Context], Iterable[dict]]
+_SOURCES: list[tuple[int, str, Source]] = []
+
+
+def source(name: str, order: int = 50) -> Callable[[Source], Source]:
+    """Registra una función que devuelve avisos (``alert(...)``) a partir del :class:`Context`."""
+    def decorate(fn: Source) -> Source:
+        if all(existing != name for _o, existing, _f in _SOURCES):
+            _SOURCES.append((order, name, fn))
+            _SOURCES.sort(key=lambda item: (item[0], item[1]))
+        return fn
+    return decorate
+
+
+def alert(level: str, key: str, title: str, detail: str, page: str, action: str, anchor: str = "") -> dict:
+    if level not in LEVELS:
+        raise ValueError(level)
     return {"level": level, "key": key, "title": title, "detail": detail, "page": page, "action": action,
             "anchor": anchor}
 
 
-def secret_days(entra: dict) -> int | None:
-    """Días hasta que caduca el secreto de Entra ID (negativo si ya caducó), o ``None`` si no se sabe."""
-    if not entra.get("secret_expires") or not entra.get("client_id"):
-        return None
-    return (datetime.fromisoformat(entra["secret_expires"]) - datetime.now(timezone.utc)).days
-
-
 def collect(cfg: dict, boot: dict, maint_state: dict, locked: dict | None = None,
             network: dict | None = None) -> list[dict]:
-    """Avisos actuales, del más grave al menos.
-
-    ``cfg`` son los ajustes efectivos, ``boot`` los de arranque, ``maint_state`` lo que guarda
-    :func:`maintenance.state` (cuándo se intentó cada tarea), ``locked`` los campos fijados fuera de la
-    web (``RuntimeSettings.locked()``) y ``network`` el diagnóstico de la petición (``core.network``).
-    """
+    """Avisos actuales, del más grave al menos."""
+    registry.import_submodules("storageweb.core")  # las fuentes se registran al importar su módulo
+    ctx = Context(cfg, boot, maint_state, locked or {}, network)
     alerts: list[dict] = []
-    entra = cfg["auth"]["entra"]
-    days = secret_days(entra)
-    if days is not None and days <= SECRET_WARN_DAYS:
-        date = format_datetime(entra["secret_expires"])
-        if days < 0:
-            alerts.append(_alert("danger", "secret_expired", _("The Entra ID client secret has expired"),
-                                 _("Since %(date)s nobody can sign in with Microsoft.", date=date),
-                                 "auth", _("Renew the secret"), "f-auth-entra-secret_expires"))
-        else:
-            alerts.append(_alert("danger" if days <= 7 else "warn", "secret_expiring",
-                                 ngettext("The Entra ID client secret expires in %(num)s day",
-                                          "The Entra ID client secret expires in %(num)s days", days),
-                                 _("On %(date)s; after that nobody can sign in with Microsoft.", date=date),
-                                 "auth", _("Renew the secret"), "f-auth-entra-secret_expires"))
-
-    if not cfg["storage"]["create_shares"]:
-        for share in cfg["storage"]["shares"]:
-            if not Path(share["path"]).exists():
-                alerts.append(_alert("warn", "share_missing",
-                                     _("The shared folder «%(label)s» does not exist on the server",
-                                       label=share["label"]),
-                                     share["path"], "folders", _("Review the folder"), f"share-{share['name']}"))
-
-    hours = cfg["maintenance"]["backup_interval_hours"]
-    if hours:
-        backups = maintenance.list_backups(boot)
-        newest = backups[0]["created"] if backups else None
-        limit = datetime.now(timezone.utc) - timedelta(hours=hours * 2 + 1)
-        tried = maint_state.get("backup")  # sin copias y sin intento aún: recién instalado, no es un aviso
-        if (newest is None and tried) or (newest is not None and datetime.fromisoformat(newest) < limit):
-            alerts.append(_alert("warn", "backup_stale", _("Automatic backups are not being made"),
-                                 _("The newest backup is from %(date)s.", date=format_datetime(newest)) if newest
-                                 else _("There is no backup yet."),
-                                 "backups", _("See the backups")))
-    for level, text in (network_warnings(network) if network else []):
-        alerts.append(_alert(level, "network", text, "", "network", _("Review the network")))
-
-    if locked:
-        files = sum(1 for source in locked.values() if source == "file")
-        envs = len(locked) - files
-        parts = []
-        if files:
-            parts.append(ngettext("%(num)s in config.json", "%(num)s in config.json", files))
-        if envs:
-            parts.append(ngettext("%(num)s in environment variables", "%(num)s in environment variables", envs))
-        alerts.append(_alert("info", "locked", ngettext("%(num)s setting is locked", "%(num)s settings are locked",
-                                                        len(locked)),
-                             " · ".join(parts), "system", _("See which ones"), "layers-title"))
-
-    order = {"danger": 0, "warn": 1, "info": 2}
-    return sorted(alerts, key=lambda a: order[a["level"]])
+    for _order, _name, fn in _SOURCES:
+        alerts.extend(fn(ctx))
+    return sorted(alerts, key=lambda a: LEVELS[a["level"]])
 
 
 def count(alerts: list[dict]) -> int:
     return sum(1 for a in alerts if a["level"] != "info")
+
+
+@source("locked", order=90)
+def _locked(ctx: Context):
+    """Ajustes fijados en config.json o en el entorno (no se pueden cambiar desde la web)."""
+    if not ctx.locked:
+        return []
+    files = sum(1 for origin in ctx.locked.values() if origin == "file")
+    envs = len(ctx.locked) - files
+    parts = []
+    if files:
+        parts.append(ngettext("%(num)s in config.json", "%(num)s in config.json", files))
+    if envs:
+        parts.append(ngettext("%(num)s in environment variables", "%(num)s in environment variables", envs))
+    return [alert("info", "locked", ngettext("%(num)s setting is locked", "%(num)s settings are locked",
+                                             len(ctx.locked)),
+                  " · ".join(parts), "system", _("See which ones"), "layers-title")]

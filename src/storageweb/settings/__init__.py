@@ -8,7 +8,7 @@
 * ``runtime``  — ajustes guardados desde la web, bloqueos y orígenes de cada valor
 """
 from . import fields  # noqa: F401
-from .defaults import DEFAULTS, PERMISSIONS, ROLES, RUNTIME_SECTIONS, SECRET_PATHS
+from .defaults import DEFAULTS, PERMISSIONS, ROLES, RUNTIME_SECTIONS, SECRET_PATHS, is_secret
 from .env import ENV_ALIASES, env_config, env_name, setting_paths
 from .errors import ConfigError
 from .layers import (deep_merge, diff_overrides, drop_path, get_path, leaf_paths, merge_overrides, runtime_part,
@@ -17,7 +17,7 @@ from .loader import default_config_path, ensure_secret_key, load_config, mask_se
 from .runtime import ORIGINS, RUNTIME_KEY, RuntimeSettings, runtime_key
 
 __all__ = [
-    "DEFAULTS", "ENV_ALIASES", "ORIGINS", "PERMISSIONS", "ROLES", "RUNTIME_KEY", "RUNTIME_SECTIONS", "SECRET_PATHS",
+    "DEFAULTS", "ENV_ALIASES", "is_secret", "ORIGINS", "PERMISSIONS", "ROLES", "RUNTIME_KEY", "RUNTIME_SECTIONS", "SECRET_PATHS",
     "ConfigError", "RuntimeSettings", "deep_merge", "default_config_path", "diff_overrides", "drop_path",
     "ensure_secret_key", "env_config", "env_name", "fields", "get_path", "leaf_paths", "load_config", "mask_secrets",
     "merge_overrides", "normalize", "read_config_file", "runtime_key", "runtime_part", "runtime_view", "setting_paths",

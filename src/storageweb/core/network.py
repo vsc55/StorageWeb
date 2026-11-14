@@ -6,7 +6,9 @@ from __future__ import annotations
 
 from urllib.parse import urlsplit
 
+from .. import providers
 from ..i18n import _
+from .alerts import alert, source
 
 FORWARDED_HEADERS = ("X-Forwarded-For", "X-Forwarded-Proto", "X-Forwarded-Host", "X-Forwarded-Port",
                      "X-Forwarded-Prefix")
@@ -52,10 +54,9 @@ def diagnose(facts: dict, headers: dict, cfg: dict, boot: dict) -> dict:
                                 "the proxy probably does not send X-Forwarded-Proto. Generated URLs will be http://.")))
     if not cookie_secure and (scheme == "https" or (pub and pub.scheme == "https")):
         notes.append(("warn", _("session.cookie_secure is disabled: enable it in production (config.json).")))
-    redirect_uri = cfg["auth"]["entra"].get("redirect_uri")
-    if redirect_uri and public and not redirect_uri.startswith(public + "/"):
-        notes.append(("warn", _("The Entra ID redirect URI (%(uri)s) does not use the public address.",
-                                uri=redirect_uri)))
+    for method in providers.methods():  # p. ej. la dirección de vuelta de Entra ID
+        if method.enabled(cfg) or method.section(cfg).get("redirect_uri"):
+            notes.extend(method.network_notes(method.section(cfg), public))
     if not any(level in ("warn", "danger") for level, _text in notes):
         notes.insert(0, ("ok", _("The proxy, the scheme and the public address match.")))
 
@@ -70,3 +71,9 @@ def diagnose(facts: dict, headers: dict, cfg: dict, boot: dict) -> dict:
 def warnings(diagnosis: dict) -> list[tuple[str, str]]:
     """Solo los avisos que hay que atender (``warn`` y ``danger``)."""
     return [(level, text) for level, text in diagnosis["notes"] if level in ("warn", "danger")]
+
+
+@source("network", order=40)
+def _network_alerts(ctx):
+    return [alert(level, "network", text, "", "network", _("Review the network"))
+            for level, text in (warnings(ctx.network) if ctx.network else [])]

@@ -14,6 +14,8 @@ from __future__ import annotations
 import copy
 
 from ..i18n import _, _l
+from . import locations
+from .alerts import alert, source
 
 ENTRY_KINDS = ("all", "user", "group")
 ENTRY_LEVELS = ("write", "read")
@@ -82,3 +84,16 @@ def replace(shares: list[dict], original: str | None, share: dict) -> list[dict]
 
 def remove(shares: list[dict], name: str) -> list[dict]:
     return [copy.deepcopy(s) for s in shares if s["name"] != name]
+
+
+@source("shares", order=20)
+def _missing_folders(ctx):
+    """Carpetas en el disco del servidor que no existen (las remotas se comprueban al abrirlas)."""
+    cfg = ctx.cfg
+    if cfg["storage"]["create_shares"]:
+        return []
+    return [alert("warn", "share_missing", _("The shared folder «%(label)s» does not exist on the server",
+                                             label=share["label"]),
+                  share["path"], "folders", _("Review the folder"), f"share-{share['name']}")
+            for share in cfg["storage"]["shares"]
+            if locations.local_exists(share.get("location", ""), share["path"]) is False]

@@ -57,12 +57,18 @@ Cada valor sale de la capa con más prioridad que lo fije, campo a campo: **pred
 | `storage.shares` | lista | `[]` | Sí | `STORAGEWEB_STORAGE__SHARES` | Lista de carpetas compartidas (ver los campos de cada elemento abajo). |
 | `storage.shares[].name` | | | Sí | | Identificador en la URL (`/f/<name>/`): letras, números, `_` y `-`. `home` está reservado. |
 | `storage.shares[].label` | | | Sí | | Nombre visible. Por defecto, `name`. |
-| `storage.shares[].path` | | | Sí | | Ruta en el servidor. Relativa = respecto a la carpeta del `config.json`. |
+| `storage.shares[].location` | | | Sí | | Ubicación de `storage.locations` donde está la carpeta (S3, SMB). Vacía = el disco del servidor (también lo montado en él: NFS, SMB/CIFS…). |
+| `storage.shares[].path` | | | Sí | | En el disco: ruta en el servidor (relativa = respecto a la carpeta del `config.json`). En una ubicación: ruta dentro de ella (vacía = su raíz). |
 | `storage.shares[].read_only` | | | Sí | | Solo lectura: únicamente se permite descargar, también a los administradores. |
 | `storage.shares[].users` | | | Sí | | Usuarios con acceso; `["*"]` = todos. |
 | `storage.shares[].read_only_users` | | | Sí | | Usuarios de `users` que solo pueden leer; `"*"` = todos los que entran por `["*"]`. Quien entra también por un grupo con escritura puede escribir. |
 | `storage.shares[].groups` | | | Sí | | Grupos con acceso: identificador de un grupo de *Personas → Grupos*, grupo del sistema, u Object ID/App Role de Entra ID. |
 | `storage.shares[].read_only_groups` | | | Sí | | Grupos de `groups` que solo pueden leer (los edita la matriz de accesos). Quien entra también por otro grupo o por `users` con escritura puede escribir. |
+| `storage.locations` | lista | `[]` | Sí | `STORAGEWEB_STORAGE__LOCATIONS` | Almacenamientos externos con nombre, que eligen las carpetas (ver *Tipos de ubicación*, abajo). |
+| `storage.locations[].name` | | | Sí | | Identificador: letras, números, `_` y `-`. |
+| `storage.locations[].label` | | | Sí | | Nombre visible. Por defecto, `name`. |
+| `storage.locations[].type` | | | Sí | | Tipo de almacenamiento; sus opciones, en la tabla de su tipo (abajo). |
+| `storage.home_location` | texto | `""` | Sí | `STORAGEWEB_STORAGE__HOME_LOCATION` | Ubicación de `storage.locations` donde están las carpetas personales. Vacía = el disco del servidor; con una ubicación, `home_template` es una ruta dentro de ella (`homes/{username}`). |
 
 ## Permisos (`permissions`)
 
@@ -133,6 +139,91 @@ Cada valor sale de la capa con más prioridad que lo fije, campo a campo: **pred
 |---|---|---|---|---|---|
 | `branding.primary_color` | texto | `""` | Sí | `STORAGEWEB_BRANDING__PRIMARY_COLOR` | Color principal de la interfaz (`#rrggbb`). Vacío = el de serie. |
 | `branding.logo` | texto | `""` | Sí | `STORAGEWEB_BRANDING__LOGO` | Logo propio: lo rellena la subida desde *Sistema → General y marca* (`logo.png`, `logo.svg`…). |
+
+## Tipos de ubicación (`storage.locations[].type`)
+
+Cada tipo lo declara su backend en `src/storageweb/core/backends/<tipo>.py`. Además de `name`, `label` y `type`, cada ubicación lleva las opciones de su tipo. Los secretos nunca se muestran en la web.
+
+### `azure`: Azure
+
+Contenedor de Azure Blob Storage. Requiere `pip install 'storageweb[azure]'`.
+
+| Opción | Tipo | Por defecto | Obligatoria | Descripción |
+|---|---|---|---|---|
+| `account` | texto |  | Sí | Nombre de la cuenta de almacenamiento. |
+| `container` | texto |  | Sí | Contenedor. |
+| `prefix` | ruta relativa |  |  | Carpeta dentro del contenedor donde va todo (vacío = el contenedor). |
+| `endpoint` | URL |  |  | Dirección del servicio si no es la pública de Azure (Azurite, nubes soberanas). |
+| `account_key` | texto (secreto) |  |  | Clave de la cuenta (secreto). |
+| `sas_token` | texto (secreto) |  |  | Token SAS del contenedor, en lugar de la clave (secreto). |
+
+### `ftp`: FTP
+
+Servidor FTP o FTPS (FTP con TLS). Sin dependencias.
+
+| Opción | Tipo | Por defecto | Obligatoria | Descripción |
+|---|---|---|---|---|
+| `host` | texto |  | Sí | Nombre o IP del servidor. |
+| `port` | puerto | `21` |  | Puerto (`21`). |
+| `path` | ruta en el servidor |  |  | Carpeta del servidor donde va todo: absoluta (`/datos`) o relativa a la del usuario. |
+| `tls` | booleano | `true` |  | Usar FTPS explícito (`AUTH TLS`): sesión y datos cifrados. |
+| `verify_tls` | booleano | `true` |  | Comprobar el certificado TLS del servidor. Desactívalo solo con certificados propios. |
+| `username` | texto |  |  | Usuario (vacío = anónimo). |
+| `password` | texto (secreto) |  |  | Contraseña (secreto). |
+
+### `s3`: S3
+
+Amazon S3 o compatible (MinIO, Wasabi, Backblaze B2, Cloudflare R2…). Requiere `pip install 'storageweb[s3]'`.
+
+| Opción | Tipo | Por defecto | Obligatoria | Descripción |
+|---|---|---|---|---|
+| `bucket` | texto |  | Sí | Nombre del bucket. |
+| `prefix` | ruta relativa |  |  | Prefijo dentro del bucket donde va todo (vacío = todo el bucket). |
+| `region` | texto |  |  | Región (`eu-west-1`…). Vacía = la del entorno. |
+| `endpoint_url` | URL |  |  | URL del servicio si no es AWS (MinIO, Wasabi, R2…): `https://s3.ejemplo.com`. |
+| `path_style` | booleano |  |  | Direcciones `https://servidor/bucket` en vez de `https://bucket.servidor` (MinIO). |
+| `access_key` | texto |  |  | Access Key ID. Vacía = credenciales del entorno. |
+| `secret_key` | texto (secreto) |  |  | Secret Access Key (secreto: nunca se muestra en la web). |
+
+### `sftp`: SFTP
+
+Servidor SFTP (SSH): Linux, NAS, hostings. Requiere `pip install 'storageweb[sftp]'`.
+
+| Opción | Tipo | Por defecto | Obligatoria | Descripción |
+|---|---|---|---|---|
+| `host` | texto |  | Sí | Nombre o IP del servidor. |
+| `port` | puerto | `22` |  | Puerto SSH (`22`). |
+| `path` | ruta en el servidor |  |  | Carpeta del servidor donde va todo: absoluta (`/srv/datos`) o relativa a la del usuario. |
+| `host_key` | texto |  |  | Clave pública del servidor (línea de `ssh-keyscan`) o su huella `SHA256:…`. Vacía = se acepta cualquiera (no recomendado). |
+| `username` | texto |  | Sí | Usuario. |
+| `password` | texto (secreto) |  |  | Contraseña, o la frase de la clave privada (secreto). |
+| `private_key` | texto de varias líneas (secreto) |  |  | Clave privada (OpenSSH o PEM). Secreta. |
+
+### `smb`: SMB
+
+Recurso compartido de Windows, Samba o un NAS, sin montarlo en el sistema. Requiere `pip install 'storageweb[smb]'`.
+
+| Opción | Tipo | Por defecto | Obligatoria | Descripción |
+|---|---|---|---|---|
+| `server` | texto |  | Sí | Nombre o IP del servidor. |
+| `port` | puerto | `445` |  | Puerto (`445`). |
+| `share` | texto |  | Sí | Recurso compartido (`datos` en `\\nas\datos`). |
+| `path` | ruta relativa |  |  | Carpeta dentro del recurso donde va todo (vacía = su raíz). |
+| `encrypt` | booleano | `true` |  | Exigir cifrado SMB 3. |
+| `username` | texto |  |  | Usuario (`DOMINIO\usuario` o `usuario@dominio`). |
+| `password` | texto (secreto) |  |  | Contraseña (secreto: nunca se muestra en la web). |
+
+### `webdav`: WebDAV
+
+Servidor WebDAV (Nextcloud, ownCloud, SharePoint, NAS). Sin dependencias.
+
+| Opción | Tipo | Por defecto | Obligatoria | Descripción |
+|---|---|---|---|---|
+| `url` | URL |  | Sí | Dirección WebDAV. Nextcloud: `https://servidor/remote.php/dav/files/<usuario>/`. |
+| `path` | ruta relativa |  |  | Carpeta dentro de esa dirección donde va todo (vacía = su raíz). |
+| `verify_tls` | booleano | `true` |  | Comprobar el certificado TLS del servidor. Desactívalo solo con certificados propios. |
+| `username` | texto |  |  | Usuario. |
+| `password` | texto (secreto) |  |  | Contraseña o contraseña de aplicación (secreto). |
 
 ## Ejemplo
 

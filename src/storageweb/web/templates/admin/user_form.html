@@ -31,7 +31,7 @@
   {% if user %}
     <div class="field"><span class="label">{{ _("User") }}</span><strong>{{ user['username'] }}</strong></div>
     <div class="field"><span class="label">{{ _("Source") }}</span>{{ SOURCE_LABELS[user['source']] }}
-      {% if user['source'] == 'entra' and not user['external_id'] %}<small class="muted">({{ _("will be linked on first sign-in") }})</small>{% endif %}</div>
+      {% if auth_method(user['source']) and auth_method(user['source']).sso and not user['external_id'] %}<small class="muted">({{ _("will be linked on first sign-in") }})</small>{% endif %}</div>
   {% else %}
     <label>{{ _("User") }}
       <input type="text" name="username" value="{{ form.username or '' }}" required maxlength="128" autofocus
@@ -51,7 +51,7 @@
     <input type="email" name="email" value="{{ form.email or '' }}" maxlength="200">
   </label>
   {% if user %}<p class="muted small span2">{{ _("Created %(when)s.", when=user['created_at']|datetime) }}
-    {% if user['source'] == 'entra' %}{{ _("The name is updated from Entra ID on each sign-in.") }}{% endif %}</p>{% endif %}
+    {% if auth_method(user['source']) and auth_method(user['source']).sso %}{{ _("The name is updated from %(source)s on each sign-in.", source=SOURCE_LABELS[user['source']]) }}{% endif %}</p>{% endif %}
 
   <h2 class="card-title span2">{{ _("Role and access") }}</h2>
   <label>{{ _("Role") }}
@@ -72,13 +72,13 @@
   </label>
 
   <h2 class="card-title span2">{{ _("Sign-in") }}</h2>
-  {% if not user or user['source'] == 'local' %}
+  {% if not user or (auth_method(user['source']) and auth_method(user['source']).stores_password) %}
   <label class="js-local-only">{{ _("New password") if user else _("Password") }}
     <input type="password" name="password" autocomplete="new-password" minlength="10"
            {% if not user %}required{% endif %} placeholder="{{ _('Leave empty to keep it') if user else _('At least 10 characters') }}">
   </label>
   {% endif %}
-  {% if user and user['source'] != 'local' %}
+  {% if user and not (auth_method(user['source']) and auth_method(user['source']).stores_password) %}
   <p class="muted small span2">{{ _("Signs in with %(source)s: the password is managed there.", source=SOURCE_LABELS[user['source']]) }}
     {% if user['external_id'] %}<code>{{ user['external_id'] }}</code>{% endif %}</p>
   {% endif %}
@@ -93,7 +93,7 @@
   <h2 id="user-groups-title" class="card-title">{{ _("Groups") }}</h2>
   <p class="muted small">{{ _("They give access to shared folders.") }}</p>
   {{ group_chips(user, memberships, unknown_groups, addable_groups, request.path, unknown_names) }}
-  {% if user['source'] != 'local' %}<p class="muted small">{{ _("Groups with a padlock come from %(source)s and are updated on each sign-in: change them there. The others are assigned here and are kept when the user signs in again.", source=SOURCE_LABELS[user['source']]) }}</p>{% endif %}
+  {% if auth_method(user['source']) and auth_method(user['source']).external_groups %}<p class="muted small">{{ _("Groups with a padlock come from %(source)s and are updated on each sign-in: change them there. The others are assigned here and are kept when the user signs in again.", source=SOURCE_LABELS[user['source']]) }}</p>{% endif %}
 </section>
 {% endif %}
 
@@ -108,7 +108,7 @@
         {% else %}
           {{ _("The user cannot sign in. Enable the account to restore access.") }}
         {% endif %}
-        {% if user['source'] != 'local' %}
+        {% if not (auth_method(user['source']) and auth_method(user['source']).stores_password) %}
           {{ _("This also applies to %(source)s: the identity stays valid there, but StorageWeb rejects it.", source=SOURCE_LABELS[user['source']]) }}
         {% endif %}
       </p>
@@ -125,8 +125,8 @@
       <strong>{{ _("Delete user") }}</strong>
       <p class="muted small">
         {{ _("Removes the account. Their files are not removed.") }}
-        {% if user['source'] == 'entra' %}
-          {{ _("Warning: if automatic creation of Entra ID users is enabled, the account is created again on their next sign-in. To block access, disable it instead.") }}
+        {% if auth_method(user['source']) and auth_method(user['source']).sso %}
+          {{ _("Warning: if automatic creation of %(source)s users is enabled, the account is created again on their next sign-in. To block access, disable it instead.", source=SOURCE_LABELS[user['source']]) }}
         {% endif %}
       </p>
     </div>

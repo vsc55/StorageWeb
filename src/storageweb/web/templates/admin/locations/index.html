@@ -1,0 +1,46 @@
+{% extends "admin/_layout.html" %}
+{% from "admin/_page.html" import page_kind, origin_badge, locked_notice with context %}
+{% block title %}{{ _("Storage locations") }} · {{ app_name }}{% endblock %}
+{% block admin_content %}
+<div class="page-head">
+  <div>
+    <div class="settings-title"><h1>{{ _("Storage locations") }}</h1>{{ page_kind() }}
+      {{ origin_badge(locations_origin) }}</div>
+    <p class="muted small">{{ _("External storage (%(types)s) where shared or personal folders can live, without mounting it on the server.", types=schemas|map(attribute='short_label')|join(", ")) }}</p>
+  </div>
+  {% if not locked_message %}
+  <div class="inline">
+    {% for schema in schemas %}
+    <a class="btn{% if loop.first %} btn-primary{% endif %}" href="{{ url_for('locations.new', type=schema.kind) }}" title="{{ schema.label }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New %(type)s location", type=schema.short_label) }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{{ locked_notice(locked_message) }}
+
+{% if not rows %}
+<div class="empty card">
+  <p>{{ _("There are no storage locations: every folder is on the disk of the server.") }}</p>
+  <p class="muted small">{{ _("NFS, SMB or rclone mounts need no location: mount them on the server and use their path.") }}</p>
+</div>
+{% else %}
+<div class="folder-list">
+  {% for row in rows %}
+  {% set loc = row.loc %}
+  <a class="folder-row" id="loc-{{ loc.name }}" href="{{ url_for('locations.edit', name=loc.name) }}">
+    <span class="folder-main">
+      <strong>{{ loc.label }} <span class="muted small">{{ loc.name }}</span></strong>
+      <span class="small muted"><code>{{ row.where }}</code></span>
+    </span>
+    <span class="folder-who">
+      <span class="badge" title="{{ location_type(loc.type).label }}">{{ location_type(loc.type).short_label }}</span>
+      {% for used in row.used_by %}<span class="access-chip"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-folder"></use></svg>{{ used }}</span>
+      {% else %}<span class="muted small">{{ _("No folder uses it yet.") }}</span>{% endfor %}
+    </span>
+    <svg class="icon icon-sm muted" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+<p class="muted small section-gap">{{ _("Choose the location of each folder in Access → Shared folders, and of the personal folders in Access → Personal folders.") }}</p>
+{% endblock %}

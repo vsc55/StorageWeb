@@ -57,6 +57,7 @@ nav:
       - Configuración: administracion/configuracion.md
       - Microsoft Entra ID: administracion/entra-id.md
       - Usuarios, roles y permisos: administracion/usuarios-y-permisos.md
+      - Almacenamiento externo: administracion/almacenamiento.md
       - Copias de seguridad: administracion/copias-seguridad.md
       - Actualización: administracion/actualizacion.md
       - Seguridad en producción: administracion/seguridad.md
@@ -87,6 +88,8 @@ nav:
           - 0011 Grupos gestionados: arquitectura/decisiones/0011-grupos-gestionados.md
           - 0012 Administración por zonas: arquitectura/decisiones/0012-administracion-por-zonas.md
           - 0013 Capas de configuración: arquitectura/decisiones/0013-capas-de-configuracion.md
+          - 0014 Almacenamiento externo: arquitectura/decisiones/0014-almacenamiento-externo.md
+          - 0015 Extensiones que se registran solas: arquitectura/decisiones/0015-extensiones-que-se-descubren.md
           - Plantilla: arquitectura/decisiones/plantilla.md
   - Desarrollo:
       - desarrollo/index.md

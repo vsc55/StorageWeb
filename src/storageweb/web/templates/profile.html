@@ -41,7 +41,7 @@
       </div>
     </form>
 
-    {% if user['source'] == 'local' %}
+    {% if auth_method(user['source']) and auth_method(user['source']).stores_password %}
     <form method="post" action="{{ url_for('profile.change_password') }}" class="card stack" id="password">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
       <h2 class="card-title">{{ _("Change password") }}</h2>

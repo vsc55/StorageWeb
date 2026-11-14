@@ -3,7 +3,8 @@
 Modelo:
 
 * Un grupo tiene un ``name`` (lo que usan las carpetas compartidas), un ``label`` visible y un
-  origen: ``local`` (miembros a mano), ``entra`` (Object ID o App Role) o ``pam`` (grupo del sistema).
+  origen: ``local`` (miembros a mano) o un método de inicio de sesión que trae grupos
+  (``AuthMethod.external_groups``: Entra ID con Object ID o App Role, PAM con el grupo del sistema…).
 * Las pertenencias son ``manual`` (las pone un admin) o ``sync`` (llegan al iniciar sesión). Al
   sincronizar solo se reemplazan las ``sync``.
 * El grupo de serie ``admins`` (``builtin``) no se borra ni se edita: sus miembros son los usuarios
@@ -19,13 +20,26 @@ import re
 from sqlite3 import Connection
 from typing import Iterable
 
+from .. import providers
 from ..db.repositories import groups as repo
 from ..db.repositories import users
 from ..i18n import _, _l
 from .permissions import ADMIN, USER
 
-GROUP_SOURCES = ("local", "entra", "pam")
-GROUP_SOURCE_LABELS = {"local": _l("Local"), "entra": "Entra ID", "pam": _l("System (PAM)")}
+LOCAL = "local"  # grupos con miembros puestos a mano
+
+
+def external_sources() -> list[str]:
+    """Métodos de inicio de sesión que traen grupos (sus grupos se sincronizan en cada inicio de sesión)."""
+    return [m.key for m in providers.methods() if m.external_groups]
+
+
+def group_sources() -> list[str]:
+    return [LOCAL, *external_sources()]
+
+
+def group_source_labels() -> dict[str, str]:
+    return {LOCAL: str(_l("Local")), **{m.key: str(m.label) for m in providers.methods() if m.external_groups}}
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._@+-]{0,127}$")
 ACCESS_LEVELS = ("none", "read", "write")
 ADMINS_GROUP = "admins"
@@ -90,7 +104,7 @@ def refresh_user(conn: Connection, user_id: int) -> None:
 
 def sync_user(conn: Connection, user) -> None:
     """Ajusta las pertenencias ``sync`` según ``external_groups`` y recalcula la lista efectiva."""
-    if user["source"] in ("entra", "pam"):
+    if user["source"] in external_sources():
         external = split(user["external_groups"])
         ids = [g["id"] for g in repo.list_all(conn, source=user["source"])
                if g["external_id"] and g["external_id"] in external]
@@ -108,7 +122,7 @@ def sync_external(conn: Connection, user_id: int, source: str, external: Iterabl
 
 def _resync(conn: Connection, user_ids: Iterable[int], source: str | None) -> None:
     ids = set(user_ids)
-    if source in ("entra", "pam"):
+    if source in external_sources():
         ids |= {u["id"] for u in users.list_all(conn) if u["source"] == source}
     for uid in sorted(ids):
         user = users.get_by_id(conn, uid)
@@ -122,13 +136,13 @@ def _validate(conn: Connection, *, label: str, source: str, external_id: str | N
               group_id: int | None = None) -> str | None:
     if not label:
         raise GroupError(_("The display name is required."))
-    if source not in GROUP_SOURCES:
+    if source not in group_sources():
         raise GroupError(_("Invalid source: %(source)s", source=source))
     external_id = (external_id or "").strip().lower() or None
-    if source != "local" and not external_id:
+    if source != LOCAL and not external_id:
         raise GroupError(_("Groups from %(source)s need the identifier of the external group.",
-                           source=GROUP_SOURCE_LABELS[source]))
-    if source == "local":
+                           source=group_source_labels()[source]))
+    if source == LOCAL:
         external_id = None
     if external_id:
         other = repo.get_by_external(conn, source, external_id)
@@ -138,7 +152,7 @@ def _validate(conn: Connection, *, label: str, source: str, external_id: str | N
 
 
 def create_group(conn: Connection, *, name: str, label: str = "", description: str = "",
-                 source: str = "local", external_id: str | None = None) -> int:
+                 source: str = LOCAL, external_id: str | None = None) -> int:
     name = (name or "").strip().lower()
     if not NAME_RE.match(name):
         raise GroupError(_("Invalid group identifier (lowercase letters, digits and . _ @ + -)."))
@@ -196,7 +210,7 @@ def remove_member(conn: Connection, group, user, actor=None) -> None:
         return
     if membership["origin"] != "manual":
         raise GroupError(_("This membership comes from %(source)s and is changed there.",
-                           source=GROUP_SOURCE_LABELS[group["source"]]))
+                           source=group_source_labels().get(group["source"], group["source"])))
     repo.remove_member(conn, user["id"], group["id"])
     sync_user(conn, users.get_by_id(conn, user["id"]))  # si también le corresponde por el proveedor, vuelve como 'sync'
 
@@ -230,9 +244,10 @@ def detected(conn: Connection, shares: list[dict]) -> list[dict]:
     names = {g["name"] for g in registered}
     externals = {(g["source"], g["external_id"]) for g in registered if g["external_id"]}
     known_ids = {g["external_id"] for g in registered if g["external_id"]}
+    external = external_sources()
     found: dict[str, dict] = {}
     for user in users.list_all(conn):
-        if user["source"] not in ("entra", "pam"):
+        if user["source"] not in external:
             continue
         for ext in split(user["external_groups"]):
             if (user["source"], ext) in externals or ext in names:

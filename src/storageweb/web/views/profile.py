@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, abort, flash, g, redirect, render_template, request, session, url_for
 
 from ...core import tokens
-from ...core.accounts import SOURCE_LABELS
+from ...core.accounts import source_labels, stores_password
 from ...db.repositories import api_tokens, audit, users
 from ...db.repositories import sessions as session_repo
 from ...i18n import LOCALES, _, _l, locale_display_name, ngettext
@@ -50,7 +50,7 @@ def change_theme():
 @login_required
 def profile():
     user = g.user
-    editable = user["source"] == "local"  # en Entra/PAM los datos personales vienen del origen
+    editable = stores_password(user["source"])  # en Entra/PAM los datos personales vienen del origen
     if request.method == "POST":
         fields = {}
         raw_locale = request.form.get("locale")
@@ -74,7 +74,7 @@ def profile():
         return redirect(url_for("profile.profile"))
 
     return render_template(
-        "profile.html", user=user, editable=editable, SOURCE_LABELS=SOURCE_LABELS,
+        "profile.html", user=user, editable=editable, SOURCE_LABELS=source_labels(),
         locales=[(code, locale_display_name(code)) for code in LOCALES],
         themes=[(code, THEME_LABELS[code]) for code in THEMES],
         user_locale=normalize_locale(user["locale"]) or "",
@@ -88,7 +88,7 @@ def profile():
 @login_required
 def change_password():
     user = g.user
-    if user["source"] != "local":
+    if not stores_password(user["source"]):
         abort(403, description=_("Only local users have a password that can be changed."))
     current = request.form.get("current_password", "")
     new = request.form.get("new_password", "")

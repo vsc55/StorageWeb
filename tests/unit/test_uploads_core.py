@@ -4,6 +4,11 @@ import io
 import pytest
 
 from storageweb.core import uploads as core
+from storageweb.core.backends import LocalBackend
+
+
+def _local(tmp_path):
+    return LocalBackend(tmp_path, tmp_path / "staging")
 
 
 def test_chunk_size():
@@ -31,8 +36,9 @@ def test_append_and_finalize(tmp_path):
         core.append(part, io.BytesIO(b"x"), 0, 10)
     assert exc.value.status == 409 and exc.value.extra["received"] == 5
     assert core.append(part, io.BytesIO(b"mundo"), 5, 10) == 10
-    final = core.finalize(part, tmp_path, "saludo.txt", 10)
-    assert final.read_bytes() == b"hola mundo" and not part.exists()
+    final = core.finalize(part, _local(tmp_path), "", "saludo.txt", 10)
+    assert final == "saludo.txt"
+    assert (tmp_path / final).read_bytes() == b"hola mundo" and not part.exists()
 
 
 def test_append_overflow_truncates(tmp_path):
@@ -47,7 +53,7 @@ def test_finalize_incomplete_and_missing(tmp_path):
     part = core.part_path(tmp_path, "abc")
     part.write_bytes(b"12")
     with pytest.raises(core.UploadError) as exc:
-        core.finalize(part, tmp_path, "x", 5)
+        core.finalize(part, _local(tmp_path), "", "x", 5)
     assert exc.value.status == 409
     core.discard(part)
     core.discard(part)  # idempotente
@@ -60,5 +66,5 @@ def test_finalize_never_overwrites(tmp_path):
     (tmp_path / "a.txt").write_text("viejo")
     part = core.part_path(tmp_path, "abc")
     part.write_bytes(b"nuevo")
-    final = core.finalize(part, tmp_path, "a.txt", 5)
-    assert final.name == "a (1).txt" and (tmp_path / "a.txt").read_text() == "viejo"
+    final = core.finalize(part, _local(tmp_path), "", "a.txt", 5)
+    assert final == "a (1).txt" and (tmp_path / "a.txt").read_text() == "viejo"

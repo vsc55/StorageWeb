@@ -5,9 +5,10 @@ from flask import abort, flash, redirect, send_file, url_for
 
 from ....core import maintenance
 from ....core.backup import BackupError
-from ....i18n import _, format_size, ngettext
+from ....i18n import _, _l, format_size, ngettext
 from ...context import boot_config, get_db, settings
 from ...guards import admin_required, audit_event
+from ... import search
 from . import bp
 
 
@@ -68,3 +69,9 @@ def backup_delete(name: str):
     audit_event("backup_deleted", name)
     flash(_("Backup %(name)s deleted.", name=name), "info")
     return redirect(url_for("settings.section", name="backups"))
+
+
+search.action("download", _l("Create a backup now"), "settings.section", {"name": "backups"}, "backups",
+              "copia seguridad backup ahora", order=40)
+search.action("sync", _l("Compact the database"), "settings.section", {"name": "backups"},
+              words="base datos compactar vacuum", order=100)

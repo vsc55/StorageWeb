@@ -1,18 +1,28 @@
-"""Rutas de inicio/cierre de sesión: formulario (local/PAM) y SSO (Entra ID)."""
+"""Rutas de inicio/cierre de sesión: el formulario (métodos con contraseña) y el SSO de cada método.
+
+Nada aquí depende de un proveedor concreto: ``/auth/<método>/login`` y ``/auth/<método>/callback``
+sirven para cualquier método SSO registrado (``providers.AuthMethod``). Para Entra ID la dirección
+de vuelta es ``/auth/entra/callback``.
+"""
 from __future__ import annotations
 
-from flask import (Blueprint, current_app, flash, g, redirect, render_template, request, session,
+from flask import (Blueprint, abort, current_app, flash, g, redirect, render_template, request, session,
                    url_for)
 
+from ... import providers
 from ...core import accounts, ipban
 from ...db.repositories import audit, users
 from ...i18n import _
 from ...i18n import normalize as normalize_locale
-from ...providers import SSOError, get_sso_provider
+from ...providers import SSOError
 from ..context import external_url, get_db, settings, throttle
 from ..guards import client_ip, end_session, safe_next, start_session
 
 bp = Blueprint("auth", __name__)
+
+
+def _enabled(cfg: dict, *, sso: bool) -> list:
+    return [m for m in providers.methods() if m.enabled(cfg) and (m.sso if sso else m.password)]
 
 
 @bp.route("/login", methods=["GET", "POST"])
@@ -20,8 +30,7 @@ def login():
     cfg = settings()
     if g.get("user"):
         return redirect(safe_next(request.args.get("next")))
-    auth = cfg["auth"]
-    form_enabled = auth["local"]["enabled"] or auth["pam"]["enabled"]
+    form_enabled = bool(_enabled(cfg, sso=False))
     next_url = request.values.get("next", "")
 
     if request.method == "POST" and form_enabled:
@@ -48,10 +57,8 @@ def login():
             ipban.offense(get_db(), cfg, ip, "login_failed")
             flash(_("Wrong user name or password."), "error")
 
-    return render_template("login.html", form_enabled=form_enabled,
-                           entra_enabled=auth["entra"]["enabled"],
-                           entra_label=auth["entra"]["button_label"] or _("Sign in with Microsoft"),
-                           next_url=next_url)
+    buttons = [(m.key, m.login_button(m.section(cfg))) for m in _enabled(cfg, sso=True)]
+    return render_template("login.html", form_enabled=form_enabled, sso_buttons=buttons, next_url=next_url)
 
 
 @bp.route("/locale", methods=["POST"])
@@ -68,62 +75,72 @@ def change_locale():
 @bp.route("/logout", methods=["POST"])
 def logout():
     user = g.get("user")
-    src = session.get("src")
+    method = providers.get(session.get("src") or "")
     if user:
         audit.log(get_db(), "logout", username=user["username"], ip=client_ip())
     end_session()
-    ecfg = settings()["auth"]["entra"]
-    if src == "entra" and ecfg["enabled"] and ecfg["single_logout"]:
-        provider = get_sso_provider(ecfg)
-        return redirect(provider.logout_url(external_url("auth.login")))
+    cfg = settings()
+    if method is not None and method.sso and method.enabled(cfg):
+        url = method.logout_url(method.section(cfg), external_url("auth.login"))
+        if url:  # cerrar también la sesión en el proveedor
+            return redirect(url)
     flash(_("You have signed out."), "info")
     return redirect(url_for("auth.login"))
 
 
-def _redirect_uri(ecfg: dict) -> str:
-    return ecfg["redirect_uri"] or external_url("auth.entra_callback")
+def redirect_uri(key: str, section: dict) -> str:
+    """Dirección de vuelta del método: la configurada o ``/auth/<método>/callback`` en la dirección pública."""
+    method = providers.get(key)
+    return (method.redirect_uri(section) if method else "") or external_url("auth.sso_callback", method=key)
 
 
-@bp.route("/auth/entra/login")
-def entra_login():
-    ecfg = settings()["auth"]["entra"]
-    if not ecfg["enabled"]:
+def _sso_method(key: str):
+    method = providers.get(key)
+    if method is None or not method.sso:
+        abort(404)
+    return method
+
+
+@bp.route("/auth/<method>/login")
+def sso_login(method: str):
+    m = _sso_method(method)
+    cfg = settings()
+    if not m.enabled(cfg):
         return redirect(url_for("auth.login"))
+    section = m.section(cfg)
     try:
-        auth_url, flow = get_sso_provider(ecfg).begin(_redirect_uri(ecfg))
+        auth_url, flow = m.begin(section, redirect_uri(m.key, section))
     except Exception:  # p. ej. MSAL sin conexión al descubrir la autoridad
         current_app.logger.exception("Could not start the SSO login")
         flash(_("Could not contact the identity provider."), "error")
         return redirect(url_for("auth.login"))
-    session["entra_flow"] = flow
-    session["entra_next"] = request.args.get("next", "")
+    session["sso"] = {"method": m.key, "flow": flow, "next": request.args.get("next", "")}
     return redirect(auth_url)
 
 
-@bp.route("/auth/entra/callback")
-def entra_callback():
-    ecfg = settings()["auth"]["entra"]
-    if not ecfg["enabled"]:
+@bp.route("/auth/<method>/callback")
+def sso_callback(method: str):
+    m = _sso_method(method)
+    cfg = settings()
+    if not m.enabled(cfg):
         return redirect(url_for("auth.login"))
     ip = client_ip()
-    flow = session.pop("entra_flow", None)
-    next_url = session.pop("entra_next", "")
-    if not flow:
+    pending = session.pop("sso", None) or {}
+    if not pending.get("flow") or pending.get("method") != m.key:
         flash(_("The sign-in session expired. Try again."), "error")
         return redirect(url_for("auth.login"))
     try:
-        claims = get_sso_provider(ecfg, flow.get("provider")).complete(flow, request.args.to_dict())
-        user = accounts.login_with_claims(get_db(), ecfg, claims, ip=ip)
+        user = accounts.complete_sso(get_db(), cfg, m.key, pending["flow"], request.args.to_dict(), ip=ip)
     except SSOError as exc:
         current_app.logger.warning("SSO error: %s", exc)
-        audit.log(get_db(), "login_failed", ip=ip, detail=f"entra:{exc.code}")
-        flash(_("Could not sign in with Microsoft."), "error")
+        audit.log(get_db(), "login_failed", ip=ip, detail=f"{m.key}:{exc.code}")
+        flash(_("Could not sign in with %(method)s.", method=m.label), "error")
         return redirect(url_for("auth.login"))
     except accounts.AccountError as exc:
-        audit.log(get_db(), "login_denied", ip=ip, detail=f"entra:{exc.code}")
+        audit.log(get_db(), "login_denied", ip=ip, detail=f"{m.key}:{exc.code}")
         flash(exc.message, "error")
         return redirect(url_for("auth.login"))
 
     start_session(user)
-    audit.log(get_db(), "login", username=user["username"], ip=ip, detail="entra")
-    return redirect(safe_next(next_url))
+    audit.log(get_db(), "login", username=user["username"], ip=ip, detail=m.key)
+    return redirect(safe_next(pending.get("next", "")))

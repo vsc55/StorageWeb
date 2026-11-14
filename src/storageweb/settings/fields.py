@@ -5,7 +5,8 @@ web (``label``, el mismo texto que su formulario), en qué página de la adminis
 (``page``, una clave de ``web/nav.py``) y con qué otras palabras se busca (``words``, buscador Ctrl+K).
 
 Añadir o cambiar un campo de configuración: ``defaults.py`` (valor), ``loader.py`` (validación), este
-registro y la plantilla de su página.
+registro y la plantilla de su página. Los de ``auth.<método>`` los declara su proveedor
+(``providers/<método>/``; ver ``settings/auth_methods.py``).
 """
 from __future__ import annotations
 
@@ -22,6 +23,7 @@ class Field:
     label: object = None
     page: str = ""
     words: str = ""
+    form: object = None  # valor → texto del formulario, si no basta con el general (form_value)
 
 
 FIELDS: dict[str, Field] = {
@@ -95,6 +97,21 @@ FIELDS: dict[str, Field] = {
         label=_l("Maximum size per file (MB)"),
         page="storage",
         words="tamaño límite subida upload size limit"),
+    "storage.home_location": Field(
+        doc=("Ubicación de `storage.locations` donde están las carpetas personales. Vacía = el disco del servidor; "
+             "con una ubicación, `home_template` es una ruta dentro de ella (`homes/{username}`)."),
+        label=_l("Where personal folders live"),
+        page="storage",
+        words="ubicación almacenamiento s3 smb nas carpetas personales home"),
+    "storage.locations": Field(
+        doc="Almacenamientos externos con nombre, que eligen las carpetas (ver *Tipos de ubicación*, abajo).",
+        label=_l("Storage locations"),
+        page="locations",
+        words="almacenamiento externo s3 smb nas minio bucket samba windows ubicación"),
+    "storage.locations[].name": Field(doc="Identificador: letras, números, `_` y `-`.", page="locations"),
+    "storage.locations[].label": Field(doc="Nombre visible. Por defecto, `name`.", page="locations"),
+    "storage.locations[].type": Field(doc="Tipo de almacenamiento; sus opciones, en la tabla de su tipo (abajo).",
+                                      page="locations"),
     "storage.shares": Field(
         doc="Lista de carpetas compartidas (ver los campos de cada elemento abajo).",
         label=_l("Shared folders"),
@@ -103,8 +120,13 @@ FIELDS: dict[str, Field] = {
         doc="Identificador en la URL (`/f/<name>/`): letras, números, `_` y `-`. `home` está reservado.",
         page="folders"),
     "storage.shares[].label": Field(doc="Nombre visible. Por defecto, `name`.", page="folders"),
+    "storage.shares[].location": Field(
+        doc=("Ubicación de `storage.locations` donde está la carpeta (S3, SMB). Vacía = el disco del servidor "
+             "(también lo montado en él: NFS, SMB/CIFS…)."),
+        page="folders"),
     "storage.shares[].path": Field(
-        doc="Ruta en el servidor. Relativa = respecto a la carpeta del `config.json`.",
+        doc=("En el disco: ruta en el servidor (relativa = respecto a la carpeta del `config.json`). En una "
+             "ubicación: ruta dentro de ella (vacía = su raíz)."),
         page="folders"),
     "storage.shares[].read_only": Field(
         doc="Solo lectura: únicamente se permite descargar, también a los administradores.",
@@ -127,122 +149,6 @@ FIELDS: dict[str, Field] = {
     "permissions.user.mkdir": Field(doc="El rol `user` puede crear carpetas.", page="permissions"),
     "permissions.user.rename": Field(doc="El rol `user` puede renombrar archivos y carpetas.", page="permissions"),
     "permissions.user.delete": Field(doc="El rol `user` puede eliminar archivos y carpetas.", page="permissions"),
-    "auth.local.enabled": Field(
-        doc="Permitir el inicio de sesión de usuarios locales (guardados en SQLite).",
-        label=_l("Local users"),
-        page="auth",
-        words="local contraseña password login"),
-    "auth.pam.enabled": Field(
-        doc="Permitir el inicio de sesión de usuarios del sistema operativo mediante PAM (Linux/macOS).",
-        label=_l("System users (PAM)"),
-        page="auth",
-        words="pam linux sistema system"),
-    "auth.pam.service": Field(doc="Servicio PAM que se usa para autenticar.", label=_l("PAM service"), page="auth"),
-    "auth.pam.allowed_groups": Field(
-        doc="Si no está vacío, solo entran los miembros de estos grupos del sistema.",
-        label=_l("Allowed groups"),
-        page="auth",
-        words="pam grupos permitidos"),
-    "auth.pam.admin_groups": Field(
-        doc="Los miembros de estos grupos del sistema reciben el rol `admin`.",
-        label=_l("Groups with the administrator role"),
-        page="auth",
-        words="pam administradores admins"),
-    "auth.pam.use_system_home": Field(
-        doc="Usar el home real del usuario (`/home/<usuario>`) en vez de `storage.home_template`.",
-        label=_l("Use the system home folder (/home/user)"),
-        page="auth"),
-    "auth.entra.enabled": Field(
-        doc="Activar el inicio de sesión con Microsoft Entra ID.",
-        label="Microsoft Entra ID",
-        page="auth",
-        words="entra azure microsoft sso oidc oauth"),
-    "auth.entra.provider": Field(
-        doc="Implementación: `oauth2` (propia, sin descubrimiento por red) o `msal` (librería de Microsoft).",
-        label=_l("Implementation"),
-        page="auth"),
-    "auth.entra.tenant_id": Field(
-        doc="Directory (tenant) ID. También admite `organizations` o `common` (multi-tenant).",
-        label="Tenant ID",
-        page="auth",
-        words="entra tenant inquilino"),
-    "auth.entra.client_id": Field(
-        doc="Application (client) ID del registro de aplicación.",
-        label="Client ID",
-        page="auth",
-        words="entra aplicación app client"),
-    "auth.entra.client_secret": Field(
-        doc="Secreto del registro de aplicación. Nunca se muestra en la web.",
-        label="Client secret",
-        page="auth",
-        words="entra secreto secret contraseña"),
-    "auth.entra.redirect_uri": Field(
-        doc=("URL de vuelta registrada en Entra ID, p. ej. `https://files.midominio.com/auth/entra/callback`. Vacía "
-         "= se calcula a partir de la petición."),
-        label="Redirect URI",
-        page="auth",
-        words="entra redirección callback"),
-    "auth.entra.scopes": Field(
-        doc="Scopes adicionales a `openid profile email`.",
-        label=_l("Additional scopes"),
-        page="auth"),
-    "auth.entra.button_label": Field(
-        doc="Texto del botón de inicio de sesión. Vacío = texto por defecto en el idioma del usuario.",
-        label=_l("Button text"),
-        page="auth",
-        words="entra botón button"),
-    "auth.entra.username_claim": Field(
-        doc="Claim del id_token que se usa como nombre de usuario.",
-        label=_l("User name claim"),
-        page="auth",
-        words="entra claim usuario"),
-    "auth.entra.strip_domain": Field(
-        doc=("Quitar el dominio del nombre de usuario (`juan@contoso.com` → `juan`). Cuidado con las colisiones con "
-         "usuarios locales."),
-        label=_l("Remove the domain from the user name (juan@contoso.com → juan)"),
-        page="auth"),
-    "auth.entra.allowed_groups": Field(
-        doc="Grupos (Object ID) o App Roles permitidos; vacío = cualquier usuario del tenant.",
-        label=_l("Allowed groups / App Roles"),
-        page="auth",
-        words="entra grupos permitidos app roles"),
-    "auth.entra.auto_provision": Field(
-        doc=("Crear el usuario automáticamente en su primer inicio de sesión. Si es `false`, solo entran los "
-         "usuarios dados de alta antes por un administrador."),
-        label=_l("Create the user automatically on first sign-in"),
-        page="auth",
-        words="entra alta automática provisioning"),
-    "auth.entra.default_role": Field(
-        doc="Rol de los usuarios nuevos cuando no aplica ningún mapeo (`user` o `admin`).",
-        label=_l("Default role"),
-        page="auth",
-        words="entra rol role"),
-    "auth.entra.role_mappings": Field(
-        doc=("Grupo (Object ID) o App Role → rol, p. ej. `{\"StorageWeb.Admin\": \"admin\"}`. Si coinciden varios, gana "
-         "`admin`."),
-        label=_l("Group / App Role → role mapping"),
-        page="auth",
-        words="entra rol mapeo administradores mapping"),
-    "auth.entra.sync_role_on_login": Field(
-        doc="Con `role_mappings` definidos, recalcular el rol en cada inicio de sesión.",
-        label=_l("Recalculate the role on every sign-in according to the mapping"),
-        page="auth"),
-    "auth.entra.single_logout": Field(
-        doc="Cerrar también la sesión de Microsoft al salir.",
-        label=_l("Also sign out of Microsoft when signing out"),
-        page="auth",
-        words="entra cerrar sesión logout"),
-    "auth.entra.authorize_url": Field(
-        doc="Solo `oauth2`: endpoint de autorización propio (nubes soberanas u otro proveedor OIDC).",
-        label="Authorize URL",
-        page="auth"),
-    "auth.entra.token_url": Field(doc="Solo `oauth2`: endpoint de token propio.", label="Token URL", page="auth"),
-    "auth.entra.issuer": Field(doc="Solo `oauth2`: valor esperado del claim `iss`.", label="Issuer", page="auth"),
-    "auth.entra.logout_url": Field(doc="Endpoint de cierre de sesión propio.", label="Logout URL", page="auth"),
-    "auth.entra.timeout_seconds": Field(
-        doc="Tiempo máximo de espera al endpoint de token, en segundos.",
-        label=_l("Timeout (s)"),
-        page="auth"),
     "security.max_login_failures": Field(
         doc="Intentos fallidos (por IP o por usuario) antes de bloquear temporalmente el login.",
         label=_l("Failed attempts before locking"),
@@ -304,12 +210,6 @@ FIELDS: dict[str, Field] = {
         label=_l("Logo"),
         page="general",
         words="logo imagen marca branding image"),
-    "auth.entra.secret_expires": Field(
-        doc=("Fecha de caducidad del `client_secret` (ISO 8601). La rellenan el registro automático y la renovación;"
-         " con ella se avisa a los admins 30 días antes."),
-        label=_l("The secret expires on"),
-        page="auth",
-        words="entra secreto caducidad caduca expira expiry"),
 }
 # Los permisos del rol «user» se llaman como el permiso
 for _perm in PERMISSIONS:
@@ -348,8 +248,9 @@ def display(path: str, value, limit: int = 120) -> str:
         return _("on") if value else _("off")
     if value in ("", [], {}, None):
         return _("empty")
-    if path == "storage.shares":
-        return ", ".join(s["name"] for s in value)
+    if isinstance(value, list) and all(isinstance(item, dict) for item in value):
+        # Carpetas, ubicaciones…: por su nombre; nunca su contenido (puede llevar secretos)
+        return ", ".join(str(item.get("name", "?")) for item in value)[:limit]
     if isinstance(value, list):
         return ", ".join(map(str, value))[:limit]
     if isinstance(value, dict):
@@ -359,10 +260,11 @@ def display(path: str, value, limit: int = 120) -> str:
 
 def form_value(path: str, value):
     """Un valor tal como lo muestra el formulario de su página (para que *Restablecer* lo ponga sin guardar)."""
+    info = FIELDS.get(path)
+    if info is not None and info.form is not None:
+        return info.form(value)
     if isinstance(value, list):
-        return (" " if path == "auth.entra.scopes" else ", ").join(map(str, value))
+        return ", ".join(map(str, value))
     if path == "network.public_url":
         return str(value or "").removeprefix("https://")
-    if path == "auth.entra.secret_expires":
-        return str(value or "")[:10]
     return value

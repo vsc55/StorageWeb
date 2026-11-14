@@ -1,31 +1,53 @@
-"""Raíces de almacenamiento (home + carpetas compartidas) y operaciones de directorio."""
+"""Raíces de almacenamiento (home + carpetas compartidas) y operaciones de directorio.
+
+Cada raíz lleva su ``backend`` (disco local, S3 o SMB: ver ``core/backends``); el resto del código
+trabaja con rutas relativas a la raíz y no sabe dónde están los archivos.
+"""
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from pathlib import Path
 
 from ..db.repositories.users import groups_of
 from ..i18n import _, format_datetime, format_size
+from . import backends
 from .groups import ADMINS_GROUP
 from .permissions import ADMIN
-from .security import UPLOAD_TMP_PREFIX, safe_username_for_path
+from .security import UPLOAD_TMP_PREFIX, PathError, safe_username_for_path
 
 
 class RootNotFound(Exception):
     pass
 
 
-def home_path_for(user, cfg: dict) -> Path:
+def home_path_for(user, cfg: dict) -> str:
+    """Carpeta personal: ruta en el disco o, con ``home_location``, ruta dentro de esa ubicación."""
     if user["home_path"]:
-        return Path(user["home_path"])
+        return user["home_path"]
     tmpl = cfg["storage"]["home_template"]
-    return Path(tmpl.replace("{username}", safe_username_for_path(user["username"])))
+    return tmpl.replace("{username}", safe_username_for_path(user["username"]))
+
+
+def make_root(cfg: dict, name: str, label: str, location: str, path: str, **extra) -> dict:
+    """Raíz con su backend. ``path`` (Path) solo existe si está en el disco del servidor."""
+    loc = backends.find_location(cfg, location) if location else None
+    staging = backends.staging_dir(cfg)
+    if location and loc is None:
+        backend = backends.UnavailableBackend(_("The storage location %(name)s does not exist.", name=location),
+                                              staging)
+    else:
+        try:
+            backend = backends.backend_for(loc, path, staging)
+        except PathError:
+            backend = backends.UnavailableBackend(_("Invalid path: %(path)s", path=path), staging)
+    return {**extra, "name": name, "label": label, "location": location, "backend": backend,
+            "path": None if location else Path(path)}
 
 
 def available_roots(user, cfg: dict) -> list[dict]:
     """Raíces accesibles: su home + las carpetas compartidas permitidas por usuario o grupo."""
-    roots = [{"name": "home", "label": _("My folder"), "path": home_path_for(user, cfg), "read_only": False}]
+    roots = [make_root(cfg, "home", _("My folder"), cfg["storage"].get("home_location", ""), home_path_for(user, cfg),
+                       read_only=False)]
     uname = user["username"].lower()
     ugroups = groups_of(user)
     if user["role"] == ADMIN:
@@ -33,7 +55,9 @@ def available_roots(user, cfg: dict) -> list[dict]:
     for share in cfg["storage"]["shares"]:
         level = share_access(share, uname, ugroups)
         if level != "none":
-            roots.append({**share, "path": Path(share["path"]), "read_only": level == "read"})
+            roots.append(make_root(cfg, share["name"], share["label"], share.get("location", ""), share["path"],
+                                   **{k: v for k, v in share.items() if k not in ("name", "label", "location", "path", "read_only")},
+                                   read_only=level == "read"))
     return roots
 
 
@@ -91,68 +115,50 @@ def find_root(user, cfg: dict, name: str) -> dict:
     for root in available_roots(user, cfg):
         if root["name"] != name:
             continue
-        path = root["path"]
-        if not path.exists():
+        backend = root["backend"]
+        try:
+            exists = backend.root_exists()
+        except backends.BackendError as exc:
+            raise RootNotFound(exc.message) from exc
+        if not exists:
             storage = cfg["storage"]
             create = storage["create_home"] if name == "home" else storage["create_shares"]
             if not create:
                 raise RootNotFound(_("The configured folder does not exist on the server."))
-            path.mkdir(parents=True, exist_ok=True)
             try:
-                os.chmod(path, 0o750 if name == "home" else 0o770)
-            except OSError:
-                pass
+                backend.ensure_root(home=name == "home")
+            except backends.BackendError as exc:
+                raise RootNotFound(exc.message) from exc
         return root
     raise RootNotFound("")
-
-
-def rel_path(root: dict, target: Path) -> str:
-    rel = target.relative_to(root["path"].resolve())
-    return "" if str(rel) == "." else rel.as_posix()
-
-
-def unique_path(directory: Path, name: str) -> Path:
-    candidate = directory / name
-    if not candidate.exists():
-        return candidate
-    stem, suffix = Path(name).stem, Path(name).suffix
-    for i in range(1, 10000):
-        candidate = directory / f"{stem} ({i}){suffix}"
-        if not candidate.exists():
-            return candidate
-    raise FileExistsError(name)
 
 
 SORT_KEYS = ("name", "size", "mtime")
 
 
-def list_directory(root: dict, target: Path, show_hidden: bool, sort: str = "name",
+def list_directory(root: dict, rel: str, show_hidden: bool, sort: str = "name",
                    descending: bool = False) -> list[dict]:
     """Contenido de una carpeta: las carpetas siempre primero, luego ordenado por ``sort``."""
-    base_rel = rel_path(root, target)
+    base_rel = backends.clean_rel(rel)
     entries = []
-    with os.scandir(target) as it:
-        for entry in it:
-            if entry.name.startswith(UPLOAD_TMP_PREFIX):
-                continue
-            if not show_hidden and entry.name.startswith("."):
-                continue
-            try:
-                is_dir = entry.is_dir()
-                st = entry.stat()
-            except OSError:
-                continue
-            ext = "" if is_dir else Path(entry.name).suffix.lstrip(".").upper()
-            entries.append({
-                "name": entry.name,
-                "is_dir": is_dir,
-                "ext": ext if len(ext) <= 8 else "",
-                "bytes": 0 if is_dir else st.st_size,
-                "ts": st.st_mtime,
-                "size": "" if is_dir else format_size(st.st_size),
-                "mtime": format_datetime(datetime.fromtimestamp(st.st_mtime)),
-                "rel": f"{base_rel}/{entry.name}".lstrip("/"),
-            })
+    for entry in root["backend"].listdir(base_rel):
+        if entry.name.startswith(UPLOAD_TMP_PREFIX):
+            continue
+        if not backends.is_safe_name(entry.name):  # un servidor remoto no puede colar «..» ni «a/b»
+            continue
+        if not show_hidden and entry.name.startswith("."):
+            continue
+        ext = "" if entry.is_dir else Path(entry.name).suffix.lstrip(".").upper()
+        entries.append({
+            "name": entry.name,
+            "is_dir": entry.is_dir,
+            "ext": ext if len(ext) <= 8 else "",
+            "bytes": 0 if entry.is_dir else entry.size,
+            "ts": entry.mtime,
+            "size": "" if entry.is_dir else format_size(entry.size),
+            "mtime": format_datetime(datetime.fromtimestamp(entry.mtime)) if entry.mtime else "",
+            "rel": f"{base_rel}/{entry.name}".lstrip("/"),
+        })
     if sort not in SORT_KEYS:
         sort = "name"
     keys = {"name": lambda e: e["name"].lower(), "size": lambda e: e["bytes"], "mtime": lambda e: e["ts"]}

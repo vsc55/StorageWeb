@@ -8,8 +8,10 @@ from datetime import datetime, timezone
 from flask import Response, render_template, request
 
 from ....db.repositories import audit
+from ....i18n import _l
 from ...context import get_db
 from ...guards import admin_required, audit_event
+from ... import search
 from . import bp
 
 
@@ -42,3 +44,7 @@ def audit_export():
     name = f"storageweb-audit-{datetime.now(timezone.utc):%Y%m%d-%H%M}.csv"
     return Response(out.getvalue(), mimetype="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+search.action("audit", _l("Export the audit log (CSV)"), "admin.audit_export", words="auditoría exportar csv",
+              order=90)

@@ -4,7 +4,7 @@ Servidor web para **subir y descargar archivos** desde el navegador. Está escri
 
 - **Inicio de sesión:** usuarios locales, usuarios del sistema (PAM) y **Microsoft Entra ID** (SSO por OAuth2/OIDC propio o MSAL).
 - **Roles:** `admin` y `user`, con permisos configurables y un panel web de usuarios, ajustes y auditoría.
-- **Almacenamiento:** carpeta personal por usuario y carpetas compartidas por usuario o grupo (también de solo lectura).
+- **Almacenamiento:** carpeta personal por usuario y carpetas compartidas por usuario o grupo (también de solo lectura), en el disco del servidor, en montajes (NFS, SMB, rclone) o directamente en S3, SMB, SFTP, WebDAV, FTP o Azure Blob Storage.
 - **Archivos grandes:** subidas por partes reanudables y descargas con `Range`, sin límite de tamaño.
 - **Operación:** auditoría completa, `storageweb backup`/`restore`, `/healthz` y servicio systemd endurecido.
 

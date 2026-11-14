@@ -3,7 +3,6 @@ from __future__ import annotations
 
 ROLES = ("admin", "user")
 PERMISSIONS = ("upload", "download", "mkdir", "rename", "delete")
-SSO_PROVIDER_NAMES = ("oauth2", "msal")
 
 # Secciones que se pueden editar desde la web (se guardan en SQLite y prevalecen sobre config.json).
 # El resto (server, data_dir, database, secret_key, session) solo se configura en config.json
@@ -12,12 +11,19 @@ RUNTIME_SECTIONS = ("app_name", "default_locale", "branding", "network", "storag
                     "maintenance")
 
 # Campos secretos: nunca se muestran en la web; si se guardan vacíos se conserva el valor anterior.
-SECRET_FIELDS = (("auth", "entra", "client_secret"),)
-SECRET_PATHS = frozenset(".".join(p) for p in SECRET_FIELDS)
+# Los de cada método de inicio de sesión los añade su proveedor (settings/auth_methods.py).
+SECRET_FIELDS: list[tuple[str, ...]] = []
+SECRET_PATHS: set[str] = set()
+
+
+def is_secret(path: str) -> bool:
+    """``True`` si el campo (ruta con puntos) es un secreto: nunca se muestra."""
+    return path in SECRET_PATHS
 
 # Diccionarios que se tratan como un único valor al combinar ajustes web y config.json (no campo a
 # campo): vaciarlos en la web debe dejarlos vacíos, no heredar las claves del fichero.
-LEAF_PATHS = (("auth", "entra", "role_mappings"),)
+# (Los de los métodos de inicio de sesión, como auth.entra.role_mappings, los añade su proveedor.)
+LEAF_PATHS: list[tuple[str, ...]] = []
 
 DEFAULTS: dict = {
     "app_name": "StorageWeb",
@@ -65,61 +71,21 @@ DEFAULTS: dict = {
         # [{"name", "label", "path", "read_only", "users": ["*"], "read_only_users": [],
         #   "groups": [], "read_only_groups": []}]
         "shares": [],
+        # Almacenamientos externos con nombre; las carpetas los eligen con «location».
+        # [{"name", "label", "type", <opciones del tipo>}]: cada tipo (S3, SMB…) declara sus opciones
+        # en su backend (core/backends/<tipo>.py, settings/location_types.py)
+        "locations": [],
+        # Ubicación de las carpetas personales: "" = disco local; si no, el nombre de una ubicación
+        # (y home_template es una ruta dentro de ella, p. ej. "homes/{username}")
+        "home_location": "",
     },
     # Permisos del rol "user" (el rol "admin" los tiene todos)
     "permissions": {
         "user": {"upload": True, "download": True, "mkdir": True, "rename": False, "delete": False},
     },
-    "auth": {
-        "local": {"enabled": True},
-        "pam": {
-            # Usuarios del sistema operativo (solo Linux/macOS, requiere python-pam)
-            "enabled": False,
-            "service": "login",
-            # Si no está vacío, solo pueden entrar miembros de estos grupos del SO
-            "allowed_groups": [],
-            # Miembros de estos grupos del SO obtienen el rol admin
-            "admin_groups": [],
-            # True = usar el home real del usuario (/home/usuario) en vez de home_template
-            "use_system_home": False,
-        },
-        "entra": {
-            "enabled": False,
-            # "oauth2": OAuth2/OIDC propio (librería estándar, sin descubrimiento previo)
-            # "msal":   librería oficial de Microsoft (descubre la autoridad por red)
-            "provider": "oauth2",
-            "tenant_id": "",
-            "client_id": "",
-            "client_secret": "",
-            "redirect_uri": "",
-            "scopes": ["User.Read"],
-            # Vacío = texto traducido por defecto ("Iniciar sesión con Microsoft")
-            "button_label": "",
-            "username_claim": "preferred_username",
-            "strip_domain": False,
-            # IDs de grupo o App Roles permitidos (vacío = cualquiera del tenant)
-            "allowed_groups": [],
-            # --- Alta de usuarios ---
-            # True: se crea el usuario automáticamente en su primer login
-            # False: solo pueden entrar usuarios dados de alta antes por un admin
-            "auto_provision": True,
-            # Rol asignado a los usuarios nuevos si no aplica ningún mapeo
-            "default_role": "user",
-            # Grupo (Object ID) o App Role -> rol. Ej.: {"StorageWeb.Admin": "admin"}
-            "role_mappings": {},
-            # True: con role_mappings definidos, el rol se recalcula en cada login
-            "sync_role_on_login": True,
-            "single_logout": False,
-            # Solo oauth2: endpoints propios (Entra soberano u otro proveedor OIDC)
-            "authorize_url": "",
-            "token_url": "",
-            "issuer": "",
-            "logout_url": "",
-            "timeout_seconds": 15,
-            # Caducidad del client_secret (ISO 8601); vacía = desconocida. Se avisa 30 días antes.
-            "secret_expires": "",
-        },
-    },
+    # Un apartado por método de inicio de sesión (local, pam, entra…): sus valores los declara cada
+    # proveedor en providers/<método>/ y se añaden aquí al registrarlo (settings/auth_methods.py)
+    "auth": {},
     "security": {
         "max_login_failures": 5,
         "lockout_minutes": 15,
@@ -152,5 +118,5 @@ DEFAULTS: dict = {
 # La documentación de cada campo (y su etiqueta, página y sinónimos) está en settings/fields.py
 
 # Campos de cada elemento de storage.shares (lista; no aparecen en DEFAULTS)
-SHARE_FIELDS = ("name", "label", "path", "read_only", "users", "read_only_users", "groups",
+SHARE_FIELDS = ("name", "label", "location", "path", "read_only", "users", "read_only_users", "groups",
                 "read_only_groups")

@@ -8,21 +8,25 @@
 # Todo lo persistente vive en el volumen /data (config.json, base de datos y archivos).
 
 ARG PYTHON_VERSION=3.13
+# Extras de pyproject.toml incluidos en la imagen (vacío = ninguno)
+ARG EXTRAS="s3,smb,sftp,azure"
 
 # --------------------------------------------------------------------------- build
 FROM python:${PYTHON_VERSION}-slim AS build
 ARG VERSION=""
+ARG EXTRAS
 WORKDIR /src
 COPY pyproject.toml README.md ./
 COPY src ./src
 RUN if [ -n "$VERSION" ]; then \
         sed -i "s/^__version__ = .*/__version__ = \"$VERSION\"/" src/storageweb/__init__.py; \
     fi \
- && pip wheel --no-cache-dir --disable-pip-version-check --wheel-dir /wheels .
+ && pip wheel --no-cache-dir --disable-pip-version-check --wheel-dir /wheels ".${EXTRAS:+[$EXTRAS]}"
 
 # --------------------------------------------------------------------------- runtime
 FROM python:${PYTHON_VERSION}-slim
 ARG VERSION=""
+ARG EXTRAS
 LABEL org.opencontainers.image.title="StorageWeb" \
       org.opencontainers.image.description="Servidor web para subir y descargar archivos (usuarios locales y Microsoft Entra ID)" \
       org.opencontainers.image.version="${VERSION}"
@@ -37,7 +41,7 @@ RUN groupadd --system --gid 10001 storageweb \
  && install -d -o storageweb -g storageweb -m 0750 /data
 
 COPY --from=build /wheels /tmp/wheels
-RUN pip install --no-cache-dir --disable-pip-version-check --no-index --find-links /tmp/wheels storageweb \
+RUN pip install --no-cache-dir --disable-pip-version-check --no-index --find-links /tmp/wheels "storageweb${EXTRAS:+[$EXTRAS]}" \
  && rm -rf /tmp/wheels
 COPY --chmod=0755 packaging/docker/entrypoint.sh /usr/local/bin/storageweb-entrypoint
 

@@ -13,14 +13,13 @@ from ....db.repositories import api_tokens as token_repo
 from ....db.repositories import ip_rules as ip_repo
 from ....db.repositories import sessions as session_repo
 from ....i18n import LOCALES, _, _l, locale_display_name
-from ....providers import SSO_PROVIDERS
-from ....providers.entra import check as entra_check
 from ....settings import PERMISSIONS, ROLES, ConfigError, fields, get_path, mask_secrets, runtime_view
 from ... import nav
 from ...context import boot_config, get_db, invalidate_settings, runtime, settings
 from ...guards import admin_required, audit_event, client_ip, safe_next
 from . import bp
-from .common import checked, entra_connection, network_context, redirect_uri, save_partial, split_list
+from . import auth_forms
+from .common import checked, form_int, network_context, save_partial
 
 
 SECTIONS = ("general", "storage", "permissions", "auth", "security", "ips", "sessions", "network", "maintenance",
@@ -46,33 +45,6 @@ MOVED = {"shares": "folders"}
 WIZARD_STEPS = (1, 2, 3, 4)
 
 
-def _int(name: str, field: str, label: str) -> int:
-    if name not in request.form and runtime().lock_of(field):
-        return 0  # campo bloqueado (desactivado en el formulario): no se guarda
-    try:
-        return int(request.form.get(name, ""))
-    except ValueError as exc:
-        raise ConfigError(_("%(field)s must be a number", field=label), field) from exc
-
-
-def _role_mappings() -> dict:
-    f = request.form
-    if "entra_role_mappings" in f:  # formato de texto «grupo = rol», una línea por mapeo
-        mappings = {}
-        for n, line in enumerate(f.get("entra_role_mappings", "").splitlines(), 1):
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            key, sep, role = line.rpartition("=")
-            if not sep or not key.strip():
-                raise ConfigError(_("Role mapping, line %(line)s: use the format «group = role»", line=n),
-                                  "auth.entra.role_mappings")
-            mappings[key.strip()] = role.strip()
-        return mappings
-    return {grp.strip(): role for grp, role in zip(f.getlist("mapping_group"), f.getlist("mapping_role"))
-            if grp.strip()}
-
-
 def _general() -> dict:
     color = request.form.get("primary_color", "").strip() if checked("custom_color") else ""
     return {"app_name": request.form.get("app_name", "").strip(),
@@ -82,55 +54,15 @@ def _general() -> dict:
 
 def _storage() -> dict:
     return {"storage": {
+        "home_location": request.form.get("home_location", "").strip(),
         "home_template": request.form.get("home_template", "").strip(),
         "create_home": checked("create_home"), "create_shares": checked("create_shares"), "show_hidden": checked("show_hidden"),
-        "max_file_size_mb": _int("max_file_size_mb", "storage.max_file_size_mb", _("Maximum size per file")),
+        "max_file_size_mb": form_int("max_file_size_mb", "storage.max_file_size_mb", _("Maximum size per file")),
     }}
 
 
 def _permissions() -> dict:
     return {"permissions": {"user": {p: checked(f"perm_{p}") for p in PERMISSIONS}}}
-
-
-def _auth() -> dict:
-    f = request.form
-    entra = {
-        **entra_connection(),
-        "enabled": checked("entra_enabled"),
-        "provider": f.get("entra_provider", "oauth2"),
-        "scopes": f.get("entra_scopes", "").split(),
-        "button_label": f.get("entra_button_label", "").strip(),
-        "username_claim": f.get("entra_username_claim", "").strip() or "preferred_username",
-        "strip_domain": checked("entra_strip_domain"),
-        "allowed_groups": split_list(f.get("entra_allowed_groups", "")),
-        "auto_provision": checked("entra_auto_provision"),
-        "default_role": f.get("entra_default_role", "user"),
-        "role_mappings": _role_mappings(),
-        "sync_role_on_login": checked("entra_sync_role_on_login"),
-        "single_logout": checked("entra_single_logout"),
-        "authorize_url": f.get("entra_authorize_url", "").strip(),
-        "token_url": f.get("entra_token_url", "").strip(),
-        "issuer": f.get("entra_issuer", "").strip(),
-        "logout_url": f.get("entra_logout_url", "").strip(),
-        "timeout_seconds": _int("entra_timeout_seconds", "auth.entra.timeout_seconds", _("Timeout")),
-        "secret_expires": _secret_expires(f.get("entra_secret_expires", "").strip()),
-    }
-    return {"auth": {
-        "local": {"enabled": checked("local_enabled")},
-        "pam": {"enabled": checked("pam_enabled"), "service": f.get("pam_service", "login").strip() or "login",
-                "allowed_groups": split_list(f.get("pam_allowed_groups", "")),
-                "admin_groups": split_list(f.get("pam_admin_groups", "")),
-                "use_system_home": checked("pam_use_system_home")},
-        "entra": entra,
-    }}
-
-
-def _secret_expires(date_text: str) -> str:
-    """La fecha del formulario (AAAA-MM-DD). Si es el mismo día que la guardada, se conserva la hora exacta."""
-    current = settings()["auth"]["entra"].get("secret_expires", "")
-    if current and current[:10] == date_text:
-        return current
-    return date_text
 
 
 def _network() -> dict:
@@ -139,27 +71,27 @@ def _network() -> dict:
 
 def _security() -> dict:
     return {"security": {
-        "max_login_failures": _int("max_login_failures", "security.max_login_failures", _("Failed attempts")),
-        "lockout_minutes": _int("lockout_minutes", "security.lockout_minutes", _("Lockout minutes")),
+        "max_login_failures": form_int("max_login_failures", "security.max_login_failures", _("Failed attempts")),
+        "lockout_minutes": form_int("lockout_minutes", "security.lockout_minutes", _("Lockout minutes")),
         "ipban_enabled": checked("ipban_enabled"),
-        "ipban_threshold": _int("ipban_threshold", "security.ipban_threshold", _("Offenses")),
-        "ipban_window_minutes": _int("ipban_window_minutes", "security.ipban_window_minutes", _("Window")),
-        "ipban_minutes": _int("ipban_minutes", "security.ipban_minutes", _("Block duration")),
+        "ipban_threshold": form_int("ipban_threshold", "security.ipban_threshold", _("Offenses")),
+        "ipban_window_minutes": form_int("ipban_window_minutes", "security.ipban_window_minutes", _("Window")),
+        "ipban_minutes": form_int("ipban_minutes", "security.ipban_minutes", _("Block duration")),
         "api_tokens": checked("api_tokens"),
     }}
 
 
 def _maintenance() -> dict:
     return {"maintenance": {
-        "audit_retention_days": _int("audit_retention_days", "maintenance.audit_retention_days", _("Audit retention")),
-        "backup_interval_hours": _int("backup_interval_hours", "maintenance.backup_interval_hours",
+        "audit_retention_days": form_int("audit_retention_days", "maintenance.audit_retention_days", _("Audit retention")),
+        "backup_interval_hours": form_int("backup_interval_hours", "maintenance.backup_interval_hours",
                                       _("Automatic backups")),
-        "backup_keep": _int("backup_keep", "maintenance.backup_keep", _("Backups to keep")),
+        "backup_keep": form_int("backup_keep", "maintenance.backup_keep", _("Backups to keep")),
     }}
 
 
 PARSERS = {"general": _general, "storage": _storage, "permissions": _permissions,
-           "auth": _auth, "security": _security, "network": _network, "maintenance": _maintenance}
+           "auth": auth_forms.parse, "security": _security, "network": _network, "maintenance": _maintenance}
 
 
 def _display(draft: dict | None) -> dict:
@@ -173,7 +105,6 @@ def _display(draft: dict | None) -> dict:
 
 def _context(section: str, cfg: dict) -> dict:
     origins = runtime().origins(get_db())
-    check = session.get("entra_check")
     info = runtime().info(get_db())
     return {
         "section": section, "cfg": cfg, "SECTION_LABELS": SECTION_LABELS,
@@ -183,12 +114,8 @@ def _context(section: str, cfg: dict) -> dict:
         "form_default": lambda path: fields.form_value(path, get_path(runtime().defaults(), path)),
         "profile": runtime().profile,
         "info": info, "locales": [(code, locale_display_name(code)) for code in LOCALES],
-        "providers": list(SSO_PROVIDERS), "permissions": PERMISSIONS, "PERMISSION_LABELS": PERMISSION_LABELS,
+        "permissions": PERMISSIONS, "PERMISSION_LABELS": PERMISSION_LABELS,
         "ROLES": ROLES, "ROLE_LABELS": ROLE_LABELS,
-        "secret_set": bool(settings()["auth"]["entra"].get("client_secret")),
-        "user_counts": users.count_by_source(get_db()),
-        "entra_check": check, "entra_check_ok": entra_check.summary(check["results"]) if check else None,
-        "redirect_default": redirect_uri(cfg["auth"]["entra"]),
     }
 
 
@@ -199,12 +126,6 @@ def _origin_rows(origins: dict) -> list[dict]:
              "value": fields.display(path, get_path(settings(), path)),
              "url": nav.PAGES[nav.page_for_path(path)].url() + "#f-" + path.replace(".", "-")}
             for path, origin in sorted(origins.items(), key=lambda item: (order[item[1]], item[0]))]
-
-
-def _secret_days(expires: str) -> int | None:
-    if not expires:
-        return None
-    return (datetime.fromisoformat(expires) - datetime.now(timezone.utc)).days
 
 
 def _render(section: str, cfg: dict, status: int = 200, error: ConfigError | None = None):
@@ -232,7 +153,7 @@ def _render(section: str, cfg: dict, status: int = 200, error: ConfigError | Non
                    session_users=len({r["user_id"] for r in rows}),
                    lifetime_hours=boot_config()["session"]["lifetime_hours"])
     if section == "auth":
-        ctx["secret_days"] = _secret_days(cfg["auth"]["entra"].get("secret_expires", ""))
+        ctx.update(auth_forms.context(cfg), user_counts=users.count_by_source(get_db()))
     return render_template(f"admin/settings/{section}.html", error=error,
                            error_field=error.field if error else None, **ctx), status
 

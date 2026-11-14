@@ -1,0 +1,132 @@
+{# Tarjeta del método «entra» en Inicio de sesión (la incluye auth.html con su contexto). #}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, lock with context %}
+{% set en = cfg.auth.entra %}
+  {# --- Entra ID #}
+  <section class="provider-card provider-entra{% if en.enabled %} is-on{% endif %}{{ err_class('auth.entra') }}" aria-labelledby="p-entra">
+    <div class="provider-head">
+      <span class="provider-icon provider-entra-icon" aria-hidden="true"><svg class="icon"><use href="#i-globe"></use></svg></span>
+      <div class="provider-text">
+        <strong id="p-entra">Microsoft Entra ID</strong> {{ origin('auth.entra.enabled') }}
+        <span class="small">
+          {% if entra_check %}
+            {% if entra_check_ok %}<span class="status status-on">{{ _("Connection checked %(when)s", when=entra_check.at|datetime) }}</span>
+            {% elif entra_check_ok is none %}<span class="status">{{ _("Partly checked %(when)s", when=entra_check.at|datetime) }}</span>
+            {% else %}<span class="status status-off">{{ _("Problems in the last check (%(when)s)", when=entra_check.at|datetime) }}</span>{% endif %}
+          {% else %}<span class="muted">{{ _("Not checked yet") }}</span>{% endif %}
+          <span class="muted">· {{ ngettext("%(num)s user", "%(num)s users", user_counts.get('entra', 0)) }}</span>
+        </span>
+        {% if secret_days is not none %}
+        <span class="small {{ 'text-danger' if secret_days <= 30 else 'muted' }}">
+          {% if secret_days < 0 %}{{ _("The client secret expired on %(date)s.", date=en.secret_expires|datetime) }}
+          {% else %}{{ ngettext("The client secret expires on %(date)s (in %(num)s day).", "The client secret expires on %(date)s (in %(num)s days).", secret_days, date=en.secret_expires|datetime) }}{% endif %}
+        </span>
+        {% endif %}
+      </div>
+      <button class="btn btn-small" type="submit" form="entra-test-form" {% if not (en.tenant_id or en.issuer) %}disabled{% endif %}>{{ _("Test connection") }}</button>
+      <a class="btn btn-small{% if not en.client_id %} btn-primary{% endif %}" href="{{ url_for('settings.entra_register_page') }}">{{ _("Register in Entra ID") }}</a>
+      {% if en.client_id %}<button class="btn btn-small{% if secret_days is not none and secret_days <= 30 %} btn-primary{% endif %}" type="submit" form="entra-rotate-form">{{ _("Renew secret") }}</button>{% endif %}
+      <a class="btn btn-small btn-ghost" href="{{ url_for('settings.entra_setup') }}">{{ _("Setup assistant") }}</a>
+      <label class="switch"><input{{ lock('auth.entra.enabled') }} type="checkbox" name="entra_enabled" {% if en.enabled %}checked{% endif %}> <span>{{ _("Enabled") }}</span></label>
+    </div>
+    {{ field_error('auth.entra.enabled') }}
+
+    {% if entra_check %}
+    <ul class="check-list">
+      {% for r in entra_check.results %}
+      <li class="{{ 'ok' if r.ok else ('fail' if r.ok is sameas false else 'unknown') }}">
+        <span aria-hidden="true">{{ '✓' if r.ok else ('✕' if r.ok is sameas false else '–') }}</span><span>{{ r.message }}</span></li>
+      {% endfor %}
+    </ul>
+    <p class="muted small">{{ _("The test uses the saved settings: save before testing.") }}
+      {% if entra_check.results|selectattr('key', 'equalto', 'groups')|selectattr('ok', 'sameas', false)|list %}
+      <button class="btn btn-small" type="submit" form="entra-groups-form">{{ _("Grant group reading") }}</button>{% endif %}</p>
+    {% endif %}
+
+    <div class="js-tabs">
+      <fieldset class="tab-panel">
+        <legend>{{ _("Connection") }}</legend>
+        <div class="form-grid">
+          <label><span class="label-row">{{ _("Implementation") }} {{ origin('auth.entra.provider') }}</span>
+            <select{{ lock('auth.entra.provider') }} name="entra_provider">
+              {% for p in providers %}<option value="{{ p }}" {% if en.provider == p %}selected{% endif %}>{{ _("OAuth2 / OIDC (no dependencies)") if p == 'oauth2' else _("MSAL (Microsoft library)") }}</option>{% endfor %}
+            </select></label>
+          <label class="{{ err_class('auth.entra.tenant_id') }}"><span class="label-row">Tenant ID {{ origin('auth.entra.tenant_id') }}</span>
+            <input{{ lock('auth.entra.tenant_id') }} type="text" name="entra_tenant_id" value="{{ en.tenant_id }}" placeholder="00000000-0000-0000-0000-000000000000" class="mono">
+            {{ field_error('auth.entra.tenant_id') }}</label>
+          <label class="{{ err_class('auth.entra.client_id') }}"><span class="label-row">Client ID {{ origin('auth.entra.client_id') }}</span>
+            <input{{ lock('auth.entra.client_id') }} type="text" name="entra_client_id" value="{{ en.client_id }}" class="mono">
+            {{ field_error('auth.entra.client_id') }}</label>
+          <label class="{{ err_class('auth.entra.client_secret') }}"><span class="label-row">Client secret {{ origin('auth.entra.client_secret') }}</span>
+            <input{{ lock('auth.entra.client_secret') }} type="password" name="entra_client_secret" autocomplete="new-password"
+                   placeholder="{{ _('•••••••• (configured, leave empty to keep it)') if secret_set else _('Not configured') }}">
+            {{ field_error('auth.entra.client_secret') }}</label>
+          <label class="{{ err_class('auth.entra.secret_expires') }}"><span class="label-row">{{ _("The secret expires on") }} {{ origin('auth.entra.secret_expires') }}</span>
+            <input{{ lock('auth.entra.secret_expires') }} type="date" name="entra_secret_expires" value="{{ (en.secret_expires or '')[:10] }}">
+            <small class="muted">{{ _("To be warned 30 days before. Filled in automatically when StorageWeb creates the secret.") }}</small>
+            {{ field_error('auth.entra.secret_expires') }}</label>
+          <label class="span2"><span class="label-row">Redirect URI {{ origin('auth.entra.redirect_uri') }}</span>
+            <input{{ lock('auth.entra.redirect_uri') }} type="url" name="entra_redirect_uri" value="{{ en.redirect_uri }}" placeholder="{{ redirect_default }}" class="mono">
+            <small class="muted">{{ _("Empty = %(uri)s. It must be registered in Entra ID → Authentication → Web.", uri=redirect_default) }}</small></label>
+          <label><span class="label-row">{{ _("Button text") }} {{ origin('auth.entra.button_label') }}</span>
+            <input{{ lock('auth.entra.button_label') }} type="text" name="entra_button_label" value="{{ en.button_label }}" placeholder="{{ _('Sign in with Microsoft') }}"></label>
+          <label class="check"><input{{ lock('auth.entra.single_logout') }} type="checkbox" name="entra_single_logout" {% if en.single_logout %}checked{% endif %}> {{ _("Also sign out of Microsoft when signing out") }} {{ origin('auth.entra.single_logout') }}</label>
+        </div>
+      </fieldset>
+
+      <fieldset class="tab-panel">
+        <legend>{{ _("Users and roles") }}</legend>
+        <div class="form-grid">
+          <label class="check span2"><input{{ lock('auth.entra.auto_provision') }} type="checkbox" name="entra_auto_provision" {% if en.auto_provision %}checked{% endif %}>
+            <span>{{ _("Create the user automatically on first sign-in") }} {{ origin('auth.entra.auto_provision') }}
+              <small class="muted">({{ _("if disabled, only Entra users registered beforehand by an administrator can sign in") }})</small></span></label>
+          <label class="{{ err_class('auth.entra.default_role') }}"><span class="label-row">{{ _("Default role") }} {{ origin('auth.entra.default_role') }}</span>
+            <select{{ lock('auth.entra.default_role') }} name="entra_default_role">
+              {% for r in ROLES %}<option value="{{ r }}" {% if en.default_role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}
+            </select></label>
+          <label><span class="label-row">{{ _("Allowed groups / App Roles") }} {{ origin('auth.entra.allowed_groups') }}</span>
+            <input{{ lock('auth.entra.allowed_groups') }} type="text" name="entra_allowed_groups" value="{{ en.allowed_groups | join(', ') }}" placeholder="{{ _('empty = any user of the tenant') }}"></label>
+          <div class="span2 mapping{{ err_class('auth.entra.role_mappings') }}">
+            <span class="label-row">{{ _("Group / App Role → role mapping") }} {{ origin('auth.entra.role_mappings') }}</span>
+            <table class="mapping-table" id="mapping-table">
+              <tbody>
+                {% for k, v in en.role_mappings.items() %}
+                <tr><td><input{{ lock('auth.entra.role_mappings') }} type="text" name="mapping_group" value="{{ k }}" class="mono" aria-label="{{ _('Group or App Role') }}"></td>
+                    <td><select{{ lock('auth.entra.role_mappings') }} name="mapping_role" aria-label="{{ _('Role') }}">{% for r in ROLES %}<option value="{{ r }}" {% if v == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></td>
+                    <td><button type="button" class="btn btn-small btn-ghost js-remove-row" aria-label="{{ _('Remove mapping') }}">×</button></td></tr>
+                {% endfor %}
+                <tr><td><input{{ lock('auth.entra.role_mappings') }} type="text" name="mapping_group" class="mono" placeholder="StorageWeb.Admin" aria-label="{{ _('Group or App Role') }}"></td>
+                    <td><select{{ lock('auth.entra.role_mappings') }} name="mapping_role" aria-label="{{ _('Role') }}">{% for r in ROLES %}<option value="{{ r }}">{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></td>
+                    <td></td></tr>
+              </tbody>
+            </table>
+            <template id="mapping-row-template">
+              <tr><td><input{{ lock('auth.entra.role_mappings') }} type="text" name="mapping_group" class="mono" aria-label="{{ _('Group or App Role') }}"></td>
+                  <td><select{{ lock('auth.entra.role_mappings') }} name="mapping_role" aria-label="{{ _('Role') }}">{% for r in ROLES %}<option value="{{ r }}">{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></td>
+                  <td><button type="button" class="btn btn-small btn-ghost js-remove-row" aria-label="{{ _('Remove mapping') }}">×</button></td></tr>
+            </template>
+            <button type="button" class="btn btn-small btn-ghost" id="add-mapping"{{ lock('auth.entra.role_mappings') }}>{{ _("+ Add mapping") }}</button>
+            {{ field_error('auth.entra.role_mappings') }}
+          </div>
+          <label class="check span2"><input{{ lock('auth.entra.sync_role_on_login') }} type="checkbox" name="entra_sync_role_on_login" {% if en.sync_role_on_login %}checked{% endif %}>
+            {{ _("Recalculate the role on every sign-in according to the mapping") }} {{ origin('auth.entra.sync_role_on_login') }}</label>
+        </div>
+      </fieldset>
+
+      <fieldset class="tab-panel">
+        <legend>{{ _("Advanced") }}</legend>
+        <p class="muted small">{{ _("Only for another OIDC provider or custom endpoints. Empty = Microsoft's for the tenant.") }}</p>
+        <div class="form-grid">
+          <label><span class="label-row">{{ _("Additional scopes") }} {{ origin('auth.entra.scopes') }}</span><input{{ lock('auth.entra.scopes') }} type="text" name="entra_scopes" value="{{ en.scopes | join(' ') }}"></label>
+          <label><span class="label-row">{{ _("User name claim") }} {{ origin('auth.entra.username_claim') }}</span><input{{ lock('auth.entra.username_claim') }} type="text" name="entra_username_claim" value="{{ en.username_claim }}"></label>
+          <label class="check span2"><input{{ lock('auth.entra.strip_domain') }} type="checkbox" name="entra_strip_domain" {% if en.strip_domain %}checked{% endif %}> {{ _("Remove the domain from the user name (juan@contoso.com → juan)") }} {{ origin('auth.entra.strip_domain') }}</label>
+          <label><span class="label-row">Authorize URL {{ origin('auth.entra.authorize_url') }}</span><input{{ lock('auth.entra.authorize_url') }} type="url" name="entra_authorize_url" value="{{ en.authorize_url }}"></label>
+          <label><span class="label-row">Token URL {{ origin('auth.entra.token_url') }}</span><input{{ lock('auth.entra.token_url') }} type="url" name="entra_token_url" value="{{ en.token_url }}"></label>
+          <label><span class="label-row">Issuer {{ origin('auth.entra.issuer') }}</span><input{{ lock('auth.entra.issuer') }} type="text" name="entra_issuer" value="{{ en.issuer }}"></label>
+          <label><span class="label-row">Logout URL {{ origin('auth.entra.logout_url') }}</span><input{{ lock('auth.entra.logout_url') }} type="url" name="entra_logout_url" value="{{ en.logout_url }}"></label>
+          <label class="{{ err_class('auth.entra.timeout_seconds') }}"><span class="label-row">{{ _("Timeout (s)") }} {{ origin('auth.entra.timeout_seconds') }}</span>
+            <input{{ lock('auth.entra.timeout_seconds') }} type="number" name="entra_timeout_seconds" value="{{ en.timeout_seconds }}" min="1" max="120">
+            {{ field_error('auth.entra.timeout_seconds') }}</label>
+        </div>
+      </fieldset>
+    </div>
+  </section>

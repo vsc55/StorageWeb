@@ -22,6 +22,7 @@ from sqlite3 import Connection
 from ..db.repositories import audit
 from ..db.repositories import ip_rules as repo
 from ..i18n import _
+from .maintenance import task
 
 CACHE_SECONDS = 30
 OFFENSE_KINDS = ("login_failed", "csrf", "bad_token")
@@ -150,6 +151,7 @@ def remove(conn: Connection, rule_id: int) -> dict | None:
     return dict(rule) if rule else None
 
 
+@task("ipban_prune", every=lambda cfg: 1, order=15)
 def prune(conn: Connection, cfg: dict) -> None:
     """Quita los bloqueos caducados y las infracciones fuera de la ventana."""
     repo.delete_expired(conn)

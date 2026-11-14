@@ -20,7 +20,7 @@ bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 @bp.context_processor
 def _labels():
-    return {"ROLE_LABELS": ROLE_LABELS, "SOURCE_LABELS": accounts.SOURCE_LABELS,
+    return {"ROLE_LABELS": ROLE_LABELS, "SOURCE_LABELS": accounts.source_labels(),
             "PERMISSION_LABELS": PERMISSION_LABELS, "ROLES": ROLES}
 
 

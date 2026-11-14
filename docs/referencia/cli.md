@@ -72,7 +72,7 @@ storageweb user-add <username> [--source SOURCE] [--role ROLE] [--password PASSW
 | Argumento | Descripción |
 |---|---|
 | `username` | Nombre de usuario (para Entra ID, el UPN: juan@contoso.com) |
-| `--source` `SOURCE` | 'entra' = alta previa de un usuario de Entra ID (sin contraseña) Valores: `local`, `entra`. Por defecto: `local`. |
+| `--source` `SOURCE` | Método de inicio de sesión de la cuenta (por defecto, el primero que guarda la contraseña aquí: local). Con los demás, el usuario se da de alta antes y se vincula en su primer inicio de sesión. Valores: `local`, `pam`, `entra`. |
 | `--role` `ROLE` | Rol del usuario Valores: `admin`, `user`. Por defecto: `user`. |
 | `--password` `PASSWORD` | Contraseña (evítalo: queda en el historial; mejor que la pregunte) |
 | `--password-stdin` | Lee la contraseña de la entrada estándar |

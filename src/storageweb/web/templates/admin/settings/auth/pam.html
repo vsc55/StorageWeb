@@ -1,0 +1,24 @@
+{# Tarjeta del método «pam» en Inicio de sesión (la incluye auth.html con su contexto). #}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, lock with context %}
+{% set pam = cfg.auth.pam %}
+  {# --- PAM #}
+  <section class="provider-card{% if pam.enabled %} is-on{% endif %}{{ err_class('auth.pam') }}" aria-labelledby="p-pam">
+    <div class="provider-head">
+      <span class="provider-icon provider-pam" aria-hidden="true"><svg class="icon"><use href="#i-monitor"></use></svg></span>
+      <div class="provider-text">
+        <strong id="p-pam">{{ _("System users (PAM)") }}</strong>
+        <span class="muted small">{{ _("Accounts of the Linux/macOS server") }} · {{ ngettext("%(num)s user", "%(num)s users", user_counts.get('pam', 0)) }}</span>
+      </div>
+      <label class="switch"><input{{ lock('auth.pam.enabled') }} type="checkbox" name="pam_enabled" {% if pam.enabled %}checked{% endif %}> <span>{{ _("Enabled") }}</span></label>
+    </div>
+    {{ field_error('auth.pam') }}
+    <details class="provider-body"{% if pam.enabled or err_class('auth.pam') %} open{% endif %}>
+      <summary>{{ _("Configure") }}</summary>
+      <div class="form-grid">
+        <label><span class="label-row">{{ _("PAM service") }} {{ origin('auth.pam.service') }}</span><input{{ lock('auth.pam.service') }} type="text" name="pam_service" value="{{ pam.service }}"></label>
+        <label><span class="label-row">{{ _("Allowed groups") }} {{ origin('auth.pam.allowed_groups') }}</span><input{{ lock('auth.pam.allowed_groups') }} type="text" name="pam_allowed_groups" value="{{ pam.allowed_groups | join(', ') }}" placeholder="{{ _('empty = everyone') }}"></label>
+        <label><span class="label-row">{{ _("Groups with the administrator role") }} {{ origin('auth.pam.admin_groups') }}</span><input{{ lock('auth.pam.admin_groups') }} type="text" name="pam_admin_groups" value="{{ pam.admin_groups | join(', ') }}"></label>
+        <label class="check"><input{{ lock('auth.pam.use_system_home') }} type="checkbox" name="pam_use_system_home" {% if pam.use_system_home %}checked{% endif %}> {{ _("Use the system home folder (/home/user)") }} {{ origin('auth.pam.use_system_home') }}</label>
+      </div>
+    </details>
+  </section>

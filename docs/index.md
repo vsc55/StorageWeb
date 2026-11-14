@@ -4,7 +4,7 @@ StorageWeb es un servidor web para **subir y descargar archivos** desde el naveg
 
 - **Inicio de sesión:** usuarios locales, usuarios del sistema operativo (PAM) y **Microsoft Entra ID** (SSO).
 - **Roles:** `admin` (gestiona usuarios y ajustes desde la web) y `user` (trabaja con archivos según los permisos que defina el admin).
-- **Almacenamiento:** una carpeta personal por usuario y carpetas compartidas por usuario o grupo, que pueden ser de solo lectura.
+- **Almacenamiento:** una carpeta personal por usuario y carpetas compartidas por usuario o grupo, que pueden ser de solo lectura. Pueden estar en el disco del servidor, en un montaje (NFS, SMB, rclone) o directamente en S3, SMB, SFTP, WebDAV, FTP o Azure Blob Storage ([almacenamiento externo](administracion/almacenamiento.md)).
 - **Archivos grandes:** subidas por partes reanudables y descargas reanudables, sin límite de tamaño.
 - **Operación:** auditoría de todas las acciones, copias de seguridad con un comando, `/healthz` para la monitorización y servicio endurecido con systemd.
 

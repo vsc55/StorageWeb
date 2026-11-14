@@ -66,6 +66,11 @@
     new FormData(form).forEach(function (value, name) { if (typeof value === "string") out.push([name, value]); });
     return out;
   };
+  var withoutSecrets = function (form, pairs) {
+    var secret = {};
+    form.querySelectorAll("input[type=password]").forEach(function (el) { if (el.name) secret[el.name] = true; });
+    return pairs.filter(function (pair) { return !secret[pair[0]]; });
+  };
   var applyState = function (form, state) {
     var wanted = {};
     state.forEach(function (pair) { (wanted[pair[0]] = wanted[pair[0]] || []).push(pair[1]); });
@@ -288,8 +293,9 @@
       if (!submitting) {
         var all = readDrafts();
         if (w.dirty) {
-          all[w.key] = { title: pageTitle(), state: formState(form), entries: formEntries(form), count: count,
-                         ts: Date.now() };
+          // Las contraseñas y secretos no se guardan en el navegador: al volver hay que escribirlos otra vez
+          all[w.key] = { title: pageTitle(), state: withoutSecrets(form, formState(form)),
+                         entries: withoutSecrets(form, formEntries(form)), count: count, ts: Date.now() };
         }
         else delete all[w.key];
         writeDrafts(all);

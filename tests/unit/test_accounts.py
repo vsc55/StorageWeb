@@ -4,6 +4,8 @@ import pytest
 from storageweb.core import accounts
 from storageweb.core.accounts import AccountError, resolve_role
 from storageweb.db.repositories import audit, users
+from storageweb.providers import AuthDenied
+from storageweb.providers.entra.method import identity_from_claims
 from storageweb.settings import load_config
 
 ECFG = {"role_mappings": {"grp-admins": "admin", "storageweb.user": "user"},
@@ -74,12 +76,14 @@ def test_last_admin_guard(db_conn):
         accounts.delete_account(db_conn, b, b)
 
 
-def test_login_with_claims_provisions(db_conn):
+def test_login_sso_provisions(db_conn):
     ecfg = {**load_config(None)["auth"]["entra"], "tenant_id": "t1",
             "role_mappings": {"admins": "admin"}}
     claims = {"tid": "t1", "oid": "o1", "preferred_username": "Eva@X.com", "groups": ["ADMINS"]}
-    user = accounts.login_with_claims(db_conn, ecfg, claims, ip="1.2.3.4")
+    user = accounts.login_sso(db_conn, {"auth": {"entra": ecfg}}, "entra", identity_from_claims(ecfg, claims),
+                              ip="1.2.3.4")
     assert user["username"] == "eva@x.com" and user["role"] == "admin" and user["source"] == "entra"
     assert [r["action"] for r in audit.recent(db_conn, 5)] == ["user_provisioned"]
-    with pytest.raises(AccountError):
-        accounts.login_with_claims(db_conn, ecfg, {**claims, "tid": "otro"})
+    with pytest.raises(AuthDenied) as exc:
+        identity_from_claims(ecfg, {**claims, "tid": "otro"})
+    assert exc.value.code == "tenant"

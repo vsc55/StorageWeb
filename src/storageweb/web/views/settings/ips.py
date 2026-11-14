@@ -4,9 +4,10 @@ from __future__ import annotations
 from flask import abort, flash, g, redirect, request, url_for
 
 from ....core import ipban
-from ....i18n import _
+from ....i18n import _, _l
 from ...context import get_db
 from ...guards import admin_required, audit_event, client_ip
+from ... import search
 from . import bp
 
 
@@ -42,3 +43,7 @@ def ip_remove(rule_id: int):
         audit_event("ip_unbanned" if rule["kind"] == "ban" else "ip_allow_removed", rule["network"])
         flash(_("%(network)s removed.", network=rule["network"]), "info")
     return redirect(url_for("settings.section", name="ips"))
+
+
+search.action("lock", _l("Block an IP address"), "settings.section", {"name": "ips"}, "ip-rules", "ip bloquear ban",
+              order=50)

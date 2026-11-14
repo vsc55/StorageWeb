@@ -10,6 +10,7 @@
 | Base de datos | `/var/lib/storageweb/storageweb.db` | igual | `/data/db/storageweb.db` | `.dev/data/` |
 | `secret_key` | `/var/lib/storageweb/secret_key` | igual | `/data/db/secret_key` | `.dev/data/` |
 | Copias | `/var/lib/storageweb/backups/` | igual | `/data/db/backups/` | `.dev/data/backups/` |
+| Subidas a S3/SMB en curso | `/var/lib/storageweb/uploads/` | igual | `/data/db/uploads/` | `.dev/data/uploads/` |
 | Archivos | `/srv/storageweb/{homes,shared,public}` | igual | `/data/files/` | `.dev/` |
 | Servicio | `storageweb.service`, `storageweb-backup.{service,timer}` | igual + OpenRC `storageweb` | — | — |
 | Log | journald | journald u `/var/log/storageweb/` | `docker logs` | consola |

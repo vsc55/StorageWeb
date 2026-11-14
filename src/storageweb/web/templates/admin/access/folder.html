@@ -8,7 +8,8 @@
   <div>
     <div class="settings-title"><h1>{{ title }}</h1>{{ page_kind() }}</div>
     {% if original %}<p class="muted small">/f/{{ share.name }} ·
-      {% if exists %}<span>{{ _("the folder exists on the server") }}</span>{% else %}<span class="text-danger">{{ _("It does not exist on the server.") }}</span>{% endif %}</p>{% endif %}
+      {% if exists is none %}<span>{{ _("in %(where)s", where=where) }}</span>
+      {% elif exists %}<span>{{ _("the folder exists on the server") }}</span>{% else %}<span class="text-danger">{{ _("It does not exist on the server.") }}</span>{% endif %}</p>{% endif %}
   </div>
 </div>
 {{ locked_notice(locked_message) }}
@@ -23,9 +24,17 @@
     <label><span class="label-row">{{ _("Name (URL)") }}</span>
       <input type="text" name="name" value="{{ share.name }}" required pattern="[A-Za-z0-9_\-]+" maxlength="64" placeholder="accounting">
       <small class="muted">{{ _("Letters, digits, _ and -. Changing it changes the address of the folder.") }}</small></label>
-    <label class="span2"><span class="label-row">{{ _("Path on the server") }}</span>
-      <input type="text" name="path" value="{{ share.path }}" required class="mono" placeholder="/srv/storageweb/shares/accounting">
-      <small class="muted">{{ _("Relative paths are resolved from the folder of config.json.") }}</small></label>
+    {# Siempre visible: sin ubicaciones solo está el disco del servidor y un enlace para añadir una #}
+    <label><span class="label-row">{{ _("Where the files live") }}</span>
+      <select name="location">
+        <option value="">{{ _("Disk of the server") }}</option>
+        {% for loc in locations %}<option value="{{ loc.name }}" {% if share.location == loc.name %}selected{% endif %}>{{ loc.label }} · {{ location_type(loc.type).short_label }}</option>{% endfor %}
+      </select>
+      <small class="muted">{% if locations %}<a href="{{ url_for('locations.index') }}">{{ _("Storage locations") }}</a>
+        {% else %}{{ _("Mounted folders (NFS, SMB, rclone) are on the disk. For S3 or SMB without mounting,") }} <a href="{{ url_for('locations.index') }}">{{ _("add a storage location") }}</a>.{% endif %}</small></label>
+    <label><span class="label-row">{{ _("Path") }}</span>
+      <input type="text" name="path" value="{{ share.path }}"{% if not locations %} required{% endif %} class="mono" placeholder="/srv/storageweb/shares/accounting">
+      <small class="muted">{{ _("On the disk of the server: absolute path or relative to the folder of config.json. In a storage location: folder inside it (empty = its root).") }}</small></label>
     <label class="check span2"><input type="checkbox" name="read_only" {% if share.read_only %}checked{% endif %}>
       <span>{{ _("Read only for everyone") }}
         <small class="muted">{{ _("Only downloading is allowed, administrators included, whatever the permission of each entry.") }}</small></span></label>

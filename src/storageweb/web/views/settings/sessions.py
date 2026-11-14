@@ -7,10 +7,11 @@ from flask import abort, flash, g, redirect, request, url_for
 
 from ....db.repositories import users
 from ....db.repositories import sessions as session_repo
-from ....i18n import _, ngettext
+from ....i18n import _, _l, ngettext
 from ....db.repositories import api_tokens as token_repo
 from ...context import get_db
 from ...guards import admin_required, audit_event
+from ... import search
 from . import bp
 from .common import back
 
@@ -105,3 +106,7 @@ def user_token_delete(user_id: int, token_id: int):
     audit_event("api_token_revoked", user["username"], token["name"])
     flash(_("Token «%(name)s» revoked.", name=token["name"]), "info")
     return back(url_for("admin.user_edit", user_id=user_id))
+
+
+search.action("logout", _l("Close all sessions"), "settings.section", {"name": "sessions"},
+              words="sesiones cerrar todas logout", order=80)

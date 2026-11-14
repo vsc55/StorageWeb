@@ -6,10 +6,19 @@ import sys
 from pathlib import Path
 
 from .. import i18n
-from ..i18n import _
+from ..i18n import _, _l
+from .common import command
 from ..settings import ConfigError, default_config_path
 
 
+def _serve_args(p):
+    p.add_argument("--host", help=_("Overrides server.host"))
+    p.add_argument("--port", type=int, help=_("Overrides server.port"))
+    p.add_argument("--dev", action="store_true", help=_("Development: debugger and automatic reload"))
+    p.add_argument("--no-reload", action="store_true", help=_("With --dev, without reload (for debugging)"))
+
+
+@command("serve", _l("Start the web server"), _serve_args, needs_db=False, order=10)
 def cmd_serve(args) -> int:
     from .. import create_app
 

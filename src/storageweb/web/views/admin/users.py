@@ -12,11 +12,12 @@ from ....core.storage import explain_access
 from ....db.repositories import api_tokens, audit, users
 from ....db.repositories import groups as group_repo
 from ....db.repositories import sessions as session_repo
-from ....i18n import _, ngettext
+from ....i18n import _, _l, ngettext
 from ....settings import PERMISSIONS, ROLES
 from ...context import get_db, settings
 from ...forms import back, split_list
 from ...guards import admin_required, audit_event
+from ... import search
 from . import bp
 
 
@@ -44,7 +45,7 @@ def _user_filters() -> dict:
     role = a.get("role", "")
     return {"q": a.get("q", "").strip(),
             "status": status if status in USER_STATUS_FILTERS else "all",
-            "source": source if source in accounts.SOURCES else "",
+            "source": source if source in accounts.sources() else "",
             "role": role if role in ROLES else "",
             "group": a.get("group", type=int)}
 
@@ -203,10 +204,10 @@ def _user_form_data() -> dict:
 @bp.route("/users/new", methods=["GET", "POST"])
 @admin_required
 def user_new():
-    form = {"source": "local", "role": "user", "enabled": True}
+    form = {"source": accounts.default_source(), "role": "user", "enabled": True}
     if request.method == "POST":
         form = {**_user_form_data(), "username": request.form.get("username", "").strip(),
-                "source": request.form.get("source", "local"), "groups": split_list(request.form.get("groups", ""))}
+                "source": request.form.get("source", accounts.default_source()), "groups": split_list(request.form.get("groups", ""))}
         try:
             uid = accounts.create_account(get_db(), 
                 username=form["username"], source=form["source"], role=form["role"],
@@ -219,7 +220,7 @@ def user_new():
             flash(_("User «%(name)s» created.", name=form["username"]), "info")
             return redirect(url_for("admin.user_edit", user_id=uid))
         form.pop("password", None)
-    return render_template("admin/user_form.html", user=None, form=form, sources=accounts.SOURCES)
+    return render_template("admin/user_form.html", user=None, form=form, sources=accounts.sources())
 
 
 @bp.route("/users/<int:user_id>", methods=["GET", "POST"])
@@ -243,7 +244,7 @@ def user_edit(user_id: int):
             return back(url_for("admin.user_edit", user_id=user_id))
         if request.form.get("next"):
             return back(url_for("admin.user_edit", user_id=user_id))
-    return render_template("admin/user_form.html", user=user, form=form, sources=accounts.SOURCES,
+    return render_template("admin/user_form.html", user=user, form=form, sources=accounts.sources(),
                            **_user_detail(user))
 
 
@@ -255,9 +256,9 @@ def _user_groups_context(user) -> dict:
     known = {g["name"] for g in group_repo.list_all(get_db())} | \
         {g["external_id"] for g in group_repo.list_all(get_db()) if g["external_id"]}
     unknown = sorted(group_core.split(user["external_groups"]) - names - known)
-    from ..groups import entra_names
+    from ..groups import directory_names
     return {"memberships": rows, "unknown_groups": unknown,
-            "unknown_names": entra_names(unknown) if user["source"] == "entra" else {},
+            "unknown_names": directory_names(unknown, user["source"]),
             "addable_groups": [g for g in group_repo.list_all(get_db()) if g["id"] not in mine]}
 
 
@@ -289,3 +290,16 @@ def user_delete(user_id: int):
     audit_event("user_deleted", user["username"])
     flash(_("User «%(name)s» deleted (their files have not been removed).", name=user["username"]), "info")
     return redirect(url_for("admin.users_list"))
+
+
+search.action("user", _l("New user"), "admin.user_new", words="alta crear usuario cuenta add create", order=10)
+
+
+@search.provider("user", _l("Users"), order=10)
+def _search_users(terms, conn, cfg):
+    # Se filtra aquí y no en SQL para no distinguir tildes (LIKE sí las distingue)
+    return [search.item("user", row["display_name"] or row["username"], f"{row['username']} · {row['source']}",
+                        url_for("admin.user_edit", user_id=row["id"]), "" if row["enabled"] else _("Disabled"),
+                        "user")
+            for row in users.list_all(conn) if search.matches(terms, row["username"], row["display_name"],
+                                                              row["email"])]

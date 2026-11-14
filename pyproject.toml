@@ -20,6 +20,12 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "pyyaml>=6"]
 docs = ["mkdocs>=1.6,<2", "mkdocs-material>=9.5,<10", "pyyaml>=6"]
+# Almacenamiento externo nativo (docs/administracion/almacenamiento.md)
+s3 = ["boto3>=1.28"]
+smb = ["smbprotocol>=1.12"]
+sftp = ["paramiko>=3.4"]
+azure = ["azure-storage-blob>=12.19"]
+# FTP/FTPS y WebDAV no necesitan nada (biblioteca estándar)
 
 [project.scripts]
 storageweb = "storageweb.cli:main"

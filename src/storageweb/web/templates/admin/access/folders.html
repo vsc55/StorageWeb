@@ -24,12 +24,12 @@
 <div class="folder-list">
   {% for row in rows %}
   {% set s = row.share %}
-  <a class="folder-row{% if not row.exists and not create_shares %} is-missing{% endif %}" id="share-{{ s.name }}"
+  <a class="folder-row{% if row.exists is sameas false and not create_shares %} is-missing{% endif %}" id="share-{{ s.name }}"
      href="{{ url_for('access.folder', name=s.name) }}">
     <span class="folder-main">
       <strong>{{ s.label }} <span class="muted small">/f/{{ s.name }}</span></strong>
-      <span class="small muted"><code>{{ s.path }}</code>
-        {% if not row.exists %}· <span class="text-danger">{{ _("It does not exist on the server.") if not create_shares else _("It will be created on first use.") }}</span>{% endif %}</span>
+      <span class="small muted"><code>{{ row.where }}</code>
+        {% if row.exists is sameas false %}· <span class="text-danger">{{ _("It does not exist on the server.") if not create_shares else _("It will be created on first use.") }}</span>{% endif %}</span>
     </span>
     <span class="folder-who">
       {% if s.read_only %}<span class="badge">{{ _("read-only folder") }}</span>{% endif %}

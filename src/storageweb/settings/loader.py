@@ -22,7 +22,9 @@ from ..i18n import LOCALES, _
 from .env import env_config
 from .errors import ConfigError
 from .layers import _get, _set, merge_overrides
-from .defaults import DEFAULTS, PERMISSIONS, ROLES, RUNTIME_SECTIONS, SECRET_FIELDS, SSO_PROVIDER_NAMES
+from . import location_types
+from . import auth_methods
+from .defaults import DEFAULTS, PERMISSIONS, RUNTIME_SECTIONS, SECRET_FIELDS
 
 SHARE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 PROFILE_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -74,9 +76,7 @@ def _resolve(base_dir: Path, value: str) -> Path:
 
 
 def _field_path(field: str) -> str | None:
-    """Ruta completa del ajuste a partir del nombre que usan los mensajes («entra.scopes»)."""
-    if field.startswith(("pam.", "entra.", "local.")):
-        return "auth." + field
+    """Ruta completa del ajuste a partir del nombre que usan los mensajes («storage.shares»)."""
     if field.startswith(("storage.", "security.", "auth.", "network.", "server.", "maintenance.", "branding.")):
         return field
     return "storage.shares" if "." in field else None
@@ -84,22 +84,6 @@ def _field_path(field: str) -> str | None:
 
 _HOST_RE = re.compile(r"^(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*"
                       r"|\[[0-9A-Fa-f:.]+\])(?::\d{1,5})?$")
-
-
-def _iso_datetime(value, field: str) -> str:
-    """Fecha u hora ISO 8601 normalizada (UTC, con zona), o vacío."""
-    from datetime import datetime, timezone
-
-    text = str(value or "").strip()
-    if not text:
-        return ""
-    try:
-        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError as exc:
-        raise ConfigError(_("%(field)s must be a date like 2027-11-13", field=field), field) from exc
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc).isoformat(timespec="seconds")
 
 
 def _public_url(value) -> str:
@@ -119,6 +103,40 @@ def _public_url(value) -> str:
         raise ConfigError(_("network.public_url must be a host name like files.example.com (optionally with "
                             "a port or a path, no query)"), "network.public_url")
     return f"{parts.scheme}://{parts.netloc.lower()}{parts.path}"
+
+
+def _inside_location(value: str, field: str) -> str:
+    """Ruta relativa dentro de una ubicación (``a/b``): ni ``..`` ni rutas absolutas o con unidad."""
+    parts = [p for p in str(value or "").strip().replace("\\", "/").split("/") if p not in ("", ".")]
+    if ".." in parts or (parts and ":" in parts[0]):
+        raise ConfigError(_("%(field)s: inside a storage location the path must be relative (for example "
+                            "folders/accounting)", field=field), _field_path(field))
+    return "/".join(parts)
+
+
+def _locations(items) -> list[dict]:
+    """Valida y normaliza ``storage.locations``: lo común aquí; las opciones, con el esquema de su tipo."""
+    if not isinstance(items, list):
+        raise ConfigError(_("storage.locations must be a list"), "storage.locations")
+    result, seen = [], set()
+    for item in items:
+        if not isinstance(item, dict):
+            raise ConfigError(_("storage.locations must be a list of objects"), "storage.locations")
+        name = str(item.get("name", "")).strip()
+        if not SHARE_NAME_RE.match(name):
+            raise ConfigError(_("Invalid storage location name %(name)s (letters, digits, _ and -)", name=repr(name)),
+                              "storage.locations")
+        if name.lower() in seen:
+            raise ConfigError(_("Duplicate storage location name: %(name)s", name=repr(name)), "storage.locations")
+        seen.add(name.lower())
+        kind = str(item.get("type", "")).strip().lower()
+        schema = location_types.get(kind)
+        if schema is None:  # los tipos los declara cada backend (core/backends)
+            raise ConfigError(_("Storage location %(name)s: the type must be one of: %(values)s", name=repr(name),
+                                values=", ".join(location_types.kinds())), "storage.locations")
+        loc = schema.normalize(item, name)
+        result.append(loc)
+    return result
 
 
 def _str_list(value, field: str) -> list[str]:
@@ -167,12 +185,22 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     cfg["database"] = str(_resolve(base_dir, cfg.get("database") or str(data_dir / "storageweb.db")))
 
     storage = cfg["storage"]
+    storage["locations"] = _locations(storage.get("locations", []))
+    location_names = {loc["name"] for loc in storage["locations"]}
+    storage["home_location"] = str(storage.get("home_location") or "").strip()
+    if storage["home_location"] and storage["home_location"] not in location_names:
+        raise ConfigError(_("storage.home_location: there is no storage location named %(name)s",
+                            name=repr(storage["home_location"])), "storage.home_location")
     tmpl = str(storage["home_template"]).strip()
     if "{username}" not in tmpl:
         raise ConfigError(_("storage.home_template must contain {username}"), "storage.home_template")
-    if not Path(os.path.expanduser(tmpl.split("{username}")[0] or ".")).is_absolute():
-        tmpl = str(base_dir / tmpl)
-    storage["home_template"] = os.path.expanduser(tmpl)
+    if storage["home_location"]:
+        tmpl = _inside_location(tmpl, "storage.home_template")
+    else:
+        if not Path(os.path.expanduser(tmpl.split("{username}")[0] or ".")).is_absolute():
+            tmpl = str(base_dir / tmpl)
+        tmpl = os.path.expanduser(tmpl)
+    storage["home_template"] = tmpl
     for key in ("create_home", "create_shares", "show_hidden"):
         storage[key] = bool(storage[key])
     storage["max_file_size_mb"] = _non_negative_int(storage["max_file_size_mb"], "storage.max_file_size_mb")
@@ -186,12 +214,19 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
         if name.lower() in seen:
             raise ConfigError(_("Duplicate or reserved shared folder name: %(name)s", name=repr(name)), "storage.shares")
         seen.add(name.lower())
-        if not share.get("path"):
+        location = str(share.get("location") or "").strip()
+        if location and location not in location_names:
+            raise ConfigError(_("Shared folder %(name)s uses the storage location %(location)s, which does not exist",
+                                name=repr(name), location=repr(location)), "storage.shares")
+        if not share.get("path") and not location:
             raise ConfigError(_("Shared folder %(name)s has no path", name=repr(name)), "storage.shares")
+        raw_path = str(share.get("path") or "").strip()
         shares.append({
             "name": name,
             "label": str(share.get("label") or name).strip(),
-            "path": str(_resolve(base_dir, str(share["path"]).strip())),
+            "location": location,
+            # En el disco: ruta absoluta (las relativas, respecto al config.json). En una ubicación: ruta dentro de ella
+            "path": _inside_location(raw_path, "storage.shares") if location else str(_resolve(base_dir, raw_path)),
             "read_only": bool(share.get("read_only", False)),
             "users": [u.lower() for u in _str_list(share.get("users", ["*"]), f"{name}.users")],
             "read_only_users": [u.lower() for u in _str_list(share.get("read_only_users", []),
@@ -206,46 +241,12 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     user_perms = cfg["permissions"].get("user") or {}
     cfg["permissions"] = {"user": {p: bool(user_perms.get(p, False)) for p in PERMISSIONS}}
 
-    # --- autenticación
-    pam = cfg["auth"]["pam"]
-    pam["enabled"] = bool(pam["enabled"])
-    pam["allowed_groups"] = [g.lower() for g in _str_list(pam["allowed_groups"], "pam.allowed_groups")]
-    pam["admin_groups"] = [g.lower() for g in _str_list(pam["admin_groups"], "pam.admin_groups")]
-    if pam["enabled"] and sys.platform == "win32":
-        raise ConfigError(_("auth.pam is not available on Windows"), "auth.pam.enabled")
-
-    entra = cfg["auth"]["entra"]
-    entra["enabled"] = bool(entra["enabled"])
-    if entra["provider"] not in SSO_PROVIDER_NAMES:
-        raise ConfigError(_("auth.entra.provider must be one of: %(values)s", values=", ".join(SSO_PROVIDER_NAMES)), "auth.entra.provider")
-    entra["scopes"] = _str_list(entra["scopes"], "entra.scopes")
-    entra["allowed_groups"] = _str_list(entra["allowed_groups"], "entra.allowed_groups")
-    if entra["default_role"] not in ROLES:
-        raise ConfigError(_("auth.entra.default_role must be one of: %(values)s", values=", ".join(ROLES)),
-                          "auth.entra.default_role")
-    if not isinstance(entra["role_mappings"], dict):
-        raise ConfigError(_("auth.entra.role_mappings must be an object {group: role}"), "auth.entra.role_mappings")
-    mappings = {}
-    for key, role in entra["role_mappings"].items():
-        if role not in ROLES:
-            raise ConfigError(_("Invalid role %(role)s in role_mappings (use %(values)s)", role=repr(role), values=", ".join(ROLES)),
-                              "auth.entra.role_mappings")
-        mappings[str(key).strip().lower()] = role
-    entra["role_mappings"] = mappings
-    entra["timeout_seconds"] = _positive_int(entra["timeout_seconds"], "entra.timeout_seconds")
-    entra["secret_expires"] = _iso_datetime(entra.get("secret_expires"), "auth.entra.secret_expires")
-    if entra["enabled"]:
-        required = ["client_id", "client_secret"]
-        custom_endpoints = all(entra.get(k) for k in ("authorize_url", "token_url", "issuer"))
-        if entra["provider"] == "msal" or not custom_endpoints:
-            required.append("tenant_id")
-        missing = [k for k in required if not entra.get(k)]
-        if missing:
-            raise ConfigError(_("Entra ID is enabled but these are missing: %(fields)s", fields=", ".join(missing)),
-                              f"auth.entra.{missing[0]}")
-
-    cfg["auth"]["local"]["enabled"] = bool(cfg["auth"]["local"]["enabled"])
-    if not (cfg["auth"]["local"]["enabled"] or pam["enabled"] or entra["enabled"]):
+    # --- autenticación: cada método valida su apartado (lo declara su proveedor)
+    for conf in auth_methods.configs():
+        section = cfg["auth"][conf.key]
+        section["enabled"] = bool(section["enabled"])
+        conf.validate(section, cfg)
+    if not any(cfg["auth"][conf.key]["enabled"] for conf in auth_methods.configs()):
         raise ConfigError(_("At least one sign-in method must be enabled"), "auth")
 
     # --- red
@@ -313,6 +314,11 @@ def mask_secrets(cfg: dict) -> dict:
     for path in SECRET_FIELDS:
         if _get(out, path):
             _set(out, path, "********")
+    for loc in out.get("storage", {}).get("locations", []):
+        schema = location_types.get(loc.get("type", ""))
+        for field in schema.secrets if schema else ():
+            if loc.get(field):
+                loc[field] = "********"
     return out
 
 

@@ -1,0 +1,41 @@
+{# Tarjeta de un método sin plantilla propia: interruptor y sus campos de primer nivel, a partir de su
+   configuración (providers.AuthMethod.config). El formulario lo lee settings/auth_forms.generic_parser. #}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, lock with context %}
+{% set sec = cfg.auth[m.key] %}
+<section class="provider-card{% if sec.enabled %} is-on{% endif %}{{ err_class('auth.' ~ m.key) }}" aria-labelledby="p-{{ m.key }}">
+  <div class="provider-head">
+    <span class="provider-icon" aria-hidden="true"><svg class="icon"><use href="#i-{{ m.icon }}"></use></svg></span>
+    <div class="provider-text">
+      <strong id="p-{{ m.key }}">{{ m.label }}</strong> {{ origin('auth.' ~ m.key ~ '.enabled') }}
+      <span class="muted small">{{ m.description }} · {{ ngettext("%(num)s user", "%(num)s users", user_counts.get(m.key, 0)) }}</span>
+    </div>
+    <label class="switch"><input{{ lock('auth.' ~ m.key ~ '.enabled') }} type="checkbox" name="{{ m.key }}_enabled" {% if sec.enabled %}checked{% endif %}> <span>{{ _("Enabled") }}</span></label>
+  </div>
+  {{ field_error('auth.' ~ m.key) }}
+  {% set editable = m.config.defaults.items()|rejectattr('0', 'equalto', 'enabled')|list %}
+  {% if editable %}
+  <details class="provider-body"{% if sec.enabled %} open{% endif %}>
+    <summary>{{ _("Configure") }}</summary>
+    <div class="form-grid">
+      {% for name, default in editable %}
+      {% set path = 'auth.' ~ m.key ~ '.' ~ name %}
+      {% set label = m.config.fields[name].label or name %}
+      {% if default is sameas true or default is sameas false %}
+      <label class="check"><input{{ lock(path) }} type="checkbox" name="{{ m.key }}_{{ name }}" {% if sec[name] %}checked{% endif %}> {{ label }} {{ origin(path) }}</label>
+      {% elif default is mapping %}
+      {% elif name in m.config.secrets %}
+      <label class="{{ err_class(path) }}"><span class="label-row">{{ label }} {{ origin(path) }}</span>
+        <input{{ lock(path) }} type="password" name="{{ m.key }}_{{ name }}" autocomplete="new-password"
+               placeholder="{{ _('•••••••• (configured, leave empty to keep it)') if sec[name] else _('Not configured') }}">
+        {{ field_error(path) }}</label>
+      {% else %}
+      <label class="{{ err_class(path) }}"><span class="label-row">{{ label }} {{ origin(path) }}</span>
+        <input{{ lock(path) }} type="{{ 'number' if default is number else 'text' }}" name="{{ m.key }}_{{ name }}"
+               value="{{ sec[name]|join(', ') if default is sequence and default is not string else sec[name] }}">
+        {{ field_error(path) }}</label>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </details>
+  {% endif %}
+</section>

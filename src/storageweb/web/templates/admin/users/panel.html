@@ -69,7 +69,7 @@
           <select name="role">{% for r in ROLES %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></label>
         <label>{{ _("Personal folder") }} <small class="muted">({{ _("empty = default template") }})</small>
           <input type="text" name="home_path" value="{{ form.home_path or '' }}" class="mono"></label>
-        {% if current['source'] == 'local' %}
+        {% if auth_method(current['source']) and auth_method(current['source']).stores_password %}
         <label>{{ _("New password") }}<input type="password" name="password" autocomplete="new-password" minlength="10" placeholder="{{ _('Leave empty to keep it') }}"></label>
         {% else %}
         <p class="muted small">{{ _("Signs in with %(source)s: the password is managed there.", source=SOURCE_LABELS[current['source']]) }}</p>

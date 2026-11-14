@@ -92,13 +92,16 @@ ZONES: tuple[Zone, ...] = (
                   words="nombre idioma logo color marca branding language"),
         _settings("network", _l("Network and HTTPS"), hint=_l("Public address, reverse proxy and HTTPS"),
                   words="red https proxy fqdn dominio url pública public certificate"),
+        Page("locations", _l("Storage locations"), "locations.index",
+             hint=_l("External storage for the folders, without mounting it"), also=("locations.*",),
+             words="almacenamiento externo remoto ubicaciones s3 minio bucket smb cifs samba nas storage remote"),
         _settings("maintenance", _l("Maintenance"), hint=_l("Audit retention and automatic backups"),
                   words="mantenimiento retención copias automáticas retention"),
         _settings("backups", _l("Backups and database"), "op", _l("Create, download and delete backups"),
                   words="copias seguridad backup restaurar base datos compactar vacuum"),
         _settings("system", _l("Information"), "info", _l("Startup settings and where each value comes from"),
                   words="sistema información versión config.json system info"),
-    ), _l("The server itself: name, network, maintenance and backups.")),
+    ), _l("The server itself: name, network, external storage, maintenance and backups.")),
 )
 
 PAGES: dict[str, Page] = {p.key: p for z in ZONES for p in z.pages}

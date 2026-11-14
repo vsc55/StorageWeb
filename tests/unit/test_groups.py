@@ -10,6 +10,7 @@ from storageweb.db import connect, migrate
 from storageweb.db import connection
 from storageweb.db.repositories import groups as repo
 from storageweb.db.repositories import users
+from storageweb.providers.entra.method import identity_from_claims
 from storageweb.settings import load_config
 
 
@@ -19,7 +20,7 @@ def _ecfg():
 
 def _login(conn, groups, oid="o1", name="eva@x.com"):
     claims = {"tid": "t1", "oid": oid, "preferred_username": name, "groups": groups}
-    return accounts.login_with_claims(conn, _ecfg(), claims)
+    return accounts.login_sso(conn, {"auth": {"entra": _ecfg()}}, "entra", identity_from_claims(_ecfg(), claims))
 
 
 def _eff(conn, uid):
@@ -117,7 +118,7 @@ def test_share_levels_and_apply_access(tmp_path):
 
 
 def test_storage_read_only_per_group(tmp_path):
-    cfg = {"storage": {"home_template": str(tmp_path / "{username}"), "shares": [
+    cfg = {"data_dir": str(tmp_path), "storage": {"home_template": str(tmp_path / "{username}"), "shares": [
         {"name": "sw", "label": "SW", "path": str(tmp_path / "sw"), "read_only": False, "users": ["jefa"],
          "groups": ["it", "lectores"], "read_only_groups": ["lectores"]}]}}
     user = {"username": "x", "home_path": None, "groups": "", "role": "user"}
@@ -180,7 +181,7 @@ def test_builtin_admins_group(db_conn):
 
 
 def test_admins_group_gives_share_access(tmp_path):
-    cfg = {"storage": {"home_template": str(tmp_path / "{username}"), "shares": [
+    cfg = {"data_dir": str(tmp_path), "storage": {"home_template": str(tmp_path / "{username}"), "shares": [
         {"name": "it", "label": "IT", "path": str(tmp_path / "it"), "read_only": False, "users": [],
          "groups": ["admins"], "read_only_groups": []}]}}
     base = {"username": "x", "home_path": None, "groups": ""}

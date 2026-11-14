@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 from flask import jsonify, render_template, request
 
+from .... import providers
+from ....core import locations as location_core
 from ....core import maintenance
 from ....core import shares as share_core
 from ....core.permissions import PERMISSION_LABELS
@@ -34,11 +35,10 @@ def index():
     bans = ip_repo.list_rules(conn, "ban")
     backups = maintenance.list_backups(boot_config())
     day_ago = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(timespec="seconds")
-    shares = [{"share": s, "exists": Path(s["path"]).exists() or cfg["storage"]["create_shares"],
+    shares = [{"share": s, "exists": location_core.local_exists(s["location"], s["path"]) is not False
+                         or cfg["storage"]["create_shares"],
                "entries": share_core.entries(s)} for s in cfg["storage"]["shares"]]
-    auth = cfg["auth"]
-    methods = [label for on, label in ((auth["local"]["enabled"], _("Local")), (auth["pam"]["enabled"], "PAM"),
-                                      (auth["entra"]["enabled"], "Entra ID")) if on]
+    methods = [str(m.label) for m in providers.methods() if m.enabled(cfg)]
     return render_template(
         "admin/overview.html", alerts=found, user_counts=users.counts(conn), groups=len(group_repo.list_all(conn)),
         online=len({r["user_id"] for r in sessions}), tokens=len(api_tokens.list_all(conn)), shares=shares,

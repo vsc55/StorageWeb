@@ -9,7 +9,7 @@ erDiagram
     users {
         int id PK
         text username UK "NOCASE"
-        text source "local | pam | entra"
+        text source "método de inicio de sesión: local | pam | entra…"
         text role "admin | user"
         text password_hash "solo local"
         text external_id "oid de Entra"
@@ -27,7 +27,7 @@ erDiagram
         text name UK "lo usan las carpetas"
         text label
         text description
-        text source "local | entra | pam"
+        text source "local o un método que trae grupos: entra | pam…"
         text external_id "Object ID, App Role o grupo del sistema"
         int builtin "1 = de serie (admins)"
         text created_at
@@ -71,7 +71,7 @@ erDiagram
 
 | Tabla | Uso |
 |---|---|
-| `users` | Cuentas. `(source, external_id)` es único: una cuenta de Entra por `oid`. `username` no distingue mayúsculas. `groups` es la lista efectiva que usan las carpetas: `external_groups` más los nombres de sus grupos. |
+| `users` | Cuentas. `source` es la clave de su método de inicio de sesión (cualquiera registrado; sin `CHECK` desde la migración 007). `(source, external_id)` es único: una cuenta de Entra por `oid`. `username` no distingue mayúsculas. `groups` es la lista efectiva que usan las carpetas: `external_groups` más los nombres de sus grupos. |
 | `groups` | Grupos dados de alta. `(source, external_id)` es único. `builtin = 1` marca el grupo de serie `admins` (migración 005), cuyos miembros son los usuarios con rol admin. Ver la [decisión 0011](decisiones/0011-grupos-gestionados.md). |
 | `user_groups` | Pertenencias. Al iniciar sesión solo se reemplazan las `sync`; las `manual` se conservan. |
 | `audit_log` | Registro de eventos; ver la [referencia de auditoría](../referencia/auditoria.md). |

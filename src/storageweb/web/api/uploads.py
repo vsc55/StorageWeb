@@ -13,11 +13,11 @@ from pathlib import Path
 
 from flask import Blueprint, abort, g, request
 
-from ...core import storage
+from ...core import backends, storage
 from ...core import uploads as core
 from ...core import tokens
 from ...core.permissions import effective_for_root, permissions_for
-from ...core.security import PathError, resolve_inside, safe_filename
+from ...core.security import PathError, safe_filename
 from ...db.repositories import audit
 from ...db.repositories import uploads as repo
 from ...i18n import _
@@ -44,19 +44,22 @@ def _chunk_size() -> int:
     return core.chunk_size(boot_config()["server"]["max_upload_mb"])
 
 
-def _writable_dir(root_name: str, rel: str) -> tuple[dict, Path]:
+def _writable_dir(root_name: str, rel: str) -> tuple[dict, str]:
     """Comprueba (en cada petición) que el usuario sigue teniendo acceso y permiso de subida."""
     cfg = settings()
     try:
         root = storage.find_root(g.user, cfg, root_name)
-        directory = resolve_inside(root["path"], rel)
+        dir_rel = backends.clean_rel(rel)
+        is_dir = root["backend"].is_dir(dir_rel)
     except (storage.RootNotFound, PathError):
         abort(404, description=_("Folder not found"))
-    if not directory.is_dir():
+    except backends.BackendError as exc:
+        abort(502, description=exc.message)
+    if not is_dir:
         abort(404, description=_("Folder not found"))
     if "upload" not in tokens.restrict(effective_for_root(permissions_for(g.user, cfg), root), g.get("api_token")):
         abort(403, description=_("You are not allowed to upload files here"))
-    return root, directory
+    return root, dir_rel
 
 
 def _owned(upload_id: str):
@@ -68,8 +71,8 @@ def _owned(upload_id: str):
 
 def _load(upload_id: str):
     row = _owned(upload_id)
-    root, directory = _writable_dir(row["root"], row["dir_rel"])
-    return row, root, directory, core.part_path(directory, upload_id)
+    root, dir_rel = _writable_dir(row["root"], row["dir_rel"])
+    return row, root, dir_rel, core.part_path(Path(row["dir_path"]), upload_id)
 
 
 def _cleanup_stale() -> None:
@@ -82,33 +85,33 @@ def _cleanup_stale() -> None:
 @bp.route("", methods=["POST"])
 def init():
     data = request.get_json(silent=True) or {}
-    root, directory = _writable_dir(str(data.get("root", "")), str(data.get("path", "")))
+    root, dir_rel = _writable_dir(str(data.get("root", "")), str(data.get("path", "")))
     try:
         filename = safe_filename(str(data.get("name", "")))
     except ValueError as exc:
         abort(400, description=str(exc))
     size = core.validate_size(data.get("size"), settings()["storage"]["max_file_size_mb"])
-    core.check_space(directory, size)
+    core.check_space(root["backend"], dir_rel, size)
     _cleanup_stale()
 
     upload_id = secrets.token_hex(16)
-    core.part_path(directory, upload_id).touch(exist_ok=False)
+    staging = root["backend"].staging_dir(dir_rel)  # junto al destino si es local; si no, <data_dir>/uploads
+    core.part_path(staging, upload_id).touch(exist_ok=False)
     repo.create(get_db(), upload_id=upload_id, user_id=g.user["id"], root=root["name"],
-                dir_rel=storage.rel_path(root, directory), dir_path=str(directory),
-                filename=filename, size=size)
+                dir_rel=dir_rel, dir_path=str(staging), filename=filename, size=size)
     return {"id": upload_id, "chunk_size": _chunk_size(), "received": 0}, 201
 
 
 @bp.route("/<upload_id>", methods=["GET"])
 def status(upload_id: str):
-    row, _root, _directory, part = _load(upload_id)
+    row, _root, _dir, part = _load(upload_id)
     return {"id": row["id"], "name": row["filename"], "size": row["size"],
             "received": core.received(part), "chunk_size": _chunk_size()}
 
 
 @bp.route("/<upload_id>", methods=["PUT"])
 def put_chunk(upload_id: str):
-    row, _root, _directory, part = _load(upload_id)
+    row, _root, _dir, part = _load(upload_id)
     try:
         offset = int(request.args.get("offset", ""))
     except ValueError:
@@ -120,12 +123,12 @@ def put_chunk(upload_id: str):
 
 @bp.route("/<upload_id>/complete", methods=["POST"])
 def complete(upload_id: str):
-    row, root, directory, part = _load(upload_id)
-    final = core.finalize(part, directory, row["filename"], row["size"])
+    row, root, dir_rel, part = _load(upload_id)
+    final = core.finalize(part, root["backend"], dir_rel, row["filename"], row["size"])
     repo.delete(get_db(), upload_id)
-    audit.log(get_db(), "upload", f"{root['name']}:/{storage.rel_path(root, final)}",
+    audit.log(get_db(), "upload", f"{root['name']}:/{final}",
               username=g.user["username"], ip=client_ip(), detail=str(row["size"]))
-    return {"name": final.name, "size": row["size"]}
+    return {"name": backends.name_of(final), "size": row["size"]}
 
 
 @bp.route("/<upload_id>", methods=["DELETE"])

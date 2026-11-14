@@ -19,11 +19,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from storageweb import i18n  # noqa: E402
+from storageweb import core, i18n  # noqa: E402,F401  (core registra los tipos de ubicación)
+from storageweb.settings import location_types  # noqa: E402
 from storageweb.settings.env import ENV_ALIASES, env_name  # noqa: E402
 from storageweb.settings.fields import FIELDS  # noqa: E402
-from storageweb.settings.defaults import (DEFAULTS, RUNTIME_SECTIONS,  # noqa: E402
-                                          SECRET_FIELDS, SHARE_FIELDS)
+from storageweb.settings.defaults import DEFAULTS, RUNTIME_SECTIONS, SECRET_FIELDS, SHARE_FIELDS  # noqa: E402
 
 # La documentación está en español: la ayuda de la CLI se genera con ese catálogo
 i18n.set_locale("es")
@@ -46,8 +46,38 @@ def config_leaves(tree: dict, prefix: str = "") -> list[tuple[str, object]]:
     return out
 
 
+LOCATION_KEYS = [f"storage.locations[].{f}" for f in ("name", "label", "type")]
+OPTION_KIND_NAMES = {"text": "texto", "path": "ruta relativa", "server_path": "ruta en el servidor", "url": "URL",
+                     "secret": "texto (secreto)", "multiline": "texto de varias líneas (secreto)", "bool": "booleano",
+                     "port": "puerto"}
+
+
+def location_keys() -> list[str]:
+    """Campos comunes de cada ubicación; los de cada tipo salen de su esquema (render_location_types)."""
+    return LOCATION_KEYS
+
+
+def render_location_types() -> str:
+    """Una tabla por tipo de ubicación, a partir del esquema que declara cada backend."""
+    out = ["## Tipos de ubicación (`storage.locations[].type`)\n\n",
+           "Cada tipo lo declara su backend en `src/storageweb/core/backends/<tipo>.py`. Además de `name`, "
+           "`label` y `type`, cada ubicación lleva las opciones de su tipo. Los secretos nunca se muestran "
+           "en la web.\n\n"]
+    for schema in sorted(location_types.all_schemas(), key=lambda s: s.kind):
+        extra = f" Requiere `pip install 'storageweb[{schema.extra}]'`." if schema.extra else ""
+        out.append(f"### `{schema.kind}`: {schema.short_label}\n\n{schema.doc}{extra}\n\n")
+        out.append("| Opción | Tipo | Por defecto | Obligatoria | Descripción |\n|---|---|---|---|---|\n")
+        for o in schema.options:
+            default = _md(o.empty) if o.empty not in ("", None, False) else ""
+            required = "Sí" if o.required else ""
+            out.append(f"| `{o.name}` | {OPTION_KIND_NAMES[o.kind]} | {default} | {required} | {o.doc} |\n")
+        out.append("\n")
+    return "".join(out)
+
+
 def documented_keys() -> set[str]:
-    return {p for p, _ in config_leaves(DEFAULTS)} | {f"storage.shares[].{f}" for f in SHARE_FIELDS}
+    return ({p for p, _ in config_leaves(DEFAULTS)} | {f"storage.shares[].{f}" for f in SHARE_FIELDS}
+            | set(location_keys()))
 
 
 def _type(value) -> str:
@@ -100,7 +130,11 @@ def render_config() -> str:
                 for field in SHARE_FIELDS:
                     key = f"storage.shares[].{field}"
                     lines.append(f"| `{key}` | | | Sí | | {FIELDS[key].doc} |\n")
+            if path == "storage.locations":
+                for key in location_keys():
+                    lines.append(f"| `{key}` | | | Sí | | {FIELDS[key].doc} |\n")
         lines.append("\n")
+    lines.append(render_location_types())
     lines.append("## Ejemplo\n\nEl fichero `config/config.example.json` del repositorio (instalado en "
                  "`/etc/storageweb/config.json` por los paquetes) solo trae lo de arranque y la plantilla de las "
                  "carpetas personales: así lo demás se puede cambiar desde la web.\n")

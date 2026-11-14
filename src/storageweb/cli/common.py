@@ -1,11 +1,40 @@
-"""Piezas compartidas por los comandos (contraseñas, usuarios, errores)."""
+"""Piezas compartidas por los comandos (registro, contraseñas, usuarios, errores).
+
+Cada módulo declara sus comandos con :func:`command`: nombre, ayuda, sus argumentos y si necesita la
+configuración y la base de datos. ``cli.build_parser`` los descubre; no hay una lista central.
+"""
 from __future__ import annotations
 
+import argparse
 import getpass
 import sys
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from ..db.repositories import users
 from ..i18n import _
+
+
+@dataclass(frozen=True)
+class Command:
+    name: str
+    help: object                                   # texto traducible (se traduce al construir el parser)
+    run: Callable
+    arguments: Callable[[argparse.ArgumentParser], None] | None = None
+    needs_db: bool = True                          # True: run(cfg, conn, args); False: run(args) -> código
+    order: int = 50
+
+
+COMMANDS: dict[str, Command] = {}
+
+
+def command(name: str, help, arguments: Callable[[argparse.ArgumentParser], None] | None = None, *,
+            needs_db: bool = True, order: int = 50):
+    """Registra un comando. ``arguments(parser)`` añade sus opciones (con los textos en ``_()``)."""
+    def decorate(fn):
+        COMMANDS.setdefault(name, Command(name, help, fn, arguments, needs_db, order))
+        return fn
+    return decorate
 from ..providers import local
 
 

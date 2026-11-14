@@ -11,17 +11,100 @@ from flask import abort, flash, g, jsonify, redirect, render_template, request, 
 
 from ....core.network import LOOPBACK
 from ....core.permissions import ROLE_LABELS
-from ....i18n import _
+from ....i18n import _, _l
 from ....providers.entra import check as entra_check
 from ....providers.entra import register as entra_register
 from ....settings import ROLES
 from ...context import external_url, runtime, settings
 from ...guards import admin_required, audit_event, safe_next
+from ... import search
 from . import bp
-from .common import back, checked, entra_connection, redirect_uri, save_partial, split_list
+from ....providers.entra import method as entra_method
+from ....providers.entra.sso import SSO_PROVIDERS
+from ....settings import ConfigError
+from ..auth import redirect_uri as sso_redirect_uri
+from . import auth_forms
+from .common import back, checked, form_int, save_partial, split_list
 
 
 WIZARD_STEPS = (1, 2, 3, 4)
+
+
+def redirect_uri(ecfg: dict) -> str:
+    return sso_redirect_uri("entra", ecfg)
+
+
+def entra_connection() -> dict:
+    f = request.form
+    data = {"tenant_id": f.get("entra_tenant_id", "").strip(), "client_id": f.get("entra_client_id", "").strip(),
+            "redirect_uri": f.get("entra_redirect_uri", "").strip()}
+    if f.get("entra_client_secret", "").strip():  # vacío = conservar el actual
+        data["client_secret"] = f["entra_client_secret"].strip()
+    return data
+
+
+# --------------------------------------------------------------------------- tarjeta de la página «Inicio de sesión»
+
+def _role_mappings() -> dict:
+    f = request.form
+    if "entra_role_mappings" in f:  # formato de texto «grupo = rol», una línea por mapeo
+        mappings = {}
+        for n, line in enumerate(f.get("entra_role_mappings", "").splitlines(), 1):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            key, sep, role = line.rpartition("=")
+            if not sep or not key.strip():
+                raise ConfigError(_("Role mapping, line %(line)s: use the format «group = role»", line=n),
+                                  "auth.entra.role_mappings")
+            mappings[key.strip()] = role.strip()
+        return mappings
+    return {grp.strip(): role for grp, role in zip(f.getlist("mapping_group"), f.getlist("mapping_role"))
+            if grp.strip()}
+
+
+def _secret_expires(date_text: str) -> str:
+    """La fecha del formulario (AAAA-MM-DD). Si es el mismo día que la guardada, se conserva la hora exacta."""
+    current = settings()["auth"]["entra"].get("secret_expires", "")
+    if current and current[:10] == date_text:
+        return current
+    return date_text
+
+
+@auth_forms.form_parser("entra")
+def _form(method) -> dict:
+    f = request.form
+    return {
+        **entra_connection(),
+        "enabled": checked("entra_enabled"),
+        "provider": f.get("entra_provider", "oauth2"),
+        "scopes": f.get("entra_scopes", "").split(),
+        "button_label": f.get("entra_button_label", "").strip(),
+        "username_claim": f.get("entra_username_claim", "").strip() or "preferred_username",
+        "strip_domain": checked("entra_strip_domain"),
+        "allowed_groups": split_list(f.get("entra_allowed_groups", "")),
+        "auto_provision": checked("entra_auto_provision"),
+        "default_role": f.get("entra_default_role", "user"),
+        "role_mappings": _role_mappings(),
+        "sync_role_on_login": checked("entra_sync_role_on_login"),
+        "single_logout": checked("entra_single_logout"),
+        "authorize_url": f.get("entra_authorize_url", "").strip(),
+        "token_url": f.get("entra_token_url", "").strip(),
+        "issuer": f.get("entra_issuer", "").strip(),
+        "logout_url": f.get("entra_logout_url", "").strip(),
+        "timeout_seconds": form_int("entra_timeout_seconds", "auth.entra.timeout_seconds", _("Timeout")),
+        "secret_expires": _secret_expires(f.get("entra_secret_expires", "").strip()),
+    }
+
+
+@auth_forms.page_context("entra")
+def _card(cfg: dict) -> dict:
+    ecfg = cfg["auth"]["entra"]
+    check = session.get("entra_check")
+    return {"providers": list(SSO_PROVIDERS), "secret_set": bool(settings()["auth"]["entra"].get("client_secret")),
+            "secret_days": entra_method.secret_days(ecfg) if ecfg.get("secret_expires") else None,
+            "entra_check": check, "entra_check_ok": entra_check.summary(check["results"]) if check else None,
+            "redirect_default": redirect_uri(ecfg)}
 
 
 # --------------------------------------------------------------------------- Entra ID: prueba y asistente
@@ -118,7 +201,7 @@ def _drop_flow(key: str | None) -> None:
 
 def _register_target() -> tuple[str, bool]:
     """Redirect URI que se registrará y si Entra ID la aceptará (HTTPS o localhost)."""
-    uri = external_url("auth.entra_callback")
+    uri = external_url("auth.sso_callback", method="entra")
     parts = urlsplit(uri)
     return uri, parts.scheme == "https" or parts.hostname in LOOPBACK
 
@@ -288,3 +371,9 @@ def entra_register_poll():
                                    "secret_expires": result["secret_expires"], "warnings": result["warnings"]}
     return answer("complete", _("Application registered in Entra ID and saved."),
                   url_for("settings.entra_setup", step=4))
+
+
+search.action("key", _l("Renew the Entra ID secret"), "settings.section", {"name": "auth"},
+              "f-auth-entra-secret_expires", "secreto entra renovar rotar microsoft secret rotate", order=60)
+search.action("globe", _l("Register the application in Entra ID"), "settings.entra_register_page",
+              words="entra registrar app microsoft", order=70)

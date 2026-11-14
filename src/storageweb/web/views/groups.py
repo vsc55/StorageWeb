@@ -13,15 +13,16 @@ from __future__ import annotations
 from flask import Blueprint, abort, flash, g, jsonify, redirect, render_template, request, session, url_for
 
 from ...core import groups as group_core
-from ...core.accounts import SOURCE_LABELS
-from ...providers.entra import directory as entra_directory
+from ... import providers
+from ...core import accounts
 from ...db.repositories import users
 from ...db.repositories import groups as repo
-from ...i18n import _
+from ...i18n import _, _l
 from ...settings import ConfigError, runtime_view
 from ..context import get_db, invalidate_settings, runtime, settings
 from ..forms import back
 from ..guards import admin_required, audit_event
+from .. import search
 
 bp = Blueprint("groups", __name__, url_prefix="/admin/groups")
 
@@ -52,23 +53,54 @@ def _group_description(group) -> str:
     return group_core.description(group)
 
 
-def entra_names(ids) -> dict[str, str]:
-    """Nombres de grupos de Entra ID para mostrarlos junto a su Object ID (vacío si no se pueden leer)."""
-    return entra_directory.names_for(settings()["auth"]["entra"], ids)
+def _directories(only: str | None = None):
+    """(método, directorio) de los métodos de inicio de sesión que tienen directorio de grupos."""
+    cfg = settings()
+    for method in providers.methods():
+        if only and method.key != only:
+            continue
+        found = method.directory(method.section(cfg))
+        if found is not None:
+            yield method, found
 
 
-@bp.route("/entra/search")
+def directory_lookup(ids, only: str | None = None) -> dict[str, tuple[str, str]]:
+    """``{id: (método, nombre)}`` de los grupos externos que el directorio de su proveedor sabe nombrar."""
+    ids = list(ids)
+    found: dict[str, tuple[str, str]] = {}
+    for method, directory in _directories(only):
+        for ref, name in directory.names_for([i for i in ids if i not in found]).items():
+            found[ref] = (method.key, name)
+    return found
+
+
+def directory_names(ids, only: str | None = None) -> dict[str, str]:
+    """Nombres legibles de grupos externos (Object IDs de Entra ID…); vacío si no se pueden leer."""
+    return {ref: name for ref, (_key, name) in directory_lookup(ids, only).items()}
+
+
+@bp.route("/directory/<method>/search")
 @admin_required
-def entra_search():
-    """Buscador de grupos de Entra ID por nombre para el formulario de alta (JSON)."""
-    return jsonify(groups=entra_directory.search_groups(settings()["auth"]["entra"], request.args.get("q", "")),
-                   available=entra_directory.configured(settings()["auth"]["entra"]))
+def directory_search(method: str):
+    """Buscador de grupos por nombre en el directorio de un método, para el formulario de alta (JSON)."""
+    for _m, directory in _directories(method):
+        return jsonify(groups=directory.search(request.args.get("q", "")), available=directory.configured())
+    abort(404)
+
+
+def _group_methods() -> list[dict]:
+    """Orígenes de grupo que vienen de un método de inicio de sesión, para el formulario."""
+    cfg = settings()
+    return [{"key": m.key, "label": m.label, "hint": m.group_hint, "id_help": m.group_id_help,
+             "search": url_for("groups.directory_search", method=m.key)
+             if m.directory(m.section(cfg)) is not None else ""}
+            for m in providers.methods() if m.external_groups]
 
 
 @bp.context_processor
 def _labels():
-    return {"GROUP_SOURCE_LABELS": group_core.GROUP_SOURCE_LABELS, "SOURCE_LABELS": SOURCE_LABELS,
-            "GROUP_SOURCES": group_core.GROUP_SOURCES}
+    return {"GROUP_SOURCE_LABELS": group_core.group_source_labels(), "SOURCE_LABELS": accounts.source_labels(),
+            "GROUP_SOURCES": group_core.group_sources(), "group_methods": _group_methods}
 
 
 def _get_group(group_id: int):
@@ -81,7 +113,7 @@ def _get_group(group_id: int):
 def _form_data() -> dict:
     f = request.form
     return {"label": f.get("label", "").strip(), "description": f.get("description", "").strip(),
-            "source": f.get("source", "local"), "external_id": f.get("external_id", "").strip()}
+            "source": f.get("source", group_core.LOCAL), "external_id": f.get("external_id", "").strip()}
 
 
 # --------------------------------------------------------------------------- entrada y vista A
@@ -99,13 +131,13 @@ def list_view():
     _remember("list")
     search = request.args.get("q", "").strip()
     source = request.args.get("source", "")
-    source = source if source in group_core.GROUP_SOURCES else ""
+    source = source if source in group_core.group_sources() else ""
     rows = repo.list_all(get_db(), search=search, source=source or None)
     shares = _shares()
     detected = group_core.detected(get_db(), shares)
     return render_template("admin/groups/list.html", groups=rows, search=search, source=source,
                            shares_by_group={r["id"]: group_core.shares_of(r, shares) for r in rows},
-                           detected=detected, names=entra_names(
+                           detected=detected, names=directory_names(
                                [d["id"] for d in detected] + [r["external_id"] for r in rows if r["external_id"]]))
 
 
@@ -113,13 +145,13 @@ def list_view():
 @admin_required
 def new():
     form = {"name": request.args.get("name", ""), "label": request.args.get("label", ""), "description": "",
-            "source": request.args.get("source", "local"), "external_id": request.args.get("external_id", "")}
-    if form["source"] not in group_core.GROUP_SOURCES:
-        form["source"] = "local"
+            "source": request.args.get("source", group_core.LOCAL), "external_id": request.args.get("external_id", "")}
+    if form["source"] not in group_core.group_sources():
+        form["source"] = group_core.LOCAL
     if request.method == "POST":
         form = {**_form_data(), "name": request.form.get("name", "").strip()}
-        if form["source"] == "entra" and form["external_id"] and not form["label"]:
-            form["label"] = entra_names([form["external_id"]]).get(form["external_id"].lower(), "")
+        if form["source"] != group_core.LOCAL and form["external_id"] and not form["label"]:
+            form["label"] = directory_names([form["external_id"]], form["source"]).get(form["external_id"].lower(), "")
         try:
             gid = group_core.create_group(get_db(), **form)
         except group_core.GroupError as exc:
@@ -228,7 +260,7 @@ def panel_view():
                "form": dict(current)}
     return render_template("admin/groups/panel.html", groups=rows, current=current, tab=tab, search=search,
                            detected=(detected := group_core.detected(get_db(), _shares())),
-                           names=entra_names([d["id"] for d in detected]), **ctx)
+                           names=directory_names([d["id"] for d in detected]), **ctx)
 
 
 # --------------------------------------------------------------------------- vista C
@@ -278,3 +310,14 @@ def matrix_view():
     unregistered = sorted({ref for s in shares for ref in s["groups"] if ref not in names})
     return render_template("admin/groups/matrix.html", shares=shares, matrix=_matrix(rows, shares),
                            unregistered=unregistered, locked_message=runtime().lock_notice("storage.shares"))
+
+
+search.action("users", _l("New group"), "groups.new", words="crear grupo add create", order=20)
+
+
+@search.provider("group", _l("Groups"), order=20)
+def _search_groups(terms, conn, cfg):
+    return [search.item("group", group_core.label(row), row["name"], url_for("groups.edit", group_id=row["id"]),
+                        icon="users")
+            for row in repo.list_all(conn)
+            if search.matches(terms, row["name"], group_core.label(row), row["description"], row["external_id"])]

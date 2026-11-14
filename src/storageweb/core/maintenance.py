@@ -1,20 +1,26 @@
-"""Mantenimiento: retención de la auditoría, compactación, copias automáticas y limpieza.
+"""Mantenimiento: tareas periódicas, retención de la auditoría, compactación y copias automáticas.
 
-``run_due`` ejecuta lo que toque (como mucho una vez al día cada tarea, salvo las copias, que
-siguen su intervalo) y apunta cuándo se hizo en el documento ``maintenance_state`` de la tabla
-``settings``. La capa web la llama de vez en cuando en un hilo aparte.
+Las tareas se declaran con el decorador :func:`task` en el módulo que sabe de cada cosa (aquí las
+sesiones, la auditoría y las copias; los bloqueos de IP en ``ipban``…). ``run_due`` ejecuta las que
+toquen según su intervalo y apunta cuándo se hizo cada una en el documento ``maintenance_state`` de
+la tabla ``settings``. La capa web la llama de vez en cuando en un hilo aparte.
 """
 from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from sqlite3 import Connection
 
+from .. import registry
 from ..db.repositories import audit, sessions
 from ..db.repositories import settings as settings_repo
-from . import backup, ipban
+from ..i18n import _, format_datetime
+from . import backup
+from .alerts import alert, source
 
 STATE_KEY = "maintenance_state"
 _log = logging.getLogger(__name__)
@@ -93,36 +99,84 @@ def create_backup(cfg: dict) -> Path:
     return backup.create(cfg, backup_dir(cfg), keep=keep or None)
 
 
+# --------------------------------------------------------------------------- tareas periódicas
+
+@dataclass(frozen=True)
+class Task:
+    name: str
+    every: Callable[[dict], float | None]  # horas entre ejecuciones según los ajustes; 0 o None = desactivada
+    run: Callable[[Connection, dict], None]
+    order: int = 50
+
+
+_TASKS: dict[str, Task] = {}
+
+
+def task(name: str, every: Callable[[dict], float | None], order: int = 50):
+    """Registra ``fn(conn, cfg)`` como tarea periódica. ``name`` es la clave en ``maintenance_state``."""
+    def decorate(fn):
+        _TASKS.setdefault(name, Task(name, every, fn, order))
+        return fn
+    return decorate
+
+
+def tasks() -> list[Task]:
+    registry.import_submodules("storageweb.core")  # las tareas se registran al importar su módulo
+    return sorted(_TASKS.values(), key=lambda t: (t.order, t.name))
+
+
 def run_due(conn: Connection, cfg: dict) -> list[str]:
-    """Ejecuta las tareas pendientes. Devuelve las que se hicieron."""
+    """Ejecuta las tareas pendientes. Devuelve las que se hicieron (también las que fallaron)."""
     done = []
     current = state(conn)
-    maint = cfg["maintenance"]
-
-    def due(task: str, hours: float) -> bool:
-        last = current.get(task)
-        return not last or last < _iso(_now() - timedelta(hours=hours))
-
-    if due("cleanup", 1):
-        idle = _iso(_now() - timedelta(hours=cfg["session"]["lifetime_hours"]))
-        sessions.delete_idle(conn, idle)
-        ipban.prune(conn, cfg)
-        _mark(conn, "cleanup")
-        done.append("cleanup")
-    if maint["audit_retention_days"] and due("audit_purge", 24):
-        removed = purge_audit(conn, maint["audit_retention_days"])
-        if removed:
-            audit.log(conn, "audit_purged", None, username="system", detail=str(removed))
-        _mark(conn, "audit_purge")
-        done.append("audit_purge")
-    if maint["backup_interval_hours"] and due("backup", maint["backup_interval_hours"]):
+    for t in tasks():
+        hours = t.every(cfg)
+        last = current.get(t.name)
+        if not hours or (last and last >= _iso(_now() - timedelta(hours=hours))):
+            continue
         try:
-            path = create_backup(cfg)
-        except Exception as exc:  # noqa: BLE001 (se registra y se reintenta en el siguiente intervalo)
-            _log.exception("Automatic backup failed")
-            audit.log(conn, "backup_failed", None, username="system", detail=str(exc)[:200])
-        else:
-            audit.log(conn, "backup_created", path.name, username="system", detail="auto")
-        _mark(conn, "backup")
-        done.append("backup")
+            t.run(conn, cfg)
+        except Exception:  # noqa: BLE001 (una tarea rota no para las demás; se reintenta en su intervalo)
+            _log.exception("Maintenance task %s failed", t.name)
+        _mark(conn, t.name)
+        done.append(t.name)
     return done
+
+
+@task("cleanup", every=lambda cfg: 1, order=10)
+def _close_idle_sessions(conn: Connection, cfg: dict) -> None:
+    sessions.delete_idle(conn, _iso(_now() - timedelta(hours=cfg["session"]["lifetime_hours"])))
+
+
+@task("audit_purge", every=lambda cfg: 24 if cfg["maintenance"]["audit_retention_days"] else 0, order=20)
+def _purge_audit(conn: Connection, cfg: dict) -> None:
+    removed = purge_audit(conn, cfg["maintenance"]["audit_retention_days"])
+    if removed:
+        audit.log(conn, "audit_purged", None, username="system", detail=str(removed))
+
+
+@task("backup", every=lambda cfg: cfg["maintenance"]["backup_interval_hours"], order=30)
+def _automatic_backup(conn: Connection, cfg: dict) -> None:
+    try:
+        path = create_backup(cfg)
+    except Exception as exc:  # noqa: BLE001 (se registra y se reintenta en el siguiente intervalo)
+        _log.exception("Automatic backup failed")
+        audit.log(conn, "backup_failed", None, username="system", detail=str(exc)[:200])
+    else:
+        audit.log(conn, "backup_created", path.name, username="system", detail="auto")
+
+
+@source("backups", order=30)
+def _stale_backups(ctx):
+    hours = ctx.cfg["maintenance"]["backup_interval_hours"]
+    if not hours:
+        return []
+    backups = list_backups(ctx.boot)
+    newest = backups[0]["created"] if backups else None
+    limit = _now() - timedelta(hours=hours * 2 + 1)
+    tried = ctx.maint_state.get("backup")  # sin copias y sin intento aún: recién instalado, no es un aviso
+    if (newest is None and tried) or (newest is not None and datetime.fromisoformat(newest) < limit):
+        return [alert("warn", "backup_stale", _("Automatic backups are not being made"),
+                      _("The newest backup is from %(date)s.", date=format_datetime(newest)) if newest
+                      else _("There is no backup yet."), "backups", _("See the backups"))]
+    return []

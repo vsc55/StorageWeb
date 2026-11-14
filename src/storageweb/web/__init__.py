@@ -38,7 +38,7 @@ def init_web(app: Flask) -> None:
 
 def register_blueprints(app: Flask) -> None:
     from .api import health, uploads
-    from .views import access, admin, auth, brand, files, groups, profile, settings
+    from .views import access, admin, auth, brand, files, groups, locations, profile, settings
 
-    for module in (auth, files, admin, groups, access, settings, brand, profile, uploads, health):
+    for module in (auth, files, admin, groups, access, locations, settings, brand, profile, uploads, health):
         app.register_blueprint(module.bp)

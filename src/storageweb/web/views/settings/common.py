@@ -3,22 +3,20 @@ from __future__ import annotations
 
 from flask import g, request
 
+from ....i18n import _
 from ....settings import ConfigError, merge_overrides, runtime_view
-from ...context import external_url, get_db, invalidate_settings, network_diagnosis, runtime, settings
+from ...context import get_db, invalidate_settings, network_diagnosis, runtime, settings
 from ...forms import back, checked, split_list  # noqa: F401  (las usan los módulos de ajustes)
 
 
-def entra_connection() -> dict:
-    f = request.form
-    data = {"tenant_id": f.get("entra_tenant_id", "").strip(), "client_id": f.get("entra_client_id", "").strip(),
-            "redirect_uri": f.get("entra_redirect_uri", "").strip()}
-    if f.get("entra_client_secret", "").strip():  # vacío = conservar el actual
-        data["client_secret"] = f["entra_client_secret"].strip()
-    return data
-
-
-def redirect_uri(ecfg: dict) -> str:
-    return ecfg.get("redirect_uri") or external_url("auth.entra_callback")
+def form_int(name: str, field: str, label: str) -> int:
+    """Número del formulario; :class:`ConfigError` (junto al campo ``field``) si no lo es."""
+    if name not in request.form and runtime().lock_of(field):
+        return 0  # campo bloqueado (desactivado en el formulario): no se guarda
+    try:
+        return int(request.form.get(name, ""))
+    except ValueError as exc:
+        raise ConfigError(_("%(field)s must be a number", field=label), field) from exc
 
 
 def save_partial(partial_builder, strict: bool = False) -> tuple[dict | None, ConfigError | None]:

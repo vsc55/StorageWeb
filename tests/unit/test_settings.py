@@ -49,6 +49,39 @@ def test_invalid_shares(tmp_path, shares):
         load_config(_cfg(tmp_path, {"storage": {"shares": shares}}))
 
 
+S3 = {"name": "s3", "type": "s3", "bucket": "b", "secret_key": "SECRETO"}
+
+
+@pytest.mark.parametrize("storage, match", [
+    ({"locations": [{"name": "x", "type": "gopher"}]}, "tipo"),
+    ({"locations": [{"name": "x", "type": "s3"}]}, "bucket"),
+    ({"locations": [{"name": "x", "type": "smb", "server": "s"}]}, "share"),
+    ({"locations": [S3, S3]}, "repetido"),
+    ({"locations": [{**S3, "endpoint_url": "minio:9000"}]}, "https://"),
+    ({"locations": [S3], "home_location": "otra"}, "home_location"),
+    ({"locations": [S3], "shares": [{"name": "d", "location": "otra", "path": "d"}]}, "no existe"),
+    ({"locations": [S3], "shares": [{"name": "d", "location": "s3", "path": "../fuera"}]}, "relativa"),
+    ({"locations": [S3], "home_location": "s3", "home_template": "C:/homes/{username}"}, "relativa"),
+])
+def test_invalid_locations(tmp_path, storage, match):
+    with pytest.raises(ConfigError, match=match):
+        load_config(_cfg(tmp_path, {"storage": storage}))
+
+
+def test_locations_normalized_and_masked(tmp_path):
+    cfg = load_config(_cfg(tmp_path, {"storage": {
+        "locations": [S3, {"name": "nas", "type": "smb", "server": "nas", "share": "f", "path": "\\a\\b\\",
+                           "password": "CLAVE"}],
+        "home_location": "nas", "home_template": "/homes/{username}/",
+        "shares": [{"name": "d", "location": "s3", "path": "/docs/"}, {"name": "l", "path": "local"}]}}))
+    st = cfg["storage"]
+    assert st["locations"][1]["path"] == "a/b" and st["locations"][1]["port"] == 445
+    assert st["home_template"] == "homes/{username}"
+    assert st["shares"][0]["path"] == "docs" and st["shares"][1]["location"] == ""
+    masked = str(mask_secrets(cfg))
+    assert "SECRETO" not in masked and "CLAVE" not in masked
+
+
 def test_home_template_requires_placeholder(tmp_path):
     with pytest.raises(ConfigError):
         load_config(_cfg(tmp_path, {"storage": {"home_template": "/srv/homes"}}))
