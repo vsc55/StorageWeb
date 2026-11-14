@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: StorageWeb VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-12 22:41+0100\n"
+"POT-Creation-Date: 2026-11-14 01:45+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -149,11 +149,11 @@ msgstr "ÚLTIMO LOGIN"
 msgid "HOME"
 msgstr "HOME"
 
-#: storageweb/cli.py
+#: storageweb/cli.py storageweb/web/search.py
 msgid "yes"
 msgstr "sí"
 
-#: storageweb/cli.py
+#: storageweb/cli.py storageweb/web/search.py
 msgid "no"
 msgstr "no"
 
@@ -165,7 +165,9 @@ msgstr "(plantilla)"
 msgid "Config"
 msgstr "Config"
 
-#: storageweb/cli.py storageweb/web/templates/admin/settings.html
+#: storageweb/cli.py storageweb/web/templates/admin/overview.html
+#: storageweb/web/templates/admin/settings/backups.html
+#: storageweb/web/templates/admin/settings/system.html
 msgid "Database"
 msgstr "Base de datos"
 
@@ -177,9 +179,27 @@ msgstr "Homes"
 msgid "Language"
 msgstr "Idioma"
 
-#: storageweb/cli.py storageweb/web/templates/admin/user_form.html
+#: storageweb/cli.py
+msgid "Public URL"
+msgstr "Dirección pública"
+
+#: storageweb/cli.py
+msgid "(host of each request)"
+msgstr "(el host de cada petición)"
+
+#: storageweb/cli.py
+msgid "Proxy"
+msgstr "Proxy"
+
+#: storageweb/cli.py
+#, python-format
+msgid "yes, %(hops)s hop(s)"
+msgstr "sí, %(hops)s salto(s)"
+
+#: storageweb/cli.py storageweb/web/nav.py storageweb/web/templates/admin/overview.html
+#: storageweb/web/templates/admin/user_form.html
 msgid "Sign-in"
-msgstr "Acceso"
+msgstr "Inicio de sesión"
 
 #: storageweb/cli.py
 msgid "OK"
@@ -206,6 +226,37 @@ msgid "Web settings discarded: only config.json applies (the service notices on 
 msgstr ""
 "Ajustes web descartados: se aplica solo config.json (el servicio lo detecta en la siguiente "
 "petición)."
+
+#: storageweb/cli.py
+msgid "There are no blocked or allowed addresses."
+msgstr "No hay direcciones bloqueadas ni permitidas."
+
+#: storageweb/cli.py storageweb/web/templates/admin/settings/ips.html
+msgid "indefinitely"
+msgstr "indefinidamente"
+
+#: storageweb/cli.py
+msgid "blocked"
+msgstr "bloqueada"
+
+#: storageweb/cli.py
+msgid "allowed"
+msgstr "permitida"
+
+#: storageweb/cli.py
+#, python-format
+msgid "%(num)s block(s) removed (the service notices within 30 seconds)."
+msgstr "%(num)s bloqueo(s) quitado(s) (el servicio lo nota en menos de 30 segundos)."
+
+#: storageweb/cli.py storageweb/web/views/settings.py
+#, python-format
+msgid "%(network)s added to the allow list."
+msgstr "%(network)s añadida a la lista blanca."
+
+#: storageweb/cli.py
+#, python-format
+msgid "%(num)s session(s) closed."
+msgstr "%(num)s sesión(es) cerrada(s)."
 
 #: storageweb/cli.py
 #, python-format
@@ -383,6 +434,38 @@ msgid "Discard the settings saved from the web and go back to config.json"
 msgstr "Descarta los ajustes guardados desde la web y vuelve a config.json"
 
 #: storageweb/cli.py
+msgid "List blocked and allowed IP addresses"
+msgstr "Lista las direcciones IP bloqueadas y permitidas"
+
+#: storageweb/cli.py
+msgid "Unblock an IP address or network (rescue if you blocked yourself)"
+msgstr "Desbloquea una IP o red (rescate si te has bloqueado)"
+
+#: storageweb/cli.py
+msgid "IP address or network (CIDR)"
+msgstr "Dirección IP o red (CIDR)"
+
+#: storageweb/cli.py
+msgid "Remove every block"
+msgstr "Quitar todos los bloqueos"
+
+#: storageweb/cli.py
+msgid "Add an IP address or network to the allow list (never blocked)"
+msgstr "Añade una IP o red a la lista blanca (nunca se bloquea)"
+
+#: storageweb/cli.py storageweb/web/templates/admin/settings/ips.html
+msgid "Note"
+msgstr "Nota"
+
+#: storageweb/cli.py
+msgid "Close the open sessions of a user (or of everybody)"
+msgstr "Cierra las sesiones abiertas de un usuario (o de todos)"
+
+#: storageweb/cli.py
+msgid "Close every session"
+msgstr "Cerrar todas las sesiones"
+
+#: storageweb/cli.py
 msgid "Back up the database, config.json and secret_key"
 msgstr "Copia de seguridad de la base de datos, config.json y secret_key"
 
@@ -419,7 +502,7 @@ msgid "Write the config.json from the backup to this path"
 msgstr "Escribe el config.json de la copia en esta ruta"
 
 #: storageweb/core/accounts.py storageweb/core/groups.py
-#: storageweb/web/templates/admin/groups/_macros.html
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/views/admin.py
 msgid "Local"
 msgstr "Local"
 
@@ -490,6 +573,57 @@ msgstr "Solo se puede cambiar la contraseña de usuarios locales."
 msgid "You cannot delete your own account."
 msgstr "No puedes eliminar tu propia cuenta."
 
+#: storageweb/core/alerts.py
+msgid "The Entra ID client secret has expired"
+msgstr "El secreto de Entra ID ha caducado"
+
+#: storageweb/core/alerts.py
+#, python-format
+msgid "Since %(date)s nobody can sign in with Microsoft."
+msgstr "Desde el %(date)s nadie puede entrar con Microsoft."
+
+#: storageweb/core/alerts.py
+msgid "Renew the secret"
+msgstr "Renovar el secreto"
+
+#: storageweb/core/alerts.py
+#, python-format
+msgid "The Entra ID client secret expires in %(num)s day"
+msgid_plural "The Entra ID client secret expires in %(num)s days"
+msgstr[0] "El secreto de Entra ID caduca en %(num)s día"
+msgstr[1] "El secreto de Entra ID caduca en %(num)s días"
+
+#: storageweb/core/alerts.py
+#, python-format
+msgid "On %(date)s; after that nobody can sign in with Microsoft."
+msgstr "El %(date)s; después nadie podrá entrar con Microsoft."
+
+#: storageweb/core/alerts.py
+#, python-format
+msgid "The shared folder «%(label)s» does not exist on the server"
+msgstr "La carpeta compartida «%(label)s» no existe en el servidor"
+
+#: storageweb/core/alerts.py
+msgid "Review the folder"
+msgstr "Revisar la carpeta"
+
+#: storageweb/core/alerts.py
+msgid "Automatic backups are not being made"
+msgstr "No se están haciendo las copias automáticas"
+
+#: storageweb/core/alerts.py
+#, python-format
+msgid "The newest backup is from %(date)s."
+msgstr "La copia más reciente es del %(date)s."
+
+#: storageweb/core/alerts.py
+msgid "There is no backup yet."
+msgstr "Todavía no hay ninguna copia."
+
+#: storageweb/core/alerts.py
+msgid "See the backups"
+msgstr "Ver las copias"
+
 #: storageweb/core/backup.py
 msgid "The database copy fails PRAGMA integrity_check"
 msgstr "La copia de la base de datos no supera PRAGMA integrity_check"
@@ -536,7 +670,21 @@ msgstr "La base de datos de la copia está dañada"
 msgid "The backup does not include config.json"
 msgstr "La copia no incluye config.json"
 
-#: storageweb/core/groups.py storageweb/web/views/admin.py
+#: storageweb/core/branding.py
+msgid "The logo must be a PNG, JPEG, WebP or SVG image."
+msgstr "El logo debe ser una imagen PNG, JPEG, WebP o SVG."
+
+#: storageweb/core/branding.py
+#, python-format
+msgid "The logo must be at most %(kb)s KB."
+msgstr "El logo puede ocupar como mucho %(kb)s KB."
+
+#: storageweb/core/branding.py
+#, python-format
+msgid "The file is not a valid %(type)s image."
+msgstr "El fichero no es una imagen %(type)s válida."
+
+#: storageweb/core/groups.py
 msgid "Administrators"
 msgstr "Administradores"
 
@@ -594,12 +742,28 @@ msgstr "El grupo %(name)s no existe."
 msgid "Invalid access level: %(level)s"
 msgstr "Nivel de acceso no válido: %(level)s"
 
+#: storageweb/core/ipban.py
+#, python-format
+msgid "%(value)s is not a valid IP address or network."
+msgstr "%(value)s no es una dirección IP o red válida."
+
+#: storageweb/core/ipban.py
+#, python-format
+msgid "%(count)s offenses in %(minutes)s minutes (last one: %(kind)s)"
+msgstr "%(count)s infracciones en %(minutes)s minutos (la última: %(kind)s)"
+
+#: storageweb/core/ipban.py
+#, python-format
+msgid "You cannot block the address you are using (%(ip)s)."
+msgstr "No puedes bloquear la dirección que estás usando (%(ip)s)."
+
 #: storageweb/core/permissions.py
 msgid "Administrator"
 msgstr "Administrador"
 
-#: storageweb/core/permissions.py storageweb/web/templates/admin/audit.html
-#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/user_form.html
+#: storageweb/core/permissions.py storageweb/web/templates/admin/access/folder.html
+#: storageweb/web/templates/admin/audit.html storageweb/web/templates/admin/groups/_macros.html
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/admin/user_form.html
 #: storageweb/web/templates/admin/users.html storageweb/web/templates/profile.html
 msgid "User"
 msgstr "Usuario"
@@ -608,7 +772,8 @@ msgstr "Usuario"
 msgid "Upload files"
 msgstr "Subir archivos"
 
-#: storageweb/core/permissions.py storageweb/web/templates/browse.html
+#: storageweb/core/permissions.py storageweb/web/templates/admin/settings/backups.html
+#: storageweb/web/templates/browse.html
 msgid "Download"
 msgstr "Descargar"
 
@@ -621,7 +786,7 @@ msgid "Rename"
 msgstr "Renombrar"
 
 #: storageweb/core/permissions.py storageweb/web/templates/admin/groups/panel.html
-#: storageweb/web/templates/browse.html
+#: storageweb/web/templates/admin/settings/backups.html storageweb/web/templates/browse.html
 msgid "Delete"
 msgstr "Eliminar"
 
@@ -637,6 +802,42 @@ msgstr "Nombre reservado en Windows"
 msgid "Invalid user name for a folder"
 msgstr "Nombre de usuario no válido para una carpeta"
 
+#: storageweb/core/shares.py storageweb/core/tokens.py
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/groups/matrix.html
+msgid "Read and write"
+msgstr "Lectura y escritura"
+
+#: storageweb/core/shares.py storageweb/web/nav.py
+msgid "Read only"
+msgstr "Solo lectura"
+
+#: storageweb/core/shares.py
+msgid "everyone"
+msgstr "todos"
+
+#: storageweb/core/shares.py storageweb/web/templates/admin/access/folder.html
+#: storageweb/web/templates/admin/user_form.html
+msgid "user"
+msgstr "usuario"
+
+#: storageweb/core/shares.py storageweb/web/templates/admin/access/folder.html
+msgid "group"
+msgstr "grupo"
+
+#: storageweb/core/shares.py
+msgid "Invalid access entry."
+msgstr "Entrada de acceso no válida."
+
+#: storageweb/core/shares.py storageweb/settings/loader.py
+#, python-format
+msgid "Duplicate or reserved shared folder name: %(name)s"
+msgstr "Nombre de carpeta compartida duplicado o reservado: %(name)s"
+
+#: storageweb/core/shares.py
+#, python-format
+msgid "The shared folder %(name)s does not exist."
+msgstr "La carpeta compartida %(name)s no existe."
+
 #: storageweb/core/storage.py
 msgid "My folder"
 msgstr "Mi carpeta"
@@ -650,6 +851,10 @@ msgid "open to all users"
 msgstr "abierta a todos los usuarios"
 
 #: storageweb/core/storage.py
+msgid " (read only)"
+msgstr " (solo lectura)"
+
+#: storageweb/core/storage.py
 msgid "by user name"
 msgstr "por su nombre de usuario"
 
@@ -658,13 +863,31 @@ msgstr "por su nombre de usuario"
 msgid "group %(name)s"
 msgstr "grupo %(name)s"
 
-#: storageweb/core/storage.py storageweb/web/templates/admin/groups/matrix.html
+#: storageweb/core/storage.py storageweb/web/templates/admin/access/folders.html
+#: storageweb/web/templates/admin/groups/matrix.html
 msgid "read-only folder"
 msgstr "carpeta de solo lectura"
 
 #: storageweb/core/storage.py
 msgid "The configured folder does not exist on the server."
 msgstr "La carpeta configurada no existe en el servidor."
+
+#: storageweb/core/tokens.py
+msgid "Read (list and download)"
+msgstr "Lectura (listar y descargar)"
+
+#: storageweb/core/tokens.py
+msgid "Give the token a name (up to 80 characters)."
+msgstr "Ponle un nombre al token (hasta 80 caracteres)."
+
+#: storageweb/core/tokens.py
+#, python-format
+msgid "Invalid scope: %(scope)s"
+msgstr "Alcance no válido: %(scope)s"
+
+#: storageweb/core/tokens.py
+msgid "Invalid expiry."
+msgstr "Caducidad no válida."
 
 #: storageweb/core/uploads.py
 msgid "Invalid file size"
@@ -695,6 +918,137 @@ msgstr "Se han recibido más datos de los declarados"
 msgid "The upload is incomplete"
 msgstr "La subida está incompleta"
 
+#: storageweb/providers/entra_check.py
+#, python-format
+msgid "Could not reach %(url)s: %(error)s"
+msgstr "No se pudo conectar con %(url)s: %(error)s"
+
+#: storageweb/providers/entra_check.py
+msgid "The tenant exists and answers (OIDC metadata downloaded)."
+msgstr "El tenant existe y responde (metadatos OIDC descargados)."
+
+#: storageweb/providers/entra_check.py
+#, python-format
+msgid "The tenant does not exist or does not answer (HTTP %(status)s)."
+msgstr "El tenant no existe o no responde (HTTP %(status)s)."
+
+#: storageweb/providers/entra_check.py
+msgid "Custom endpoints: the application and the secret are checked on the first sign-in."
+msgstr "Endpoints propios: la aplicación y el secreto se comprueban en el primer inicio de sesión."
+
+#: storageweb/providers/entra_check.py
+msgid "The application exists in the tenant."
+msgstr "La aplicación existe en el tenant."
+
+#: storageweb/providers/entra_check.py
+msgid "The redirect URI is registered in the application."
+msgstr "La Redirect URI está registrada en la aplicación."
+
+#: storageweb/providers/entra_check.py
+msgid "The Client ID does not exist in this tenant."
+msgstr "El Client ID no existe en este tenant."
+
+#: storageweb/providers/entra_check.py
+#, python-format
+msgid "The redirect URI %(uri)s is not registered in the application (Authentication → Web)."
+msgstr "La Redirect URI %(uri)s no está registrada en la aplicación (Autenticación → Web)."
+
+#: storageweb/providers/entra_check.py
+#, python-format
+msgid "The redirect URI could not be checked (HTTP %(status)s)."
+msgstr "No se pudo comprobar la Redirect URI (HTTP %(status)s)."
+
+#: storageweb/providers/entra_check.py
+msgid "There is no client secret."
+msgstr "No hay secreto de cliente."
+
+#: storageweb/providers/entra_check.py
+#, python-format
+msgid "The secret could not be checked: %(error)s"
+msgstr "No se pudo comprobar el secreto: %(error)s"
+
+#: storageweb/providers/entra_check.py
+msgid "The client secret is valid."
+msgstr "El secreto de cliente es válido."
+
+#: storageweb/providers/entra_check.py
+msgid "The application can read group names (Group.Read.All)."
+msgstr "La aplicación puede leer los nombres de los grupos (Group.Read.All)."
+
+#: storageweb/providers/entra_check.py
+#, python-format
+msgid ""
+"The application cannot read group names: %(error)s. Use «Grant group reading» to see names "
+"instead of Object IDs."
+msgstr ""
+"La aplicación no puede leer los nombres de los grupos: %(error)s. Usa «Conceder lectura de "
+"grupos» para ver nombres en lugar de Object IDs."
+
+#: storageweb/providers/entra_check.py
+msgid "The client secret has expired: create a new one."
+msgstr "El secreto de cliente ha caducado: crea uno nuevo."
+
+#: storageweb/providers/entra_check.py
+msgid "The client secret is not valid (copy the value, not the ID)."
+msgstr "El secreto de cliente no es válido (copia el valor, no el id.)."
+
+#: storageweb/providers/entra_check.py
+#, python-format
+msgid "The token endpoint answered: %(error)s"
+msgstr "El endpoint de token respondió: %(error)s"
+
+#: storageweb/providers/entra_register.py
+#, python-format
+msgid "Could not contact Microsoft: %(error)s"
+msgstr "No se pudo contactar con Microsoft: %(error)s"
+
+#: storageweb/providers/entra_register.py
+msgid "Microsoft did not return a sign-in code."
+msgstr "Microsoft no ha devuelto un código de inicio de sesión."
+
+#: storageweb/providers/entra_register.py
+msgid "Could not determine the tenant of the account that signed in."
+msgstr "No se pudo saber el tenant de la cuenta que inició sesión."
+
+#: storageweb/providers/entra_register.py
+#, python-format
+msgid "%(role)s of %(name)s"
+msgstr "%(role)s de %(name)s"
+
+#: storageweb/providers/entra_register.py
+#, python-format
+msgid "The service principal could not be created: %(error)s"
+msgstr "No se pudo crear la aplicación empresarial (service principal): %(error)s"
+
+#: storageweb/providers/entra_register.py
+#, python-format
+msgid "Could not require assignment: %(error)s"
+msgstr "No se pudo exigir la asignación: %(error)s"
+
+#: storageweb/providers/entra_register.py
+#, python-format
+msgid ""
+"Admin consent could not be granted (%(error)s): grant it in the portal, API permissions → Grant "
+"admin consent."
+msgstr ""
+"No se pudo dar el consentimiento de administrador (%(error)s): dalo en el portal, Permisos de API"
+" → Conceder consentimiento de administrador."
+
+#: storageweb/providers/entra_register.py
+#, python-format
+msgid "Reading group names (Group.Read.All) could not be granted: %(error)s"
+msgstr "No se pudo conceder la lectura de grupos (Group.Read.All): %(error)s"
+
+#: storageweb/providers/entra_register.py
+#, python-format
+msgid "You could not be assigned the %(role)s role: %(error)s"
+msgstr "No se te pudo asignar el rol %(role)s: %(error)s"
+
+#: storageweb/providers/entra_register.py
+#, python-format
+msgid "The application %(client)s does not exist in the tenant of the account that signed in."
+msgstr "La aplicación %(client)s no existe en el tenant de la cuenta que inició sesión."
+
 #: storageweb/providers/local.py
 #, python-format
 msgid "The password must be at least %(num)s characters long"
@@ -714,6 +1068,19 @@ msgstr "%(path)s debe contener un objeto JSON"
 #, python-format
 msgid "Setting %(section)s must be an object"
 msgstr "El ajuste %(section)s debe ser un objeto"
+
+#: storageweb/settings/loader.py
+#, python-format
+msgid "%(field)s must be a date like 2027-11-13"
+msgstr "%(field)s debe ser una fecha como 2027-11-13"
+
+#: storageweb/settings/loader.py
+msgid ""
+"network.public_url must be a host name like files.example.com (optionally with a port or a path, "
+"no query)"
+msgstr ""
+"network.public_url debe ser un nombre como files.ejemplo.com (opcionalmente con puerto o ruta, "
+"sin parámetros)"
 
 #: storageweb/settings/loader.py
 #, python-format
@@ -744,11 +1111,6 @@ msgstr "storage.home_template debe contener {username}"
 #, python-format
 msgid "Invalid shared folder name %(name)s (letters, digits, _ and -)"
 msgstr "Nombre de carpeta compartida no válido %(name)s (letras, números, _ y -)"
-
-#: storageweb/settings/loader.py
-#, python-format
-msgid "Duplicate or reserved shared folder name: %(name)s"
-msgstr "Nombre de carpeta compartida duplicado o reservado: %(name)s"
 
 #: storageweb/settings/loader.py
 #, python-format
@@ -789,6 +1151,14 @@ msgid "At least one sign-in method must be enabled"
 msgstr "Debe haber al menos un método de inicio de sesión activado"
 
 #: storageweb/settings/loader.py
+msgid "branding.primary_color must be a color like #2563eb"
+msgstr "branding.primary_color debe ser un color como #2563eb"
+
+#: storageweb/settings/loader.py
+msgid "branding.logo is not valid"
+msgstr "branding.logo no es válido"
+
+#: storageweb/settings/loader.py
 #, python-format
 msgid "default_locale must be one of: %(values)s"
 msgstr "default_locale debe ser uno de: %(values)s"
@@ -796,6 +1166,22 @@ msgstr "default_locale debe ser uno de: %(values)s"
 #: storageweb/web/guards.py
 msgid "Invalid CSRF token. Reload the page and try again."
 msgstr "Token CSRF inválido. Recarga la página e inténtalo de nuevo."
+
+#: storageweb/web/guards.py
+msgid "Your IP address is blocked. Contact the administrator."
+msgstr "Tu dirección IP está bloqueada. Contacta con el administrador."
+
+#: storageweb/web/guards.py storageweb/web/views/profile.py
+msgid "API tokens are disabled."
+msgstr "Los tokens de API están desactivados."
+
+#: storageweb/web/guards.py
+msgid "Invalid or expired API token."
+msgstr "Token de API no válido o caducado."
+
+#: storageweb/web/guards.py
+msgid "API tokens can only be used to list, download and upload files."
+msgstr "Los tokens de API solo sirven para listar, descargar y subir archivos."
 
 #: storageweb/web/guards.py
 msgid "This section is for administrators only."
@@ -868,6 +1254,391 @@ msgstr "%(count)s cambios sin guardar"
 msgid "%(count)s selected:"
 msgstr "%(count)s seleccionados:"
 
+#: storageweb/web/js_messages.py
+msgid "Copied"
+msgstr "Copiado"
+
+#: storageweb/web/js_messages.py
+msgid "Waiting for you to sign in…"
+msgstr "Esperando a que inicies sesión…"
+
+#: storageweb/web/js_messages.py
+msgid "Signed in. Registering the application in Entra ID…"
+msgstr "Sesión iniciada. Registrando la aplicación en Entra ID…"
+
+#: storageweb/web/js_messages.py storageweb/web/templates/admin/search.html
+#, python-format
+msgid "Nothing found for «%(query)s»."
+msgstr "Nada con «%(query)s»."
+
+#: storageweb/web/nav.py storageweb/web/templates/admin/overview.html
+#: storageweb/web/templates/base.html
+msgid "Overview"
+msgstr "Resumen"
+
+#: storageweb/web/nav.py
+msgid "People"
+msgstr "Personas"
+
+#: storageweb/web/nav.py storageweb/web/search.py storageweb/web/templates/admin/overview.html
+#: storageweb/web/templates/admin/settings/backups.html storageweb/web/templates/admin/user_form.html
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/panel.html
+msgid "Users"
+msgstr "Usuarios"
+
+#: storageweb/web/nav.py
+msgid "Accounts, roles and status"
+msgstr "Cuentas, roles y estado"
+
+#: storageweb/web/nav.py storageweb/web/search.py storageweb/web/templates/admin/groups/list.html
+#: storageweb/web/templates/admin/groups/panel.html storageweb/web/templates/admin/overview.html
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users.html
+msgid "Groups"
+msgstr "Grupos"
+
+#: storageweb/web/nav.py
+msgid "Local and Entra ID groups and their members"
+msgstr "Grupos locales y de Entra ID y sus miembros"
+
+#: storageweb/web/nav.py
+msgid "Sessions and tokens"
+msgstr "Sesiones y tokens"
+
+#: storageweb/web/nav.py
+msgid "Who is signed in and which API tokens exist"
+msgstr "Quién está conectado y qué tokens de API existen"
+
+#: storageweb/web/nav.py
+msgid "Who can sign in and the groups they belong to."
+msgstr "Quién puede entrar y a qué grupos pertenece."
+
+#: storageweb/web/nav.py storageweb/web/templates/admin/user_form.html
+msgid "Access"
+msgstr "Acceso"
+
+#: storageweb/web/nav.py storageweb/web/search.py storageweb/web/templates/admin/access/folder.html
+#: storageweb/web/templates/admin/access/folders.html storageweb/web/templates/admin/groups/form.html
+#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/groups/matrix.html
+msgid "Shared folders"
+msgstr "Carpetas compartidas"
+
+#: storageweb/web/nav.py
+msgid "Each folder, who enters and with which permission"
+msgstr "Cada carpeta, quién entra y con qué permiso"
+
+#: storageweb/web/nav.py storageweb/web/templates/admin/access/folders.html
+#: storageweb/web/templates/admin/groups/matrix.html
+msgid "Access matrix"
+msgstr "Matriz de accesos"
+
+#: storageweb/web/nav.py
+msgid "Groups × folders in one table"
+msgstr "Grupos × carpetas en una tabla"
+
+#: storageweb/web/nav.py storageweb/web/templates/admin/access/folders.html
+msgid "Role permissions"
+msgstr "Permisos del rol"
+
+#: storageweb/web/nav.py
+msgid "What the «User» role can do"
+msgstr "Lo que puede hacer el rol «Usuario»"
+
+#: storageweb/web/nav.py
+msgid "Personal folders"
+msgstr "Carpetas personales"
+
+#: storageweb/web/nav.py
+msgid "Where personal folders live and upload limits"
+msgstr "Dónde están las carpetas personales y límites de subida"
+
+#: storageweb/web/nav.py
+msgid "Who sees each folder. Groups are created in People → Groups."
+msgstr "Quién ve cada carpeta. Los grupos se crean en Personas → Grupos."
+
+#: storageweb/web/nav.py
+msgid "Security"
+msgstr "Seguridad"
+
+#: storageweb/web/nav.py
+msgid "Local users, PAM and Microsoft Entra ID"
+msgstr "Usuarios locales, PAM y Microsoft Entra ID"
+
+#: storageweb/web/nav.py
+msgid "Blocking rules"
+msgstr "Reglas de bloqueo"
+
+#: storageweb/web/nav.py
+msgid "Failed sign-ins, automatic IP blocking and API tokens"
+msgstr "Intentos fallidos, bloqueo automático de IPs y tokens de API"
+
+#: storageweb/web/nav.py storageweb/web/templates/admin/overview.html
+msgid "Blocked IPs"
+msgstr "IPs bloqueadas"
+
+#: storageweb/web/nav.py
+msgid "Blocked addresses and the allow list"
+msgstr "Direcciones bloqueadas y lista de permitidas"
+
+#: storageweb/web/nav.py storageweb/web/templates/admin/audit.html
+msgid "Audit"
+msgstr "Auditoría"
+
+#: storageweb/web/nav.py
+msgid "Who did what and when"
+msgstr "Quién hizo qué y cuándo"
+
+#: storageweb/web/nav.py
+msgid "How users sign in and how the server defends itself."
+msgstr "Cómo entran los usuarios y cómo se defiende el servidor."
+
+#: storageweb/web/nav.py storageweb/web/views/profile.py
+msgid "System"
+msgstr "Sistema"
+
+#: storageweb/web/nav.py
+msgid "General and branding"
+msgstr "General y marca"
+
+#: storageweb/web/nav.py
+msgid "Name, default language, logo and color"
+msgstr "Nombre, idioma por defecto, logo y color"
+
+#: storageweb/web/nav.py
+msgid "Network and HTTPS"
+msgstr "Red y HTTPS"
+
+#: storageweb/web/nav.py
+msgid "Public address, reverse proxy and HTTPS"
+msgstr "Dirección pública, proxy inverso y HTTPS"
+
+#: storageweb/web/nav.py
+msgid "Maintenance"
+msgstr "Mantenimiento"
+
+#: storageweb/web/nav.py
+msgid "Audit retention and automatic backups"
+msgstr "Retención de la auditoría y copias automáticas"
+
+#: storageweb/web/nav.py
+msgid "Backups and database"
+msgstr "Copias y base de datos"
+
+#: storageweb/web/nav.py
+msgid "Create, download and delete backups"
+msgstr "Crear, descargar y borrar copias de seguridad"
+
+#: storageweb/web/nav.py
+msgid "Information"
+msgstr "Información"
+
+#: storageweb/web/nav.py
+msgid "Startup settings and values changed from the web"
+msgstr "Ajustes de arranque y valores cambiados desde la web"
+
+#: storageweb/web/nav.py
+msgid "The server itself: name, network, maintenance and backups."
+msgstr "El propio servidor: nombre, red, mantenimiento y copias."
+
+#: storageweb/web/nav.py
+msgid "Configuration · applies when saved"
+msgstr "Configuración · se aplica al guardar"
+
+#: storageweb/web/nav.py
+msgid "Operation · applies at once"
+msgstr "Operación · se aplica al momento"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/groups/_macros.html
+#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/settings/backups.html
+#: storageweb/web/templates/admin/settings/ips.html
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/browse.html
+msgid "Actions"
+msgstr "Acciones"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/users.html
+msgid "Pages"
+msgstr "Páginas"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/groups/panel.html
+msgid "Settings"
+msgstr "Ajustes"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/general.html
+msgid "Application name"
+msgstr "Nombre de la aplicación"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/general.html
+msgid "Default language"
+msgstr "Idioma por defecto"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/general.html
+msgid "Use my own main color"
+msgstr "Usar mi propio color principal"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/general.html
+msgid "Logo"
+msgstr "Logo"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/network.html
+msgid "Name users type in the browser"
+msgstr "Nombre que escriben los usuarios en el navegador"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/storage.html
+msgid "Personal folder template"
+msgstr "Plantilla de carpeta personal"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/storage.html
+msgid "Create the personal folder on first access"
+msgstr "Crear la carpeta personal en el primer acceso"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/storage.html
+msgid "Create shared folders if they do not exist"
+msgstr "Crear carpetas compartidas si no existen"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/storage.html
+msgid "Show hidden files"
+msgstr "Mostrar archivos ocultos"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/storage.html
+msgid "Maximum size per file (MB)"
+msgstr "Tamaño máximo por archivo (MB)"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/auth.html
+msgid "Local users"
+msgstr "Usuarios locales"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/auth.html
+msgid "Allowed groups"
+msgstr "Grupos permitidos"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/auth.html
+msgid "Groups with the administrator role"
+msgstr "Grupos con rol administrador"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/auth.html
+msgid "The secret expires on"
+msgstr "El secreto caduca el"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/auth.html
+msgid "Button text"
+msgstr "Texto del botón"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/auth.html
+msgid "Create the user automatically on first sign-in"
+msgstr "Crear el usuario automáticamente en su primer inicio de sesión"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/auth.html
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Default role"
+msgstr "Rol por defecto"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/auth.html
+msgid "Allowed groups / App Roles"
+msgstr "Grupos / App Roles permitidos"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/auth.html
+msgid "Group / App Role → role mapping"
+msgstr "Mapeo grupo / App Role → rol"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/auth.html
+msgid "Also sign out of Microsoft when signing out"
+msgstr "Cerrar también la sesión de Microsoft al salir"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/auth.html
+msgid "User name claim"
+msgstr "Claim de nombre de usuario"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/security.html
+msgid "Failed attempts before locking"
+msgstr "Intentos fallidos antes de bloquear"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/security.html
+#: storageweb/web/views/settings.py
+msgid "Lockout minutes"
+msgstr "Minutos de bloqueo"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/security.html
+msgid "Block addresses with many offenses"
+msgstr "Bloquear las direcciones con muchas infracciones"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/security.html
+#: storageweb/web/views/settings.py
+msgid "Offenses"
+msgstr "Infracciones"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/security.html
+msgid "Block for (minutes)"
+msgstr "Bloquear durante (minutos)"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/security.html
+msgid "Allow personal API tokens"
+msgstr "Permitir tokens de API personales"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/maintenance.html
+msgid "Keep the audit log (days)"
+msgstr "Conservar la auditoría (días)"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/maintenance.html
+msgid "Automatic backup every (hours)"
+msgstr "Copia automática cada (horas)"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/maintenance.html
+#: storageweb/web/views/settings.py
+msgid "Backups to keep"
+msgstr "Copias que se conservan"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/overview.html
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/admin/users/panel.html
+msgid "New user"
+msgstr "Nuevo usuario"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/groups/form.html
+#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/groups/matrix.html
+#: storageweb/web/templates/admin/groups/panel.html
+msgid "New group"
+msgstr "Nuevo grupo"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/access/folders.html
+#: storageweb/web/templates/admin/groups/matrix.html storageweb/web/templates/admin/overview.html
+#: storageweb/web/views/access.py
+msgid "New shared folder"
+msgstr "Nueva carpeta compartida"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/overview.html
+#: storageweb/web/templates/admin/settings/backups.html
+msgid "Create a backup now"
+msgstr "Hacer una copia ahora"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/overview.html
+msgid "Block an IP address"
+msgstr "Bloquear una dirección IP"
+
+#: storageweb/web/search.py
+msgid "Renew the Entra ID secret"
+msgstr "Renovar el secreto de Entra ID"
+
+#: storageweb/web/search.py
+msgid "Register the application in Entra ID"
+msgstr "Registrar la aplicación en Entra ID"
+
+#: storageweb/web/search.py
+msgid "Close all sessions"
+msgstr "Cerrar todas las sesiones"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/backups.html
+msgid "Export the audit log (CSV)"
+msgstr "Exportar la auditoría (CSV)"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/settings/backups.html
+msgid "Compact the database"
+msgstr "Compactar la base de datos"
+
+#: storageweb/web/search.py storageweb/web/templates/admin/users/_macros.html
+#: storageweb/web/templates/admin/users/panel.html
+msgid "Disabled"
+msgstr "Deshabilitado"
+
 #: storageweb/web/api/uploads.py
 msgid "Folder not found"
 msgstr "Carpeta no encontrada"
@@ -900,28 +1671,12 @@ msgstr "Archivos"
 msgid "Administration"
 msgstr "Administración"
 
-#: storageweb/web/templates/admin/settings.html storageweb/web/templates/admin/user_form.html
-#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/cards.html
-#: storageweb/web/templates/admin/users/panel.html storageweb/web/templates/base.html
-#: storageweb/web/views/admin.py
-msgid "Users"
-msgstr "Usuarios"
-
-#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/groups/panel.html
-#: storageweb/web/templates/admin/settings.html storageweb/web/templates/admin/user_form.html
-#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/cards.html
 #: storageweb/web/templates/base.html
-msgid "Groups"
-msgstr "Grupos"
-
-#: storageweb/web/templates/admin/groups/panel.html storageweb/web/templates/admin/settings.html
-#: storageweb/web/templates/base.html
-msgid "Settings"
-msgstr "Ajustes"
-
-#: storageweb/web/templates/admin/audit.html storageweb/web/templates/base.html
-msgid "Audit"
-msgstr "Auditoría"
+#, python-format
+msgid "%(num)s notice"
+msgid_plural "%(num)s notices"
+msgstr[0] "%(num)s aviso"
+msgstr[1] "%(num)s avisos"
 
 #: storageweb/web/templates/base.html
 #, python-format
@@ -935,6 +1690,52 @@ msgstr "Mi perfil"
 #: storageweb/web/templates/base.html
 msgid "Sign out"
 msgstr "Salir"
+
+#: storageweb/web/templates/base.html
+#, python-format
+msgid "The Entra ID client secret expired on %(date)s: users cannot sign in with Microsoft."
+msgstr "El secreto de cliente de Entra ID caducó el %(date)s: los usuarios no pueden entrar con Microsoft."
+
+#: storageweb/web/templates/base.html
+#, python-format
+msgid "The Entra ID client secret expires in %(num)s day (%(date)s)."
+msgid_plural "The Entra ID client secret expires in %(num)s days (%(date)s)."
+msgstr[0] "El secreto de cliente de Entra ID caduca en %(num)s día (%(date)s)."
+msgstr[1] "El secreto de cliente de Entra ID caduca en %(num)s días (%(date)s)."
+
+#: storageweb/web/templates/base.html
+msgid "Renew it"
+msgstr "Renuévalo"
+
+#: storageweb/web/templates/admin/overview.html storageweb/web/templates/admin/search.html
+#: storageweb/web/templates/base.html
+msgid "Search the administration"
+msgstr "Buscar en la administración"
+
+#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/search.html
+#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/base.html
+msgid "Search"
+msgstr "Buscar"
+
+#: storageweb/web/templates/admin/search.html storageweb/web/templates/base.html
+msgid "A setting, an action, a user or a group…"
+msgstr "Un ajuste, una acción, un usuario o un grupo…"
+
+#: storageweb/web/templates/base.html
+msgid "Results"
+msgstr "Resultados"
+
+#: storageweb/web/templates/base.html
+msgid "move"
+msgstr "moverse"
+
+#: storageweb/web/templates/base.html
+msgid "open"
+msgstr "abrir"
+
+#: storageweb/web/templates/base.html
+msgid "Settings take you to the exact field"
+msgstr "Los ajustes llevan al campo exacto"
 
 #: storageweb/web/templates/browse.html
 msgid "Folders"
@@ -980,30 +1781,28 @@ msgstr "Enviar"
 msgid "Clear selection"
 msgstr "Quitar selección"
 
-#: storageweb/web/templates/browse.html
+#: storageweb/web/templates/admin/settings/entra_register.html storageweb/web/templates/browse.html
 msgid "Cancel"
 msgstr "Cancelar"
 
-#: storageweb/web/templates/admin/users.html storageweb/web/templates/browse.html
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/browse.html
 msgid "Select all"
 msgstr "Seleccionar todo"
 
-#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/browse.html
+#: storageweb/web/templates/admin/groups/_macros.html
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/browse.html
+#: storageweb/web/templates/profile.html
 msgid "Name"
 msgstr "Nombre"
 
-#: storageweb/web/templates/browse.html
+#: storageweb/web/templates/admin/settings/backups.html storageweb/web/templates/browse.html
 msgid "Size"
 msgstr "Tamaño"
 
 #: storageweb/web/templates/browse.html
 msgid "Modified"
 msgstr "Modificado"
-
-#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/groups/list.html
-#: storageweb/web/templates/admin/users.html storageweb/web/templates/browse.html
-msgid "Actions"
-msgstr "Acciones"
 
 #: storageweb/web/templates/browse.html
 msgid "Parent folder"
@@ -1018,7 +1817,7 @@ msgstr "Carpeta"
 msgid "%(ext)s file"
 msgstr "Archivo %(ext)s"
 
-#: storageweb/web/templates/browse.html
+#: storageweb/web/templates/admin/settings/backups.html storageweb/web/templates/browse.html
 msgid "File"
 msgstr "Archivo"
 
@@ -1082,7 +1881,7 @@ msgstr "Tipo"
 msgid "Location"
 msgstr "Ubicación"
 
-#: storageweb/web/templates/browse.html
+#: storageweb/web/templates/admin/overview.html storageweb/web/templates/browse.html
 msgid "Open"
 msgstr "Abrir"
 
@@ -1116,8 +1915,8 @@ msgstr "No hay ningún método de inicio de sesión activado. Revisa config.json
 msgid "Account"
 msgstr "Cuenta"
 
-#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users.html
-#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/admin/users/cards.html
+#: storageweb/web/templates/admin/settings/auth.html storageweb/web/templates/admin/user_form.html
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/_macros.html
 #: storageweb/web/templates/admin/users/panel.html storageweb/web/templates/profile.html
 msgid "Role"
 msgstr "Rol"
@@ -1171,6 +1970,130 @@ msgstr "Repite la nueva contraseña"
 msgid "You sign in with %(source)s, so your password is managed there."
 msgstr "Inicias sesión con %(source)s, así que tu contraseña se gestiona allí."
 
+#: storageweb/web/templates/profile.html
+msgid "My sessions"
+msgstr "Mis sesiones"
+
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/profile.html
+msgid "this one"
+msgstr "esta"
+
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/profile.html
+#, python-format
+msgid "active %(when)s"
+msgstr "activa %(when)s"
+
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/admin/user_form.html
+#: storageweb/web/templates/profile.html
+msgid "Close"
+msgstr "Cerrar"
+
+#: storageweb/web/templates/profile.html
+msgid "Close the other sessions"
+msgstr "Cerrar las demás sesiones"
+
+#: storageweb/web/templates/admin/overview.html storageweb/web/templates/admin/settings/backups.html
+#: storageweb/web/templates/admin/settings/security.html
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/profile.html
+msgid "API tokens"
+msgstr "Tokens de API"
+
+#: storageweb/web/templates/profile.html
+msgid ""
+"To use your files from scripts without your password. A token can do what you can, limited to its"
+" scope, and never gives access to administration."
+msgstr ""
+"Para usar tus archivos desde scripts sin tu contraseña. Un token puede hacer lo que tú, limitado "
+"a su alcance, y nunca da acceso a la administración."
+
+#: storageweb/web/templates/profile.html
+msgid "Copy it now: it will not be shown again."
+msgstr "Cópialo ahora: no se volverá a mostrar."
+
+#: storageweb/web/templates/profile.html
+msgid "New token"
+msgstr "Token nuevo"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+#: storageweb/web/templates/admin/settings/entra_setup.html storageweb/web/templates/profile.html
+msgid "Copy"
+msgstr "Copiar"
+
+#: storageweb/web/templates/profile.html
+#, python-format
+msgid "expires %(when)s"
+msgstr "caduca %(when)s"
+
+#: storageweb/web/templates/profile.html
+msgid "does not expire"
+msgstr "no caduca"
+
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/profile.html
+#, python-format
+msgid "last used %(when)s"
+msgstr "último uso %(when)s"
+
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/admin/user_form.html
+#: storageweb/web/templates/profile.html
+#, python-format
+msgid "Revoke the token «%(name)s»?"
+msgstr "¿Revocar el token «%(name)s»?"
+
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/admin/user_form.html
+#: storageweb/web/templates/profile.html
+msgid "Revoke"
+msgstr "Revocar"
+
+#: storageweb/web/templates/profile.html
+msgid "You have no tokens."
+msgstr "No tienes tokens."
+
+#: storageweb/web/templates/profile.html
+msgid "e.g. nightly backup"
+msgstr "p. ej. copia nocturna"
+
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/profile.html
+msgid "Scope"
+msgstr "Alcance"
+
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/profile.html
+msgid "Expires"
+msgstr "Caduca"
+
+#: storageweb/web/templates/profile.html
+#, python-format
+msgid "in %(num)s day"
+msgid_plural "in %(num)s days"
+msgstr[0] "en %(num)s día"
+msgstr[1] "en %(num)s días"
+
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/profile.html
+msgid "never"
+msgstr "nunca"
+
+#: storageweb/web/templates/profile.html
+msgid "Create token"
+msgstr "Crear token"
+
+#: storageweb/web/templates/admin/_layout.html
+msgid "Needs attention"
+msgstr "Necesita atención"
+
+#: storageweb/web/templates/admin/_layout.html
+msgid "Values changed from the web"
+msgstr "Valores cambiados en la web"
+
+#: storageweb/web/templates/admin/_layout.html
+#, python-format
+msgid "%(num)s web"
+msgid_plural "%(num)s web"
+msgstr[0] "%(num)s web"
+msgstr[1] "%(num)s web"
+
+#: storageweb/web/templates/admin/audit.html
+msgid "Retention and cleanup"
+msgstr "Retención y limpieza"
+
 #: storageweb/web/templates/admin/audit.html
 msgid "Action (login, upload, delete…)"
 msgstr "Acción (login, upload, delete…)"
@@ -1185,6 +2108,10 @@ msgid "Clear"
 msgstr "Limpiar"
 
 #: storageweb/web/templates/admin/audit.html
+msgid "Export CSV"
+msgstr "Exportar CSV"
+
+#: storageweb/web/templates/admin/audit.html storageweb/web/templates/admin/settings/backups.html
 msgid "Date"
 msgstr "Fecha"
 
@@ -1204,332 +2131,172 @@ msgstr "Detalle"
 msgid "No entries."
 msgstr "Sin registros."
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Discard all settings saved from the web and go back to config.json?"
-msgstr "¿Descartar todos los ajustes guardados desde la web y volver a config.json?"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Reset to config.json"
-msgstr "Restablecer a config.json"
-
-#: storageweb/web/templates/admin/settings.html
-msgid ""
-"Settings saved here are stored in the database, apply immediately and take precedence over "
-"<code>config.json</code>."
-msgstr ""
-"Los ajustes guardados aquí se almacenan en la base de datos, se aplican al instante y tienen "
-"prioridad sobre <code>config.json</code>."
-
-#: storageweb/web/templates/admin/settings.html
+#: storageweb/web/templates/admin/overview.html
 #, python-format
-msgid "Last change: %(date)s by %(user)s."
-msgstr "Última modificación: %(date)s por %(user)s."
+msgid "State of %(app)s and what needs your attention."
+msgstr "Estado de %(app)s y lo que necesita tu atención."
 
-#: storageweb/web/templates/admin/settings.html
-msgid "General"
-msgstr "General"
+#: storageweb/web/templates/admin/overview.html
+msgid "Search a setting, user or group…"
+msgstr "Buscar un ajuste, usuario o grupo…"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Application name"
-msgstr "Nombre de la aplicación"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Default language"
-msgstr "Idioma por defecto"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Used when the user has not chosen one and the browser does not ask for an available language."
-msgstr "Se usa cuando el usuario no ha elegido uno y el navegador no pide ninguno disponible."
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Storage"
-msgstr "Almacenamiento"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Personal folder template"
-msgstr "Plantilla de carpeta personal"
-
-#: storageweb/web/templates/admin/settings.html
-#, python-brace-format
-msgid "must contain {username}"
-msgstr "debe contener {username}"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Create the personal folder on first access"
-msgstr "Crear la carpeta personal en el primer acceso"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Create shared folders if they do not exist"
-msgstr "Crear carpetas compartidas si no existen"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Show hidden files"
-msgstr "Mostrar archivos ocultos"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Maximum size per file (MB)"
-msgstr "Tamaño máximo por archivo (MB)"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "0 = no limit; uploads are sent in parts"
-msgstr "0 = sin límite; las subidas van por partes"
-
-#: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/groups/list.html
-#: storageweb/web/templates/admin/settings.html
-msgid "Shared folders"
-msgstr "Carpetas compartidas"
-
-#: storageweb/web/templates/admin/settings.html
-msgid ""
-"Users and groups separated by commas. <code>*</code> = all users. Entra ID groups are Object IDs "
-"or App Role names."
-msgstr ""
-"Usuarios y grupos separados por comas. <code>*</code> = todos los usuarios. Los grupos de Entra "
-"ID son Object IDs o nombres de App Role."
-
-#: storageweb/web/templates/admin/settings.html
+#: storageweb/web/templates/admin/overview.html
 #, python-format
-msgid "Read or write access per group is set in <a href=\"%(url)s\">Groups → Access matrix</a>."
-msgstr ""
-"El acceso de lectura o escritura por grupo se ajusta en <a href=\"%(url)s\">Grupos → Matriz de "
-"accesos</a>."
+msgid "Needs your attention · %(num)s"
+msgid_plural "Needs your attention · %(num)s"
+msgstr[0] "Necesita tu atención · %(num)s"
+msgstr[1] "Necesita tu atención · %(num)s"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Name (URL)"
-msgstr "Nombre (URL)"
+#: storageweb/web/templates/admin/overview.html
+msgid "Notices"
+msgstr "Avisos"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Label"
-msgstr "Etiqueta"
+#: storageweb/web/templates/admin/overview.html
+msgid "Everything is in order: nothing needs your attention."
+msgstr "Todo en orden: nada necesita tu atención."
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Path on the server"
-msgstr "Ruta en el servidor"
+#: storageweb/web/templates/admin/overview.html
+#, python-format
+msgid "%(num)s disabled"
+msgid_plural "%(num)s disabled"
+msgstr[0] "%(num)s desactivado"
+msgstr[1] "%(num)s desactivados"
 
-#: storageweb/web/templates/admin/settings.html storageweb/web/templates/admin/user_form.html
-msgid "Access"
-msgstr "Acceso"
+#: storageweb/web/templates/admin/overview.html
+msgid "signed in now"
+msgstr "conectados ahora"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Read/write"
-msgstr "Lectura/escritura"
+#: storageweb/web/templates/admin/overview.html
+msgid "does not exist"
+msgstr "no existe"
 
-#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/groups/matrix.html
-#: storageweb/web/templates/admin/settings.html
-msgid "Read-only"
-msgstr "Solo lectura"
+#: storageweb/web/templates/admin/overview.html
+#, python-format
+msgid "%(num)s entry"
+msgid_plural "%(num)s entries"
+msgstr[0] "%(num)s entrada"
+msgstr[1] "%(num)s entradas"
 
-#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/settings.html
-msgid "Remove"
-msgstr "Quitar"
+#: storageweb/web/templates/admin/overview.html
+msgid "read only"
+msgstr "solo lectura"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Add shared folder"
-msgstr "Añadir carpeta compartida"
+#: storageweb/web/templates/admin/groups/matrix.html storageweb/web/templates/admin/overview.html
+msgid "There are no shared folders."
+msgstr "No hay carpetas compartidas."
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Permissions of the «User» role"
-msgstr "Permisos del rol «Usuario»"
+#: storageweb/web/templates/admin/overview.html
+#, python-format
+msgid "and %(num)s more"
+msgid_plural "and %(num)s more"
+msgstr[0] "y %(num)s más"
+msgstr[1] "y %(num)s más"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Administrators always have every permission. In read-only folders only downloading is allowed."
-msgstr ""
-"Los administradores tienen siempre todos los permisos. En carpetas de solo lectura solo se "
-"permite descargar."
+#: storageweb/web/templates/admin/overview.html
+msgid "Role «User»"
+msgstr "Rol «Usuario»"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Local users"
-msgstr "Usuarios locales"
+#: storageweb/web/templates/admin/overview.html
+msgid "nothing"
+msgstr "nada"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Allow sign-in with local users"
-msgstr "Permitir inicio de sesión con usuarios locales"
+#: storageweb/web/templates/admin/overview.html
+msgid "no method enabled"
+msgstr "ningún método activado"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "System users (PAM)"
-msgstr "Usuarios del sistema (PAM)"
+#: storageweb/web/templates/admin/overview.html
+msgid "Failed sign-ins (24 h)"
+msgstr "Intentos fallidos (24 h)"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Enabled (Linux/macOS only)"
-msgstr "Activado (solo Linux/macOS)"
+#: storageweb/web/templates/admin/overview.html
+#, python-format
+msgid "%(num)s automatic"
+msgid_plural "%(num)s automatic"
+msgstr[0] "%(num)s automática"
+msgstr[1] "%(num)s automáticas"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "PAM service"
-msgstr "Servicio PAM"
+#: storageweb/web/templates/admin/overview.html
+msgid "Public address"
+msgstr "Dirección pública"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Allowed groups"
-msgstr "Grupos permitidos"
+#: storageweb/web/templates/admin/overview.html
+msgid "not set"
+msgstr "sin definir"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "empty = everyone"
-msgstr "vacío = todos"
+#: storageweb/web/templates/admin/overview.html
+msgid "Latest backup"
+msgstr "Última copia"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Groups with the administrator role"
-msgstr "Grupos con rol administrador"
+#: storageweb/web/templates/admin/overview.html
+#, python-format
+msgid "%(num)s kept"
+msgid_plural "%(num)s kept"
+msgstr[0] "%(num)s guardada"
+msgstr[1] "%(num)s guardadas"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Use the system home folder (/home/user)"
-msgstr "Usar el home del sistema (/home/usuario)"
+#: storageweb/web/templates/admin/overview.html
+msgid "none yet"
+msgstr "ninguna todavía"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Enabled"
-msgstr "Activado"
+#: storageweb/web/templates/admin/overview.html
+msgid "Version"
+msgstr "Versión"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Implementation"
-msgstr "Implementación"
+#: storageweb/web/templates/admin/overview.html
+msgid "Frequent tasks"
+msgstr "Lo que más se hace"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "OAuth2 / OIDC (no dependencies)"
-msgstr "OAuth2 / OIDC (sin dependencias)"
+#: storageweb/web/templates/admin/overview.html
+msgid "a local user; Entra ID users are created on first sign-in"
+msgstr "un usuario local; los de Entra ID se crean al entrar por primera vez"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "MSAL (Microsoft library)"
-msgstr "MSAL (librería de Microsoft)"
+#: storageweb/web/templates/admin/overview.html
+msgid "Give access to a folder"
+msgstr "Dar acceso a una carpeta"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "•••••••• (configured, leave empty to keep it)"
-msgstr "•••••••• (configurado, dejar vacío para conservar)"
+#: storageweb/web/templates/admin/overview.html
+msgid "to a group or a user"
+msgstr "a un grupo o a un usuario"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Not configured"
-msgstr "No configurado"
+#: storageweb/web/templates/admin/overview.html
+msgid "Who is signed in"
+msgstr "Quién está conectado"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Additional scopes"
-msgstr "Scopes adicionales"
+#: storageweb/web/templates/admin/overview.html
+#, python-format
+msgid "%(num)s user now"
+msgid_plural "%(num)s users now"
+msgstr[0] "%(num)s usuario ahora"
+msgstr[1] "%(num)s usuarios ahora"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Button text"
-msgstr "Texto del botón"
+#: storageweb/web/templates/admin/overview.html
+#, python-format
+msgid "latest: %(date)s"
+msgstr "última: %(date)s"
 
-#: storageweb/web/templates/admin/settings.html storageweb/web/views/auth.py
-msgid "Sign in with Microsoft"
-msgstr "Iniciar sesión con Microsoft"
+#: storageweb/web/templates/admin/overview.html
+#, python-format
+msgid "%(num)s blocked"
+msgid_plural "%(num)s blocked"
+msgstr[0] "%(num)s bloqueada"
+msgstr[1] "%(num)s bloqueadas"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "User name claim"
-msgstr "Claim de nombre de usuario"
+#: storageweb/web/templates/admin/overview.html storageweb/web/templates/admin/user_form.html
+msgid "Recent activity"
+msgstr "Actividad reciente"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Remove the domain from the user name (juan@contoso.com → juan)"
-msgstr "Quitar el dominio del usuario (juan@contoso.com → juan)"
+#: storageweb/web/templates/admin/overview.html
+msgid "All the audit log"
+msgstr "Toda la auditoría"
 
-#: storageweb/web/templates/admin/settings.html
-msgid "Allowed groups / App Roles"
-msgstr "Grupos / App Roles permitidos"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "empty = any user of the tenant"
-msgstr "vacío = cualquier usuario del tenant"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Also sign out of Microsoft when signing out"
-msgstr "Cerrar también la sesión de Microsoft al salir"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "User provisioning and roles"
-msgstr "Alta de usuarios y roles"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Create the user automatically on first sign-in"
-msgstr "Crear el usuario automáticamente en su primer inicio de sesión"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "if disabled, only Entra users registered beforehand by an administrator can sign in"
-msgstr "si se desactiva, solo entran usuarios de Entra dados de alta antes por un administrador"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Default role"
-msgstr "Rol por defecto"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Recalculate the role on every sign-in according to the mapping"
-msgstr "Recalcular el rol en cada inicio de sesión según el mapeo"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Group / App Role → role mapping"
-msgstr "Mapeo grupo / App Role → rol"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "one mapping per line: <code>StorageWeb.Admin = admin</code>"
-msgstr "una línea por mapeo: <code>StorageWeb.Admin = admin</code>"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Advanced (custom endpoints / another OIDC provider)"
-msgstr "Avanzado (endpoints propios / otro proveedor OIDC)"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Timeout (s)"
-msgstr "Tiempo de espera (s)"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Security"
-msgstr "Seguridad"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Failed attempts before locking"
-msgstr "Intentos fallidos antes de bloquear"
-
-#: storageweb/web/templates/admin/settings.html storageweb/web/views/admin.py
-msgid "Lockout minutes"
-msgstr "Minutos de bloqueo"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Save settings"
-msgstr "Guardar ajustes"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Startup (config.json only, requires restarting the service)"
-msgstr "Arranque (solo config.json, requiere reiniciar el servicio)"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Configuration file"
-msgstr "Fichero de configuración"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Listening on"
-msgstr "Escucha"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "behind a proxy"
-msgstr "detrás de proxy"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Maximum per request"
-msgstr "Máximo por petición"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "each part of an upload and the upload without JavaScript"
-msgstr "cada parte de una subida y la subida sin JavaScript"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Secure cookie (HTTPS)"
-msgstr "Cookie segura (HTTPS)"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Yes"
-msgstr "Sí"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "No"
-msgstr "No"
-
-#: storageweb/web/templates/admin/settings.html
-msgid "Effective configuration (JSON, secrets hidden)"
-msgstr "Configuración efectiva (JSON, secretos ocultos)"
+#: storageweb/web/templates/admin/overview.html storageweb/web/templates/admin/users/_macros.html
+msgid "No activity yet."
+msgstr "Todavía no hay actividad."
 
 #: storageweb/web/templates/admin/user_form.html
 #, python-format
 msgid "Edit %(name)s"
 msgstr "Editar %(name)s"
-
-#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users.html
-#: storageweb/web/templates/admin/users/cards.html storageweb/web/templates/admin/users/panel.html
-msgid "New user"
-msgstr "Nuevo usuario"
 
 #: storageweb/web/templates/admin/user_form.html
 #, python-format
@@ -1586,10 +2353,6 @@ msgstr "Carpeta personal"
 #: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
 msgid "empty = default template"
 msgstr "vacío = plantilla por defecto"
-
-#: storageweb/web/templates/admin/user_form.html
-msgid "user"
-msgstr "usuario"
 
 #: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
 msgid "Leave empty to keep it"
@@ -1677,8 +2440,7 @@ msgstr ""
 msgid "Delete the user «%(name)s»? Their files will not be removed."
 msgstr "¿Eliminar el usuario «%(name)s»? Sus archivos no se borrarán."
 
-#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/cards.html
-#: storageweb/web/templates/admin/users/panel.html
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
 msgid "Effective access"
 msgstr "Acceso efectivo"
 
@@ -1687,16 +2449,31 @@ msgid "What they see when they sign in, and why."
 msgstr "Lo que ve al entrar y por qué."
 
 #: storageweb/web/templates/admin/user_form.html
-msgid "Recent activity"
-msgstr "Actividad reciente"
+msgid "Sessions and API tokens"
+msgstr "Sesiones y tokens de API"
+
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/admin/user_form.html
+msgid "No open sessions."
+msgstr "No hay sesiones abiertas."
+
+#: storageweb/web/templates/admin/user_form.html
+msgid "Close all their sessions"
+msgstr "Cerrar todas sus sesiones"
 
 #: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/panel.html
 #, python-format
 msgid "%(all)s users · %(active)s active · %(disabled)s disabled"
 msgstr "%(all)s usuarios · %(active)s activos · %(disabled)s desactivados"
 
-#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/groups/matrix.html
 #: storageweb/web/templates/admin/users.html
+#, python-format
+msgid "%(num)s open session"
+msgid_plural "%(num)s open sessions"
+msgstr[0] "%(num)s sesión abierta"
+msgstr[1] "%(num)s sesiones abiertas"
+
+#: storageweb/web/templates/admin/access/folder.html storageweb/web/templates/admin/groups/list.html
+#: storageweb/web/templates/admin/groups/matrix.html storageweb/web/templates/admin/users.html
 msgid "Group"
 msgstr "Grupo"
 
@@ -1749,31 +2526,190 @@ msgstr "Último acceso"
 msgid "Edit"
 msgstr "Editar"
 
-#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/cards.html
-#: storageweb/web/templates/admin/users/panel.html
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/panel.html
 msgid "No users."
 msgstr "No hay usuarios."
-
-#: storageweb/web/templates/admin/users.html
-msgid "Pages"
-msgstr "Páginas"
 
 #: storageweb/web/templates/admin/users.html
 #, python-format
 msgid "%(first)s–%(last)s of %(total)s"
 msgstr "%(first)s–%(last)s de %(total)s"
 
-#: storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/admin/settings/entra_setup.html storageweb/web/templates/admin/users.html
 msgid "Previous"
 msgstr "Anterior"
 
-#: storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/admin/settings/entra_setup.html storageweb/web/templates/admin/users.html
 msgid "Next"
 msgstr "Siguiente"
 
+#: storageweb/web/templates/admin/access/folder.html
+msgid "the folder exists on the server"
+msgstr "la carpeta existe en el servidor"
+
+#: storageweb/web/templates/admin/access/folder.html storageweb/web/templates/admin/access/folders.html
+msgid "It does not exist on the server."
+msgstr "No existe en el servidor."
+
+#: storageweb/web/templates/admin/access/folder.html
+#: storageweb/web/templates/admin/settings/_layout.html
+#: storageweb/web/templates/admin/settings/entra_setup.html storageweb/web/views/access.py
+#: storageweb/web/views/groups.py
+#, python-format
+msgid "The changes were not saved: %(error)s"
+msgstr "No se guardaron los cambios: %(error)s"
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "Label"
+msgstr "Etiqueta"
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "Accounting"
+msgstr "Contabilidad"
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "Name (URL)"
+msgstr "Nombre (URL)"
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "Letters, digits, _ and -. Changing it changes the address of the folder."
+msgstr "Letras, números, _ y -. Si lo cambias, cambia la dirección de la carpeta."
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "Path on the server"
+msgstr "Ruta en el servidor"
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "Relative paths are resolved from the folder of config.json."
+msgstr "Las rutas relativas se resuelven desde la carpeta del config.json."
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "Read only for everyone"
+msgstr "Solo lectura para todos"
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "Only downloading is allowed, administrators included, whatever the permission of each entry."
+msgstr "Solo se permite descargar, también a los administradores, tenga el permiso que tenga cada entrada."
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "Who enters"
+msgstr "Quién entra"
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "A user can write if any of the ways they enter allows it."
+msgstr "Un usuario puede escribir si alguna de las vías por las que entra lo permite."
+
+#: storageweb/web/templates/admin/access/folder.html storageweb/web/templates/admin/groups/matrix.html
+#: storageweb/web/templates/admin/groups/panel.html
+#, python-format
+msgid "%(num)s member"
+msgid_plural "%(num)s members"
+msgstr[0] "%(num)s miembro"
+msgstr[1] "%(num)s miembros"
+
+#: storageweb/web/templates/admin/access/folder.html storageweb/web/templates/admin/users/_macros.html
+msgid "not registered"
+msgstr "sin dar de alta"
+
+#: storageweb/web/templates/admin/access/folder.html
+#, python-format
+msgid "Permission for %(name)s"
+msgstr "Permiso de %(name)s"
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "Remove access"
+msgstr "Quitar el acceso"
+
+#: storageweb/web/templates/admin/access/folder.html
+#, python-format
+msgid "Remove %(name)s"
+msgstr "Quitar %(name)s"
+
+#: storageweb/web/templates/admin/access/folder.html storageweb/web/templates/admin/access/folders.html
+msgid "Nobody has access yet."
+msgstr "Todavía no tiene acceso nadie."
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "Kind"
+msgstr "Tipo"
+
+#: storageweb/web/templates/admin/access/folder.html storageweb/web/views/access.py
+msgid "All users"
+msgstr "Todos los usuarios"
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "Give access to a group or user…"
+msgstr "Dar acceso a un grupo o usuario…"
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "Group or user"
+msgstr "Grupo o usuario"
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "Permission"
+msgstr "Permiso"
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "Groups: the identifier of a group in People → Groups, a system group or an Entra ID Object ID."
+msgstr ""
+"Grupos: el identificador de un grupo de Personas → Grupos, un grupo del sistema o un Object ID de"
+" Entra ID."
+
+#: storageweb/web/templates/admin/access/folder.html
+#, python-format
+msgid "Remove the shared folder %(name)s? Its files stay on the server."
+msgstr "¿Quitar la carpeta compartida %(name)s? Sus archivos se quedan en el servidor."
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "Remove the folder"
+msgstr "Quitar la carpeta"
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "Users stop seeing it. The files are not deleted from the server."
+msgstr "Los usuarios dejan de verla. Los archivos no se borran del servidor."
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "Remove shared folder"
+msgstr "Quitar la carpeta compartida"
+
+#: storageweb/web/templates/admin/access/folders.html
+#: storageweb/web/templates/admin/settings/_macros.html
+msgid "Changed from the web: it takes precedence over config.json."
+msgstr "Cambiado en la web: manda sobre config.json."
+
+#: storageweb/web/templates/admin/access/folders.html
+#: storageweb/web/templates/admin/settings/_macros.html
+msgid "web"
+msgstr "web"
+
+#: storageweb/web/templates/admin/access/folders.html
+msgid "Each folder, who enters and with which permission. Click a folder to change it."
+msgstr "Cada carpeta, quién entra y con qué permiso. Pulsa una carpeta para cambiarla."
+
+#: storageweb/web/templates/admin/access/folders.html
+msgid "There are no shared folders: every user only sees their personal folder."
+msgstr "No hay carpetas compartidas: cada usuario solo ve su carpeta personal."
+
+#: storageweb/web/templates/admin/access/folders.html
+msgid "It will be created on first use."
+msgstr "Se creará al usarla por primera vez."
+
+#: storageweb/web/templates/admin/access/folders.html
+msgid "read"
+msgstr "lectura"
+
+#: storageweb/web/templates/admin/access/folders.html
+msgid ""
+"Administrators also enter any folder open to the «Administrators» group. Who can upload, rename "
+"or delete inside a folder with write access depends on the role permissions."
+msgstr ""
+"Los administradores entran además en las carpetas abiertas al grupo «Administradores». Quién "
+"puede subir, renombrar o borrar dentro de una carpeta con escritura depende de los permisos del "
+"rol."
+
 #: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/groups/matrix.html
-msgid "Read and write"
-msgstr "Lectura y escritura"
+msgid "Read-only"
+msgstr "Solo lectura"
 
 #: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/groups/matrix.html
 msgid "No access"
@@ -1790,10 +2726,6 @@ msgstr "Lista"
 #: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/users/_macros.html
 msgid "Panels"
 msgstr "Paneles"
-
-#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/groups/matrix.html
-msgid "Access matrix"
-msgstr "Matriz de accesos"
 
 #: storageweb/web/templates/admin/groups/_macros.html
 msgid "Identifier"
@@ -1840,6 +2772,10 @@ msgid "Entra ID: Object ID of the group or App Role name. System: group name."
 msgstr "Entra ID: Object ID del grupo o nombre del App Role. Sistema: nombre del grupo."
 
 #: storageweb/web/templates/admin/groups/_macros.html
+msgid "For Entra ID you can type the start of the group name and choose it."
+msgstr "Para Entra ID puedes escribir el principio del nombre del grupo y elegirlo."
+
+#: storageweb/web/templates/admin/groups/_macros.html
 msgid ""
 "Leave it empty for local groups. For Entra ID the id_token must include the «groups» or «roles» "
 "claim."
@@ -1855,7 +2791,8 @@ msgstr "Añadir usuario"
 msgid "User name…"
 msgstr "Nombre de usuario…"
 
-#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/users/_macros.html
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/settings/ips.html
+#: storageweb/web/templates/admin/users/_macros.html
 msgid "Add"
 msgstr "Añadir"
 
@@ -1879,6 +2816,10 @@ msgstr "Manual"
 #, python-format
 msgid "Remove the administrator role from «%(name)s»?"
 msgstr "¿Quitar el rol de administrador a «%(name)s»?"
+
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/settings/ips.html
+msgid "Remove"
+msgstr "Quitar"
 
 #: storageweb/web/templates/admin/groups/_macros.html
 #, python-format
@@ -1926,7 +2867,8 @@ msgstr ""
 "Llegan al iniciar sesión o los usan las carpetas compartidas, pero no tienen nombre. Dalos de "
 "alta para gestionarlos aquí."
 
-#: storageweb/web/templates/admin/groups/_macros.html
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/settings/auth.html
+#: storageweb/web/templates/admin/settings/sessions.html
 #, python-format
 msgid "%(num)s user"
 msgid_plural "%(num)s users"
@@ -1946,11 +2888,6 @@ msgstr "Dar de alta"
 #, python-format
 msgid "Group «%(name)s»"
 msgstr "Grupo «%(name)s»"
-
-#: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/groups/list.html
-#: storageweb/web/templates/admin/groups/matrix.html storageweb/web/templates/admin/groups/panel.html
-msgid "New group"
-msgstr "Nuevo grupo"
 
 #: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/groups/list.html
 #: storageweb/web/templates/admin/groups/panel.html
@@ -2009,10 +2946,6 @@ msgstr "Buscar por nombre o descripción"
 msgid "All sources"
 msgstr "Todos los orígenes"
 
-#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/users/_macros.html
-msgid "Search"
-msgstr "Buscar"
-
 #: storageweb/web/templates/admin/groups/list.html
 msgid "Linked to"
 msgstr "Vinculado a"
@@ -2032,20 +2965,8 @@ msgid "No groups."
 msgstr "No hay grupos."
 
 #: storageweb/web/templates/admin/groups/matrix.html
-msgid "Groups and access"
-msgstr "Grupos y accesos"
-
-#: storageweb/web/templates/admin/groups/matrix.html
 msgid "What each group can do in each shared folder."
 msgstr "Qué puede hacer cada grupo en cada carpeta compartida."
-
-#: storageweb/web/templates/admin/groups/matrix.html
-msgid "There are no shared folders."
-msgstr "No hay carpetas compartidas."
-
-#: storageweb/web/templates/admin/groups/matrix.html
-msgid "Create them in Settings."
-msgstr "Créalas en Ajustes."
 
 #: storageweb/web/templates/admin/groups/matrix.html storageweb/web/templates/admin/groups/panel.html
 msgid "There are no groups yet."
@@ -2054,13 +2975,6 @@ msgstr "Todavía no hay grupos."
 #: storageweb/web/templates/admin/groups/matrix.html
 msgid "all users"
 msgstr "todos los usuarios"
-
-#: storageweb/web/templates/admin/groups/matrix.html storageweb/web/templates/admin/groups/panel.html
-#, python-format
-msgid "%(num)s member"
-msgid_plural "%(num)s members"
-msgstr[0] "%(num)s miembro"
-msgstr[1] "%(num)s miembros"
 
 #: storageweb/web/templates/admin/groups/matrix.html
 msgid "The folder is open to all users: groups do not change anything."
@@ -2088,10 +3002,12 @@ msgid "Change a cell to give or remove access."
 msgstr "Cambia una celda para dar o quitar acceso."
 
 #: storageweb/web/templates/admin/groups/matrix.html
+#: storageweb/web/templates/admin/settings/_macros.html
 msgid "Discard"
 msgstr "Descartar"
 
-#: storageweb/web/templates/admin/groups/matrix.html storageweb/web/templates/admin/users/cards.html
+#: storageweb/web/templates/admin/groups/matrix.html
+#: storageweb/web/templates/admin/settings/_macros.html
 msgid "Save"
 msgstr "Guardar"
 
@@ -2129,25 +3045,1025 @@ msgstr "Carpetas (%(count)s)"
 msgid "Shared folders this group gives access to."
 msgstr "Carpetas compartidas a las que da acceso este grupo."
 
+#: storageweb/web/templates/admin/settings/_macros.html
+msgid "Use the value of config.json again"
+msgstr "Volver a usar el valor de config.json"
+
+#: storageweb/web/templates/admin/settings/_macros.html
+#: storageweb/web/templates/admin/settings/system.html
+msgid "Reset"
+msgstr "Restablecer"
+
+#: storageweb/web/templates/admin/settings/_macros.html
+msgid "Save to apply the changes."
+msgstr "Guarda para aplicar los cambios."
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "User name and password stored in StorageWeb"
+msgstr "Usuario y contraseña guardados en StorageWeb"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Enabled"
+msgstr "Activado"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "System users (PAM)"
+msgstr "Usuarios del sistema (PAM)"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Accounts of the Linux/macOS server"
+msgstr "Cuentas del servidor Linux/macOS"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Configure"
+msgstr "Configurar"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "PAM service"
+msgstr "Servicio PAM"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "empty = everyone"
+msgstr "vacío = todos"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Use the system home folder (/home/user)"
+msgstr "Usar el home del sistema (/home/usuario)"
+
+#: storageweb/web/templates/admin/settings/auth.html
+#, python-format
+msgid "Connection checked %(when)s"
+msgstr "Conexión comprobada el %(when)s"
+
+#: storageweb/web/templates/admin/settings/auth.html
+#, python-format
+msgid "Partly checked %(when)s"
+msgstr "Comprobada en parte el %(when)s"
+
+#: storageweb/web/templates/admin/settings/auth.html
+#, python-format
+msgid "Problems in the last check (%(when)s)"
+msgstr "Problemas en la última comprobación (%(when)s)"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Not checked yet"
+msgstr "Sin comprobar todavía"
+
+#: storageweb/web/templates/admin/settings/auth.html
+#, python-format
+msgid "The client secret expired on %(date)s."
+msgstr "El secreto de cliente caducó el %(date)s."
+
+#: storageweb/web/templates/admin/settings/auth.html
+#, python-format
+msgid "The client secret expires on %(date)s (in %(num)s day)."
+msgid_plural "The client secret expires on %(date)s (in %(num)s days)."
+msgstr[0] "El secreto de cliente caduca el %(date)s (en %(num)s día)."
+msgstr[1] "El secreto de cliente caduca el %(date)s (en %(num)s días)."
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Test connection"
+msgstr "Probar conexión"
+
+#: storageweb/web/templates/admin/settings/auth.html
+#: storageweb/web/templates/admin/settings/entra_register.html
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Register in Entra ID"
+msgstr "Registrar en Entra ID"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Renew secret"
+msgstr "Renovar secreto"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Setup assistant"
+msgstr "Asistente"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "The test uses the saved settings: save before testing."
+msgstr "La prueba usa los ajustes guardados: guarda antes de probar."
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Grant group reading"
+msgstr "Conceder lectura de grupos"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Connection"
+msgstr "Conexión"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Implementation"
+msgstr "Implementación"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "OAuth2 / OIDC (no dependencies)"
+msgstr "OAuth2 / OIDC (sin dependencias)"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "MSAL (Microsoft library)"
+msgstr "MSAL (librería de Microsoft)"
+
+#: storageweb/web/templates/admin/settings/auth.html
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "•••••••• (configured, leave empty to keep it)"
+msgstr "•••••••• (configurado, dejar vacío para conservar)"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Not configured"
+msgstr "No configurado"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "To be warned 30 days before. Filled in automatically when StorageWeb creates the secret."
+msgstr "Para avisarte 30 días antes. Se rellena sola cuando StorageWeb crea el secreto."
+
+#: storageweb/web/templates/admin/settings/auth.html
+#, python-format
+msgid "Empty = %(uri)s. It must be registered in Entra ID → Authentication → Web."
+msgstr "Vacío = %(uri)s. Debe estar registrada en Entra ID → Autenticación → Web."
+
+#: storageweb/web/templates/admin/settings/auth.html storageweb/web/views/auth.py
+msgid "Sign in with Microsoft"
+msgstr "Iniciar sesión con Microsoft"
+
+#: storageweb/web/templates/admin/settings/auth.html
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Users and roles"
+msgstr "Usuarios y roles"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "if disabled, only Entra users registered beforehand by an administrator can sign in"
+msgstr "si se desactiva, solo entran usuarios de Entra dados de alta antes por un administrador"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "empty = any user of the tenant"
+msgstr "vacío = cualquier usuario del tenant"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Group or App Role"
+msgstr "Grupo o App Role"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Remove mapping"
+msgstr "Quitar mapeo"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "+ Add mapping"
+msgstr "+ Añadir mapeo"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Recalculate the role on every sign-in according to the mapping"
+msgstr "Recalcular el rol en cada inicio de sesión según el mapeo"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Advanced"
+msgstr "Avanzado"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Only for another OIDC provider or custom endpoints. Empty = Microsoft's for the tenant."
+msgstr "Solo para otro proveedor OIDC o endpoints propios. Vacío = los de Microsoft para el tenant."
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Additional scopes"
+msgstr "Scopes adicionales"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Remove the domain from the user name (juan@contoso.com → juan)"
+msgstr "Quitar el dominio del usuario (juan@contoso.com → juan)"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid "Timeout (s)"
+msgstr "Tiempo de espera (s)"
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid ""
+"Create a new client secret? You will sign in with Microsoft to authorize it; the current one "
+"keeps working until it expires."
+msgstr ""
+"¿Crear un secreto de cliente nuevo? Iniciarás sesión con Microsoft para autorizarlo; el actual "
+"sigue funcionando hasta que caduque."
+
+#: storageweb/web/templates/admin/settings/backups.html
+msgid "Audit entries"
+msgstr "Entradas de auditoría"
+
+#: storageweb/web/templates/admin/settings/backups.html
+#, python-format
+msgid "since %(date)s"
+msgstr "desde el %(date)s"
+
+#: storageweb/web/templates/admin/settings/backups.html
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "Open sessions"
+msgstr "Sesiones abiertas"
+
+#: storageweb/web/templates/admin/settings/backups.html
+msgid "Last audit cleanup"
+msgstr "Última limpieza de la auditoría"
+
+#: storageweb/web/templates/admin/settings/backups.html
+#, python-format
+msgid "Remove the audit entries older than %(days)s days?"
+msgstr "¿Borrar las entradas de auditoría de hace más de %(days)s días?"
+
+#: storageweb/web/templates/admin/settings/backups.html
+msgid "Clean the audit log now"
+msgstr "Limpiar la auditoría ahora"
+
+#: storageweb/web/templates/admin/settings/backups.html
+msgid "Backups"
+msgstr "Copias de seguridad"
+
+#: storageweb/web/templates/admin/settings/backups.html
+#, python-format
+msgid ""
+"Database, config.json and secret_key, in %(folder)s. Files are not included: back them up with "
+"your usual tool."
+msgstr ""
+"Base de datos, config.json y secret_key, en %(folder)s. Los archivos no se incluyen: cópialos con"
+" tu herramienta habitual."
+
+#: storageweb/web/templates/admin/settings/backups.html
+#, python-format
+msgid "Delete the backup %(name)s?"
+msgstr "¿Borrar la copia %(name)s?"
+
+#: storageweb/web/templates/admin/settings/backups.html
+msgid "There are no backups yet."
+msgstr "Todavía no hay copias."
+
+#: storageweb/web/templates/admin/settings/backups.html
+msgid "Restoring replaces the database, so it is done with the service stopped:"
+msgstr "Restaurar sustituye la base de datos, así que se hace con el servicio parado:"
+
+#: storageweb/web/templates/admin/settings/backups.html
+msgid "file"
+msgstr "fichero"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Sign-in settings"
+msgstr "Ajustes de inicio de sesión"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "Renew the client secret"
+msgstr "Renovar el secreto de cliente"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "Allow reading group names"
+msgstr "Permitir leer los nombres de los grupos"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "Register StorageWeb in Entra ID"
+msgstr "Registrar StorageWeb en Entra ID"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid ""
+"Sign in with Microsoft and StorageWeb creates a new secret in the application and saves it. The "
+"current one keeps working until it expires."
+msgstr ""
+"Inicia sesión con Microsoft y StorageWeb crea un secreto nuevo en la aplicación y lo guarda. El "
+"actual sigue funcionando hasta que caduque."
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid ""
+"Sign in with Microsoft and StorageWeb gives the application the Group.Read.All permission with "
+"admin consent, so it can show group names instead of Object IDs."
+msgstr ""
+"Inicia sesión con Microsoft y StorageWeb da a la aplicación el permiso Group.Read.All con "
+"consentimiento de administrador, para mostrar nombres de grupos en lugar de Object IDs."
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid ""
+"You sign in with Microsoft once and StorageWeb creates and configures the application for you. "
+"Nothing to copy from the Azure portal."
+msgstr ""
+"Inicias sesión con Microsoft una vez y StorageWeb crea y configura la aplicación por ti. No hay "
+"que copiar nada del portal de Azure."
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+#, python-format
+msgid "Open %(link)s on any device."
+msgstr "Abre %(link)s en cualquier dispositivo."
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "Enter this code:"
+msgstr "Escribe este código:"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "Code"
+msgstr "Código"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid ""
+"Sign in with an account that can register applications (Application Administrator or Global "
+"Administrator) and accept."
+msgstr ""
+"Inicia sesión con una cuenta que pueda registrar aplicaciones (Administrador de aplicaciones o "
+"Administrador global) y acepta."
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+#, python-format
+msgid "Waiting for you to sign in… The code expires in %(minutes)s minutes."
+msgstr "Esperando a que inicies sesión… El código caduca en %(minutes)s minutos."
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "I have signed in: continue"
+msgstr "Ya he iniciado sesión: continuar"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "Name of the application in Entra ID"
+msgstr "Nombre de la aplicación en Entra ID"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "Entra ID only accepts HTTPS return addresses (or localhost)."
+msgstr "Entra ID solo acepta direcciones de vuelta HTTPS (o localhost)."
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "Set the public name in Network and HTTPS"
+msgstr "Define el nombre público en Red y HTTPS"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid ""
+"It comes from the public name (Network and HTTPS) or, if empty, from the address you are using "
+"now."
+msgstr "Sale del nombre público (Red y HTTPS) o, si está vacío, de la dirección por la que entras ahora."
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "Create the App Roles StorageWeb.Admin and StorageWeb.User"
+msgstr "Crear los App Roles StorageWeb.Admin y StorageWeb.User"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid ""
+"You get StorageWeb.Admin, and it is mapped to the administrator role. Assign them in Enterprise "
+"applications."
+msgstr ""
+"A ti se te asigna StorageWeb.Admin, que se mapea al rol de administrador. Asígnalos en "
+"Aplicaciones empresariales."
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "Send the user's groups in the token (groups claim)"
+msgstr "Enviar los grupos del usuario en el token (claim groups)"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "Needed to use Entra ID groups in StorageWeb."
+msgstr "Necesario para usar grupos de Entra ID en StorageWeb."
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "Allow reading group names (Group.Read.All)"
+msgstr "Permitir leer los nombres de los grupos (Group.Read.All)"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "So StorageWeb shows the names of your Entra ID groups instead of their Object IDs."
+msgstr "Para que StorageWeb muestre los nombres de tus grupos de Entra ID en lugar de sus Object IDs."
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "Only assigned users can sign in"
+msgstr "Solo pueden entrar los usuarios asignados"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "Assignment required = yes. You are assigned automatically if the App Roles are created."
+msgstr "Asignación requerida = sí. Si se crean los App Roles, a ti se te asigna automáticamente."
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "What will be created:"
+msgstr "Qué se va a crear:"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid ""
+"an application for your organization only, with the permissions openid, profile, email and "
+"User.Read and admin consent, a client secret valid for 24 months and its enterprise application. "
+"Tenant, client and secret are saved in the settings; Entra ID is enabled in the last step, after "
+"checking it."
+msgstr ""
+"una aplicación solo para tu organización, con los permisos openid, profile, email y User.Read y "
+"consentimiento de administrador, un secreto de cliente válido 24 meses y su aplicación "
+"empresarial. El tenant, el cliente y el secreto se guardan en los ajustes; Entra ID se activa en "
+"el último paso, después de comprobarlo."
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "Do it by hand instead"
+msgstr "Hacerlo a mano"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid "Sign in with Microsoft and register"
+msgstr "Iniciar sesión con Microsoft y registrar"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid ""
+"The sign-in uses the device code flow with the public «Microsoft Graph Command Line Tools» "
+"client. The first time, Microsoft may ask you to consent to it. StorageWeb does not keep that "
+"token."
+msgstr ""
+"El inicio de sesión usa el flujo de código de dispositivo con el cliente público «Microsoft Graph"
+" Command Line Tools». La primera vez, Microsoft puede pedirte que lo autorices. StorageWeb no "
+"guarda ese token."
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Connect with Microsoft Entra ID"
+msgstr "Conectar con Microsoft Entra ID"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Four steps. You can leave and continue later: what you save is kept."
+msgstr "Cuatro pasos. Puedes salir y seguir después: lo guardado se conserva."
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Registration"
+msgstr "Registro"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Identifiers"
+msgstr "Identificadores"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Check"
+msgstr "Comprobar"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "in the Azure portal"
+msgstr "en el portal de Azure"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "tenant, client, secret"
+msgstr "tenant, cliente, secreto"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "provisioning and administrators"
+msgstr "alta y administradores"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "and enable"
+msgstr "y activar"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Let StorageWeb do it"
+msgstr "Que lo haga StorageWeb"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid ""
+"Sign in with Microsoft once and the application is created and filled in for you: you jump "
+"straight to step 4."
+msgstr ""
+"Inicia sesión con Microsoft una vez y la aplicación se crea y se rellena sola: pasas directamente"
+" al paso 4."
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "1. Register the application in Entra ID"
+msgstr "1. Registra la aplicación en Entra ID"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid ""
+"In the Azure portal: <strong>Entra ID → App registrations → New registration</strong>. Choose "
+"«Web» as the platform and use this redirect URI:"
+msgstr ""
+"En el portal de Azure: <strong>Entra ID → Registros de aplicaciones → Nuevo registro</strong>. "
+"Elige «Web» como plataforma y usa esta URI de redirección:"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid ""
+"It is computed from the address you are using now. If StorageWeb is behind a proxy, check that it"
+" is the public one; you can change it in the next step."
+msgstr ""
+"Se calcula a partir de la dirección por la que entras ahora. Si StorageWeb está detrás de un "
+"proxy, comprueba que sea la pública; puedes cambiarla en el siguiente paso."
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid ""
+"Optional: in «Token configuration» add the «groups» claim if you are going to use Entra ID groups"
+" in StorageWeb."
+msgstr ""
+"Opcional: en «Configuración del token» añade el claim «groups» si vas a usar grupos de Entra ID "
+"en StorageWeb."
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "2. Copy the identifiers"
+msgstr "2. Copia los identificadores"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Directory (tenant) ID"
+msgstr "Id. de directorio (tenant)"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Application (client) ID"
+msgstr "Id. de aplicación (cliente)"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Client secret"
+msgstr "Secreto de cliente"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Certificates & secrets → New client secret. Copy the value, not the ID. It expires: note the date."
+msgstr ""
+"Certificados y secretos → Nuevo secreto de cliente. Copia el valor, no el id. Caduca: apunta la "
+"fecha."
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Save and continue"
+msgstr "Guardar y seguir"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "3. Who signs in and with which role?"
+msgstr "3. ¿Quién entra y con qué rol?"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "User provisioning"
+msgstr "Alta de usuarios"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Automatic"
+msgstr "Automática"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Anyone in your organization can sign in and is created with the default role."
+msgstr "Cualquiera de tu organización puede entrar y se crea con el rol por defecto."
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Only registered users"
+msgstr "Solo dados de alta"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "An administrator creates each user beforehand."
+msgstr "Un administrador crea antes cada usuario."
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Limit to these groups (optional)"
+msgstr "Limitar a estos grupos (opcional)"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Object ID or App Role"
+msgstr "Object ID o App Role"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Administrators: group or App Role (optional)"
+msgstr "Administradores: grupo o App Role (opcional)"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Its members get the administrator role. More mappings can be added later in the settings."
+msgstr "Sus miembros reciben el rol de administrador. Puedes añadir más mapeos después en los ajustes."
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "4. Check and enable"
+msgstr "4. Comprueba y activa"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+#, python-format
+msgid ""
+"The application %(client)s was created in Entra ID. Its secret expires on %(date)s: create a new "
+"one before that date."
+msgstr ""
+"Se ha creado la aplicación %(client)s en Entra ID. Su secreto caduca el %(date)s: crea uno nuevo "
+"antes de esa fecha."
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Open it in the Entra portal"
+msgstr "Abrirla en el portal de Entra"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid ""
+"A new application or secret can take a minute to work everywhere: if the check fails, wait and "
+"test again."
+msgstr ""
+"Una aplicación o un secreto nuevos pueden tardar un minuto en funcionar en todas partes: si la "
+"comprobación falla, espera y vuelve a probar."
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Fill in the identifiers first (step 2)."
+msgstr "Rellena antes los identificadores (paso 2)."
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Test again"
+msgstr "Volver a probar"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "The check found problems. Enable Entra ID anyway?"
+msgstr "La comprobación ha encontrado problemas. ¿Activar Entra ID de todos modos?"
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Enable Entra ID"
+msgstr "Activar Entra ID"
+
+#: storageweb/web/templates/admin/settings/general.html
+msgid "Used when the user has not chosen one and the browser does not ask for an available language."
+msgstr "Se usa cuando el usuario no ha elegido uno y el navegador no pide ninguno disponible."
+
+#: storageweb/web/templates/admin/settings/general.html
+msgid "Brand"
+msgstr "Marca"
+
+#: storageweb/web/templates/admin/settings/general.html
+msgid "Main color"
+msgstr "Color principal"
+
+#: storageweb/web/templates/admin/settings/general.html
+msgid "Buttons, links and highlights. It is used in the light and the dark theme."
+msgstr "Botones, enlaces y resaltados. Se usa en el tema claro y en el oscuro."
+
+#: storageweb/web/templates/admin/settings/general.html
+msgid "Upload"
+msgstr "Subir"
+
+#: storageweb/web/templates/admin/settings/general.html
+msgid "Remove logo"
+msgstr "Quitar logo"
+
+#: storageweb/web/templates/admin/settings/general.html
+msgid ""
+"PNG, JPEG, WebP or SVG up to 512 KB, square works best. It replaces the icon of the side bar, the"
+" sign-in page and the browser tab."
+msgstr ""
+"PNG, JPEG, WebP o SVG de hasta 512 KB; mejor cuadrado. Sustituye al icono de la barra lateral, la"
+" página de inicio de sesión y la pestaña del navegador."
+
+#: storageweb/web/templates/admin/settings/ips.html
+msgid "Blocked addresses"
+msgstr "Direcciones bloqueadas"
+
+#: storageweb/web/templates/admin/settings/ips.html
+#, python-format
+msgid "Your address: %(ip)s. Rescue from the server: storageweb-admin ip-unban --all"
+msgstr "Tu dirección: %(ip)s. Rescate desde el servidor: storageweb-admin ip-unban --all"
+
+#: storageweb/web/templates/admin/settings/ips.html
+msgid "Address or network"
+msgstr "Dirección o red"
+
+#: storageweb/web/templates/admin/settings/ips.html
+msgid "Reason"
+msgstr "Motivo"
+
+#: storageweb/web/templates/admin/settings/ips.html
+msgid "Since"
+msgstr "Desde"
+
+#: storageweb/web/templates/admin/settings/ips.html
+msgid "Until"
+msgstr "Hasta"
+
+#: storageweb/web/templates/admin/settings/ips.html
+msgid "automatic"
+msgstr "automático"
+
+#: storageweb/web/templates/admin/settings/ips.html
+msgid "Unblock"
+msgstr "Desbloquear"
+
+#: storageweb/web/templates/admin/settings/ips.html
+msgid "No address is blocked."
+msgstr "No hay ninguna dirección bloqueada."
+
+#: storageweb/web/templates/admin/settings/ips.html
+msgid "Duration"
+msgstr "Duración"
+
+#: storageweb/web/templates/admin/settings/ips.html
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "1 hour"
+msgstr "1 hora"
+
+#: storageweb/web/templates/admin/settings/ips.html
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "1 day"
+msgstr "1 día"
+
+#: storageweb/web/templates/admin/settings/ips.html
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "1 week"
+msgstr "1 semana"
+
+#: storageweb/web/templates/admin/settings/ips.html
+msgid "Indefinitely"
+msgstr "Indefinidamente"
+
+#: storageweb/web/templates/admin/settings/ips.html
+msgid "Reason (optional)"
+msgstr "Motivo (opcional)"
+
+#: storageweb/web/templates/admin/settings/ips.html
+msgid "Block"
+msgstr "Bloquear"
+
+#: storageweb/web/templates/admin/settings/ips.html
+msgid "Allow list"
+msgstr "Lista blanca"
+
+#: storageweb/web/templates/admin/settings/ips.html
+msgid ""
+"These addresses are never blocked, automatically or by hand (for example the office network or "
+"your VPN)."
+msgstr ""
+"Estas direcciones nunca se bloquean, ni automáticamente ni a mano (por ejemplo, la red de la "
+"oficina o tu VPN)."
+
+#: storageweb/web/templates/admin/settings/ips.html
+msgid "Empty."
+msgstr "Vacía."
+
+#: storageweb/web/templates/admin/settings/ips.html
+msgid "Note (optional)"
+msgstr "Nota (opcional)"
+
+#: storageweb/web/templates/admin/settings/maintenance.html
+msgid "0 = forever. Older entries are removed once a day."
+msgstr "0 = siempre. Las entradas más antiguas se borran una vez al día."
+
+#: storageweb/web/templates/admin/settings/maintenance.html
+msgid "0 = never from the service (the systemd timer storageweb-backup.timer can do it instead)."
+msgstr "0 = nunca desde el servicio (puede hacerlo el timer de systemd storageweb-backup.timer)."
+
+#: storageweb/web/templates/admin/settings/network.html
+msgid "Public name (FQDN)"
+msgstr "Nombre público (FQDN)"
+
+#: storageweb/web/templates/admin/settings/network.html
+#, python-format
+msgid ""
+"Only the name, e.g. files.example.com (HTTPS is assumed). Add a port or a path if needed: "
+"files.example.com/files. Write http:// in front only for local tests. Used for the Entra ID "
+"return address and other external links. Empty = the host of each request (now %(base)s)."
+msgstr ""
+"Solo el nombre, p. ej. files.ejemplo.com (se asume HTTPS). Añade puerto o ruta si hace falta: "
+"files.ejemplo.com/archivos. Escribe http:// delante solo para pruebas en local. Se usa para la "
+"dirección de vuelta de Entra ID y otros enlaces externos. Vacío = el host de cada petición (ahora"
+" %(base)s)."
+
+#: storageweb/web/templates/admin/settings/network.html
+#, python-format
+msgid "Resulting address: %(url)s"
+msgstr "Dirección resultante: %(url)s"
+
+#: storageweb/web/templates/admin/settings/network.html
+msgid "Check of this request"
+msgstr "Comprobación de esta petición"
+
+#: storageweb/web/templates/admin/settings/network.html
+msgid "The application sees"
+msgstr "La aplicación ve"
+
+#: storageweb/web/templates/admin/settings/network.html
+msgid "Client address"
+msgstr "Dirección del cliente"
+
+#: storageweb/web/templates/admin/settings/network.html
+#, python-format
+msgid "through %(peer)s"
+msgstr "a través de %(peer)s"
+
+#: storageweb/web/templates/admin/settings/network.html
+msgid "Reverse proxy and HTTPS (config.json, requires restarting)"
+msgstr "Proxy inverso y HTTPS (config.json, requiere reiniciar)"
+
+#: storageweb/web/templates/admin/settings/network.html
+msgid ""
+"StorageWeb serves plain HTTP; HTTPS and the certificate are handled by the reverse proxy (nginx, "
+"Caddy, Traefik…)."
+msgstr ""
+"StorageWeb sirve HTTP sin cifrar; el HTTPS y el certificado los pone el proxy inverso (nginx, "
+"Caddy, Traefik…)."
+
+#: storageweb/web/templates/admin/settings/network.html
+#: storageweb/web/templates/admin/settings/system.html
+msgid "Yes"
+msgstr "Sí"
+
+#: storageweb/web/templates/admin/settings/network.html
+#: storageweb/web/templates/admin/settings/system.html
+msgid "No"
+msgstr "No"
+
+#: storageweb/web/templates/admin/settings/network.html
+msgid "Example for nginx with these values"
+msgstr "Ejemplo para nginx con estos valores"
+
+#: storageweb/web/templates/admin/settings/network.html
+msgid "Example for Caddy (automatic certificate)"
+msgstr "Ejemplo para Caddy (certificado automático)"
+
+#: storageweb/web/templates/admin/settings/permissions.html
+msgid "Permissions of the «User» role"
+msgstr "Permisos del rol «Usuario»"
+
+#: storageweb/web/templates/admin/settings/permissions.html
+msgid "Administrators always have every permission. In read-only folders only downloading is allowed."
+msgstr ""
+"Los administradores tienen siempre todos los permisos. En carpetas de solo lectura solo se "
+"permite descargar."
+
+#: storageweb/web/templates/admin/settings/security.html
+msgid "Failed sign-ins"
+msgstr "Inicios de sesión fallidos"
+
+#: storageweb/web/templates/admin/settings/security.html
+msgid ""
+"After that many failed attempts from the same user name and address, sign-in is blocked for those"
+" minutes."
+msgstr ""
+"Tras ese número de intentos fallidos con el mismo usuario y dirección, el inicio de sesión se "
+"bloquea esos minutos."
+
+#: storageweb/web/templates/admin/settings/security.html
+msgid "Automatic IP blocking"
+msgstr "Bloqueo automático de IPs"
+
+#: storageweb/web/templates/admin/settings/security.html
+msgid ""
+"Wrong passwords, invalid CSRF tokens and invalid API tokens count. Loopback addresses and the "
+"allow list are never blocked."
+msgstr ""
+"Cuentan las contraseñas erróneas, los tokens CSRF no válidos y los tokens de API no válidos. Las "
+"direcciones de loopback y la lista blanca nunca se bloquean."
+
+#: storageweb/web/templates/admin/settings/security.html
+msgid "In (minutes)"
+msgstr "En (minutos)"
+
+#: storageweb/web/templates/admin/settings/security.html
+msgid "0 = until an administrator removes it"
+msgstr "0 = hasta que un administrador lo quite"
+
+#: storageweb/web/templates/admin/settings/security.html
+msgid ""
+"Users create them in their profile to list, download and upload files from scripts. Disabling "
+"this stops every existing token."
+msgstr ""
+"Los usuarios los crean en su perfil para listar, descargar y subir archivos desde scripts. "
+"Desactivarlo detiene todos los tokens existentes."
+
+#: storageweb/web/templates/admin/settings/sessions.html
+#, python-format
+msgid "%(num)s session"
+msgid_plural "%(num)s sessions"
+msgstr[0] "%(num)s sesión"
+msgstr[1] "%(num)s sesiones"
+
+#: storageweb/web/templates/admin/settings/sessions.html
+#, python-format
+msgid "A session ends after %(hours)s hours without activity (session.lifetime_hours in config.json)."
+msgstr "Una sesión termina tras %(hours)s horas sin actividad (session.lifetime_hours en config.json)."
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "Close every session except yours? Everybody will have to sign in again."
+msgstr "¿Cerrar todas las sesiones menos la tuya? Todos tendrán que volver a iniciar sesión."
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "Close all except mine"
+msgstr "Cerrar todas menos la mía"
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "With the selected sessions:"
+msgstr "Con las sesiones seleccionadas:"
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "Close them"
+msgstr "Cerrarlas"
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "Yours is the only open session."
+msgstr "La tuya es la única sesión abierta."
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "Close the sessions without activity for that long?"
+msgstr "¿Cerrar las sesiones sin actividad desde hace ese tiempo?"
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "Close sessions without activity for more than"
+msgstr "Cerrar las sesiones sin actividad desde hace más de"
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "30 days"
+msgstr "30 días"
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "Browser"
+msgstr "Navegador"
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "Signed in"
+msgstr "Inicio de sesión"
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "Last activity"
+msgstr "Última actividad"
+
+#: storageweb/web/templates/admin/settings/sessions.html
+#, python-format
+msgid "Select the session of %(name)s"
+msgstr "Seleccionar la sesión de %(name)s"
+
+#: storageweb/web/templates/admin/settings/sessions.html
+#, python-format
+msgid "Close all the sessions of %(name)s"
+msgstr "Cerrar todas las sesiones de %(name)s"
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "All of the user"
+msgstr "Todas del usuario"
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "Close your own session? You will have to sign in again."
+msgstr "¿Cerrar tu propia sesión? Tendrás que volver a iniciar sesión."
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "Close (sign out)"
+msgstr "Cerrar (salir)"
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid ""
+"Disabling a user or changing their password closes all their sessions. From the server: "
+"storageweb-admin sessions-close <user> or --all."
+msgstr ""
+"Desactivar un usuario o cambiarle la contraseña cierra todas sus sesiones. Desde el servidor: "
+"storageweb-admin sessions-close <usuario> o --all."
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "Users create them in their profile. Revoking one stops it at once."
+msgstr "Los usuarios los crean en su perfil. Revocar uno lo detiene al momento."
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "Allow or forbid tokens in Security"
+msgstr "Permitir o prohibir tokens en Seguridad"
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "Last used"
+msgstr "Último uso"
+
+#: storageweb/web/templates/admin/settings/sessions.html
+msgid "There are no API tokens."
+msgstr "No hay tokens de API."
+
+#: storageweb/web/templates/admin/settings/storage.html
+#, python-brace-format
+msgid "Must contain {username}, which is replaced by the user name."
+msgstr "Debe contener {username}, que se sustituye por el nombre de usuario."
+
+#: storageweb/web/templates/admin/settings/storage.html
+msgid "0 = no limit; uploads are sent in parts"
+msgstr "0 = sin límite; las subidas van por partes"
+
+#: storageweb/web/templates/admin/settings/system.html
+msgid "Startup (config.json only, requires restarting the service)"
+msgstr "Arranque (solo config.json, requiere reiniciar el servicio)"
+
+#: storageweb/web/templates/admin/settings/system.html
+msgid "Configuration file"
+msgstr "Fichero de configuración"
+
+#: storageweb/web/templates/admin/settings/system.html
+msgid "Listening on"
+msgstr "Escucha"
+
+#: storageweb/web/templates/admin/settings/system.html
+msgid "behind a proxy"
+msgstr "detrás de proxy"
+
+#: storageweb/web/templates/admin/settings/system.html
+msgid "Maximum per request"
+msgstr "Máximo por petición"
+
+#: storageweb/web/templates/admin/settings/system.html
+msgid "each part of an upload and the upload without JavaScript"
+msgstr "cada parte de una subida y la subida sin JavaScript"
+
+#: storageweb/web/templates/admin/settings/system.html
+msgid "Secure cookie (HTTPS)"
+msgstr "Cookie segura (HTTPS)"
+
+#: storageweb/web/templates/admin/settings/system.html
+msgid "Changed from the web"
+msgstr "Cambiado en la web"
+
+#: storageweb/web/templates/admin/settings/system.html
+msgid "These values take precedence over config.json."
+msgstr "Estos valores mandan sobre config.json."
+
+#: storageweb/web/templates/admin/settings/system.html
+#, python-format
+msgid "Last change: %(date)s by %(user)s."
+msgstr "Última modificación: %(date)s por %(user)s."
+
+#: storageweb/web/templates/admin/settings/system.html
+msgid "Discard all settings saved from the web and go back to config.json?"
+msgstr "¿Descartar todos los ajustes guardados desde la web y volver a config.json?"
+
+#: storageweb/web/templates/admin/settings/system.html
+msgid "Reset everything to config.json"
+msgstr "Restablecer todo a config.json"
+
+#: storageweb/web/templates/admin/settings/system.html
+msgid "Nothing: every value comes from config.json."
+msgstr "Nada: todos los valores vienen de config.json."
+
+#: storageweb/web/templates/admin/settings/system.html
+msgid "Effective configuration (JSON, secrets hidden)"
+msgstr "Configuración efectiva (JSON, secretos ocultos)"
+
 #: storageweb/web/templates/admin/users/_macros.html
 msgid "Users view"
 msgstr "Vista de usuarios"
 
-#: storageweb/web/templates/admin/users/_macros.html
-msgid "Cards"
-msgstr "Tarjetas"
-
-#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/admin/users/cards.html
-#: storageweb/web/templates/admin/users/panel.html
+#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/admin/users/panel.html
 msgid "Active"
 msgstr "Activo"
 
-#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/admin/users/cards.html
-#: storageweb/web/templates/admin/users/panel.html storageweb/web/views/admin.py
-msgid "Disabled"
-msgstr "Deshabilitado"
-
-#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/admin/users/cards.html
+#: storageweb/web/templates/admin/users/_macros.html
 msgid "Search by user name, name or email"
 msgstr "Buscar por usuario, nombre o email"
 
@@ -2186,10 +4102,6 @@ msgid "Not registered: click to register it"
 msgstr "Sin dar de alta: haz clic para darlo de alta"
 
 #: storageweb/web/templates/admin/users/_macros.html
-msgid "not registered"
-msgstr "sin dar de alta"
-
-#: storageweb/web/templates/admin/users/_macros.html
 msgid "Add to a group…"
 msgstr "Añadir a un grupo…"
 
@@ -2212,36 +4124,8 @@ msgid "by %(name)s"
 msgstr "por %(name)s"
 
 #: storageweb/web/templates/admin/users/_macros.html
-msgid "No activity yet."
-msgstr "Todavía no hay actividad."
-
-#: storageweb/web/templates/admin/users/_macros.html
 msgid "See it in the audit log"
 msgstr "Verla en la auditoría"
-
-#: storageweb/web/templates/admin/users/cards.html
-msgid "Search…"
-msgstr "Buscar…"
-
-#: storageweb/web/templates/admin/users/cards.html
-msgid "Quick edit"
-msgstr "Edición rápida"
-
-#: storageweb/web/templates/admin/users/cards.html
-msgid "Close"
-msgstr "Cerrar"
-
-#: storageweb/web/templates/admin/users/cards.html
-msgid "Account active"
-msgstr "Cuenta activa"
-
-#: storageweb/web/templates/admin/users/cards.html
-msgid "Can sign in"
-msgstr "Puede iniciar sesión"
-
-#: storageweb/web/templates/admin/users/cards.html storageweb/web/templates/admin/users/panel.html
-msgid "Full record"
-msgstr "Ficha completa"
 
 #: storageweb/web/templates/admin/users/panel.html
 msgid "List of users"
@@ -2264,6 +4148,29 @@ msgstr "Grupos (%(count)s)"
 msgid "Activity"
 msgstr "Actividad"
 
+#: storageweb/web/templates/admin/users/panel.html
+msgid "Full record"
+msgstr "Ficha completa"
+
+#: storageweb/web/views/access.py
+#, python-format
+msgid "Shared folder «%(label)s» created."
+msgstr "Carpeta compartida «%(label)s» creada."
+
+#: storageweb/web/views/access.py
+#, python-format
+msgid "Shared folder «%(label)s» saved."
+msgstr "Carpeta compartida «%(label)s» guardada."
+
+#: storageweb/web/views/access.py
+#, python-format
+msgid "Shared folder «%(label)s» removed. Its files are still on the server."
+msgstr "Carpeta compartida «%(label)s» quitada. Sus archivos siguen en el servidor."
+
+#: storageweb/web/views/admin.py
+msgid "Review the network"
+msgstr "Revisar la red"
+
 #: storageweb/web/views/admin.py
 msgid "Select some users and an action."
 msgstr "Selecciona algunos usuarios y una acción."
@@ -2278,10 +4185,6 @@ msgid "Done for %(num)s user."
 msgid_plural "Done for %(num)s users."
 msgstr[0] "Hecho para %(num)s usuario."
 msgstr[1] "Hecho para %(num)s usuarios."
-
-#: storageweb/web/views/admin.py storageweb/web/views/groups.py
-msgid "Changes saved."
-msgstr "Cambios guardados."
 
 #: storageweb/web/views/admin.py
 #, python-format
@@ -2299,6 +4202,10 @@ msgid "User «%(name)s» created."
 msgstr "Usuario «%(name)s» creado."
 
 #: storageweb/web/views/admin.py storageweb/web/views/groups.py
+msgid "Changes saved."
+msgstr "Cambios guardados."
+
+#: storageweb/web/views/admin.py storageweb/web/views/groups.py
 #, python-format
 msgid "«%(user)s» added to the group «%(group)s»."
 msgstr "«%(user)s» añadido al grupo «%(group)s»."
@@ -2308,40 +4215,21 @@ msgstr "«%(user)s» añadido al grupo «%(group)s»."
 msgid "User «%(name)s» deleted (their files have not been removed)."
 msgstr "Usuario «%(name)s» eliminado (sus archivos no se han borrado)."
 
-#: storageweb/web/views/admin.py
+#: storageweb/web/views/admin.py storageweb/web/views/profile.py
+msgid "Session closed."
+msgstr "Sesión cerrada."
+
+#: storageweb/web/views/admin.py storageweb/web/views/profile.py storageweb/web/views/settings.py
 #, python-format
-msgid "%(field)s must be a number"
-msgstr "%(field)s debe ser un número"
+msgid "%(num)s session closed."
+msgid_plural "%(num)s sessions closed."
+msgstr[0] "%(num)s sesión cerrada."
+msgstr[1] "%(num)s sesiones cerradas."
 
-#: storageweb/web/views/admin.py
+#: storageweb/web/views/admin.py storageweb/web/views/profile.py
 #, python-format
-msgid "Role mapping, line %(line)s: use the format «group = role»"
-msgstr "Mapeo de roles, línea %(line)s: usa el formato «grupo = rol»"
-
-#: storageweb/web/views/admin.py
-msgid "Maximum size per file"
-msgstr "Tamaño máximo por archivo"
-
-#: storageweb/web/views/admin.py
-msgid "Timeout"
-msgstr "Tiempo de espera"
-
-#: storageweb/web/views/admin.py
-msgid "Failed attempts"
-msgstr "Intentos fallidos"
-
-#: storageweb/web/views/admin.py storageweb/web/views/groups.py
-#, python-format
-msgid "The changes were not saved: %(error)s"
-msgstr "No se guardaron los cambios: %(error)s"
-
-#: storageweb/web/views/admin.py
-msgid "Settings saved and applied."
-msgstr "Ajustes guardados y aplicados."
-
-#: storageweb/web/views/admin.py
-msgid "Web settings discarded; config.json applies again."
-msgstr "Se han descartado los ajustes web; vuelve a aplicarse config.json."
+msgid "Token «%(name)s» revoked."
+msgstr "Token «%(name)s» revocado."
 
 #: storageweb/web/views/auth.py
 msgid "Enter your user name and password."
@@ -2453,10 +4341,6 @@ msgid "There were no changes."
 msgstr "No había cambios."
 
 #: storageweb/web/views/profile.py
-msgid "System"
-msgstr "Sistema"
-
-#: storageweb/web/views/profile.py
 msgid "Light"
 msgstr "Claro"
 
@@ -2481,6 +4365,319 @@ msgid "The new password must be different from the current one."
 msgstr "La nueva contraseña debe ser distinta de la actual."
 
 #: storageweb/web/views/profile.py
-msgid "Password changed."
-msgstr "Contraseña cambiada."
+msgid "Password changed. Your other sessions have been closed."
+msgstr "Contraseña cambiada. Se han cerrado tus otras sesiones."
+
+#: storageweb/web/views/settings.py
+msgid "Name of the application, default language, logo and color."
+msgstr "Nombre de la aplicación, idioma por defecto, logo y color."
+
+#: storageweb/web/views/settings.py
+msgid "Where personal folders live and upload limits."
+msgstr "Dónde están las carpetas personales y límites de subida."
+
+#: storageweb/web/views/settings.py
+msgid "What the «User» role can do. Administrators always have every permission."
+msgstr "Qué puede hacer el rol «Usuario». Los administradores siempre tienen todos los permisos."
+
+#: storageweb/web/views/settings.py
+msgid "How users sign in. Several methods can be enabled at the same time."
+msgstr "Cómo inician sesión los usuarios. Puedes tener varios métodos activos a la vez."
+
+#: storageweb/web/views/settings.py
+msgid "Protection against password guessing, automatic IP blocking and API tokens."
+msgstr "Protección contra quien prueba contraseñas, bloqueo automático de IPs y tokens de API."
+
+#: storageweb/web/views/settings.py
+msgid "Addresses blocked by hand or automatically, and addresses that are never blocked."
+msgstr "Direcciones bloqueadas a mano o automáticamente, y direcciones que nunca se bloquean."
+
+#: storageweb/web/views/settings.py
+msgid "How long the audit log is kept and how often backups are made."
+msgstr "Cuánto se guarda la auditoría y cada cuánto se hacen copias."
+
+#: storageweb/web/views/settings.py
+msgid "Backups, database size and cleanup tasks."
+msgstr "Copias de seguridad, tamaño de la base de datos y tareas de limpieza."
+
+#: storageweb/web/views/settings.py
+msgid ""
+"Who is signed in now and which API tokens exist. Closing a session signs that browser out on its "
+"next request."
+msgstr ""
+"Quién ha iniciado sesión ahora y qué tokens de API existen. Cerrar una sesión saca a ese "
+"navegador en su siguiente petición."
+
+#: storageweb/web/views/settings.py
+msgid ""
+"Public address, reverse proxy and HTTPS. The proxy and the certificate are configured outside "
+"StorageWeb; here you can check that everything matches."
+msgstr ""
+"Dirección pública, proxy inverso y HTTPS. El proxy y el certificado se configuran fuera de "
+"StorageWeb; aquí compruebas que todo encaja."
+
+#: storageweb/web/views/settings.py
+msgid "Startup settings (config.json only) and values changed from the web."
+msgstr "Ajustes de arranque (solo config.json) y valores cambiados en la web."
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid "%(field)s must be a number"
+msgstr "%(field)s debe ser un número"
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid "Role mapping, line %(line)s: use the format «group = role»"
+msgstr "Mapeo de roles, línea %(line)s: usa el formato «grupo = rol»"
+
+#: storageweb/web/views/settings.py
+msgid "Maximum size per file"
+msgstr "Tamaño máximo por archivo"
+
+#: storageweb/web/views/settings.py
+msgid "Timeout"
+msgstr "Tiempo de espera"
+
+#: storageweb/web/views/settings.py
+msgid "Failed attempts"
+msgstr "Intentos fallidos"
+
+#: storageweb/web/views/settings.py
+msgid "Window"
+msgstr "Ventana"
+
+#: storageweb/web/views/settings.py
+msgid "Block duration"
+msgstr "Duración del bloqueo"
+
+#: storageweb/web/views/settings.py
+msgid "Audit retention"
+msgstr "Retención de la auditoría"
+
+#: storageweb/web/views/settings.py
+msgid "Automatic backups"
+msgstr "Copias automáticas"
+
+#: storageweb/web/views/settings.py
+msgid "Settings saved and applied."
+msgstr "Ajustes guardados y aplicados."
+
+#: storageweb/web/views/settings.py
+msgid "Web settings discarded; config.json applies again."
+msgstr "Se han descartado los ajustes web; vuelve a aplicarse config.json."
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid "It cannot be reset: %(error)s"
+msgstr "No se puede restablecer: %(error)s"
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid "«%(path)s» uses the value of config.json again."
+msgstr "«%(path)s» vuelve a usar el valor de config.json."
+
+#: storageweb/web/views/settings.py
+msgid "Choose an image."
+msgstr "Elige una imagen."
+
+#: storageweb/web/views/settings.py
+msgid "Logo updated."
+msgstr "Logo actualizado."
+
+#: storageweb/web/views/settings.py
+msgid "Logo removed."
+msgstr "Logo quitado."
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid "%(network)s blocked."
+msgstr "%(network)s bloqueada."
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid "%(network)s removed."
+msgstr "%(network)s quitada."
+
+#: storageweb/web/views/settings.py
+msgid "Select at least one session."
+msgstr "Selecciona al menos una sesión."
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid "Database compacted: %(before)s → %(after)s."
+msgstr "Base de datos compactada: %(before)s → %(after)s."
+
+#: storageweb/web/views/settings.py
+msgid "Set the audit retention first."
+msgstr "Define antes la retención de la auditoría."
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid "%(num)s audit entry removed."
+msgid_plural "%(num)s audit entries removed."
+msgstr[0] "%(num)s entrada de auditoría borrada."
+msgstr[1] "%(num)s entradas de auditoría borradas."
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid "The backup failed: %(error)s"
+msgstr "La copia ha fallado: %(error)s"
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid "Backup %(name)s created."
+msgstr "Copia %(name)s creada."
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid "Backup %(name)s deleted."
+msgstr "Copia %(name)s borrada."
+
+#: storageweb/web/views/settings.py
+msgid ""
+"The request carries X-Forwarded-* headers but server.behind_proxy is disabled: they are ignored, "
+"so the client address and the scheme are those of the proxy."
+msgstr ""
+"La petición trae cabeceras X-Forwarded-* pero server.behind_proxy está desactivado: se ignoran, "
+"así que la dirección del cliente y el esquema son los del proxy."
+
+#: storageweb/web/views/settings.py
+msgid ""
+"server.behind_proxy is enabled but this request has no X-Forwarded-For: it did not go through the"
+" proxy."
+msgstr ""
+"server.behind_proxy está activo pero esta petición no trae X-Forwarded-For: no ha pasado por el "
+"proxy."
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid ""
+"The service listens on %(host)s, so anyone who reaches it directly can fake their address. Listen"
+" on 127.0.0.1."
+msgstr ""
+"El servicio escucha en %(host)s, así que cualquiera que llegue directo puede falsear su "
+"dirección. Escucha en 127.0.0.1."
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid ""
+"There is no public address: external URLs use the host of each request (%(base)s now). Set it if "
+"users can arrive through more than one name."
+msgstr ""
+"No hay dirección pública: las URLs externas usan el host de cada petición (ahora %(base)s). "
+"Defínela si se puede entrar por más de un nombre."
+
+#: storageweb/web/views/settings.py
+msgid ""
+"The public address is HTTPS but the application sees this request as HTTP: the proxy does not "
+"send X-Forwarded-Proto or server.behind_proxy is disabled."
+msgstr ""
+"La dirección pública es HTTPS pero la aplicación ve esta petición como HTTP: el proxy no envía X"
+"-Forwarded-Proto o server.behind_proxy está desactivado."
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid "You are using %(host)s; the public address is %(public)s."
+msgstr "Estás entrando por %(host)s; la dirección pública es %(public)s."
+
+#: storageweb/web/views/settings.py
+msgid ""
+"The public address is not HTTPS: Entra ID only accepts HTTPS return addresses and passwords "
+"travel in clear text."
+msgstr ""
+"La dirección pública no es HTTPS: Entra ID solo acepta direcciones de vuelta HTTPS y las "
+"contraseñas viajan sin cifrar."
+
+#: storageweb/web/views/settings.py
+msgid ""
+"The session cookie is HTTPS-only but the application sees this request as HTTP: the proxy "
+"probably does not send X-Forwarded-Proto. Generated URLs will be http://."
+msgstr ""
+"La cookie de sesión es solo HTTPS pero la aplicación ve esta petición como HTTP: probablemente el"
+" proxy no envía X-Forwarded-Proto. Las URLs generadas serán http://."
+
+#: storageweb/web/views/settings.py
+msgid "session.cookie_secure is disabled: enable it in production (config.json)."
+msgstr "session.cookie_secure está desactivado: actívalo en producción (config.json)."
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid "The Entra ID redirect URI (%(uri)s) does not use the public address."
+msgstr "La Redirect URI de Entra ID (%(uri)s) no usa la dirección pública."
+
+#: storageweb/web/views/settings.py
+msgid "The proxy, the scheme and the public address match."
+msgstr "El proxy, el esquema y la dirección pública coinciden."
+
+#: storageweb/web/views/settings.py
+msgid "Connection with Entra ID checked: everything is correct."
+msgstr "Conexión con Entra ID comprobada: todo correcto."
+
+#: storageweb/web/views/settings.py
+msgid "Connection with Entra ID checked: there are problems, see the details."
+msgstr "Conexión con Entra ID comprobada: hay problemas, mira el detalle."
+
+#: storageweb/web/views/settings.py
+msgid "Entra ID enabled. Users can now sign in with Microsoft."
+msgstr "Entra ID activado. Los usuarios ya pueden iniciar sesión con Microsoft."
+
+#: storageweb/web/views/settings.py
+msgid "Entra ID only accepts HTTPS return addresses: set the public name in Network and HTTPS."
+msgstr "Entra ID solo acepta direcciones de vuelta HTTPS: define el nombre público en Red y HTTPS."
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid "Could not start the sign-in with Microsoft: %(error)s"
+msgstr "No se pudo empezar el inicio de sesión con Microsoft: %(error)s"
+
+#: storageweb/web/views/settings.py
+msgid "There is no Client ID configured."
+msgstr "No hay ningún Client ID configurado."
+
+#: storageweb/web/views/settings.py
+msgid "The sign-in code has expired or was cancelled. Start again."
+msgstr "El código de inicio de sesión ha caducado o se ha cancelado. Empieza de nuevo."
+
+#: storageweb/web/views/settings.py
+msgid "Microsoft has not confirmed the sign-in yet."
+msgstr "Microsoft todavía no ha confirmado el inicio de sesión."
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid "Microsoft refused the sign-in: %(error)s"
+msgstr "Microsoft ha rechazado el inicio de sesión: %(error)s"
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid "The secret could not be renewed: %(error)s"
+msgstr "No se pudo renovar el secreto: %(error)s"
+
+#: storageweb/web/views/settings.py
+msgid "New client secret created and saved. The previous one keeps working until it expires."
+msgstr "Secreto de cliente nuevo creado y guardado. El anterior sigue funcionando hasta que caduque."
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid "Reading groups could not be granted: %(error)s"
+msgstr "No se pudo conceder la lectura de grupos: %(error)s"
+
+#: storageweb/web/views/settings.py
+msgid "The application can now read group names (it may take a minute)."
+msgstr "La aplicación ya puede leer los nombres de los grupos (puede tardar un minuto)."
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid "The application could not be registered: %(error)s"
+msgstr "No se pudo registrar la aplicación: %(error)s"
+
+#: storageweb/web/views/settings.py
+#, python-format
+msgid ""
+"The application was created in Entra ID (%(client)s) but the settings could not be saved: "
+"%(error)s"
+msgstr "La aplicación se creó en Entra ID (%(client)s) pero no se pudieron guardar los ajustes: %(error)s"
+
+#: storageweb/web/views/settings.py
+msgid "Application registered in Entra ID and saved."
+msgstr "Aplicación registrada en Entra ID y guardada."
 

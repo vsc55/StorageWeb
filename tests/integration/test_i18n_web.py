@@ -102,7 +102,8 @@ def test_logout_keeps_language(logged):
     assert "You have signed out." in resp.get_data(as_text=True)
 
 
-@pytest.mark.parametrize("url", ["/f/home/", "/admin/users", "/admin/users/new", "/admin/settings",
+@pytest.mark.parametrize("url", ["/f/home/", "/admin/users", "/admin/users/new", "/admin/settings/auth",
+                                 "/admin/settings/system", "/admin/settings/entra/setup?step=3",
                                  "/admin/audit", "/f/no-existe/"])
 def test_english_pages_have_no_spanish(admin, url):
     client, _ = admin

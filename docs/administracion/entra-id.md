@@ -1,5 +1,34 @@
 # Microsoft Entra ID (SSO)
 
+
+## Registro automático (recomendado)
+
+*Seguridad → Inicio de sesión → **Registrar en Entra ID*** crea la aplicación por ti:
+
+1. Elige el nombre y las opciones: App Roles `StorageWeb.Admin` y `StorageWeb.User`, claim de grupos y si solo pueden entrar los usuarios asignados.
+2. Pulsa *Iniciar sesión con Microsoft y registrar*. Abre `microsoft.com/devicelogin` en cualquier dispositivo, escribe el código e inicia sesión con una cuenta que pueda registrar aplicaciones (Administrador de aplicaciones o Administrador global).
+3. StorageWeb crea con Microsoft Graph la aplicación (solo para tu organización, Redirect URI, permisos `openid profile email User.Read`), un secreto de 24 meses, la aplicación empresarial y el consentimiento de administrador. Si se crean los App Roles, te asigna `StorageWeb.Admin` y lo mapea al rol de administrador.
+4. Guarda el tenant, el cliente y el secreto en los ajustes y te lleva al último paso del asistente, que comprueba la conexión y activa Entra ID.
+
+Requisitos y detalles:
+
+- La Redirect URI sale del **nombre público** (*Red y HTTPS*); Entra ID solo acepta HTTPS (o `localhost`).
+- El inicio de sesión usa el flujo de código de dispositivo con el cliente público de Microsoft *Microsoft Graph Command Line Tools* (el de `Connect-MgGraph`), con los permisos delegados `Application.ReadWrite.All`, `DelegatedPermissionGrant.ReadWrite.All` y `AppRoleAssignment.ReadWrite.All`. La primera vez Microsoft puede pedir que lo autorices. StorageWeb no guarda ese token.
+- El consentimiento de administrador y la asignación del rol son de mejor esfuerzo: si fallan, la aplicación ya funciona y el asistente muestra el aviso y el enlace al portal.
+- Apunta la caducidad del secreto: el asistente la muestra al terminar.
+
+Si prefieres hacerlo a mano, sigue los pasos de abajo.
+
+## Caducidad y renovación del secreto
+
+El registro automático guarda la fecha de caducidad del secreto (`auth.entra.secret_expires`); si registraste la aplicación a mano, ponla en *Inicio de sesión → Conexión*. Desde 30 días antes, los administradores ven un aviso en todas las páginas.
+
+*Renovar secreto* inicia sesión con Microsoft (el mismo código de dispositivo) y crea un secreto nuevo en la aplicación existente, que se guarda solo. El anterior sigue funcionando hasta su caducidad; puedes borrarlo después en el portal.
+
+## Nombres de los grupos
+
+Para mostrar los grupos de Entra ID con su nombre en lugar del Object ID (en *Grupos*, en la ficha de los usuarios y en el buscador al dar de alta un grupo), la aplicación necesita el permiso de aplicación `Group.Read.All` con consentimiento de administrador. El registro automático lo concede (opción marcada por defecto). Para una aplicación existente, *Probar conexión* avisa si falta y ofrece **Conceder lectura de grupos**. Sin el permiso todo funciona igual, solo que se ven los Object IDs.
+
 ## Implementaciones
 
 | `auth.entra.provider` | Descripción |
@@ -24,7 +53,12 @@ Los motivos de esta elección están en el [ADR 0003](../arquitectura/decisiones
 
 ## 2. Configurar StorageWeb
 
-En **Administración → Ajustes → Microsoft Entra ID** o en `config.json`:
+La forma más rápida es el **asistente**: *Seguridad → Inicio de sesión → Asistente*. Te da la Redirect URI para copiar, pide los identificadores y el secreto, el alta de usuarios y el grupo de administradores, comprueba la conexión y activa Entra ID.
+
+!!! tip "Probar conexión"
+    El botón *Probar conexión* comprueba la configuración guardada sin que nadie inicie sesión: que el tenant existe (metadatos OIDC), que la aplicación existe y la Redirect URI está registrada (petición a `/authorize` con `prompt=none`) y que el secreto es válido y no ha caducado (token de aplicación con `client_credentials`). Necesita salida a `login.microsoftonline.com`. Con endpoints propios solo comprueba los metadatos del `issuer`.
+
+También se puede configurar a mano en **Seguridad → Inicio de sesión** o en `config.json`:
 
 ```json
 "entra": {

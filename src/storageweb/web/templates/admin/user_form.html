@@ -92,7 +92,7 @@
 <section class="card section-gap" aria-labelledby="user-groups-title">
   <h2 id="user-groups-title" class="card-title">{{ _("Groups") }}</h2>
   <p class="muted small">{{ _("They give access to shared folders.") }}</p>
-  {{ group_chips(user, memberships, unknown_groups, addable_groups, request.path) }}
+  {{ group_chips(user, memberships, unknown_groups, addable_groups, request.path, unknown_names) }}
   {% if user['source'] != 'local' %}<p class="muted small">{{ _("Groups with a padlock come from %(source)s and are updated on each sign-in: change them there. The others are assigned here and are kept when the user signs in again.", source=SOURCE_LABELS[user['source']]) }}</p>{% endif %}
 </section>
 {% endif %}
@@ -146,6 +146,35 @@
     <h2 id="access-title" class="card-title">{{ _("Effective access") }}</h2>
     <p class="muted small">{{ _("What they see when they sign in, and why.") }}</p>
     {{ access_list(user, access, role_permissions) }}
+  </section>
+  <section class="card" aria-labelledby="sessions-title">
+    <h2 id="sessions-title" class="card-title">{{ _("Sessions and API tokens") }}</h2>
+    <ul class="access-list">
+      {% for s in user_sessions %}
+      <li><svg class="icon" aria-hidden="true"><use href="#i-monitor"></use></svg>
+        <span class="access-text"><strong>{{ s['user_agent']|ua_summary }}</strong>
+          <span class="muted small">{{ s['ip'] or '—' }} · {{ _("active %(when)s", when=s['last_seen']|datetime) }}</span></span>
+        <form method="post" action="{{ url_for('admin.session_close', sid=s['id']) }}" class="inline">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+          <button class="link-btn small" type="submit">{{ _("Close") }}</button></form></li>
+      {% else %}
+      <li class="muted small">{{ _("No open sessions.") }}</li>
+      {% endfor %}
+      {% for t in user_tokens %}
+      <li><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg>
+        <span class="access-text"><strong>{{ t['name'] }}</strong>
+          <span class="muted small"><code>{{ t['prefix'] }}…</code> · {{ t['scope'] }} · {{ _("last used %(when)s", when=t['last_used_at']|datetime) }}</span></span>
+        <form method="post" action="{{ url_for('admin.user_token_delete', user_id=user['id'], token_id=t['id']) }}" class="inline js-confirm"
+              data-confirm="{{ _('Revoke the token «%(name)s»?', name=t['name']) }}">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+          <button class="link-btn small" type="submit">{{ _("Revoke") }}</button></form></li>
+      {% endfor %}
+    </ul>
+    {% if user_sessions %}
+    <form method="post" action="{{ url_for('admin.user_sessions_close', user_id=user['id']) }}" class="inline">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+      <button class="btn btn-small" type="submit">{{ _("Close all their sessions") }}</button></form>
+    {% endif %}
   </section>
   <section class="card" aria-labelledby="activity-title">
     <h2 id="activity-title" class="card-title">{{ _("Recent activity") }}</h2>

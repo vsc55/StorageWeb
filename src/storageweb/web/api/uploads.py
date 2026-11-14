@@ -15,6 +15,7 @@ from flask import Blueprint, abort, g, request
 
 from ...core import storage
 from ...core import uploads as core
+from ...core import tokens
 from ...core.permissions import effective_for_root, permissions_for
 from ...core.security import PathError, resolve_inside, safe_filename
 from ...db.repositories import audit
@@ -53,7 +54,7 @@ def _writable_dir(root_name: str, rel: str) -> tuple[dict, Path]:
         abort(404, description=_("Folder not found"))
     if not directory.is_dir():
         abort(404, description=_("Folder not found"))
-    if "upload" not in effective_for_root(permissions_for(g.user, cfg), root):
+    if "upload" not in tokens.restrict(effective_for_root(permissions_for(g.user, cfg), root), g.get("api_token")):
         abort(403, description=_("You are not allowed to upload files here"))
     return root, directory
 

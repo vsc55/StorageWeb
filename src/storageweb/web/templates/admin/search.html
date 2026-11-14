@@ -1,0 +1,30 @@
+{% extends "admin/_layout.html" %}
+{% block title %}{{ _("Search") }} · {{ app_name }}{% endblock %}
+{% block admin_content %}
+<div class="overview">
+  <div class="overview-head">
+    <h1>{{ _("Search the administration") }}</h1>
+    <form class="search-box" method="get" action="{{ url_for('admin.search') }}" role="search">
+      <svg class="icon icon-sm" aria-hidden="true"><use href="#i-search"></use></svg>
+      <input type="search" name="q" value="{{ query }}" aria-label="{{ _('Search') }}"
+             placeholder="{{ _('A setting, an action, a user or a group…') }}">
+      <button class="btn btn-small" type="submit">{{ _("Search") }}</button>
+    </form>
+  </div>
+  {% if results %}
+  <ul class="search-results">
+    {% set ns = namespace(last='') %}
+    {% for r in results %}
+    {% if r.group != ns.last %}<li><span class="result-group">{{ r.group }}</span></li>{% set ns.last = r.group %}{% endif %}
+    <li><a class="result result-{{ r.kind }}" href="{{ r.url }}">
+      <span class="result-icon">{% if r.icon %}<svg class="icon" aria-hidden="true"><use href="#i-{{ r.icon }}"></use></svg>{% else %}#{% endif %}</span>
+      <span class="result-text"><strong>{{ r.title }}</strong>{% if r.path %}<span>{{ r.path }}</span>{% endif %}</span>
+      {% if r.hint %}<span class="result-hint">{{ r.hint }}</span>{% endif %}
+    </a></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty card">{{ _("Nothing found for «%(query)s».", query=query) }}</p>
+  {% endif %}
+</div>
+{% endblock %}

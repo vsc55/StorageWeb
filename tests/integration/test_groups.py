@@ -6,7 +6,7 @@ from storageweb.core.storage import available_roots
 from storageweb.db.repositories import audit, users
 from storageweb.db.repositories import groups as repo
 from storageweb.web.context import get_db, settings
-from tests.helpers import add_user, visible
+from tests.helpers import add_user, page_form, visible
 
 
 @pytest.fixture
@@ -44,9 +44,12 @@ def test_rail_link_and_last_view(admin):
     client, _ = admin
     assert client.get("/admin/groups/").location.endswith("/admin/groups/list")
     html = client.get("/admin/groups/list").get_data(as_text=True)
-    assert 'href="/admin/groups/"' in html and "Matriz de accesos" in html
+    assert 'href="/admin/groups/"' in html
+    client.get("/admin/groups/panel")
+    assert client.get("/admin/groups/").location.endswith("/admin/groups/panel")
+    # La matriz es de Acceso: visitarla no cambia a dónde lleva Personas → Grupos
     client.get("/admin/groups/matrix")
-    assert client.get("/admin/groups/").location.endswith("/admin/groups/matrix")
+    assert client.get("/admin/groups/").location.endswith("/admin/groups/panel")
 
 
 # --------------------------------------------------------------------------- A: lista + ficha
@@ -166,8 +169,10 @@ def test_settings_page_keeps_read_only_groups(app, admin):
     client, token = admin
     gid = _group(app, "it")
     client.post("/admin/groups/matrix", data={"_csrf": token, f"access-{gid}-software": "read"})
-    html = client.get("/admin/settings").get_data(as_text=True)
-    assert 'name="share_read_only_groups" value="it"' in html
+    # La ficha de la carpeta lo muestra y guardarla sin cambios lo conserva
+    data = page_form(client, "/admin/access/folders/software")
+    assert data["entry_ref"] == ["it"] and data["entry_level"] == ["read"]
+    assert client.post("/admin/access/folders/software", data=data).status_code == 302
     with app.test_request_context():
         assert settings()["storage"]["shares"][0]["read_only_groups"] == ["it"]
 

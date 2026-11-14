@@ -6,8 +6,8 @@
 |---|---|
 | Log del servicio | `journalctl -u storageweb -f` · OpenRC: `/var/log/storageweb/storageweb.log` · Docker: `docker logs -f storageweb` |
 | Estado | `curl -s http://127.0.0.1:8080/healthz` → `{"status": "ok", "version": "…"}` |
-| Configuración efectiva | `storageweb-admin check-config` y *Administración → Ajustes → Configuración efectiva* |
-| Quién hizo qué | `storageweb-admin audit --limit 50 [--user ana]` o *Administración → Auditoría* |
+| Configuración efectiva | `storageweb-admin check-config` y *Sistema → Información → Configuración efectiva* |
+| Quién hizo qué | `storageweb-admin audit --limit 50 [--user ana]` o *Seguridad → Auditoría* |
 
 ## Inicio de sesión
 

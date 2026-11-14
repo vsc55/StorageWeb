@@ -29,6 +29,10 @@ storageweb [--config RUTA] <comando> [opciones]
 | [`audit`](#audit) | Muestra el registro de auditoría |
 | [`check-config`](#check-config) | Valida la configuración y avisa si no hay ningún administrador |
 | [`settings-reset`](#settings-reset) | Descarta los ajustes guardados desde la web y vuelve a config.json |
+| [`ip-list`](#ip-list) | Lista las direcciones IP bloqueadas y permitidas |
+| [`ip-unban`](#ip-unban) | Desbloquea una IP o red (rescate si te has bloqueado) |
+| [`ip-allow`](#ip-allow) | Añade una IP o red a la lista blanca (nunca se bloquea) |
+| [`sessions-close`](#sessions-close) | Cierra las sesiones abiertas de un usuario (o de todos) |
 | [`backup`](#backup) | Copia de seguridad de la base de datos, config.json y secret_key |
 | [`backup-list`](#backup-list) | Lista las copias de seguridad de una carpeta |
 | [`restore`](#restore) | Restaura una copia (con el servicio parado) |
@@ -174,6 +178,54 @@ Descarta los ajustes guardados desde la web y vuelve a config.json.
 storageweb settings-reset
 ```
 
+
+### `ip-list` {#ip-list}
+
+Lista las direcciones IP bloqueadas y permitidas.
+
+```
+storageweb ip-list
+```
+
+
+### `ip-unban` {#ip-unban}
+
+Desbloquea una IP o red (rescate si te has bloqueado).
+
+```
+storageweb ip-unban <network> [--all]
+```
+
+| Argumento | Descripción |
+|---|---|
+| `network` | Dirección IP o red (CIDR) |
+| `--all` | Quitar todos los bloqueos |
+
+### `ip-allow` {#ip-allow}
+
+Añade una IP o red a la lista blanca (nunca se bloquea).
+
+```
+storageweb ip-allow <network> [--reason REASON]
+```
+
+| Argumento | Descripción |
+|---|---|
+| `network` | Dirección IP o red (CIDR) |
+| `--reason` `REASON` | Nota |
+
+### `sessions-close` {#sessions-close}
+
+Cierra las sesiones abiertas de un usuario (o de todos).
+
+```
+storageweb sessions-close <username> [--all]
+```
+
+| Argumento | Descripción |
+|---|---|
+| `username` | Usuario |
+| `--all` | Cerrar todas las sesiones |
 
 ### `backup` {#backup}
 

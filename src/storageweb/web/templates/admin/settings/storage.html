@@ -1,0 +1,21 @@
+{% extends "admin/settings/_layout.html" %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar with context %}
+{% block section %}
+{% set st = cfg.storage %}
+{{ form_start() }}
+  <div class="card form-grid">
+    <label class="span2{{ err_class('storage.home_template') }}"><span class="label-row">{{ _("Personal folder template") }} {{ origin('storage.home_template') }}</span>
+      <input type="text" name="home_template" value="{{ st.home_template }}" required class="mono">
+      <small class="muted">{{ _("Must contain {username}, which is replaced by the user name.") }}</small>
+      {{ field_error('storage.home_template') }}</label>
+    <label class="check"><input type="checkbox" name="create_home" {% if st.create_home %}checked{% endif %}> {{ _("Create the personal folder on first access") }} {{ origin('storage.create_home') }}</label>
+    <label class="check"><input type="checkbox" name="create_shares" {% if st.create_shares %}checked{% endif %}> {{ _("Create shared folders if they do not exist") }} {{ origin('storage.create_shares') }}</label>
+    <label class="check"><input type="checkbox" name="show_hidden" {% if st.show_hidden %}checked{% endif %}> {{ _("Show hidden files") }} {{ origin('storage.show_hidden') }}</label>
+    <label class="{{ err_class('storage.max_file_size_mb') }}"><span class="label-row">{{ _("Maximum size per file (MB)") }} {{ origin('storage.max_file_size_mb') }}</span>
+      <input type="number" name="max_file_size_mb" value="{{ st.max_file_size_mb }}" min="0">
+      <small class="muted">{{ _("0 = no limit; uploads are sent in parts") }}</small>
+      {{ field_error('storage.max_file_size_mb') }}</label>
+  </div>
+  {{ save_bar() }}
+</form>
+{% endblock %}

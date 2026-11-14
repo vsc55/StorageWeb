@@ -31,14 +31,29 @@ def available_roots(user, cfg: dict) -> list[dict]:
     if user["role"] == ADMIN:
         ugroups.add(ADMINS_GROUP)  # grupo de serie: lo da el rol
     for share in cfg["storage"]["shares"]:
-        by_user = "*" in share["users"] or uname in share["users"]
-        matched = ugroups.intersection(share["groups"])
-        if not (by_user or matched):
-            continue
-        # Solo lectura si lo es la carpeta o si todos los grupos por los que entra son de solo lectura
-        read_only = share["read_only"] or (not by_user and matched <= set(share.get("read_only_groups", [])))
-        roots.append({**share, "path": Path(share["path"]), "read_only": read_only})
+        level = share_access(share, uname, ugroups)
+        if level != "none":
+            roots.append({**share, "path": Path(share["path"]), "read_only": level == "read"})
     return roots
+
+
+def share_access(share: dict, uname: str, ugroups: set[str]) -> str:
+    """Nivel (``none``/``read``/``write``) que da la carpeta a un usuario con esos grupos.
+
+    Se entra por nombre, por ``*`` (todos) o por grupo; se puede escribir si **alguna** de esas vías
+    no es de solo lectura, salvo que la carpeta entera lo sea.
+    """
+    ro_users = set(share.get("read_only_users", []))
+    paths = []  # una entrada por vía de acceso: True si permite escribir
+    if uname in share["users"]:
+        paths.append(uname not in ro_users)
+    if "*" in share["users"]:
+        paths.append("*" not in ro_users)
+    ro_groups = set(share.get("read_only_groups", []))
+    paths += [g not in ro_groups for g in ugroups.intersection(share["groups"])]
+    if not paths:
+        return "none"
+    return "write" if any(paths) and not share["read_only"] else "read"
 
 
 def explain_access(user, cfg: dict, group_labels: dict[str, str] | None = None) -> list[dict]:
@@ -56,12 +71,15 @@ def explain_access(user, cfg: dict, group_labels: dict[str, str] | None = None) 
     for root in available_roots(user, cfg)[1:]:
         share = next(s for s in cfg["storage"]["shares"] if s["name"] == root["name"])
         reasons = []
+        ro_users = set(share.get("read_only_users", []))
+        ro_groups = set(share.get("read_only_groups", []))
         if "*" in share["users"]:
-            reasons.append(_("open to all users"))
+            reasons.append(_("open to all users") + (_(" (read only)") if "*" in ro_users else ""))
         if uname in share["users"]:
-            reasons.append(_("by user name"))
+            reasons.append(_("by user name") + (_(" (read only)") if uname in ro_users else ""))
         for ref in sorted(ugroups.intersection(share["groups"])):
-            reasons.append(_("group %(name)s", name=labels.get(ref, ref)))
+            reasons.append(_("group %(name)s", name=labels.get(ref, ref))
+                           + (_(" (read only)") if ref in ro_groups else ""))
         if share["read_only"]:
             reasons.append(_("read-only folder"))
         result.append({"name": root["name"], "label": root["label"],

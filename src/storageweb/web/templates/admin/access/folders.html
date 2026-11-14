@@ -1,0 +1,54 @@
+{% extends "admin/_layout.html" %}
+{% from "admin/_page.html" import page_kind with context %}
+{% block title %}{{ _("Shared folders") }} · {{ app_name }}{% endblock %}
+{% block admin_content %}
+<div class="page-head">
+  <div>
+    <div class="settings-title"><h1>{{ _("Shared folders") }}</h1>{{ page_kind() }}
+      {% if changed %}<span class="origin" title="{{ _('Changed from the web: it takes precedence over config.json.') }}">{{ _("web") }}</span>{% endif %}</div>
+    <p class="muted small">{{ _("Each folder, who enters and with which permission. Click a folder to change it.") }}</p>
+  </div>
+  <div class="inline">
+    <a class="btn btn-ghost" href="{{ url_for('groups.matrix_view') }}">{{ _("Access matrix") }}</a>
+    <a class="btn btn-primary" href="{{ url_for('access.folder_new') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New shared folder") }}</a>
+  </div>
+</div>
+
+{% if not rows %}
+<div class="empty card">
+  <p>{{ _("There are no shared folders: every user only sees their personal folder.") }}</p>
+  <a class="btn btn-primary" href="{{ url_for('access.folder_new') }}">{{ _("New shared folder") }}</a>
+</div>
+{% else %}
+<div class="folder-list">
+  {% for row in rows %}
+  {% set s = row.share %}
+  <a class="folder-row{% if not row.exists and not create_shares %} is-missing{% endif %}" id="share-{{ s.name }}"
+     href="{{ url_for('access.folder', name=s.name) }}">
+    <span class="folder-main">
+      <strong>{{ s.label }} <span class="muted small">/f/{{ s.name }}</span></strong>
+      <span class="small muted"><code>{{ s.path }}</code>
+        {% if not row.exists %}· <span class="text-danger">{{ _("It does not exist on the server.") if not create_shares else _("It will be created on first use.") }}</span>{% endif %}</span>
+    </span>
+    <span class="folder-who">
+      {% if s.read_only %}<span class="badge">{{ _("read-only folder") }}</span>{% endif %}
+      {% for e in row.entries %}
+      <span class="access-chip{% if e.level == 'read' or s.read_only %} is-read{% endif %}"
+            title="{{ LEVEL_LABELS['read' if s.read_only else e.level] }}">
+        {% if e.kind == 'group' %}<svg class="icon icon-sm" aria-hidden="true"><use href="#i-users"></use></svg>
+        {% elif e.kind == 'user' %}<svg class="icon icon-sm" aria-hidden="true"><use href="#i-user"></use></svg>
+        {% else %}<svg class="icon icon-sm" aria-hidden="true"><use href="#i-globe"></use></svg>{% endif %}
+        {{ e.label }}{% if e.level == 'read' and not s.read_only %} · {{ _("read") }}{% endif %}
+      </span>
+      {% else %}
+      <span class="muted small">{{ _("Nobody has access yet.") }}</span>
+      {% endfor %}
+    </span>
+    <svg class="icon icon-sm muted" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+<p class="muted small section-gap">{{ _("Administrators also enter any folder open to the «Administrators» group. Who can upload, rename or delete inside a folder with write access depends on the role permissions.") }}
+  <a href="{{ url_for('settings.section', name='permissions') }}">{{ _("Role permissions") }}</a></p>
+{% endblock %}

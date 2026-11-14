@@ -1,0 +1,119 @@
+{% extends "admin/_layout.html" %}
+{% block title %}{{ _("Overview") }} · {{ app_name }}{% endblock %}
+{% macro links(zone) -%}
+<div class="zone-card-links">{% for p in zone.pages %}<a href="{{ p.url() }}">{{ p.label }}</a>{% endfor %}</div>
+{%- endmacro %}
+{% block admin_content %}
+<div class="overview">
+  <div class="overview-head">
+    <div>
+      <h1>{{ _("Overview") }}</h1>
+      <p class="muted small">{{ _("State of %(app)s and what needs your attention.", app=app_name) }}</p>
+    </div>
+    <form class="search-box" method="get" action="{{ url_for('admin.search') }}" role="search" data-open-search>
+      <svg class="icon icon-sm" aria-hidden="true"><use href="#i-search"></use></svg>
+      <input type="search" name="q" placeholder="{{ _('Search a setting, user or group…') }}" aria-label="{{ _('Search the administration') }}">
+      <kbd>Ctrl K</kbd>
+    </form>
+  </div>
+
+  <section class="alert-list" aria-labelledby="alerts-title">
+    {% if alerts %}
+    <h2 class="section-label" id="alerts-title">{{ ngettext("Needs your attention · %(num)s", "Needs your attention · %(num)s", alerts|length) }}</h2>
+    {% for a in alerts %}
+    <div class="alert alert-{{ a.level }}">
+      <span class="alert-text"><strong>{{ a.title }}</strong>{% if a.detail %} <span class="muted">· {{ a.detail }}</span>{% endif %}</span>
+      <a class="btn btn-small{% if a.level == 'danger' %} btn-danger{% endif %}" href="{{ a.url }}">{{ a.action }}</a>
+    </div>
+    {% endfor %}
+    {% else %}
+    <h2 class="sr-only" id="alerts-title">{{ _("Notices") }}</h2>
+    <p class="all-good">{{ _("Everything is in order: nothing needs your attention.") }}</p>
+    {% endif %}
+  </section>
+
+  <div class="zone-cards">
+    <section class="zone-card" aria-labelledby="zc-people">
+      <div class="zone-card-head"><h2 id="zc-people">{{ z.people.label }}</h2><a class="small" href="{{ z.people.first.url() }}">{{ _("Open") }} →</a></div>
+      <div class="stat-row">
+        <a class="stat" href="{{ url_for('admin.users_index') }}"><strong>{{ user_counts.all }}</strong>
+          <span>{{ _("Users") }}{% if user_counts.disabled %} · {{ ngettext("%(num)s disabled", "%(num)s disabled", user_counts.disabled) }}{% endif %}</span></a>
+        <a class="stat" href="{{ url_for('settings.section', name='sessions') }}"><strong>{{ online }}</strong>
+          <span>{{ _("signed in now") }}</span></a>
+        <a class="stat" href="{{ url_for('groups.index') }}"><strong>{{ groups }}</strong>
+          <span>{{ _("Groups") }}</span></a>
+      </div>
+      {{ links(z.people) }}
+    </section>
+
+    <section class="zone-card" aria-labelledby="zc-access">
+      <div class="zone-card-head"><h2 id="zc-access">{{ z.access.label }}</h2><a class="small" href="{{ z.access.first.url() }}">{{ _("Open") }} →</a></div>
+      <ul class="kv-list">
+        {% for row in shares[:5] %}
+        <li><a href="{{ url_for('access.folder', name=row.share.name) }}">{{ row.share.label }}</a>
+          {% if not row.exists %}<span class="text-danger">{{ _("does not exist") }}</span>
+          {% else %}<span>{{ ngettext("%(num)s entry", "%(num)s entries", row.entries|length) }}{% if row.share.read_only %} · {{ _("read only") }}{% endif %}</span>{% endif %}</li>
+        {% else %}
+        <li><span>{{ _("There are no shared folders.") }}</span><a href="{{ url_for('access.folder_new') }}">{{ _("New shared folder") }}</a></li>
+        {% endfor %}
+        {% if shares|length > 5 %}<li><span></span><a href="{{ url_for('access.folders') }}">{{ ngettext("and %(num)s more", "and %(num)s more", shares|length - 5) }}</a></li>{% endif %}
+        <li><span>{{ _("Role «User»") }}</span><span>{{ role_perms|join(', ') if role_perms else _("nothing") }}</span></li>
+      </ul>
+      {{ links(z.access) }}
+    </section>
+
+    <section class="zone-card" aria-labelledby="zc-security">
+      <div class="zone-card-head"><h2 id="zc-security">{{ z.security.label }}</h2><a class="small" href="{{ z.security.first.url() }}">{{ _("Open") }} →</a></div>
+      <ul class="kv-list">
+        <li><span>{{ _("Sign-in") }}</span><span>{{ methods|join(' · ') if methods else _("no method enabled") }}</span></li>
+        <li><span>{{ _("Failed sign-ins (24 h)") }}</span><span>{{ failed_logins }}</span></li>
+        <li><a href="{{ url_for('settings.section', name='ips') }}">{{ _("Blocked IPs") }}</a>
+          <span>{{ bans }}{% if auto_bans %} ({{ ngettext("%(num)s automatic", "%(num)s automatic", auto_bans) }}){% endif %}</span></li>
+        <li><span>{{ _("API tokens") }}</span><span>{{ tokens }}</span></li>
+      </ul>
+      {{ links(z.security) }}
+    </section>
+
+    <section class="zone-card" aria-labelledby="zc-system">
+      <div class="zone-card-head"><h2 id="zc-system">{{ z.system.label }}</h2><a class="small" href="{{ z.system.first.url() }}">{{ _("Open") }} →</a></div>
+      <ul class="kv-list">
+        <li><span>{{ _("Public address") }}</span><span>{{ public_url or _("not set") }}</span></li>
+        <li><a href="{{ url_for('settings.section', name='backups') }}">{{ _("Latest backup") }}</a>
+          <span>{% if newest_backup %}{{ newest_backup.created|datetime }} · {{ ngettext("%(num)s kept", "%(num)s kept", backup_count) }}{% else %}{{ _("none yet") }}{% endif %}</span></li>
+        <li><span>{{ _("Database") }}</span><span>{{ db_size|filesize }}</span></li>
+        <li><span>{{ _("Version") }}</span><span>StorageWeb {{ app_version }}</span></li>
+      </ul>
+      {{ links(z.system) }}
+    </section>
+  </div>
+
+  <section aria-labelledby="qa-title">
+    <h2 class="section-label" id="qa-title">{{ _("Frequent tasks") }}</h2>
+    <div class="quick-actions section-gap">
+      <a class="quick-action" href="{{ url_for('admin.user_new') }}"><span class="icon-box"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg></span>
+        <span><strong>{{ _("New user") }}</strong><small>{{ _("a local user; Entra ID users are created on first sign-in") }}</small></span></a>
+      <a class="quick-action" href="{{ url_for('access.folders') }}"><span class="icon-box"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-share"></use></svg></span>
+        <span><strong>{{ _("Give access to a folder") }}</strong><small>{{ _("to a group or a user") }}</small></span></a>
+      <a class="quick-action" href="{{ url_for('settings.section', name='sessions') }}"><span class="icon-box"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-users"></use></svg></span>
+        <span><strong>{{ _("Who is signed in") }}</strong><small>{{ ngettext("%(num)s user now", "%(num)s users now", online) }}</small></span></a>
+      <a class="quick-action" href="{{ url_for('settings.section', name='backups') }}"><span class="icon-box"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg></span>
+        <span><strong>{{ _("Create a backup now") }}</strong><small>{% if newest_backup %}{{ _("latest: %(date)s", date=newest_backup.created|datetime) }}{% else %}{{ _("none yet") }}{% endif %}</small></span></a>
+      <a class="quick-action" href="{{ url_for('settings.section', name='ips') }}"><span class="icon-box"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-lock"></use></svg></span>
+        <span><strong>{{ _("Block an IP address") }}</strong><small>{{ ngettext("%(num)s blocked", "%(num)s blocked", bans) }}</small></span></a>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="recent-title">
+    <div class="zone-card-head"><h2 class="section-label" id="recent-title">{{ _("Recent activity") }}</h2>
+      <a class="small" href="{{ url_for('admin.audit_log') }}">{{ _("All the audit log") }} →</a></div>
+    <ul class="kv-list section-gap">
+      {% for r in recent %}
+      <li><span><code>{{ r['action'] }}</code> {{ r['target'] or '' }} <span class="muted">· {{ r['username'] or '—' }}</span></span>
+        <span class="nowrap">{{ r['ts']|datetime }}</span></li>
+      {% else %}
+      <li class="muted">{{ _("No activity yet.") }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+{% endblock %}

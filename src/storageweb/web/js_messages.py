@@ -24,6 +24,10 @@ JS_MESSAGES = [
     N_("Delete %(num)s items? This cannot be undone."),
     N_("%(count)s unsaved changes"),
     N_("%(count)s selected:"),
+    N_("Copied"),
+    N_("Waiting for you to sign in…"),
+    N_("Signed in. Registering the application in Entra ID…"),
+    N_("Nothing found for «%(query)s»."),
 ]
 
 

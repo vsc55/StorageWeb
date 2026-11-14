@@ -1,10 +1,9 @@
-{# Piezas comunes de las tres vistas de usuarios (importar «with context») #}
+{# Piezas comunes de las vistas de usuarios (importar «with context») #}
 
 {% macro view_switch(view) -%}
 <nav class="segmented view-switch" aria-label="{{ _('Users view') }}">
   <a class="segment{% if view == 'list' %} active{% endif %}" href="{{ url_for('admin.users_list') }}"{% if view == 'list' %} aria-current="page"{% endif %}>{{ _("List") }}</a>
   <a class="segment{% if view == 'panel' %} active{% endif %}" href="{{ url_for('admin.users_panel') }}"{% if view == 'panel' %} aria-current="page"{% endif %}>{{ _("Panels") }}</a>
-  <a class="segment{% if view == 'cards' %} active{% endif %}" href="{{ url_for('admin.users_cards') }}"{% if view == 'cards' %} aria-current="page"{% endif %}>{{ _("Cards") }}</a>
 </nav>
 {%- endmacro %}
 
@@ -47,7 +46,7 @@
 {%- endmacro %}
 
 {# Grupos como fichas: candado = del proveedor o del rol; × = manual #}
-{% macro group_chips(user, memberships, unknown_groups, addable_groups, next) -%}
+{% macro group_chips(user, memberships, unknown_groups, addable_groups, next, unknown_names=None) -%}
 <div class="chips">
   {% for m in memberships %}
     {% if m['origin'] == 'role' %}
@@ -70,8 +69,8 @@
     {% endif %}
   {% endfor %}
   {% for ext in unknown_groups %}
-    <a class="chip chip-detected" href="{{ url_for('groups.new', source=user['source'], external_id=ext) }}"
-       title="{{ _('Not registered: click to register it') }}"><code>{{ ext }}</code> <span class="small">{{ _("not registered") }}</span></a>
+    <a class="chip chip-detected" href="{{ url_for('groups.new', source=user['source'], external_id=ext, label=(unknown_names or {}).get(ext, '')) }}"
+       title="{{ _('Not registered: click to register it') }}">{% if unknown_names and unknown_names.get(ext) %}<strong>{{ unknown_names[ext] }}</strong> {% endif %}<code>{{ ext }}</code> <span class="small">{{ _("not registered") }}</span></a>
   {% endfor %}
   {% if not memberships and not unknown_groups %}<span class="muted small">{{ _("No groups.") }}</span>{% endif %}
 </div>
@@ -103,7 +102,7 @@
   {% endfor %}
 </ul>
 <p class="muted small">{{ _("Allowed actions: %(perms)s.", perms=role_permissions|join(', ') or '—') }}
-  {% if user['role'] != 'admin' %}<a href="{{ url_for('admin.settings_page') }}">{{ _("Change them in Settings") }}</a>{% endif %}</p>
+  {% if user['role'] != 'admin' %}<a href="{{ url_for('settings.section', name='permissions') }}">{{ _("Change them in Settings") }}</a>{% endif %}</p>
 {% endif %}
 {%- endmacro %}
 

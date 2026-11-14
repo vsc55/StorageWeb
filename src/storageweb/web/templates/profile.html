@@ -60,6 +60,66 @@
       <p class="muted">{{ _("You sign in with %(source)s, so your password is managed there.", source=SOURCE_LABELS[user['source']]) }}</p>
     </div>
     {% endif %}
+
+    <section class="card stack" id="sessions" aria-labelledby="sessions-title">
+      <h2 class="card-title" id="sessions-title">{{ _("My sessions") }}</h2>
+      <ul class="access-list">
+        {% for s in my_sessions %}
+        <li><svg class="icon" aria-hidden="true"><use href="#i-monitor"></use></svg>
+          <span class="access-text"><strong>{{ s['user_agent']|ua_summary }}{% if s['id'] == current_sid %} <span class="badge">{{ _("this one") }}</span>{% endif %}</strong>
+            <span class="muted small">{{ s['ip'] or '—' }} · {{ _("active %(when)s", when=s['last_seen']|datetime) }}</span></span>
+          {% if s['id'] != current_sid %}
+          <form method="post" action="{{ url_for('profile.session_close', sid=s['id']) }}" class="inline">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="link-btn small" type="submit">{{ _("Close") }}</button></form>
+          {% endif %}</li>
+        {% endfor %}
+      </ul>
+      {% if my_sessions|length > 1 %}
+      <form method="post" action="{{ url_for('profile.sessions_close_others') }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button class="btn btn-small" type="submit">{{ _("Close the other sessions") }}</button></form>
+      {% endif %}
+    </section>
+
+    {% if tokens_enabled %}
+    <section class="card stack" id="tokens" aria-labelledby="tokens-title">
+      <h2 class="card-title" id="tokens-title">{{ _("API tokens") }}</h2>
+      <p class="muted small">{{ _("To use your files from scripts without your password. A token can do what you can, limited to its scope, and never gives access to administration.") }}</p>
+      {% if new_token %}
+      <div class="flash token-new" role="alert">
+        <strong>{{ _("Copy it now: it will not be shown again.") }}</strong>
+        <div class="copy-row"><input type="text" readonly value="{{ new_token }}" id="new-token" class="mono" aria-label="{{ _('New token') }}">
+          <button type="button" class="btn js-copy" data-copy="#new-token">{{ _("Copy") }}</button></div>
+        <code class="small">curl -H "Authorization: Bearer {{ new_token[:10] }}…" {{ url_for('files.browse', root='home', sub='', _external=True) }}</code>
+      </div>
+      {% endif %}
+      <ul class="access-list">
+        {% for t in my_tokens %}
+        <li><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg>
+          <span class="access-text"><strong>{{ t['name'] }}</strong>
+            <span class="muted small"><code>{{ t['prefix'] }}…</code> · {{ SCOPE_LABELS[t['scope']] }} ·
+              {{ _("expires %(when)s", when=t['expires_at']|datetime) if t['expires_at'] else _("does not expire") }} ·
+              {{ _("last used %(when)s", when=t['last_used_at']|datetime) }}</span></span>
+          <form method="post" action="{{ url_for('profile.token_delete', token_id=t['id']) }}" class="inline js-confirm"
+                data-confirm="{{ _('Revoke the token «%(name)s»?', name=t['name']) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="link-btn small" type="submit">{{ _("Revoke") }}</button></form></li>
+        {% else %}
+        <li class="muted small">{{ _("You have no tokens.") }}</li>
+        {% endfor %}
+      </ul>
+      <form method="post" action="{{ url_for('profile.token_create') }}" class="form-grid">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <label class="span2">{{ _("Name") }}<input type="text" name="name" maxlength="80" required placeholder="{{ _('e.g. nightly backup') }}"></label>
+        <label>{{ _("Scope") }}<select name="scope">{% for k, v in SCOPE_LABELS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+        <label>{{ _("Expires") }}<select name="days">
+          {% for d in EXPIRY_DAYS %}<option value="{{ d }}" {% if d == 90 %}selected{% endif %}>{{ ngettext("in %(num)s day", "in %(num)s days", d) if d else _("never") }}</option>{% endfor %}
+        </select></label>
+        <div class="span2"><button class="btn btn-primary" type="submit">{{ _("Create token") }}</button></div>
+      </form>
+    </section>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

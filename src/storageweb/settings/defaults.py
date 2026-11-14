@@ -8,10 +8,15 @@ SSO_PROVIDER_NAMES = ("oauth2", "msal")
 # Secciones que se pueden editar desde la web (se guardan en SQLite y prevalecen sobre config.json).
 # El resto (server, data_dir, database, secret_key, session) solo se configura en config.json
 # porque afectan al arranque.
-RUNTIME_SECTIONS = ("app_name", "default_locale", "storage", "permissions", "auth", "security")
+RUNTIME_SECTIONS = ("app_name", "default_locale", "branding", "network", "storage", "permissions", "auth", "security",
+                    "maintenance")
 
 # Campos secretos: nunca se muestran en la web; si se guardan vacíos se conserva el valor anterior.
 SECRET_FIELDS = (("auth", "entra", "client_secret"),)
+
+# Diccionarios que se tratan como un único valor al combinar ajustes web y config.json (no campo a
+# campo): vaciarlos en la web debe dejarlos vacíos, no heredar las claves del fichero.
+LEAF_PATHS = (("auth", "entra", "role_mappings"),)
 
 DEFAULTS: dict = {
     "app_name": "StorageWeb",
@@ -23,6 +28,8 @@ DEFAULTS: dict = {
         "threads": 8,
         # True si hay un proxy inverso (nginx) delante que envía X-Forwarded-*
         "behind_proxy": True,
+        # Número de proxies encadenados delante (nginx = 1; CDN + nginx = 2)
+        "proxy_hops": 1,
         # Tamaño máximo de cada petición HTTP (cada parte de una subida y la subida clásica sin JS)
         "max_upload_mb": 2048,
     },
@@ -31,6 +38,11 @@ DEFAULTS: dict = {
     "data_dir": "data",
     # Vacío = <data_dir>/storageweb.db
     "database": "",
+    # Nombre público (FQDN) con el que entran los usuarios: "files.empresa.es" (se asume HTTPS). Se usa
+    # para las URLs externas: la de vuelta de Entra ID y la de salida. Vacío = el host de cada petición.
+    "network": {
+        "public_url": "",
+    },
     "session": {
         "lifetime_hours": 8,
         # Debe ser True en producción (HTTPS). False solo para pruebas en http://localhost
@@ -46,7 +58,8 @@ DEFAULTS: dict = {
         # Tamaño máximo por archivo en MB (0 = sin límite). Las subidas se hacen por partes,
         # así que no dependen de server.max_upload_mb (que limita cada petición).
         "max_file_size_mb": 0,
-        # [{"name", "label", "path", "read_only", "users": ["*"], "groups": [], "read_only_groups": []}]
+        # [{"name", "label", "path", "read_only", "users": ["*"], "read_only_users": [],
+        #   "groups": [], "read_only_groups": []}]
         "shares": [],
     },
     # Permisos del rol "user" (el rol "admin" los tiene todos)
@@ -99,11 +112,33 @@ DEFAULTS: dict = {
             "issuer": "",
             "logout_url": "",
             "timeout_seconds": 15,
+            # Caducidad del client_secret (ISO 8601); vacía = desconocida. Se avisa 30 días antes.
+            "secret_expires": "",
         },
     },
     "security": {
         "max_login_failures": 5,
         "lockout_minutes": 15,
+        # Bloqueo de IPs tras muchas infracciones (contraseñas erróneas, CSRF, tokens no válidos)
+        "ipban_enabled": True,
+        "ipban_threshold": 20,
+        "ipban_window_minutes": 10,
+        "ipban_minutes": 60,
+        # Tokens de API personales (Authorization: Bearer sw_…)
+        "api_tokens": True,
+    },
+    "maintenance": {
+        # 0 = conservar toda la auditoría
+        "audit_retention_days": 0,
+        # 0 = sin copias automáticas desde el servicio (se puede usar el timer de systemd)
+        "backup_interval_hours": 0,
+        "backup_keep": 7,
+    },
+    "branding": {
+        # Color principal (#rrggbb); vacío = el de serie
+        "primary_color": "",
+        # Lo pone la subida del logo: logo.png, logo.svg…
+        "logo": "",
     },
 }
 
@@ -119,6 +154,14 @@ DESCRIPTIONS: dict[str, str] = {
     "server.threads": "Hilos de Waitress para atender peticiones en paralelo.",
     "server.behind_proxy": "Confiar en las cabeceras `X-Forwarded-*` (IP real, HTTPS, host) de un proxy inverso. "
                            "Actívalo solo si hay un proxy delante.",
+    "server.proxy_hops": "Número de proxies inversos encadenados delante del servicio (nginx = `1`; una CDN o un "
+                         "balanceador más nginx = `2`). Se confía en ese número de valores de `X-Forwarded-*`, "
+                         "incluido `X-Forwarded-Prefix` para servir bajo una subruta.",
+    "network.public_url": "Nombre público (FQDN) por el que entran los usuarios: `files.empresa.es`, con puerto "
+                          "o subruta si hace falta (`files.empresa.es/archivos`). Se asume HTTPS; escribe "
+                          "`http://` delante solo para pruebas en local. Se usa para las URLs externas: la de "
+                          "vuelta de Entra ID (si `auth.entra.redirect_uri` está vacía) y la de salida. Vacío = el "
+                          "host de cada petición. Se puede cambiar desde la web.",
     "server.max_upload_mb": "Tamaño máximo de cada petición HTTP: cada parte de una subida y la subida clásica sin "
                             "JavaScript. No limita el tamaño de los archivos (ver `storage.max_file_size_mb`).",
     "secret_key": "Clave para firmar las cookies de sesión. Vacía = se genera y guarda en `<data_dir>/secret_key`.",
@@ -139,10 +182,12 @@ DESCRIPTIONS: dict[str, str] = {
     "storage.shares[].path": "Ruta en el servidor. Relativa = respecto a la carpeta del `config.json`.",
     "storage.shares[].read_only": "Solo lectura: únicamente se permite descargar, también a los administradores.",
     "storage.shares[].users": "Usuarios con acceso; `[\"*\"]` = todos.",
-    "storage.shares[].groups": "Grupos con acceso: identificador de un grupo de *Administración → Grupos*, "
+    "storage.shares[].read_only_users": "Usuarios de `users` que solo pueden leer; `\"*\"` = todos los que "
+                                        "entran por `[\"*\"]`. Quien entra también por un grupo con escritura puede escribir.",
+    "storage.shares[].groups": "Grupos con acceso: identificador de un grupo de *Personas → Grupos*, "
                                "grupo del sistema, u Object ID/App Role de Entra ID.",
     "storage.shares[].read_only_groups": "Grupos de `groups` que solo pueden leer (los edita la matriz de "
-                                         "accesos). Quien entra también por otro grupo o por `users` puede escribir.",
+                                         "accesos). Quien entra también por otro grupo o por `users` con escritura puede escribir.",
     "permissions.user.upload": "El rol `user` puede subir archivos.",
     "permissions.user.download": "El rol `user` puede descargar archivos.",
     "permissions.user.mkdir": "El rol `user` puede crear carpetas.",
@@ -181,7 +226,24 @@ DESCRIPTIONS: dict[str, str] = {
     "auth.entra.timeout_seconds": "Tiempo máximo de espera al endpoint de token, en segundos.",
     "security.max_login_failures": "Intentos fallidos (por IP o por usuario) antes de bloquear temporalmente el login.",
     "security.lockout_minutes": "Duración del bloqueo tras demasiados intentos fallidos, en minutos.",
+    "security.ipban_enabled": "Bloquear automáticamente las IPs con muchas infracciones (contraseñas erróneas, "
+                              "CSRF no válido, tokens de API no válidos). Las direcciones de loopback y las de la "
+                              "lista blanca nunca se bloquean.",
+    "security.ipban_threshold": "Infracciones que bloquean una IP.",
+    "security.ipban_window_minutes": "Ventana en la que se cuentan las infracciones, en minutos.",
+    "security.ipban_minutes": "Duración del bloqueo automático, en minutos; `0` = hasta que un admin lo quite.",
+    "security.api_tokens": "Permitir tokens de API personales (`Authorization: Bearer sw_…`) para scripts.",
+    "maintenance.audit_retention_days": "Días que se conserva la auditoría; `0` = siempre. La limpieza se hace "
+                                        "una vez al día.",
+    "maintenance.backup_interval_hours": "Cada cuántas horas hace el servicio una copia de seguridad en "
+                                         "`<data_dir>/backups`; `0` = nunca (puedes usar el timer de systemd).",
+    "maintenance.backup_keep": "Copias que se conservan en `<data_dir>/backups`; las más antiguas se borran.",
+    "branding.primary_color": "Color principal de la interfaz (`#rrggbb`). Vacío = el de serie.",
+    "branding.logo": "Logo propio: lo rellena la subida desde *Sistema → General y marca* (`logo.png`, `logo.svg`…).",
+    "auth.entra.secret_expires": "Fecha de caducidad del `client_secret` (ISO 8601). La rellenan el registro "
+                                 "automático y la renovación; con ella se avisa a los admins 30 días antes.",
 }
 
 # Campos de cada elemento de storage.shares (lista; no aparecen en DEFAULTS)
-SHARE_FIELDS = ("name", "label", "path", "read_only", "users", "groups", "read_only_groups")
+SHARE_FIELDS = ("name", "label", "path", "read_only", "users", "read_only_users", "groups",
+                "read_only_groups")

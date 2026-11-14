@@ -1,0 +1,113 @@
+{% extends "admin/_layout.html" %}
+{% block title %}{{ _("Connect with Microsoft Entra ID") }} · {{ app_name }}{% endblock %}
+{% block admin_content %}
+<div class="wizard">
+  <a class="small" href="{{ url_for('settings.section', name='auth') }}">← {{ _("Sign-in settings") }}</a>
+  <h1>{{ _("Connect with Microsoft Entra ID") }}</h1>
+  <p class="muted small">{{ _("Four steps. You can leave and continue later: what you save is kept.") }}</p>
+
+  {% set step_titles = {1: _("Registration"), 2: _("Identifiers"), 3: _("Users and roles"), 4: _("Check")} %}
+  {% set step_hints = {1: _("in the Azure portal"), 2: _("tenant, client, secret"), 3: _("provisioning and administrators"), 4: _("and enable")} %}
+  <ol class="wizard-steps">
+    {% for n in steps %}
+    <li><a class="wizard-step{% if n == step %} active{% elif n < step %} done{% endif %}" href="{{ url_for('settings.entra_setup', step=n) }}"
+           {% if n == step %}aria-current="step"{% endif %}>
+      <span class="wizard-dot">{{ '✓' if n < step else n }}</span>
+      <span><strong>{{ step_titles[n] }}</strong><span class="muted small">{{ step_hints[n] }}</span></span></a></li>
+    {% endfor %}
+  </ol>
+
+  {% if error %}<div class="flash flash-error" role="alert">{{ _("The changes were not saved: %(error)s", error=error) }}</div>{% endif %}
+
+  <div class="card">
+  {% if step == 1 %}
+    <div class="register-shortcut">
+      <div><strong>{{ _("Let StorageWeb do it") }}</strong>
+        <p class="muted small">{{ _("Sign in with Microsoft once and the application is created and filled in for you: you jump straight to step 4.") }}</p></div>
+      <a class="btn btn-primary" href="{{ url_for('settings.entra_register_page') }}">{{ _("Register in Entra ID") }}</a>
+    </div>
+    <h2 class="card-title">{{ _("1. Register the application in Entra ID") }}</h2>
+    <p>{{ _("In the Azure portal: <strong>Entra ID → App registrations → New registration</strong>. Choose «Web» as the platform and use this redirect URI:") }}</p>
+    <div class="copy-row">
+      <input type="text" readonly value="{{ redirect_uri }}" class="mono" id="redirect-uri" aria-label="Redirect URI">
+      <button type="button" class="btn js-copy" data-copy="#redirect-uri">{{ _("Copy") }}</button>
+    </div>
+    <p class="muted small">{{ _("It is computed from the address you are using now. If StorageWeb is behind a proxy, check that it is the public one; you can change it in the next step.") }}</p>
+    <p class="muted small">{{ _("Optional: in «Token configuration» add the «groups» claim if you are going to use Entra ID groups in StorageWeb.") }}</p>
+    <div class="form-actions"><a class="btn btn-primary" href="{{ url_for('settings.entra_setup', step=2) }}">{{ _("Next") }}</a></div>
+
+  {% elif step == 2 %}
+    <h2 class="card-title">{{ _("2. Copy the identifiers") }}</h2>
+    <form method="post" class="form-grid">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="step" value="2">
+      <label>{{ _("Directory (tenant) ID") }}<input type="text" name="entra_tenant_id" value="{{ en.tenant_id }}" required class="mono" placeholder="00000000-0000-0000-0000-000000000000"></label>
+      <label>{{ _("Application (client) ID") }}<input type="text" name="entra_client_id" value="{{ en.client_id }}" required class="mono" placeholder="00000000-0000-0000-0000-000000000000"></label>
+      <label class="span2">{{ _("Client secret") }}
+        <input type="password" name="entra_client_secret" autocomplete="new-password" {% if not secret_set %}required{% endif %}
+               placeholder="{{ _('•••••••• (configured, leave empty to keep it)') if secret_set else '' }}">
+        <small class="muted">{{ _("Certificates & secrets → New client secret. Copy the value, not the ID. It expires: note the date.") }}</small></label>
+      <label class="span2">Redirect URI<input type="url" name="entra_redirect_uri" value="{{ en.redirect_uri or redirect_uri }}" class="mono"></label>
+      <div class="span2 form-actions">
+        <a class="btn" href="{{ url_for('settings.entra_setup', step=1) }}">{{ _("Previous") }}</a>
+        <button class="btn btn-primary" type="submit">{{ _("Save and continue") }}</button>
+      </div>
+    </form>
+
+  {% elif step == 3 %}
+    <h2 class="card-title">{{ _("3. Who signs in and with which role?") }}</h2>
+    <form method="post" class="form-grid">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="step" value="3">
+      <fieldset class="span2 source-cards source-cards-2">
+        <legend>{{ _("User provisioning") }}</legend>
+        <label class="source-card"><input type="radio" name="provisioning" value="auto" {% if en.auto_provision %}checked{% endif %}>
+          <span><strong>{{ _("Automatic") }}</strong><span class="muted small">{{ _("Anyone in your organization can sign in and is created with the default role.") }}</span></span></label>
+        <label class="source-card"><input type="radio" name="provisioning" value="manual" {% if not en.auto_provision %}checked{% endif %}>
+          <span><strong>{{ _("Only registered users") }}</strong><span class="muted small">{{ _("An administrator creates each user beforehand.") }}</span></span></label>
+      </fieldset>
+      <label>{{ _("Default role") }}
+        <select name="default_role">{% for r in ROLES %}<option value="{{ r }}" {% if en.default_role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></label>
+      <label>{{ _("Limit to these groups (optional)") }}<input type="text" name="allowed_groups" value="{{ en.allowed_groups | join(', ') }}" placeholder="{{ _('Object ID or App Role') }}"></label>
+      <label class="span2">{{ _("Administrators: group or App Role (optional)") }}<input type="text" name="admin_group" value="{{ admin_group }}" class="mono" placeholder="StorageWeb.Admin">
+        <small class="muted">{{ _("Its members get the administrator role. More mappings can be added later in the settings.") }}</small></label>
+      <div class="span2 form-actions">
+        <a class="btn" href="{{ url_for('settings.entra_setup', step=2) }}">{{ _("Previous") }}</a>
+        <button class="btn btn-primary" type="submit">{{ _("Save and continue") }}</button>
+      </div>
+    </form>
+
+  {% else %}
+    <h2 class="card-title">{{ _("4. Check and enable") }}</h2>
+    {% if registered %}
+    <div class="flash">
+      <p>{{ _("The application %(client)s was created in Entra ID. Its secret expires on %(date)s: create a new one before that date.", client=registered.client_id, date=registered.secret_expires|datetime) }}
+        <a href="{{ registered.portal_url }}" target="_blank" rel="noopener">{{ _("Open it in the Entra portal") }}</a></p>
+      {% for w in registered.warnings %}<p class="text-danger small">{{ w }}</p>{% endfor %}
+      <p class="muted small">{{ _("A new application or secret can take a minute to work everywhere: if the check fails, wait and test again.") }}</p>
+    </div>
+    {% endif %}
+    {% if check %}
+    <ul class="check-list">
+      {% for r in check.results %}
+      <li class="{{ 'ok' if r.ok else ('fail' if r.ok is sameas false else 'unknown') }}">
+        <span aria-hidden="true">{{ '✓' if r.ok else ('✕' if r.ok is sameas false else '–') }}</span><span>{{ r.message }}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">{{ _("Fill in the identifiers first (step 2).") }}</p>
+    {% endif %}
+    <div class="form-actions">
+      <a class="btn" href="{{ url_for('settings.entra_setup', step=3) }}">{{ _("Previous") }}</a>
+      <a class="btn" href="{{ url_for('settings.entra_setup', step=4) }}">{{ _("Test again") }}</a>
+      <form method="post" class="inline{% if check_ok is sameas false %} js-confirm{% endif %}"
+            {% if check_ok is sameas false %}data-confirm="{{ _('The check found problems. Enable Entra ID anyway?') }}"{% endif %}>
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="step" value="4">
+        <button class="btn btn-primary" type="submit" {% if not check %}disabled{% endif %}>{{ _("Enable Entra ID") }}</button>
+      </form>
+    </div>
+  {% endif %}
+  </div>
+</div>
+{% endblock %}

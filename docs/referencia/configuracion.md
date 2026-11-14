@@ -4,7 +4,7 @@
 
 Todas las opciones de `config.json`, con su valor por defecto. Las rutas relativas se resuelven respecto a la carpeta donde está el `config.json`.
 
-- **Web**: «Sí» = se puede cambiar en *Administración → Ajustes* (se aplica al momento y tiene prioridad sobre `config.json`). «No» = solo en `config.json` y requiere reiniciar el servicio.
+- **Web**: «Sí» = se puede cambiar desde las páginas de la administración (se aplica al momento y tiene prioridad sobre `config.json`). «No» = solo en `config.json` y requiere reiniciar el servicio.
 - Los valores secretos nunca se muestran en la web.
 
 ## General
@@ -30,7 +30,14 @@ Todas las opciones de `config.json`, con su valor por defecto. Las rutas relativ
 | `server.port` | entero | `8080` | No | Puerto TCP de escucha. |
 | `server.threads` | entero | `8` | No | Hilos de Waitress para atender peticiones en paralelo. |
 | `server.behind_proxy` | booleano | `true` | No | Confiar en las cabeceras `X-Forwarded-*` (IP real, HTTPS, host) de un proxy inverso. Actívalo solo si hay un proxy delante. |
+| `server.proxy_hops` | entero | `1` | No | Número de proxies inversos encadenados delante del servicio (nginx = `1`; una CDN o un balanceador más nginx = `2`). Se confía en ese número de valores de `X-Forwarded-*`, incluido `X-Forwarded-Prefix` para servir bajo una subruta. |
 | `server.max_upload_mb` | entero | `2048` | No | Tamaño máximo de cada petición HTTP: cada parte de una subida y la subida clásica sin JavaScript. No limita el tamaño de los archivos (ver `storage.max_file_size_mb`). |
+
+## network
+
+| Clave | Tipo | Por defecto | Web | Descripción |
+|---|---|---|---|---|
+| `network.public_url` | texto | `""` | Sí | Nombre público (FQDN) por el que entran los usuarios: `files.empresa.es`, con puerto o subruta si hace falta (`files.empresa.es/archivos`). Se asume HTTPS; escribe `http://` delante solo para pruebas en local. Se usa para las URLs externas: la de vuelta de Entra ID (si `auth.entra.redirect_uri` está vacía) y la de salida. Vacío = el host de cada petición. Se puede cambiar desde la web. |
 
 ## Sesión (`session`)
 
@@ -54,8 +61,9 @@ Todas las opciones de `config.json`, con su valor por defecto. Las rutas relativ
 | `storage.shares[].path` | | | Sí | Ruta en el servidor. Relativa = respecto a la carpeta del `config.json`. |
 | `storage.shares[].read_only` | | | Sí | Solo lectura: únicamente se permite descargar, también a los administradores. |
 | `storage.shares[].users` | | | Sí | Usuarios con acceso; `["*"]` = todos. |
-| `storage.shares[].groups` | | | Sí | Grupos con acceso: identificador de un grupo de *Administración → Grupos*, grupo del sistema, u Object ID/App Role de Entra ID. |
-| `storage.shares[].read_only_groups` | | | Sí | Grupos de `groups` que solo pueden leer (los edita la matriz de accesos). Quien entra también por otro grupo o por `users` puede escribir. |
+| `storage.shares[].read_only_users` | | | Sí | Usuarios de `users` que solo pueden leer; `"*"` = todos los que entran por `["*"]`. Quien entra también por un grupo con escritura puede escribir. |
+| `storage.shares[].groups` | | | Sí | Grupos con acceso: identificador de un grupo de *Personas → Grupos*, grupo del sistema, u Object ID/App Role de Entra ID. |
+| `storage.shares[].read_only_groups` | | | Sí | Grupos de `groups` que solo pueden leer (los edita la matriz de accesos). Quien entra también por otro grupo o por `users` con escritura puede escribir. |
 
 ## Permisos (`permissions`)
 
@@ -98,6 +106,7 @@ Todas las opciones de `config.json`, con su valor por defecto. Las rutas relativ
 | `auth.entra.issuer` | texto | `""` | Sí | Solo `oauth2`: valor esperado del claim `iss`. |
 | `auth.entra.logout_url` | texto | `""` | Sí | Endpoint de cierre de sesión propio. |
 | `auth.entra.timeout_seconds` | entero | `15` | Sí | Tiempo máximo de espera al endpoint de token, en segundos. |
+| `auth.entra.secret_expires` | texto | `""` | Sí | Fecha de caducidad del `client_secret` (ISO 8601). La rellenan el registro automático y la renovación; con ella se avisa a los admins 30 días antes. |
 
 ## Seguridad (`security`)
 
@@ -105,6 +114,26 @@ Todas las opciones de `config.json`, con su valor por defecto. Las rutas relativ
 |---|---|---|---|---|
 | `security.max_login_failures` | entero | `5` | Sí | Intentos fallidos (por IP o por usuario) antes de bloquear temporalmente el login. |
 | `security.lockout_minutes` | entero | `15` | Sí | Duración del bloqueo tras demasiados intentos fallidos, en minutos. |
+| `security.ipban_enabled` | booleano | `true` | Sí | Bloquear automáticamente las IPs con muchas infracciones (contraseñas erróneas, CSRF no válido, tokens de API no válidos). Las direcciones de loopback y las de la lista blanca nunca se bloquean. |
+| `security.ipban_threshold` | entero | `20` | Sí | Infracciones que bloquean una IP. |
+| `security.ipban_window_minutes` | entero | `10` | Sí | Ventana en la que se cuentan las infracciones, en minutos. |
+| `security.ipban_minutes` | entero | `60` | Sí | Duración del bloqueo automático, en minutos; `0` = hasta que un admin lo quite. |
+| `security.api_tokens` | booleano | `true` | Sí | Permitir tokens de API personales (`Authorization: Bearer sw_…`) para scripts. |
+
+## maintenance
+
+| Clave | Tipo | Por defecto | Web | Descripción |
+|---|---|---|---|---|
+| `maintenance.audit_retention_days` | entero | `0` | Sí | Días que se conserva la auditoría; `0` = siempre. La limpieza se hace una vez al día. |
+| `maintenance.backup_interval_hours` | entero | `0` | Sí | Cada cuántas horas hace el servicio una copia de seguridad en `<data_dir>/backups`; `0` = nunca (puedes usar el timer de systemd). |
+| `maintenance.backup_keep` | entero | `7` | Sí | Copias que se conservan en `<data_dir>/backups`; las más antiguas se borran. |
+
+## branding
+
+| Clave | Tipo | Por defecto | Web | Descripción |
+|---|---|---|---|---|
+| `branding.primary_color` | texto | `""` | Sí | Color principal de la interfaz (`#rrggbb`). Vacío = el de serie. |
+| `branding.logo` | texto | `""` | Sí | Logo propio: lo rellena la subida desde *Sistema → General y marca* (`logo.png`, `logo.svg`…). |
 
 ## Ejemplo
 

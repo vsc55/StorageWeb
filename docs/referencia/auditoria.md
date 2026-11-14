@@ -1,6 +1,6 @@
 # Registro de auditoría
 
-Cada acción relevante se guarda en la tabla `audit_log`. Se puede consultar en *Administración → Auditoría*, filtrando por usuario y acción, o con `storageweb-admin audit`.
+Cada acción relevante se guarda en la tabla `audit_log`. Se puede consultar en *Seguridad → Auditoría*, filtrando por usuario y acción, o con `storageweb-admin audit`.
 
 | Campo | Contenido |
 |---|---|
@@ -34,10 +34,35 @@ Cada acción relevante se guarda en la tabla `audit_log`. Se puede consultar en 
 | `group_member_added` | Usuario añadido a mano a un grupo (*target* = grupo) | Usuario |
 | `group_member_removed` | Usuario quitado de un grupo (*target* = grupo) | Usuario |
 | `group_access_updated` | Cambios guardados en la matriz de accesos | `grupo@carpeta=nivel, …` |
+| `share_created` | Carpeta compartida creada en *Acceso → Carpetas compartidas* (*target* = carpeta) | Ruta |
+| `share_updated` | Carpeta compartida guardada (nombre, ruta o quién entra) | `quién=nivel, …` |
+| `share_deleted` | Carpeta compartida quitada (los archivos se quedan en el servidor) | Ruta |
 | `profile_updated` | El usuario guarda su perfil | Campos guardados |
 | `password_changed` | El usuario cambia su contraseña desde su perfil | |
 | `password_change_failed` | Intento de cambio de contraseña con la contraseña actual incorrecta | |
-| `settings_updated` | Ajustes web guardados | |
+| `settings_updated` | Ajustes web guardados | Sección (`general`, `auth`…) o paso del asistente de Entra ID |
+| `entra_app_registered` | Aplicación creada en Entra ID con *Registrar en Entra ID* (*target* = Client ID) | Tenant |
+| `entra_app_register_failed` | Falló el registro automático en Entra ID | Motivo |
+| `entra_secret_rotated` | Secreto de Entra ID renovado con *Renovar secreto* (*target* = Client ID) | Nueva caducidad |
+| `entra_groups_granted` | Se concedió `Group.Read.All` a la aplicación (*target* = Client ID) |  |
+| `session_closed` | Un admin o el propio usuario cerró una sesión | IP de la sesión |
+| `sessions_closed` | Se cerraron varias sesiones: las de un usuario (web o `sessions-close`), todas (*target* `*`), las seleccionadas (`selected`) o las inactivas (`idle>Nh`) | Número de sesiones |
+| `api_token_created` | El usuario creó un token de API | Nombre del token |
+| `api_token_revoked` | Token de API revocado por su usuario o por un admin | Nombre del token |
+| `ip_banned` | IP bloqueada (automática por infracciones o manual) | `auto:<tipo>:<n>` o `manual:<motivo>` |
+| `ip_unbanned` | IP desbloqueada (web o `ip-unban`) |  |
+| `ip_allowed` | IP o red añadida a la lista blanca | Nota |
+| `ip_allow_removed` | IP o red quitada de la lista blanca |  |
+| `audit_purged` | Entradas de auditoría borradas por la retención | Número de entradas |
+| `audit_exported` | Auditoría exportada a CSV | Número de filas |
+| `db_vacuum` | Base de datos compactada | Tamaño antes→después (bytes) |
+| `backup_created` | Copia de seguridad creada (web o automática) | `web` o `auto` |
+| `backup_downloaded` | Copia de seguridad descargada desde la web |  |
+| `backup_deleted` | Copia de seguridad borrada desde la web |  |
+| `backup_failed` | Falló una copia automática | Error |
+| `branding_logo_updated` | Logo propio subido | Fichero |
+| `branding_logo_removed` | Logo propio quitado |  |
+| `settings_field_reset` | Un ajuste vuelve al valor de config.json (*Restablecer*) | Ruta del ajuste |
 | `settings_reset` | Ajustes web descartados (web o `settings-reset`) | |
 | `upload` | Archivo subido | Tamaño en bytes |
 | `download` | Archivo descargado | |

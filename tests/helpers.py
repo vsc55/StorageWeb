@@ -48,10 +48,16 @@ def login(client, username: str, password: str = PASSWORD, next_url: str = ""):
                                        "_csrf": token, "next": next_url})
 
 
-def settings_form(client) -> dict:
-    """Lee el formulario de /admin/settings tal como lo enviaría el navegador."""
-    html = client.get("/admin/settings").get_data(as_text=True)
-    form = re.search(r'<form method="post" class="settings">(.*?)</form>', html, re.S).group(1)
+def settings_form(client, section: str = "general") -> dict:
+    """Lee el formulario de /admin/settings/<section> tal como lo enviaría el navegador."""
+    return page_form(client, f"/admin/settings/{section}")
+
+
+def page_form(client, url: str) -> dict:
+    """Lee el formulario de ajustes (``settings-form``) de una página tal como lo enviaría el navegador."""
+    html = client.get(url).get_data(as_text=True)
+    form = re.search(r'<form method="post" class="settings-form" data-watch>(.*?)</form>', html, re.S).group(1)
+    form = re.sub(r"<template.*?</template>", "", form, flags=re.S)  # filas plantilla del JS
     data: dict = {}
     for m in re.finditer(r'<input([^>]*)>', form):
         attrs = dict(re.findall(r'(\w[\w-]*)="([^"]*)"', m.group(1)))

@@ -20,6 +20,15 @@ sudo storageweb-admin backup-list
 - **Permisos `0600`:** contiene hashes de contraseñas y el `client_secret`, así que guárdala cifrada fuera del servidor.
 - **Rotación:** `--keep N` conserva las N más recientes de la carpeta. Con `--output DIR` eliges otra carpeta.
 
+## Desde la web
+
+*Sistema → Copias y base de datos* lista las copias de `<data_dir>/backups`, crea una al momento, las descarga y las borra. En *Sistema → Mantenimiento* se configuran:
+
+- **Copia automática** cada N horas (`maintenance.backup_interval_hours`) hecha por el propio servicio, conservando `backup_keep`. Es una alternativa al timer de systemd; no actives los dos.
+- **Retención de la auditoría** (`maintenance.audit_retention_days`), compactación de la base de datos y exportación de la auditoría a CSV.
+
+La restauración no se hace desde la web porque sustituye la base de datos: se hace con el servicio parado (ver abajo).
+
 ## Programar las copias
 
 === "systemd (deb, rpm, Gentoo)"

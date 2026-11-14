@@ -1,0 +1,6 @@
+{# Piezas comunes de las páginas de administración (importar «with context») #}
+
+{# Tipo de página (web/nav.py): configuración, operación o solo lectura #}
+{% macro page_kind() -%}
+{% if nav_page and nav_page.kind in KIND_LABELS %}<span class="kind-chip kind-{{ nav_page.kind }}">{{ KIND_LABELS[nav_page.kind] }}</span>{% endif %}
+{%- endmacro %}

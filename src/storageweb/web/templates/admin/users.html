@@ -5,7 +5,8 @@
 <div class="page-head">
   <div>
     <h1>{{ _("Users") }}</h1>
-    <p class="muted small">{{ _("%(all)s users · %(active)s active · %(disabled)s disabled", all=counts.all, active=counts.active, disabled=counts.disabled) }}</p>
+    <p class="muted small">{{ _("%(all)s users · %(active)s active · %(disabled)s disabled", all=counts.all, active=counts.active, disabled=counts.disabled) }}
+      · <a href="{{ url_for('settings.section', name='sessions') }}">{{ ngettext("%(num)s open session", "%(num)s open sessions", session_count) }}</a></p>
   </div>
   <div class="inline">
     {{ view_switch('list') }}
@@ -54,7 +55,7 @@
       <td class="col-check"><input type="checkbox" name="ids" value="{{ u['id'] }}" form="bulk-form" class="bulk-check"
                                    aria-label="{{ _('Select %(name)s', name=u['username']) }}"></td>
       <td class="name"><a class="user-cell" href="{{ url_for('admin.user_edit', user_id=u['id']) }}">{{ avatar(u) }}
-        <span><strong>{{ u['display_name'] or u['username'] }}</strong>{% if u['display_name'] %}<span class="muted small">{{ u['username'] }}</span>{% endif %}</span></a></td>
+        <span><strong>{{ u['display_name'] or u['username'] }}</strong>{% if u['display_name'] and u['display_name'] != u['username'] %}<span class="muted small">{{ u['username'] }}</span>{% endif %}</span></a></td>
       <td><span class="badge badge-src badge-src-{{ u['source'] }}">{{ SOURCE_LABELS[u['source']] }}</span></td>
       <td><span class="badge badge-{{ u['role'] }}">{{ ROLE_LABELS[u['role']] }}</span></td>
       <td><span class="tags">{% for name in group_names[u['id']] %}<span class="tag">{{ name }}</span>{% endfor %}</span></td>

@@ -184,6 +184,9 @@ def cmd_check_config(cfg, conn, args):
         (_("Database"), cfg["database"]),
         (_("Homes"), cfg["storage"]["home_template"]),
         (_("Language"), cfg["default_locale"]),
+        (_("Public URL"), cfg["network"]["public_url"] or _("(host of each request)")),
+        (_("Proxy"), _("yes, %(hops)s hop(s)", hops=cfg["server"]["proxy_hops"]) if cfg["server"]["behind_proxy"]
+         else _("no")),
         (_("Sign-in"), f"local={a['local']['enabled']} pam={a['pam']['enabled']} "
                        f"entra={a['entra']['enabled']} ({a['entra']['provider']})"),
     ]
@@ -207,6 +210,61 @@ def cmd_settings_reset(cfg, conn, args):
     settings_repo.put(conn, RUNTIME_KEY, {}, "cli")
     audit.log(conn, "settings_reset", username="cli")
     print(_("Web settings discarded: only config.json applies (the service notices on the next request)."))
+
+
+# --------------------------------------------------------------------------- IPs y sesiones (rescate)
+
+def cmd_ip_list(cfg, conn, args):
+    from .db.repositories import ip_rules
+
+    rows = ip_rules.list_rules(conn)
+    if not rows:
+        print(_("There are no blocked or allowed addresses."))
+    for r in rows:
+        until = r["expires_at"] or _("indefinitely")
+        kind = _("blocked") if r["kind"] == "ban" else _("allowed")
+        print(f"{r['id']:>4}  {kind:<10} {r['network']:<40} {until:<26} {r['reason']}")
+
+
+def cmd_ip_unban(cfg, conn, args):
+    from .core import ipban
+    from .db.repositories import ip_rules
+
+    if args.all:
+        removed = ip_rules.delete_all(conn, "ban")
+        ip_rules.clear_offenses(conn, before_iso="9999")
+    else:
+        try:
+            network = ipban.normalize_network(args.network or "")
+        except ipban.IPBanError as exc:
+            _fail(str(exc))
+        removed = ip_rules.delete_network(conn, "ban", network)
+        ip_rules.clear_offenses(conn, ip=network)
+    audit.log(conn, "ip_unbanned", args.network or "*", username="cli", detail=str(removed))
+    print(_("%(num)s block(s) removed (the service notices within 30 seconds).", num=removed))
+
+
+def cmd_ip_allow(cfg, conn, args):
+    from .core import ipban
+
+    try:
+        network = ipban.allow(conn, args.network, by="cli", reason=args.reason or "")
+    except ipban.IPBanError as exc:
+        _fail(str(exc))
+    audit.log(conn, "ip_allowed", network, username="cli")
+    print(_("%(network)s added to the allow list.", network=network))
+
+
+def cmd_sessions_close(cfg, conn, args):
+    from .db.repositories import sessions
+
+    if args.all:
+        closed = conn.execute("DELETE FROM sessions").rowcount
+        conn.commit()
+    else:
+        closed = sessions.delete_for_user(conn, _get(conn, args.username)["id"])
+    audit.log(conn, "sessions_closed", args.username or "*", username="cli", detail=str(closed))
+    print(_("%(num)s session(s) closed.", num=closed))
 
 
 # --------------------------------------------------------------------------- copias de seguridad
@@ -324,6 +382,17 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("check-config", help=_("Validate the configuration and warn if there is no administrator"))
 
     sub.add_parser("settings-reset", help=_("Discard the settings saved from the web and go back to config.json"))
+
+    sub.add_parser("ip-list", help=_("List blocked and allowed IP addresses"))
+    p = sub.add_parser("ip-unban", help=_("Unblock an IP address or network (rescue if you blocked yourself)"))
+    p.add_argument("network", nargs="?", help=_("IP address or network (CIDR)"))
+    p.add_argument("--all", action="store_true", help=_("Remove every block"))
+    p = sub.add_parser("ip-allow", help=_("Add an IP address or network to the allow list (never blocked)"))
+    p.add_argument("network", help=_("IP address or network (CIDR)"))
+    p.add_argument("--reason", help=_("Note"))
+    p = sub.add_parser("sessions-close", help=_("Close the open sessions of a user (or of everybody)"))
+    p.add_argument("username", nargs="?", help=_("User name"))
+    p.add_argument("--all", action="store_true", help=_("Close every session"))
 
     p = sub.add_parser("backup", help=_("Back up the database, config.json and secret_key"))
     p.add_argument("--output", help=_("Destination folder (default <data_dir>/backups)"))

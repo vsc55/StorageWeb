@@ -165,19 +165,19 @@ def test_provisioning_settings_from_web(make_app, token_endpoint):
     add_user(app, "root", role="admin")
     admin_client = app.test_client()
     login(admin_client, "root")
-    data = settings_form(admin_client)
+    data = settings_form(admin_client, "auth")
     data["entra_default_role"] = ["admin"]
     data["entra_client_secret"] = [""]
-    assert admin_client.post("/admin/settings", data=data).status_code == 302
+    assert admin_client.post("/admin/settings/auth", data=data).status_code == 302
 
     client = app.test_client()
     _, q = start_login(client, token_endpoint)
     finish_login(client, q["state"])
     assert _user(app, "juan@contoso.com")["role"] == "admin"
 
-    data = settings_form(admin_client)
+    data = settings_form(admin_client, "auth")
     data.pop("entra_auto_provision", None)
-    assert admin_client.post("/admin/settings", data=data).status_code == 302
+    assert admin_client.post("/admin/settings/auth", data=data).status_code == 302
     token_endpoint.claims_extra = {"oid": "oid-otro", "preferred_username": "otro@contoso.com"}
     other = app.test_client()
     _, q = start_login(other, token_endpoint)

@@ -7,7 +7,10 @@ from functools import wraps
 
 from flask import abort, g, redirect, request, session, url_for
 
+from ..core import ipban, tokens
 from ..core.permissions import is_admin
+from ..db.connection import now_iso
+from ..db.repositories import sessions as session_repo
 from ..db.repositories import users
 from ..i18n import LOCALES, _, reset_locale, set_locale
 from ..i18n import normalize as normalize_locale
@@ -29,10 +32,19 @@ def csrf_token() -> str:
 def check_csrf() -> None:
     if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
         return
+    if g.get("api_token") is not None:
+        return  # sin cookies no hay CSRF posible: el token va en la cabecera
     expected = session.get("_csrf")
     sent = request.headers.get("X-CSRF-Token") or request.form.get("_csrf")
     if not expected or not sent or not hmac.compare_digest(expected, sent):
+        ipban.offense(get_db(), settings(), client_ip(), "csrf")
         abort(400, description=_("Invalid CSRF token. Reload the page and try again."))
+
+
+def ip_gate() -> None:
+    """Primer filtro: una IP bloqueada no llega a nada más."""
+    if ipban.banned(get_db(), client_ip()):
+        abort(403, description=_("Your IP address is blocked. Contact the administrator."))
 
 
 def clear_session() -> None:
@@ -47,6 +59,25 @@ def start_session(user) -> None:
     session.permanent = True
     session["uid"] = user["id"]
     session["src"] = user["source"]
+    session["sid"] = _new_session(user["id"])
+
+
+def _new_session(user_id: int) -> str:
+    sid = secrets.token_urlsafe(24)
+    session_repo.create(get_db(), sid, user_id, client_ip(), request.headers.get("User-Agent"))
+    return sid
+
+
+def end_session() -> None:
+    """Cierra la sesión actual (también en el servidor)."""
+    sid = session.get("sid")
+    if sid:
+        session_repo.delete(get_db(), sid)
+    clear_session()
+
+
+TOUCH_SECONDS = 60
+TOKEN_BLUEPRINTS = ("files", "uploads", "health")
 
 
 def select_locale() -> None:
@@ -67,6 +98,12 @@ def reset_request_locale(_exc=None) -> None:
 
 def load_current_user() -> None:
     g.user = None
+    g.api_token = None
+    g.session_id = None
+    header = request.headers.get("Authorization", "")
+    if header[:7].lower() == "bearer ":
+        _load_token_user(header[7:].strip())
+        return
     uid = session.get("uid")
     if uid is None:
         return
@@ -74,7 +111,33 @@ def load_current_user() -> None:
     if user is None or not user["enabled"]:
         session.clear()
         return
+    sid = session.get("sid")
+    if not sid:
+        # Sesión iniciada antes de que existiera el registro de sesiones: se registra ahora
+        sid = session["sid"] = _new_session(user["id"])
+    else:
+        row = session_repo.get(get_db(), sid)
+        if row is None or row["user_id"] != user["id"]:
+            clear_session()  # cerrada por un admin, por cambio de contraseña o caducada
+            return
+        now = now_iso()
+        if row["last_seen"][:16] < now[:16] or row["ip"] != client_ip():  # como mucho una escritura por minuto
+            session_repo.touch(get_db(), sid, client_ip())
     g.user = user
+    g.session_id = sid
+
+
+def _load_token_user(plain: str) -> None:
+    cfg = settings()
+    if not cfg["security"]["api_tokens"]:
+        abort(401, description=_("API tokens are disabled."))
+    found = tokens.authenticate(get_db(), plain, client_ip())
+    if not found:
+        ipban.offense(get_db(), cfg, client_ip(), "bad_token")
+        abort(401, description=_("Invalid or expired API token."))
+    g.user, g.api_token = found
+    if request.blueprint not in TOKEN_BLUEPRINTS:
+        abort(403, description=_("API tokens can only be used to list, download and upload files."))
 
 
 def login_required(view):

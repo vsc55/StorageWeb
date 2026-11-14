@@ -59,11 +59,13 @@ docker run ... -v storageweb-data:/data -v /srv/archivos:/data/files ...
 | `STORAGEWEB_PORT` | Puerto (por defecto `8080`) |
 | `STORAGEWEB_BEHIND_PROXY` | `true`/`false` (por defecto `true`) |
 | `STORAGEWEB_COOKIE_SECURE` | `true`/`false` (por defecto `true`) |
+| `STORAGEWEB_PUBLIC_URL` | Nombre público (FQDN), p. ej. `files.midominio.com`; se asume HTTPS (por defecto vacío: el host de cada petición) |
+| `STORAGEWEB_PROXY_HOPS` | Proxies encadenados delante del contenedor (por defecto `1`) |
 | `STORAGEWEB_MAX_UPLOAD_MB` | Máximo por petición (por defecto `2048`) |
 | `STORAGEWEB_APP_NAME` | Nombre visible |
 | `HTTPS_PROXY`, `NO_PROXY` | Proxy de salida para Entra ID |
 
-Todas las variables salvo las de admin y proxy **solo se usan al generar** `config.json` la primera vez. Después, cambia el fichero o usa *Administración → Ajustes*.
+Todas las variables salvo las de admin y proxy **solo se usan al generar** `config.json` la primera vez. Después, cambia el fichero o usa las páginas de la administración.
 
 !!! tip "Probar sin HTTPS"
     `-e STORAGEWEB_COOKIE_SECURE=false -e STORAGEWEB_BEHIND_PROXY=false` en un volumen nuevo. Si no, el login vuelve a la página de inicio, porque el navegador no envía la cookie segura por HTTP.

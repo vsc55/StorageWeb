@@ -7,6 +7,8 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{% block title %}{{ app_name }}{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  {% if brand.color %}<link rel="stylesheet" href="{{ url_for('brand.stylesheet', v=brand.version) }}">{% endif %}
+  {% if brand.logo %}<link rel="icon" href="{{ url_for('brand.logo', v=brand.version) }}">{% endif %}
   {# Textos del JavaScript (no se ejecuta: permitido por la CSP) #}
   <script type="application/json" id="i18n-messages">{{ js_messages()|tojson }}</script>
 </head>
@@ -47,8 +49,8 @@
 {% set initials = (display.split()|map('first')|join)[:2]|upper if ' ' in display else display[:2]|upper %}
 <div class="app">
   <nav class="rail" aria-label="{{ _('Main') }}">
-    <a class="rail-brand" href="{{ url_for('files.index') }}" title="{{ app_name }}">
-      <svg class="icon" aria-hidden="true"><use href="#i-folder"></use></svg>
+    <a class="rail-brand{% if brand.logo %} has-logo{% endif %}" href="{{ url_for('files.index') }}" title="{{ app_name }}">
+      {% if brand.logo %}<img src="{{ url_for('brand.logo', v=brand.version) }}" alt="">{% else %}<svg class="icon" aria-hidden="true"><use href="#i-folder"></use></svg>{% endif %}
       <span class="sr-only">{{ app_name }}</span>
     </a>
     <a class="rail-item{% if request.blueprint == 'files' %} active{% endif %}" href="{{ url_for('files.index') }}"
@@ -57,18 +59,19 @@
     </a>
     {% if is_admin %}
     <div class="rail-group" role="group" aria-label="{{ _('Administration') }}">
-      <a class="rail-item{% if request.endpoint and request.endpoint.startswith('admin.user') %} active{% endif %}" href="{{ url_for('admin.users_index') }}">
-        <svg class="icon" aria-hidden="true"><use href="#i-user"></use></svg><span class="rail-label">{{ _("Users") }}</span>
+      {% set on_overview = nav_page and nav_page.key == 'overview' %}
+      <a class="rail-item{% if on_overview %} active{% endif %}" href="{{ url_for('admin.index') }}"
+         {% if on_overview %}aria-current="page"{% endif %}>
+        <svg class="icon" aria-hidden="true"><use href="#i-home"></use></svg><span class="rail-label">{{ _("Overview") }}</span>
+        {% if admin_alert_count %}<span class="rail-badge" title="{{ ngettext('%(num)s notice', '%(num)s notices', admin_alert_count) }}">{{ admin_alert_count }}</span>{% endif %}
       </a>
-      <a class="rail-item{% if request.blueprint == 'groups' %} active{% endif %}" href="{{ url_for('groups.index') }}">
-        <svg class="icon" aria-hidden="true"><use href="#i-users"></use></svg><span class="rail-label">{{ _("Groups") }}</span>
+      {% for zone in nav_zones %}
+      {% set on_zone = nav_zone and nav_zone.key == zone.key %}
+      <a class="rail-item{% if on_zone %} active{% endif %}" href="{{ zone.first.url() }}"
+         {% if on_zone %}aria-current="true"{% endif %}>
+        <svg class="icon" aria-hidden="true"><use href="#i-{{ zone.icon }}"></use></svg><span class="rail-label">{{ zone.label }}</span>
       </a>
-      <a class="rail-item{% if request.endpoint and request.endpoint.startswith('admin.settings') %} active{% endif %}" href="{{ url_for('admin.settings_page') }}">
-        <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg><span class="rail-label">{{ _("Settings") }}</span>
-      </a>
-      <a class="rail-item{% if request.endpoint == 'admin.audit_log' %} active{% endif %}" href="{{ url_for('admin.audit_log') }}">
-        <svg class="icon" aria-hidden="true"><use href="#i-audit"></use></svg><span class="rail-label">{{ _("Audit") }}</span>
-      </a>
+      {% endfor %}
     </div>
     {% endif %}
     <div class="rail-spacer"></div>
@@ -106,7 +109,7 @@
 {% else %}
 <header class="public-bar">
   <a class="brand" href="{{ url_for('files.index') }}">
-    <span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#i-folder"></use></svg></span>{{ app_name }}
+    <span class="brand-mark{% if brand.logo %} has-logo{% endif %}">{% if brand.logo %}<img src="{{ url_for('brand.logo', v=brand.version) }}" alt="">{% else %}<svg class="icon" aria-hidden="true"><use href="#i-folder"></use></svg>{% endif %}</span>{{ app_name }}
   </a>
   <div class="public-tools">
     {{ themebox(false) }}
@@ -116,6 +119,15 @@
 <main class="public-main">
 {% endif %}
 
+    {% if entra_secret_alert and not (nav_page and nav_page.key == 'overview') %}
+    <div class="flashes" role="alert">
+      <div class="flash flash-error">
+        {% if entra_secret_alert.days < 0 %}{{ _("The Entra ID client secret expired on %(date)s: users cannot sign in with Microsoft.", date=entra_secret_alert.date|datetime) }}
+        {% else %}{{ ngettext("The Entra ID client secret expires in %(num)s day (%(date)s).", "The Entra ID client secret expires in %(num)s days (%(date)s).", entra_secret_alert.days, date=entra_secret_alert.date|datetime) }}{% endif %}
+        <a href="{{ url_for('settings.section', name='auth') }}">{{ _("Renew it") }}</a>
+      </div>
+    </div>
+    {% endif %}
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
       <div class="flashes" role="status">
@@ -131,6 +143,21 @@
 {% else %}
 </main>
 <footer class="footer muted">StorageWeb {{ app_version }}</footer>
+{% endif %}
+{% if is_admin %}
+<dialog class="palette" id="admin-search" aria-label="{{ _('Search the administration') }}">
+  <form method="get" action="{{ url_for('admin.search') }}" role="search" data-search-url="{{ url_for('admin.search', format='json') }}">
+    <label class="palette-input">
+      <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+      <input type="search" name="q" autocomplete="off" aria-label="{{ _('Search') }}" aria-controls="admin-search-results"
+             placeholder="{{ _('A setting, an action, a user or a group…') }}">
+      <kbd>Esc</kbd>
+    </label>
+  </form>
+  <ul class="palette-results" id="admin-search-results" role="listbox" aria-label="{{ _('Results') }}"></ul>
+  <div class="palette-foot"><span>↑↓ {{ _("move") }}</span><span>↵ {{ _("open") }}</span><span>{{ _("Settings take you to the exact field") }}</span></div>
+</dialog>
+<script src="{{ url_for('static', filename='js/search.js') }}"></script>
 {% endif %}
 {% block scripts %}{% endblock %}
 </body>

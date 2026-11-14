@@ -4,11 +4,12 @@ from __future__ import annotations
 import os
 import secrets
 import shutil
+from datetime import datetime, timezone
 
 from flask import (Blueprint, abort, current_app, flash, g, jsonify, redirect, render_template,
                    request, send_file, url_for)
 
-from ...core import storage
+from ...core import storage, tokens
 from ...core.permissions import PERMISSION_LABELS, effective_for_root, permissions_for
 from ...core.security import UPLOAD_TMP_PREFIX, resolve_entry, resolve_inside, safe_filename
 from ...db.repositories import audit
@@ -27,7 +28,7 @@ def _root(name: str) -> dict:
 
 
 def _perms(root: dict) -> frozenset[str]:
-    return effective_for_root(permissions_for(g.user, settings()), root)
+    return tokens.restrict(effective_for_root(permissions_for(g.user, settings()), root), g.get("api_token"))
 
 
 def _require(root: dict, perm: str) -> None:
@@ -75,6 +76,11 @@ def browse(root, sub):
     except PermissionError:
         abort(403, description=_("The service is not allowed to read this folder."))
     rel = storage.rel_path(r, target)
+    if _wants_json() or g.get("api_token") is not None:
+        return jsonify(root=r["name"], path=rel, permissions=sorted(_perms(r)), entries=[
+            {"name": e["name"], "type": "dir" if e["is_dir"] else "file", "size": e["bytes"],
+             "modified": datetime.fromtimestamp(e["ts"], timezone.utc).isoformat(timespec="seconds"),
+             "path": e["rel"]} for e in entries])
     parent = "/".join(rel.split("/")[:-1]) if rel else None
     return render_template("browse.html", root=r, roots=storage.available_roots(g.user, settings()),
                            rel=rel, crumbs=storage.breadcrumbs(rel), parent=parent, entries=entries,

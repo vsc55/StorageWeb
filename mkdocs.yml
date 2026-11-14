@@ -85,6 +85,7 @@ nav:
           - 0009 Un solo usuario de servicio: arquitectura/decisiones/0009-usuario-de-servicio.md
           - 0010 Internacionalización: arquitectura/decisiones/0010-internacionalizacion.md
           - 0011 Grupos gestionados: arquitectura/decisiones/0011-grupos-gestionados.md
+          - 0012 Administración por zonas: arquitectura/decisiones/0012-administracion-por-zonas.md
           - Plantilla: arquitectura/decisiones/plantilla.md
   - Desarrollo:
       - desarrollo/index.md
@@ -93,5 +94,6 @@ nav:
       - Releases: desarrollo/releases.md
   - Proyecto:
       - Cambios: proyecto/changelog.md
+      - Hoja de ruta: proyecto/hoja-de-ruta.md
       - Política de seguridad: proyecto/seguridad.md
       - Contribuir: proyecto/contribuir.md

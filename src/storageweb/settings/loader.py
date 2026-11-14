@@ -9,19 +9,24 @@ import copy
 import json
 import os
 import re
+import urllib.parse
 import secrets
 import sys
 from pathlib import Path
 
 from ..i18n import LOCALES, _
-from .defaults import (DEFAULTS, PERMISSIONS, ROLES, RUNTIME_SECTIONS, SECRET_FIELDS,
+from .defaults import (DEFAULTS, LEAF_PATHS, PERMISSIONS, ROLES, RUNTIME_SECTIONS, SECRET_FIELDS,
                        SSO_PROVIDER_NAMES)
 
 SHARE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 class ConfigError(Exception):
-    pass
+    """Configuración no válida. ``field`` es la ruta del ajuste afectado (``storage.home_template``)."""
+
+    def __init__(self, message: str = "", field: str | None = None):
+        super().__init__(message)
+        self.field = field
 
 
 def deep_merge(base: dict, override: dict) -> dict:
@@ -31,6 +36,62 @@ def deep_merge(base: dict, override: dict) -> dict:
             out[key] = deep_merge(out[key], value)
         else:
             out[key] = copy.deepcopy(value)
+    return out
+
+
+def merge_overrides(base: dict, override: dict, path: tuple = ()) -> dict:
+    """Combina ajustes web sobre ``base`` campo a campo (salvo los ``LEAF_PATHS``)."""
+    out = copy.deepcopy(base)
+    for key, value in override.items():
+        here = path + (key,)
+        if isinstance(value, dict) and isinstance(out.get(key), dict) and here not in LEAF_PATHS:
+            out[key] = merge_overrides(out[key], value, here)
+        else:
+            out[key] = copy.deepcopy(value)
+    return out
+
+
+def diff_overrides(base: dict, new: dict, path: tuple = ()) -> dict:
+    """Lo mínimo que hay que guardar para que ``new`` resulte de combinarlo sobre ``base``."""
+    out = {}
+    for key, value in new.items():
+        here = path + (key,)
+        old = base.get(key) if isinstance(base, dict) else None
+        if isinstance(value, dict) and isinstance(old, dict) and here not in LEAF_PATHS:
+            sub = diff_overrides(old, value, here)
+            if sub:
+                out[key] = sub
+        elif value != old:
+            out[key] = copy.deepcopy(value)
+    return out
+
+
+def leaf_paths(tree: dict, path: tuple = ()) -> set[str]:
+    """Rutas ("auth.entra.tenant_id") de los valores de un árbol de ajustes."""
+    paths = set()
+    for key, value in tree.items():
+        here = path + (key,)
+        if isinstance(value, dict) and value and here not in LEAF_PATHS:
+            paths |= leaf_paths(value, here)
+        else:
+            paths.add(".".join(here))
+    return paths
+
+
+def drop_path(tree: dict, dotted: str) -> dict:
+    """Copia de ``tree`` sin la ruta indicada (y sin los diccionarios que queden vacíos)."""
+    out = copy.deepcopy(tree)
+    keys = dotted.split(".")
+    stack = [out]
+    for key in keys[:-1]:
+        node = stack[-1].get(key)
+        if not isinstance(node, dict):
+            return out
+        stack.append(node)
+    stack[-1].pop(keys[-1], None)
+    for i in range(len(keys) - 2, -1, -1):
+        if not stack[i + 1]:
+            stack[i].pop(keys[i], None)
     return out
 
 
@@ -79,7 +140,7 @@ def _apply_overrides(cfg: dict, file_cfg: dict, overrides: dict) -> dict:
         if isinstance(DEFAULTS.get(section), dict):
             if not isinstance(value, dict):
                 raise ConfigError(_("Setting %(section)s must be an object", section=section))
-            cfg[section] = deep_merge(DEFAULTS[section], value)
+            cfg[section] = merge_overrides(cfg[section], value, (section,))
         else:
             cfg[section] = value
     # Un secreto vacío en los ajustes web significa "usar el de config.json"
@@ -96,11 +157,59 @@ def _resolve(base_dir: Path, value: str) -> Path:
     return p if p.is_absolute() else (base_dir / p)
 
 
+def _field_path(field: str) -> str | None:
+    """Ruta completa del ajuste a partir del nombre que usan los mensajes («entra.scopes»)."""
+    if field.startswith(("pam.", "entra.", "local.")):
+        return "auth." + field
+    if field.startswith(("storage.", "security.", "auth.", "network.", "server.", "maintenance.", "branding.")):
+        return field
+    return "storage.shares" if "." in field else None
+
+
+_HOST_RE = re.compile(r"^(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*"
+                      r"|\[[0-9A-Fa-f:.]+\])(?::\d{1,5})?$")
+
+
+def _iso_datetime(value, field: str) -> str:
+    """Fecha u hora ISO 8601 normalizada (UTC, con zona), o vacío."""
+    from datetime import datetime, timezone
+
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ConfigError(_("%(field)s must be a date like 2027-11-13", field=field), field) from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).isoformat(timespec="seconds")
+
+
+def _public_url(value) -> str:
+    """Dirección pública normalizada a ``https://fqdn[:puerto][/ruta]`` (sin barra final), o vacío.
+
+    Basta con el FQDN (``files.empresa.es``, ``files.empresa.es/archivos``): se asume HTTPS. Solo si
+    se escribe ``http://`` explícitamente se usa HTTP (pruebas en local).
+    """
+    value = str(value or "").strip().rstrip("/")
+    if not value:
+        return ""
+    if "://" not in value:
+        value = "https://" + value
+    parts = urllib.parse.urlsplit(value)
+    if (parts.scheme not in ("http", "https") or not _HOST_RE.match(parts.netloc or "")
+            or parts.query or parts.fragment or " " in parts.path):
+        raise ConfigError(_("network.public_url must be a host name like files.example.com (optionally with "
+                            "a port or a path, no query)"), "network.public_url")
+    return f"{parts.scheme}://{parts.netloc.lower()}{parts.path}"
+
+
 def _str_list(value, field: str) -> list[str]:
     if isinstance(value, str):
         value = [x for x in re.split(r"[,\s]+", value) if x]
     if not isinstance(value, list):
-        raise ConfigError(_("%(field)s must be a list", field=field))
+        raise ConfigError(_("%(field)s must be a list", field=field), _field_path(field))
     return [str(x).strip() for x in value if str(x).strip()]
 
 
@@ -108,9 +217,9 @@ def _non_negative_int(value, field: str) -> int:
     try:
         number = int(value)
     except (TypeError, ValueError) as exc:
-        raise ConfigError(_("%(field)s must be an integer", field=field)) from exc
+        raise ConfigError(_("%(field)s must be an integer", field=field), _field_path(field)) from exc
     if number < 0:
-        raise ConfigError(_("%(field)s cannot be negative", field=field))
+        raise ConfigError(_("%(field)s cannot be negative", field=field), _field_path(field))
     return number
 
 
@@ -118,9 +227,9 @@ def _positive_int(value, field: str) -> int:
     try:
         number = int(value)
     except (TypeError, ValueError) as exc:
-        raise ConfigError(_("%(field)s must be an integer", field=field)) from exc
+        raise ConfigError(_("%(field)s must be an integer", field=field), _field_path(field)) from exc
     if number < 1:
-        raise ConfigError(_("%(field)s must be greater than 0", field=field))
+        raise ConfigError(_("%(field)s must be greater than 0", field=field), _field_path(field))
     return number
 
 
@@ -141,7 +250,7 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None) -> 
     storage = cfg["storage"]
     tmpl = str(storage["home_template"]).strip()
     if "{username}" not in tmpl:
-        raise ConfigError(_("storage.home_template must contain {username}"))
+        raise ConfigError(_("storage.home_template must contain {username}"), "storage.home_template")
     if not Path(os.path.expanduser(tmpl.split("{username}")[0] or ".")).is_absolute():
         tmpl = str(base_dir / tmpl)
     storage["home_template"] = os.path.expanduser(tmpl)
@@ -154,18 +263,20 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None) -> 
     for share in storage["shares"]:
         name = str(share.get("name", "")).strip()
         if not SHARE_NAME_RE.match(name):
-            raise ConfigError(_("Invalid shared folder name %(name)s (letters, digits, _ and -)", name=repr(name)))
+            raise ConfigError(_("Invalid shared folder name %(name)s (letters, digits, _ and -)", name=repr(name)), "storage.shares")
         if name.lower() in seen:
-            raise ConfigError(_("Duplicate or reserved shared folder name: %(name)s", name=repr(name)))
+            raise ConfigError(_("Duplicate or reserved shared folder name: %(name)s", name=repr(name)), "storage.shares")
         seen.add(name.lower())
         if not share.get("path"):
-            raise ConfigError(_("Shared folder %(name)s has no path", name=repr(name)))
+            raise ConfigError(_("Shared folder %(name)s has no path", name=repr(name)), "storage.shares")
         shares.append({
             "name": name,
             "label": str(share.get("label") or name).strip(),
             "path": str(_resolve(base_dir, str(share["path"]).strip())),
             "read_only": bool(share.get("read_only", False)),
             "users": [u.lower() for u in _str_list(share.get("users", ["*"]), f"{name}.users")],
+            "read_only_users": [u.lower() for u in _str_list(share.get("read_only_users", []),
+                                                             f"{name}.read_only_users")],
             "groups": [g.lower() for g in _str_list(share.get("groups", []), f"{name}.groups")],
             "read_only_groups": [g.lower() for g in _str_list(share.get("read_only_groups", []),
                                                               f"{name}.read_only_groups")],
@@ -182,25 +293,28 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None) -> 
     pam["allowed_groups"] = [g.lower() for g in _str_list(pam["allowed_groups"], "pam.allowed_groups")]
     pam["admin_groups"] = [g.lower() for g in _str_list(pam["admin_groups"], "pam.admin_groups")]
     if pam["enabled"] and sys.platform == "win32":
-        raise ConfigError(_("auth.pam is not available on Windows"))
+        raise ConfigError(_("auth.pam is not available on Windows"), "auth.pam.enabled")
 
     entra = cfg["auth"]["entra"]
     entra["enabled"] = bool(entra["enabled"])
     if entra["provider"] not in SSO_PROVIDER_NAMES:
-        raise ConfigError(_("auth.entra.provider must be one of: %(values)s", values=", ".join(SSO_PROVIDER_NAMES)))
+        raise ConfigError(_("auth.entra.provider must be one of: %(values)s", values=", ".join(SSO_PROVIDER_NAMES)), "auth.entra.provider")
     entra["scopes"] = _str_list(entra["scopes"], "entra.scopes")
     entra["allowed_groups"] = _str_list(entra["allowed_groups"], "entra.allowed_groups")
     if entra["default_role"] not in ROLES:
-        raise ConfigError(_("auth.entra.default_role must be one of: %(values)s", values=", ".join(ROLES)))
+        raise ConfigError(_("auth.entra.default_role must be one of: %(values)s", values=", ".join(ROLES)),
+                          "auth.entra.default_role")
     if not isinstance(entra["role_mappings"], dict):
-        raise ConfigError(_("auth.entra.role_mappings must be an object {group: role}"))
+        raise ConfigError(_("auth.entra.role_mappings must be an object {group: role}"), "auth.entra.role_mappings")
     mappings = {}
     for key, role in entra["role_mappings"].items():
         if role not in ROLES:
-            raise ConfigError(_("Invalid role %(role)s in role_mappings (use %(values)s)", role=repr(role), values=", ".join(ROLES)))
+            raise ConfigError(_("Invalid role %(role)s in role_mappings (use %(values)s)", role=repr(role), values=", ".join(ROLES)),
+                              "auth.entra.role_mappings")
         mappings[str(key).strip().lower()] = role
     entra["role_mappings"] = mappings
     entra["timeout_seconds"] = _positive_int(entra["timeout_seconds"], "entra.timeout_seconds")
+    entra["secret_expires"] = _iso_datetime(entra.get("secret_expires"), "auth.entra.secret_expires")
     if entra["enabled"]:
         required = ["client_id", "client_secret"]
         custom_endpoints = all(entra.get(k) for k in ("authorize_url", "token_url", "issuer"))
@@ -208,19 +322,46 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None) -> 
             required.append("tenant_id")
         missing = [k for k in required if not entra.get(k)]
         if missing:
-            raise ConfigError(_("Entra ID is enabled but these are missing: %(fields)s", fields=", ".join(missing)))
+            raise ConfigError(_("Entra ID is enabled but these are missing: %(fields)s", fields=", ".join(missing)),
+                              f"auth.entra.{missing[0]}")
 
     cfg["auth"]["local"]["enabled"] = bool(cfg["auth"]["local"]["enabled"])
     if not (cfg["auth"]["local"]["enabled"] or pam["enabled"] or entra["enabled"]):
-        raise ConfigError(_("At least one sign-in method must be enabled"))
+        raise ConfigError(_("At least one sign-in method must be enabled"), "auth")
+
+    # --- red
+    net = cfg["network"]
+    net["public_url"] = _public_url(net.get("public_url"))
+    cfg["server"]["proxy_hops"] = _positive_int(cfg["server"].get("proxy_hops", 1), "server.proxy_hops")
 
     # --- seguridad
     sec = cfg["security"]
     sec["max_login_failures"] = _positive_int(sec["max_login_failures"], "security.max_login_failures")
     sec["lockout_minutes"] = _positive_int(sec["lockout_minutes"], "security.lockout_minutes")
+    sec["ipban_enabled"] = bool(sec["ipban_enabled"])
+    sec["ipban_threshold"] = _positive_int(sec["ipban_threshold"], "security.ipban_threshold")
+    sec["ipban_window_minutes"] = _positive_int(sec["ipban_window_minutes"], "security.ipban_window_minutes")
+    sec["ipban_minutes"] = _non_negative_int(sec["ipban_minutes"], "security.ipban_minutes")
+    sec["api_tokens"] = bool(sec["api_tokens"])
+
+    # --- mantenimiento
+    maint = cfg["maintenance"]
+    maint["audit_retention_days"] = _non_negative_int(maint["audit_retention_days"], "maintenance.audit_retention_days")
+    maint["backup_interval_hours"] = _non_negative_int(maint["backup_interval_hours"],
+                                                       "maintenance.backup_interval_hours")
+    maint["backup_keep"] = _positive_int(maint["backup_keep"], "maintenance.backup_keep")
+
+    # --- marca
+    brand = cfg["branding"]
+    brand["primary_color"] = str(brand.get("primary_color") or "").strip().lower()
+    if brand["primary_color"] and not re.match(r"^#[0-9a-f]{6}$", brand["primary_color"]):
+        raise ConfigError(_("branding.primary_color must be a color like #2563eb"), "branding.primary_color")
+    brand["logo"] = str(brand.get("logo") or "").strip()
+    if brand["logo"] and not re.match(r"^logo\.(png|jpg|jpeg|webp|svg)$", brand["logo"]):
+        raise ConfigError(_("branding.logo is not valid"), "branding.logo")
     cfg["app_name"] = str(cfg["app_name"]).strip() or DEFAULTS["app_name"]
     if cfg["default_locale"] not in LOCALES:
-        raise ConfigError(_("default_locale must be one of: %(values)s", values=", ".join(LOCALES)))
+        raise ConfigError(_("default_locale must be one of: %(values)s", values=", ".join(LOCALES)), "default_locale")
     return cfg
 
 

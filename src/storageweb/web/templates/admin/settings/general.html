@@ -1,0 +1,49 @@
+{% extends "admin/settings/_layout.html" %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar with context %}
+{% block section %}
+{{ form_start() }}
+  <div class="card form-grid">
+    <label class="{{ err_class('app_name') }}"><span class="label-row">{{ _("Application name") }} {{ origin('app_name') }}</span>
+      <input type="text" name="app_name" value="{{ cfg.app_name }}" maxlength="80">
+      {{ field_error('app_name') }}</label>
+    <label class="{{ err_class('default_locale') }}"><span class="label-row">{{ _("Default language") }} {{ origin('default_locale') }}</span>
+      <select name="default_locale">
+        {% for code, name in locales %}<option value="{{ code }}" {% if cfg.default_locale == code %}selected{% endif %}>{{ name }}</option>{% endfor %}
+      </select>
+      <small class="muted">{{ _("Used when the user has not chosen one and the browser does not ask for an available language.") }}</small>
+      {{ field_error('default_locale') }}</label>
+
+    <h3 class="card-title span2">{{ _("Brand") }}</h3>
+    <div class="span2 brand-color{{ err_class('branding.primary_color') }}">
+      <label class="check"><input type="checkbox" name="custom_color" {% if cfg.branding.primary_color %}checked{% endif %}>
+        <span class="label-row">{{ _("Use my own main color") }} {{ origin('branding.primary_color') }}</span></label>
+      <input type="color" name="primary_color" value="{{ cfg.branding.primary_color or '#2563eb' }}" aria-label="{{ _('Main color') }}">
+      <small class="muted">{{ _("Buttons, links and highlights. It is used in the light and the dark theme.") }}</small>
+      {{ field_error('branding.primary_color') }}
+    </div>
+  </div>
+  {{ save_bar() }}
+</form>
+
+<div class="card section-gap brand-logo-card">
+  <h3 class="card-title">{{ _("Logo") }} {{ origin('branding.logo') }}</h3>
+  <div class="brand-logo-row">
+    <span class="rail-brand brand-preview{% if brand.logo %} has-logo{% endif %}" aria-hidden="true">
+      {% if brand.logo %}<img src="{{ url_for('brand.logo', v=brand.version) }}" alt="">{% else %}<svg class="icon"><use href="#i-folder"></use></svg>{% endif %}
+    </span>
+    <form method="post" action="{{ url_for('settings.branding_logo') }}" enctype="multipart/form-data" class="inline">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label class="sr-only" for="logo-file">{{ _("Logo") }}</label>
+      <input type="file" id="logo-file" name="logo" accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml" required>
+      <button class="btn" type="submit">{{ _("Upload") }}</button>
+    </form>
+    {% if brand.logo %}
+    <form method="post" action="{{ url_for('settings.branding_logo_delete') }}" class="inline">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button class="btn btn-ghost" type="submit">{{ _("Remove logo") }}</button>
+    </form>
+    {% endif %}
+  </div>
+  <p class="muted small">{{ _("PNG, JPEG, WebP or SVG up to 512 KB, square works best. It replaces the icon of the side bar, the sign-in page and the browser tab.") }}</p>
+</div>
+{% endblock %}

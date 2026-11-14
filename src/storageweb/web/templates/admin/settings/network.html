@@ -1,0 +1,95 @@
+{% extends "admin/settings/_layout.html" %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar with context %}
+{% block section %}
+{{ form_start() }}
+  <div class="card form-grid">
+    {% set pub = cfg.network.public_url %}
+    <h3 class="card-title span2">{{ _("Public name (FQDN)") }}</h3>
+    <label class="span2{{ err_class('network.public_url') }}"><span class="label-row">{{ _("Name users type in the browser") }} {{ origin('network.public_url') }}</span>
+      <input type="text" name="public_url" value="{{ pub[8:] if pub.startswith('https://') else pub }}" class="mono"
+             placeholder="files.example.com" autocapitalize="off" spellcheck="false">
+      <small class="muted">{{ _("Only the name, e.g. files.example.com (HTTPS is assumed). Add a port or a path if needed: files.example.com/files. Write http:// in front only for local tests. Used for the Entra ID return address and other external links. Empty = the host of each request (now %(base)s).", base=seen.base) }}</small>
+      {% if pub %}<small class="muted">{{ _("Resulting address: %(url)s", url=pub) }}</small>{% endif %}
+      {{ field_error('network.public_url') }}</label>
+  </div>
+  {{ save_bar() }}
+</form>
+
+<div class="card section-gap">
+  <h3 class="card-title">{{ _("Check of this request") }}</h3>
+  <ul class="check-list section-gap">
+    {% for level, text in notes %}
+    <li class="{{ {'ok': 'ok', 'info': 'unknown', 'warn': 'fail', 'danger': 'fail'}[level] }}">
+      <span aria-hidden="true">{{ {'ok': '✓', 'info': 'i', 'warn': '!', 'danger': '✕'}[level] }}</span><span>{{ text }}</span></li>
+    {% endfor %}
+  </ul>
+  <dl class="kv section-gap">
+    <dt>{{ _("The application sees") }}</dt><dd><code>{{ seen.scheme }}://{{ seen.host }}{{ seen.prefix if seen.prefix != '/' else '' }}</code></dd>
+    <dt>{{ _("Client address") }}</dt><dd><code>{{ seen.client }}</code>{% if seen.peer != seen.client %} <span class="muted small">({{ _("through %(peer)s", peer=seen.peer) }})</span>{% endif %}</dd>
+    {% for name, value in forwarded.items() %}
+    <dt><code>{{ name }}</code></dt><dd>{% if value %}<code>{{ value }}</code>{% else %}<span class="muted">—</span>{% endif %}</dd>
+    {% endfor %}
+  </dl>
+</div>
+
+<div class="card section-gap">
+  <h3 class="card-title">{{ _("Reverse proxy and HTTPS (config.json, requires restarting)") }}</h3>
+  <p class="muted small">{{ _("StorageWeb serves plain HTTP; HTTPS and the certificate are handled by the reverse proxy (nginx, Caddy, Traefik…).") }}</p>
+  <dl class="kv section-gap">
+    <dt><code>server.behind_proxy</code></dt><dd>{{ _("Yes") if boot_server.behind_proxy else _("No") }}</dd>
+    <dt><code>server.proxy_hops</code></dt><dd>{{ boot_server.proxy_hops }}</dd>
+    <dt><code>server.host</code> : <code>server.port</code></dt><dd>{{ boot_server.host }}:{{ boot_server.port }}</dd>
+    <dt><code>session.cookie_secure</code></dt><dd>{{ _("Yes") if cookie_secure else _("No") }}</dd>
+    <dt><code>server.max_upload_mb</code></dt><dd>{{ boot_server.max_upload_mb }} MB</dd>
+  </dl>
+  <details class="section-gap">
+    <summary>{{ _("Example for nginx with these values") }}</summary>
+    <pre class="code">server {
+    listen 443 ssl;
+    http2 on;
+    server_name {{ example.host }};
+    ssl_certificate     /etc/letsencrypt/live/{{ example.host }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ example.host }}/privkey.pem;
+
+    client_max_body_size {{ example.body_mb }}m;
+    proxy_request_buffering off;
+    proxy_buffering off;
+    proxy_max_temp_file_size 0;
+    proxy_read_timeout 300s;
+    proxy_send_timeout 300s;
+
+    location {{ example.prefix or '' }}/ {
+        proxy_pass http://{{ example.upstream }}/;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;{% if example.prefix %}
+        proxy_set_header X-Forwarded-Prefix {{ example.prefix }};{% endif %}
+    }
+}
+
+server {
+    listen 80;
+    server_name {{ example.host }};
+    return 301 https://$host$request_uri;
+}</pre>
+  </details>
+  <details>
+    <summary>{{ _("Example for Caddy (automatic certificate)") }}</summary>
+    <pre class="code">{{ example.host }} {
+    request_body {
+        max_size {{ example.body_mb }}MB
+    }{% if example.prefix %}
+    handle_path {{ example.prefix }}/* {
+        reverse_proxy {{ example.upstream }} {
+            header_up X-Forwarded-Prefix {{ example.prefix }}
+            flush_interval -1
+        }
+    }{% else %}
+    reverse_proxy {{ example.upstream }} {
+        flush_interval -1
+    }{% endif %}
+}</pre>
+  </details>
+</div>
+{% endblock %}

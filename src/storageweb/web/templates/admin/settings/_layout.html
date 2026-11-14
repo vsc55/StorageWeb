@@ -1,0 +1,22 @@
+{% extends "admin/_layout.html" %}
+{% from "admin/_page.html" import page_kind with context %}
+{% block title %}{{ SECTION_LABELS[section] }} · {{ app_name }}{% endblock %}
+{% block admin_content %}
+<section class="settings-main">
+  <div class="settings-head">
+    <div class="settings-title">
+      <h1>{{ SECTION_LABELS[section] }}</h1>
+      {{ page_kind() }}
+    </div>
+    <p class="muted small">{{ description }}</p>
+  </div>
+  {% if error %}<div class="flash flash-error" role="alert">{{ _("The changes were not saved: %(error)s", error=error) }}</div>{% endif %}
+  {% block section %}{% endblock %}
+</section>
+
+{# Formularios auxiliares: los botones de dentro de cada sección los usan con el atributo form= #}
+<form id="reset-field-form" method="post" action="{{ url_for('settings.reset_field') }}" hidden>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="next" value="{{ request.path }}">
+</form>
+{% endblock %}

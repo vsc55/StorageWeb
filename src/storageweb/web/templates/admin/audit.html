@@ -1,13 +1,15 @@
 {% extends "admin/_layout.html" %}
 {% block title %}{{ _("Audit") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
-<div class="page-head"><h1>{{ _("Audit") }}</h1></div>
+<div class="page-head"><h1>{{ _("Audit") }}</h1>
+  <a class="small" href="{{ url_for('settings.section', name='maintenance') }}">{{ _("Retention and cleanup") }}</a></div>
 
 <form method="get" class="inline search">
   <input type="text" name="user" value="{{ user_filter }}" placeholder="{{ _('User') }}">
   <input type="text" name="action" value="{{ action_filter }}" placeholder="{{ _('Action (login, upload, delete…)') }}">
   <button class="btn" type="submit">{{ _("Filter") }}</button>
   {% if user_filter or action_filter %}<a class="btn btn-ghost" href="{{ url_for('admin.audit_log') }}">{{ _("Clear") }}</a>{% endif %}
+  <a class="btn btn-ghost" href="{{ url_for('admin.audit_export', user=user_filter or None, action=action_filter or None) }}">{{ _("Export CSV") }}</a>
 </form>
 
 <table class="files small">

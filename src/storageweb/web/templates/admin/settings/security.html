@@ -1,0 +1,35 @@
+{% extends "admin/settings/_layout.html" %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar with context %}
+{% block section %}
+{% set sec = cfg.security %}
+{{ form_start() }}
+  <div class="card form-grid">
+    <h3 class="card-title span2">{{ _("Failed sign-ins") }}</h3>
+    <label class="{{ err_class('security.max_login_failures') }}"><span class="label-row">{{ _("Failed attempts before locking") }} {{ origin('security.max_login_failures') }}</span>
+      <input type="number" name="max_login_failures" value="{{ sec.max_login_failures }}" min="1">
+      {{ field_error('security.max_login_failures') }}</label>
+    <label class="{{ err_class('security.lockout_minutes') }}"><span class="label-row">{{ _("Lockout minutes") }} {{ origin('security.lockout_minutes') }}</span>
+      <input type="number" name="lockout_minutes" value="{{ sec.lockout_minutes }}" min="1">
+      {{ field_error('security.lockout_minutes') }}</label>
+    <p class="muted small span2">{{ _("After that many failed attempts from the same user name and address, sign-in is blocked for those minutes.") }}</p>
+
+    <h3 class="card-title span2">{{ _("Automatic IP blocking") }}</h3>
+    <label class="check span2"><input type="checkbox" name="ipban_enabled" {% if sec.ipban_enabled %}checked{% endif %}>
+      <span>{{ _("Block addresses with many offenses") }} {{ origin('security.ipban_enabled') }}
+        <small class="muted">{{ _("Wrong passwords, invalid CSRF tokens and invalid API tokens count. Loopback addresses and the allow list are never blocked.") }}</small></span></label>
+    <label class="{{ err_class('security.ipban_threshold') }}"><span class="label-row">{{ _("Offenses") }} {{ origin('security.ipban_threshold') }}</span>
+      <input type="number" name="ipban_threshold" value="{{ sec.ipban_threshold }}" min="1">{{ field_error('security.ipban_threshold') }}</label>
+    <label class="{{ err_class('security.ipban_window_minutes') }}"><span class="label-row">{{ _("In (minutes)") }} {{ origin('security.ipban_window_minutes') }}</span>
+      <input type="number" name="ipban_window_minutes" value="{{ sec.ipban_window_minutes }}" min="1">{{ field_error('security.ipban_window_minutes') }}</label>
+    <label class="{{ err_class('security.ipban_minutes') }}"><span class="label-row">{{ _("Block for (minutes)") }} {{ origin('security.ipban_minutes') }}</span>
+      <input type="number" name="ipban_minutes" value="{{ sec.ipban_minutes }}" min="0">
+      <small class="muted">{{ _("0 = until an administrator removes it") }}</small>{{ field_error('security.ipban_minutes') }}</label>
+
+    <h3 class="card-title span2">{{ _("API tokens") }}</h3>
+    <label class="check span2"><input type="checkbox" name="api_tokens" {% if sec.api_tokens %}checked{% endif %}>
+      <span>{{ _("Allow personal API tokens") }} {{ origin('security.api_tokens') }}
+        <small class="muted">{{ _("Users create them in their profile to list, download and upload files from scripts. Disabling this stops every existing token.") }}</small></span></label>
+  </div>
+  {{ save_bar() }}
+</form>
+{% endblock %}

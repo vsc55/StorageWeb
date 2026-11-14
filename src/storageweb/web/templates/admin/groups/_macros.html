@@ -1,4 +1,4 @@
-{# Piezas comunes de las tres vistas de grupos #}
+{# Piezas comunes de las vistas de grupos y de la matriz de accesos #}
 
 {% macro source_badge(source) -%}
 <span class="badge badge-src badge-src-{{ source }}">{{ GROUP_SOURCE_LABELS[source] }}</span>
@@ -12,7 +12,6 @@
 <nav class="segmented view-switch" aria-label="{{ _('Groups view') }}">
   <a class="segment{% if view == 'list' %} active{% endif %}" href="{{ url_for('groups.list_view') }}"{% if view == 'list' %} aria-current="page"{% endif %}>{{ _("List") }}</a>
   <a class="segment{% if view == 'panel' %} active{% endif %}" href="{{ url_for('groups.panel_view') }}"{% if view == 'panel' %} aria-current="page"{% endif %}>{{ _("Panels") }}</a>
-  <a class="segment{% if view == 'matrix' %} active{% endif %}" href="{{ url_for('groups.matrix_view') }}"{% if view == 'matrix' %} aria-current="page"{% endif %}>{{ _("Access matrix") }}</a>
 </nav>
 {%- endmacro %}
 
@@ -45,7 +44,10 @@
       <span><strong>{{ _("System (PAM)") }}</strong><span class="muted small">{{ _("Members of a group of the server.") }}</span></span></label>
   </fieldset>
   <label class="span2">{{ _("External group") }} <small class="muted">({{ _("Entra ID: Object ID of the group or App Role name. System: group name.") }})</small>
-    <input type="text" name="external_id" value="{{ form.external_id or '' }}" maxlength="200" class="mono">
+    <input type="text" name="external_id" value="{{ form.external_id or '' }}" maxlength="200" class="mono"
+           list="entra-groups" autocomplete="off" data-entra-search="{{ url_for('groups.entra_search') }}">
+    <datalist id="entra-groups"></datalist>
+    <small class="muted js-only">{{ _("For Entra ID you can type the start of the group name and choose it.") }}</small>
     <small class="muted">{{ _("Leave it empty for local groups. For Entra ID the id_token must include the «groups» or «roles» claim.") }}</small>
   </label>
 {%- endmacro %}
@@ -104,7 +106,7 @@
 </div>
 {%- endmacro %}
 
-{% macro detected_box(detected) -%}
+{% macro detected_box(detected, names=None) -%}
 {% if detected %}
 <section class="detected" aria-labelledby="detected-title">
   <div>
@@ -114,12 +116,12 @@
   <div class="chips">
     {% for d in detected %}
     <span class="chip chip-detected">
-      <code>{{ d.id }}</code>
+      {% if names and names.get(d.id) %}<strong>{{ names[d.id] }}</strong>{% endif %}<code>{{ d.id }}</code>
       <span class="muted small">
         {%- if d.source %}{{ GROUP_SOURCE_LABELS[d.source] }} · {{ ngettext("%(num)s user", "%(num)s users", d.users) }}{% endif -%}
         {%- if d.shares %}{% if d.source %} · {% endif %}{{ _("used in %(shares)s", shares=d.shares|join(', ')) }}{% endif -%}
       </span>
-      <a class="btn btn-small" href="{{ url_for('groups.new', source=d.source or 'local', external_id=d.id if d.source else '', name='' if d.source else d.id) }}">{{ _("Register") }}</a>
+      <a class="btn btn-small" href="{{ url_for('groups.new', source=d.source or 'local', external_id=d.id if d.source else '', name='' if d.source else d.id, label=(names or {}).get(d.id, '')) }}">{{ _("Register") }}</a>
     </span>
     {% endfor %}
   </div>

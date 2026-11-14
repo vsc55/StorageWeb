@@ -80,9 +80,11 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-    F[Formulario /admin/settings] --> V{normalize<br/>config.json + borrador}
-    V -- error --> R[400 con el borrador<br/>para corregir]
-    V -- ok --> P[settings.put<br/>revision += 1]
+    F[Formulario de una sección<br/>/admin/settings/auth] --> M[merge sobre los<br/>ajustes efectivos]
+    M --> V{normalize<br/>config.json + borrador}
+    V -- error --> R[400 con el borrador y<br/>el error junto al campo]
+    V -- ok --> D[diff con config.json]
+    D --> P[settings.put<br/>revision += 1]
     P --> C[Cada petición:<br/>¿revision cambió? → recalcular]
 ```
 

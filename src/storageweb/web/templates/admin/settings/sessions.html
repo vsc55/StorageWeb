@@ -1,0 +1,119 @@
+{% extends "admin/settings/_layout.html" %}
+{% block section %}
+<section class="card" aria-labelledby="sessions-title">
+  <div class="page-head">
+    <div>
+      <h3 class="card-title" id="sessions-title">{{ _("Open sessions") }}</h3>
+      <p class="muted small">{{ ngettext("%(num)s session", "%(num)s sessions", sessions|length) }} · {{ ngettext("%(num)s user", "%(num)s users", session_users) }} ·
+        {{ _("A session ends after %(hours)s hours without activity (session.lifetime_hours in config.json).", hours=lifetime_hours) }}</p>
+    </div>
+    {% if sessions|length > 1 %}
+    <form method="post" action="{{ url_for('settings.sessions_close_all') }}" class="inline js-confirm"
+          data-confirm="{{ _('Close every session except yours? Everybody will have to sign in again.') }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button class="btn btn-danger" type="submit">{{ _("Close all except mine") }}</button>
+    </form>
+    {% endif %}
+  </div>
+  {% set others = sessions|rejectattr('id', 'equalto', current_sid)|list %}
+  <div class="session-tools">
+    <form method="post" action="{{ url_for('settings.sessions_close_selected') }}" id="bulk-form" class="bulk-bar">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      {% if others %}
+      <span class="small" id="bulk-count" aria-live="polite">{{ _("With the selected sessions:") }}</span>
+      <button class="btn btn-small btn-danger" type="submit">{{ _("Close them") }}</button>
+      {% else %}
+      <span class="small muted">{{ _("Yours is the only open session.") }}</span>
+      {% endif %}
+    </form>
+    <form method="post" action="{{ url_for('settings.sessions_close_idle') }}" class="inline js-confirm"
+          data-confirm="{{ _('Close the sessions without activity for that long?') }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label class="small" for="idle-hours">{{ _("Close sessions without activity for more than") }}</label>
+      <select name="hours" id="idle-hours">
+        <option value="1">{{ _("1 hour") }}</option><option value="24" selected>{{ _("1 day") }}</option>
+        <option value="168">{{ _("1 week") }}</option><option value="720">{{ _("30 days") }}</option>
+      </select>
+      <button class="btn btn-small" type="submit">{{ _("Close") }}</button>
+    </form>
+  </div>
+  <div class="table-scroll">
+  <table class="files">
+    <thead><tr><th class="col-check">{% if others %}<input type="checkbox" id="bulk-all" aria-label="{{ _('Select all') }}">{% endif %}</th>
+               <th>{{ _("User") }}</th><th>{{ _("Browser") }}</th><th>IP</th><th>{{ _("Signed in") }}</th><th>{{ _("Last activity") }}</th>
+               <th><span class="sr-only">{{ _("Actions") }}</span></th></tr></thead>
+    <tbody>
+      {% for s in sessions %}
+      <tr>
+        <td class="col-check">{% if s['id'] != current_sid %}<input type="checkbox" name="sids" value="{{ s['id'] }}" form="bulk-form"
+            class="bulk-check" aria-label="{{ _('Select the session of %(name)s', name=s['username']) }}">{% endif %}</td>
+        <td class="name"><a href="{{ url_for('admin.user_edit', user_id=s['user_id']) }}">{{ s['display_name'] or s['username'] }}</a>
+          {% if s['display_name'] and s['display_name'] != s['username'] %}<div class="muted small">{{ s['username'] }}</div>{% endif %}</td>
+        <td title="{{ s['user_agent'] or '' }}">{{ s['user_agent']|ua_summary }}{% if s['id'] == current_sid %} <span class="badge">{{ _("this one") }}</span>{% endif %}</td>
+        <td><code>{{ s['ip'] or '—' }}</code></td>
+        <td class="nowrap small">{{ s['created_at']|datetime }}</td>
+        <td class="nowrap small">{{ s['last_seen']|datetime }}</td>
+        <td class="actions">
+          {% if s['id'] != current_sid %}
+          <form method="post" action="{{ url_for('admin.session_close', sid=s['id']) }}" class="inline">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <button class="btn btn-small" type="submit">{{ _("Close") }}</button>
+          </form>
+          <form method="post" action="{{ url_for('admin.user_sessions_close', user_id=s['user_id']) }}" class="inline">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <button class="btn btn-small btn-ghost" type="submit" title="{{ _('Close all the sessions of %(name)s', name=s['username']) }}">{{ _("All of the user") }}</button>
+          </form>
+          {% else %}
+          {# La propia también se puede cerrar: es salir de la aplicación #}
+          <form method="post" action="{{ url_for('auth.logout') }}" class="inline js-confirm"
+                data-confirm="{{ _('Close your own session? You will have to sign in again.') }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="btn btn-small" type="submit">{{ _("Close (sign out)") }}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="muted">{{ _("No open sessions.") }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted small">{{ _("Disabling a user or changing their password closes all their sessions. From the server: storageweb-admin sessions-close <user> or --all.") }}</p>
+</section>
+
+<section class="card section-gap" aria-labelledby="tokens-title">
+  <h3 class="card-title" id="tokens-title">{{ _("API tokens") }}</h3>
+  <p class="muted small">{{ _("Users create them in their profile. Revoking one stops it at once.") }}
+    <a href="{{ url_for('settings.section', name='security') }}">{{ _("Allow or forbid tokens in Security") }}</a></p>
+  <div class="table-scroll">
+  <table class="files small">
+    <thead><tr><th>{{ _("User") }}</th><th>{{ _("Name") }}</th><th>{{ _("Scope") }}</th><th>{{ _("Last used") }}</th><th>{{ _("Expires") }}</th>
+               <th><span class="sr-only">{{ _("Actions") }}</span></th></tr></thead>
+    <tbody>
+      {% for t in all_tokens %}
+      <tr>
+        <td class="name"><a href="{{ url_for('admin.user_edit', user_id=t['user_id']) }}">{{ t['display_name'] or t['username'] }}</a></td>
+        <td>{{ t['name'] }} <code class="muted">{{ t['prefix'] }}…</code></td>
+        <td>{{ t['scope'] }}</td>
+        <td class="nowrap">{{ t['last_used_at']|datetime }}{% if t['last_ip'] %} <span class="muted">· {{ t['last_ip'] }}</span>{% endif %}</td>
+        <td class="nowrap">{{ t['expires_at']|datetime if t['expires_at'] else _("never") }}</td>
+        <td class="actions">
+          <form method="post" action="{{ url_for('admin.user_token_delete', user_id=t['user_id'], token_id=t['id']) }}" class="inline js-confirm"
+                data-confirm="{{ _('Revoke the token «%(name)s»?', name=t['name']) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <button class="btn btn-small btn-danger" type="submit">{{ _("Revoke") }}</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted">{{ _("There are no API tokens.") }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}

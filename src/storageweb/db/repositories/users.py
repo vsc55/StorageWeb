@@ -59,6 +59,10 @@ def list_all(conn: Connection, search: str = "", *, status: str | None = None, s
     return conn.execute(sql, params).fetchall()  # noqa: S608 (condiciones fijas, valores parametrizados)
 
 
+def count_by_source(conn: Connection) -> dict:
+    return {r[0]: r[1] for r in conn.execute("SELECT source, COUNT(*) FROM users GROUP BY source")}
+
+
 def counts(conn: Connection) -> dict:
     row = conn.execute("SELECT COUNT(*), COALESCE(SUM(enabled), 0) FROM users").fetchone()
     return {"all": row[0], "active": row[1], "disabled": row[0] - row[1]}

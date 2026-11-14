@@ -1,14 +1,16 @@
-"""Perfil del usuario: datos personales, idioma, tema y cambio de contraseña."""
+"""Perfil del usuario: datos personales, idioma, tema, contraseña, sesiones y tokens de API."""
 from __future__ import annotations
 
 from flask import Blueprint, abort, flash, g, redirect, render_template, request, session, url_for
 
+from ...core import tokens
 from ...core.accounts import SOURCE_LABELS
-from ...db.repositories import audit, users
-from ...i18n import LOCALES, _, _l, locale_display_name
+from ...db.repositories import api_tokens, audit, users
+from ...db.repositories import sessions as session_repo
+from ...i18n import LOCALES, _, _l, locale_display_name, ngettext
 from ...i18n import normalize as normalize_locale
 from ...providers import local
-from ..context import get_db
+from ..context import get_db, settings
 from ..guards import client_ip, login_required, safe_next
 
 bp = Blueprint("profile", __name__)
@@ -76,7 +78,10 @@ def profile():
         locales=[(code, locale_display_name(code)) for code in LOCALES],
         themes=[(code, THEME_LABELS[code]) for code in THEMES],
         user_locale=normalize_locale(user["locale"]) or "",
-        user_theme=normalize_theme(user["theme"]) or "system")
+        user_theme=normalize_theme(user["theme"]) or "system",
+        my_sessions=session_repo.list_all(get_db(), user["id"]), current_sid=g.get("session_id"),
+        tokens_enabled=settings()["security"]["api_tokens"], my_tokens=api_tokens.list_for_user(get_db(), user["id"]),
+        new_token=session.pop("new_token", None), SCOPE_LABELS=tokens.SCOPE_LABELS, EXPIRY_DAYS=tokens.EXPIRY_DAYS)
 
 
 @bp.route("/profile/password", methods=["POST"])
@@ -100,6 +105,60 @@ def change_password():
         except ValueError as exc:
             flash(str(exc), "error")
         else:
-            _audit("password_changed")
-            flash(_("Password changed."), "info")
+            closed = session_repo.delete_for_user(get_db(), user["id"], keep=g.get("session_id"))
+            _audit("password_changed", f"sessions_closed={closed}")
+            flash(_("Password changed. Your other sessions have been closed."), "info")
     return redirect(url_for("profile.profile") + "#password")
+
+
+# --------------------------------------------------------------------------- sesiones
+
+@bp.route("/profile/sessions/<sid>/close", methods=["POST"])
+@login_required
+def session_close(sid: str):
+    row = session_repo.get(get_db(), sid)
+    if row is not None and row["user_id"] == g.user["id"] and sid != g.get("session_id"):
+        session_repo.delete(get_db(), sid)
+        _audit("session_closed", row["ip"])
+        flash(_("Session closed."), "info")
+    return redirect(url_for("profile.profile") + "#sessions")
+
+
+@bp.route("/profile/sessions/close-others", methods=["POST"])
+@login_required
+def sessions_close_others():
+    closed = session_repo.delete_for_user(get_db(), g.user["id"], keep=g.get("session_id"))
+    _audit("sessions_closed", str(closed))
+    flash(ngettext("%(num)s session closed.", "%(num)s sessions closed.", closed), "info")
+    return redirect(url_for("profile.profile") + "#sessions")
+
+
+# --------------------------------------------------------------------------- tokens de API
+
+@bp.route("/profile/tokens", methods=["POST"])
+@login_required
+def token_create():
+    if not settings()["security"]["api_tokens"]:
+        abort(403, description=_("API tokens are disabled."))
+    try:
+        plain, _token_id = tokens.create(get_db(), g.user, name=request.form.get("name", ""),
+                                         scope=request.form.get("scope", "read"),
+                                         days=request.form.get("days", 90, type=int))
+    except tokens.TokenError as exc:
+        flash(str(exc), "error")
+    else:
+        session["new_token"] = plain  # se muestra una sola vez
+        _audit("api_token_created", request.form.get("name", "").strip())
+    return redirect(url_for("profile.profile") + "#tokens")
+
+
+@bp.route("/profile/tokens/<int:token_id>/delete", methods=["POST"])
+@login_required
+def token_delete(token_id: int):
+    token = api_tokens.get(get_db(), token_id)
+    if token is None or token["user_id"] != g.user["id"]:
+        abort(404)
+    api_tokens.delete(get_db(), token_id)
+    _audit("api_token_revoked", token["name"])
+    flash(_("Token «%(name)s» revoked.", name=token["name"]), "info")
+    return redirect(url_for("profile.profile") + "#tokens")

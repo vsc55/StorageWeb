@@ -62,7 +62,7 @@ def render_config() -> str:
     lines = [HEADER, "# Referencia de configuración\n\n",
              "Todas las opciones de `config.json`, con su valor por defecto. Las rutas relativas se resuelven "
              "respecto a la carpeta donde está el `config.json`.\n\n",
-             "- **Web**: «Sí» = se puede cambiar en *Administración → Ajustes* (se aplica al momento y tiene "
+             "- **Web**: «Sí» = se puede cambiar desde las páginas de la administración (se aplica al momento y tiene "
              "prioridad sobre `config.json`). «No» = solo en `config.json` y requiere reiniciar el servicio.\n",
              "- Los valores secretos nunca se muestran en la web.\n\n"]
     leaves = config_leaves(DEFAULTS)

@@ -81,7 +81,7 @@
         </div>
       </form>
     {% elif tab == 'groups' %}
-      {{ group_chips(current, memberships, unknown_groups, addable_groups, here) }}
+      {{ group_chips(current, memberships, unknown_groups, addable_groups, here, unknown_names) }}
     {% elif tab == 'access' %}
       {{ access_list(current, access, role_permissions) }}
     {% else %}

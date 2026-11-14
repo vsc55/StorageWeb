@@ -44,7 +44,7 @@ StorageWeb es un servidor web para **subir y descargar archivos** desde el naveg
     storageweb --config config.json serve
     ```
 
-Después, entra con el usuario admin y abre **Administración → Ajustes**.
+Después, entra con el usuario admin y abre el **Resumen** de la administración (o pulsa Ctrl+K para buscar un ajuste).
 
 !!! warning "HTTPS"
     En producción pon delante un proxy con HTTPS ([guía de nginx](administracion/https.md)). Sin HTTPS, la cookie de sesión no se envía (`session.cookie_secure`) y Microsoft Entra ID rechaza la URL de vuelta.

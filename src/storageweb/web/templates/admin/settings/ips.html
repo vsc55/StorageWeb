@@ -1,0 +1,58 @@
+{% extends "admin/settings/_layout.html" %}
+{% block section %}
+<section class="card" id="ip-rules" aria-labelledby="bans-title">
+  <h3 class="card-title" id="bans-title">{{ _("Blocked addresses") }}</h3>
+  <p class="muted small">{{ _("Your address: %(ip)s. Rescue from the server: storageweb-admin ip-unban --all", ip=my_ip) }}</p>
+  <div class="table-scroll">
+  <table class="files small">
+    <thead><tr><th>{{ _("Address or network") }}</th><th>{{ _("Reason") }}</th><th>{{ _("Since") }}</th><th>{{ _("Until") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr></thead>
+    <tbody>
+      {% for r in ip_bans %}
+      <tr{% if r['expires_at'] and r['expires_at'] < now %} class="row-disabled"{% endif %}>
+        <td><code>{{ r['network'] }}</code> {% if r['automatic'] %}<span class="badge">{{ _("automatic") }}</span>{% endif %}</td>
+        <td>{{ r['reason'] or '—' }}{% if r['created_by'] %} <span class="muted">· {{ r['created_by'] }}</span>{% endif %}</td>
+        <td class="nowrap">{{ r['created_at']|datetime }}</td>
+        <td class="nowrap">{{ r['expires_at']|datetime if r['expires_at'] else _("indefinitely") }}</td>
+        <td class="actions"><form method="post" action="{{ url_for('settings.ip_remove', rule_id=r['id']) }}" class="inline">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn btn-small" type="submit">{{ _("Unblock") }}</button></form></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="muted">{{ _("No address is blocked.") }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <form method="post" action="{{ url_for('settings.ip_add') }}" class="inline search section-gap ip-form">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="kind" value="ban">
+    <input type="text" name="network" required placeholder="203.0.113.7 · 198.51.100.0/24" aria-label="{{ _('Address or network') }}" class="mono">
+    <select name="minutes" aria-label="{{ _('Duration') }}">
+      <option value="60">{{ _("1 hour") }}</option><option value="1440">{{ _("1 day") }}</option>
+      <option value="10080">{{ _("1 week") }}</option><option value="0" selected>{{ _("Indefinitely") }}</option>
+    </select>
+    <input type="text" name="reason" placeholder="{{ _('Reason (optional)') }}" aria-label="{{ _('Reason') }}">
+    <button class="btn btn-danger" type="submit">{{ _("Block") }}</button>
+  </form>
+</section>
+
+<section class="card section-gap" aria-labelledby="allow-title">
+  <h3 class="card-title" id="allow-title">{{ _("Allow list") }}</h3>
+  <p class="muted small">{{ _("These addresses are never blocked, automatically or by hand (for example the office network or your VPN).") }}</p>
+  <ul class="changed-list">
+    {% for r in ip_allows %}
+    <li><code>{{ r['network'] }}</code> <span class="muted small">{{ r['reason'] }}</span>
+      <form method="post" action="{{ url_for('settings.ip_remove', rule_id=r['id']) }}" class="inline">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="link-btn small" type="submit">{{ _("Remove") }}</button></form></li>
+    {% else %}
+    <li class="muted small">{{ _("Empty.") }}</li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="{{ url_for('settings.ip_add') }}" class="inline search section-gap ip-form">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="kind" value="allow">
+    <input type="text" name="network" required placeholder="10.0.0.0/8" aria-label="{{ _('Address or network') }}" class="mono">
+    <input type="text" name="reason" placeholder="{{ _('Note (optional)') }}" aria-label="{{ _('Note') }}">
+    <button class="btn" type="submit">{{ _("Add") }}</button>
+  </form>
+</section>
+{% endblock %}

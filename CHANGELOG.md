@@ -14,9 +14,28 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
   - fechas y tamaños según el idioma;
   - catálogos gettext comprobados en el CI.
 - Opción `--locale` en `user-set`, y variable `STORAGEWEB_LANG` para la CLI.
-- **Administración de usuarios** con tres vistas para probar (lista con filtros, paginación y acciones en bloque; paneles con pestañas; tarjetas con edición rápida) y una ficha por secciones con el **acceso efectivo** del usuario y su actividad reciente.
-- **Gestión de grupos** (*Administración → Grupos*): grupos locales, de Entra ID (Object ID o App Role) y del sistema, con nombre legible, miembros manuales y sincronizados, grupo de serie **Administradores** (no se puede borrar; sus miembros son los usuarios con rol admin), grupos detectados sin dar de alta y tres vistas para probar (lista, paneles y matriz de accesos grupos × carpetas).
-- Acceso de solo lectura por grupo en las carpetas compartidas: `storage.shares[].read_only_groups`.
+- **Sesiones en el servidor**: *Personas → Sesiones y tokens* muestra quién está conectado y todos los tokens de API, con cerrar una sesión, todas las de un usuario, las seleccionadas, las inactivas desde hace más de un tiempo o todas menos la propia; *Mi perfil* muestra las propias. Desactivar un usuario o cambiar su contraseña cierra sus sesiones. Comando `sessions-close`.
+- **Tokens de API personales** (`Authorization: Bearer sw_…`) con alcance de lectura o de lectura y escritura, caducidad y revocación; el listado de carpetas responde en JSON a los scripts.
+- **Bloqueo de IPs**: automático por infracciones (contraseñas erróneas, CSRF, tokens no válidos), manual por IP o red y lista blanca, en *Seguridad → Reglas de bloqueo* e *IPs bloqueadas*. Comandos de rescate `ip-list`, `ip-unban` e `ip-allow`.
+- *Sistema → Mantenimiento* y *Copias y base de datos*: retención de la auditoría, compactación de la base de datos, **copias de seguridad desde la web** (crear, descargar, borrar) y copia automática periódica.
+- Exportación de la auditoría a **CSV**.
+- **Marca**: logo propio (PNG, JPEG, WebP o SVG) y color principal.
+- **Caducidad del secreto de Entra ID** con aviso a los admins desde 30 días antes y botón **Renovar secreto**.
+- **Nombres de los grupos de Entra ID** en lugar de Object IDs (permiso `Group.Read.All`, concedido al registrar o con *Conceder lectura de grupos*) y buscador por nombre al dar de alta un grupo.
+- **Nombre público (FQDN)** (`network.public_url`, también desde la web; basta con `files.empresa.es`, se asume HTTPS) para las URLs externas detrás de un proxy inverso: la de vuelta de Entra ID y la de salida. Variable `STORAGEWEB_PUBLIC_URL` en Docker.
+- **Proxies encadenados y subrutas**: `server.proxy_hops` y soporte de `X-Forwarded-Prefix` (`STORAGEWEB_PROXY_HOPS` en Docker).
+- Sección **Red y HTTPS** en los ajustes: diagnóstico de cómo llega la petición (esquema, host, subruta, IP real, cabeceras `X-Forwarded-*`) con avisos de los errores típicos, y ejemplos de nginx y Caddy con los valores de la instalación.
+- **Nueva página de ajustes**: una sección por tema con su propia dirección, barra de guardar que solo aparece con cambios y aviso al salir sin guardar, errores junto al campo, etiqueta **web** en los valores que mandan sobre `config.json` con *Restablecer* campo a campo, y comprobación de que las carpetas compartidas existen en el servidor.
+- **Inicio de sesión** como tarjetas con interruptor (local, PAM, Entra ID), mapeo de roles por filas y **Probar conexión con Entra ID** (tenant, aplicación, Redirect URI y secreto, sin iniciar sesión).
+- **Registrar en Entra ID** con un botón: inicio de sesión con código de dispositivo y creación por Microsoft Graph de la aplicación (Redirect URI, permisos de inicio de sesión con consentimiento de administrador, secreto, aplicación empresarial y, opcionalmente, App Roles, claim de grupos y asignación requerida). Los datos se guardan solos y se pasa a comprobar y activar.
+- **Asistente de Entra ID** en cuatro pasos: registro, identificadores, usuarios y roles, comprobación y activación.
+- **Administración de usuarios** con dos vistas para probar (lista con filtros, paginación y acciones en bloque; paneles con pestañas) y una ficha por secciones con el **acceso efectivo** del usuario y su actividad reciente.
+- **Gestión de grupos** (*Personas → Grupos*): grupos locales, de Entra ID (Object ID o App Role) y del sistema, con nombre legible, miembros manuales y sincronizados, grupo de serie **Administradores** (no se puede borrar; sus miembros son los usuarios con rol admin), grupos detectados sin dar de alta, dos vistas para probar (lista y paneles) y la matriz de accesos grupos × carpetas en *Acceso*.
+- Acceso de solo lectura por grupo y por usuario en las carpetas compartidas: `storage.shares[].read_only_groups` y `read_only_users` (también `"*"` para que todos lean). Se puede escribir si alguna de las vías por las que entra el usuario lo permite.
+- **Administración por zonas**: la barra lateral tiene el **Resumen** y las zonas *Personas*, *Acceso*, *Seguridad* y *Sistema*, cada una con su submenú. Cada página indica si es de configuración (se aplica al guardar), de operación (se aplica al momento) o de solo lectura. *Seguridad* separa las reglas de bloqueo de las IPs bloqueadas, y *Sistema* separa el mantenimiento de las copias y la base de datos.
+- **Resumen** de la administración: avisos con su acción (secreto de Entra ID que caduca, carpetas que no existen, copias automáticas que no se hacen, problemas de red), con un contador en la barra lateral; una tarjeta por zona, tareas frecuentes y actividad reciente.
+- **Buscador** (Ctrl+K o `/`): páginas, ajustes (lleva al campo exacto y lo resalta), acciones, usuarios, grupos y carpetas, sin distinguir tildes. Sin JavaScript, página de resultados en `/admin/search`.
+- *Acceso → Carpetas compartidas*: cada carpeta con quién entra (todos, usuarios y grupos) y con qué permiso, ficha para editarla, crearla o quitarla (los archivos se quedan) y auditoría `share_created`, `share_updated` y `share_deleted`.
 - **Activar y desactivar usuarios** de cualquier origen (también Entra ID y PAM) desde la lista y la ficha del usuario, con filtro por estado y auditoría (`user_disabled`, `user_enabled`).
 - Página **Mi perfil**: nombre, email, idioma, tema y cambio de contraseña con verificación de la actual.
 - Imagen Docker multi-arquitectura (amd64, arm64) publicada en GHCR, con un entrypoint que genera la configuración y crea el admin desde variables o *secrets*.
@@ -31,7 +50,7 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 ### Cambiado
 
 - **Nuevo diseño de la interfaz:**
-  - barra lateral de iconos (Archivos, Usuarios, Grupos, Ajustes, Auditoría, idioma y cuenta);
+  - barra lateral de iconos (Archivos, Resumen, Personas, Acceso, Seguridad, Sistema y cuenta);
   - explorador en tres columnas: árbol de carpetas, lista y panel de detalle;
   - selección múltiple con barra de acciones y borrado de varios elementos;
   - filtro y orden por nombre, tamaño o fecha;
@@ -45,6 +64,7 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 - La API JSON devuelve todos sus errores en JSON, incluidos los de CSRF.
 - `auth.entra.button_label` pasa a estar vacío por defecto: así el botón se muestra traducido. Si lo personalizas, se muestra tal cual.
 - Los logs del servidor se escriben en inglés.
+- Los ajustes web se combinan con `config.json` campo a campo (antes, sección por sección sobre los valores por defecto) y solo se guarda la diferencia. Auditoría: `settings_updated` indica la sección y hay una acción nueva, `settings_field_reset`.
 - En la ficha de usuario, los grupos se gestionan como fichas (añadir y quitar) en lugar de un campo de texto. `--groups` de `user-add` y `user-set` asigna grupos manuales y crea como locales los que no existan.
 
 ### Notas de actualización
@@ -52,6 +72,7 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 - `run.py` y `manage.py` ya no existen. Usa `storageweb serve` y `storageweb <comando>`, o `storageweb-admin`.
 - Las bases de datos existentes se adoptan automáticamente como esquema 001, y la migración 002 añade `users.locale`.
 - La migración 004 crea los grupos: los de los usuarios locales pasan a ser grupos locales con pertenencia manual, y los de Entra ID y PAM aparecen como *grupos sin dar de alta* hasta que les des nombre. Las carpetas que usaban Object IDs siguen funcionando.
+- La migración 006 crea las tablas de sesiones, reglas de IP y tokens de API. Las sesiones abiertas antes de actualizar se registran solas en su siguiente petición.
 - La migración 005 crea el grupo de serie `admins`. Si ya tenías un grupo local llamado `admins`, se renombra a `admins-local` con sus miembros, y las carpetas que usaban `admins` pasan a dar acceso a los administradores.
 - **El idioma por defecto es el inglés.** Para mantener la interfaz en español, pon `"default_locale": "es"` en `config.json` o en *Administration → Settings*.
 

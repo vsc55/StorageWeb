@@ -4,13 +4,13 @@ from __future__ import annotations
 from flask import (Blueprint, current_app, flash, g, redirect, render_template, request, session,
                    url_for)
 
-from ...core import accounts
+from ...core import accounts, ipban
 from ...db.repositories import audit, users
 from ...i18n import _
 from ...i18n import normalize as normalize_locale
 from ...providers import SSOError, get_sso_provider
-from ..context import get_db, settings, throttle
-from ..guards import clear_session, client_ip, safe_next, start_session
+from ..context import external_url, get_db, settings, throttle
+from ..guards import clear_session, client_ip, end_session, safe_next, start_session
 
 bp = Blueprint("auth", __name__)
 
@@ -45,6 +45,7 @@ def login():
                 return redirect(safe_next(next_url))
             limiter.failure(ip, username)
             audit.log(get_db(), "login_failed", username=username, ip=ip)
+            ipban.offense(get_db(), cfg, ip, "login_failed")
             flash(_("Wrong user name or password."), "error")
 
     return render_template("login.html", form_enabled=form_enabled,
@@ -70,17 +71,17 @@ def logout():
     src = session.get("src")
     if user:
         audit.log(get_db(), "logout", username=user["username"], ip=client_ip())
-    clear_session()
+    end_session()
     ecfg = settings()["auth"]["entra"]
     if src == "entra" and ecfg["enabled"] and ecfg["single_logout"]:
         provider = get_sso_provider(ecfg)
-        return redirect(provider.logout_url(url_for("auth.login", _external=True)))
+        return redirect(provider.logout_url(external_url("auth.login")))
     flash(_("You have signed out."), "info")
     return redirect(url_for("auth.login"))
 
 
 def _redirect_uri(ecfg: dict) -> str:
-    return ecfg["redirect_uri"] or url_for("auth.entra_callback", _external=True)
+    return ecfg["redirect_uri"] or external_url("auth.entra_callback")
 
 
 @bp.route("/auth/entra/login")

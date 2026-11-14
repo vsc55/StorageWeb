@@ -1,0 +1,39 @@
+{% extends "admin/settings/_layout.html" %}
+{% block section %}
+<div class="card">
+  <h3 class="card-title">{{ _("Startup (config.json only, requires restarting the service)") }}</h3>
+  <dl class="kv section-gap">
+    <dt>{{ _("Configuration file") }}</dt><dd><code>{{ boot.config_path }}</code></dd>
+    <dt>{{ _("Database") }}</dt><dd><code>{{ boot.database }}</code></dd>
+    <dt>{{ _("Listening on") }}</dt><dd>{{ boot.host }}:{{ boot.port }}{% if boot.behind_proxy %} ({{ _("behind a proxy") }}){% endif %}</dd>
+    <dt>{{ _("Maximum per request") }}</dt><dd>{{ boot.max_upload_mb }} MB <small class="muted">({{ _("each part of an upload and the upload without JavaScript") }})</small></dd>
+    <dt>{{ _("Secure cookie (HTTPS)") }}</dt><dd>{{ _("Yes") if boot.cookie_secure else _("No") }}</dd>
+  </dl>
+</div>
+
+<div class="card section-gap">
+  <h3 class="card-title">{{ _("Changed from the web") }}</h3>
+  {% if changed_list %}
+  <p class="muted small">{{ _("These values take precedence over config.json.") }}
+    {% if info %}{{ _("Last change: %(date)s by %(user)s.", date=info['updated_at']|datetime, user=info['updated_by'] or '—') }}{% endif %}</p>
+  <ul class="changed-list">
+    {% for path in changed_list %}
+    <li><code>{{ path }}</code>
+      <button class="link-btn small" type="submit" form="reset-field-form" name="path" value="{{ path }}">{{ _("Reset") }}</button></li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="{{ url_for('settings.reset') }}" class="js-confirm section-gap"
+        data-confirm="{{ _('Discard all settings saved from the web and go back to config.json?') }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button class="btn btn-danger" type="submit">{{ _("Reset everything to config.json") }}</button>
+  </form>
+  {% else %}
+  <p class="muted small">{{ _("Nothing: every value comes from config.json.") }}</p>
+  {% endif %}
+</div>
+
+<details class="card section-gap">
+  <summary>{{ _("Effective configuration (JSON, secrets hidden)") }}</summary>
+  <pre class="code">{{ effective_json }}</pre>
+</details>
+{% endblock %}

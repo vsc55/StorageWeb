@@ -1,20 +1,20 @@
 {% extends "admin/_layout.html" %}
-{% from "admin/groups/_macros.html" import source_badge, view_switch with context %}
+{% from "admin/groups/_macros.html" import source_badge with context %}
 {% block title %}{{ _("Access matrix") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
 <div class="page-head">
   <div>
-    <h1>{{ _("Groups and access") }}</h1>
+    <h1>{{ _("Access matrix") }}</h1>
     <p class="muted small">{{ _("What each group can do in each shared folder.") }}</p>
   </div>
   <div class="inline">
-    {{ view_switch('matrix') }}
+    <a class="btn btn-ghost" href="{{ url_for('access.folders') }}">{{ _("Shared folders") }}</a>
     <a class="btn btn-primary" href="{{ url_for('groups.new', next=url_for('groups.matrix_view')) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New group") }}</a>
   </div>
 </div>
 
 {% if not shares %}
-  <div class="empty"><p>{{ _("There are no shared folders.") }} <a href="{{ url_for('admin.settings_page') }}">{{ _("Create them in Settings.") }}</a></p></div>
+  <div class="empty"><p>{{ _("There are no shared folders.") }} <a href="{{ url_for('access.folder_new') }}">{{ _("New shared folder") }}</a></p></div>
 {% elif not matrix %}
   <div class="empty"><p>{{ _("There are no groups yet.") }} <a href="{{ url_for('groups.new', next=url_for('groups.matrix_view')) }}">{{ _("New group") }}</a></p></div>
 {% else %}

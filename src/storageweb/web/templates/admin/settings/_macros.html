@@ -1,0 +1,30 @@
+{# Piezas de las páginas de ajustes (importar «with context») #}
+
+{# Valor cambiado en la web: etiqueta y botón para volver al de config.json #}
+{# También deja un ancla (#f-auth-entra-client_id) para que el buscador lleve al campo #}
+{% macro origin(path) -%}
+<span class="field-anchor" id="f-{{ path|replace('.', '-') }}"></span>
+{%- if path in changed %}<span class="origin" title="{{ _('Changed from the web: it takes precedence over config.json.') }}">{{ _("web") }}</span>
+<button class="link-btn small" type="submit" form="reset-field-form" name="path" value="{{ path }}"
+        title="{{ _('Use the value of config.json again') }}">{{ _("Reset") }}</button>{% endif %}
+{%- endmacro %}
+
+{% macro err_class(path) -%}{% if error_field and (error_field == path or error_field.startswith(path ~ '.')) %} has-error{% endif %}{%- endmacro %}
+
+{% macro field_error(path) -%}
+{% if error_field and (error_field == path or error_field.startswith(path ~ '.')) %}<span class="field-error" role="alert">{{ error }}</span>{% endif %}
+{%- endmacro %}
+
+{% macro form_start() -%}
+<form method="post" class="settings-form" data-watch>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+{%- endmacro %}
+
+{% macro save_bar() -%}
+<div class="save-bar" data-save-bar>
+  <span class="small" data-save-status>{{ _("Save to apply the changes.") }}</span>
+  <span class="toolbar-spacer"></span>
+  <button class="btn btn-ghost" type="reset">{{ _("Discard") }}</button>
+  <button class="btn btn-primary" type="submit">{{ _("Save") }}</button>
+</div>
+{%- endmacro %}

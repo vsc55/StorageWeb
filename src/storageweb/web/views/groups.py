@@ -1,17 +1,20 @@
-"""Administración de grupos (solo rol admin), con tres vistas para elegir:
+"""Administración de grupos (solo rol admin), con dos vistas para elegir (Personas → Grupos):
 
 * **Lista** (``/admin/groups/list``) + ficha de cada grupo (``/admin/groups/<id>``).
 * **Paneles** (``/admin/groups/panel``): lista a la izquierda y detalle con pestañas.
-* **Matriz** (``/admin/groups/matrix``): acceso de cada grupo a cada carpeta compartida.
 
-Las tres comparten las acciones (alta, edición, miembros, baja); ``next`` decide a dónde volver.
+Y la **matriz de accesos** (``/admin/groups/matrix``, en Acceso): acceso de cada grupo a cada
+carpeta compartida. No es una vista de grupos, así que ``/admin/groups/`` nunca lleva a ella.
+
+Todas comparten las acciones (alta, edición, miembros, baja); ``next`` decide a dónde volver.
 """
 from __future__ import annotations
 
-from flask import Blueprint, abort, flash, g, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, g, jsonify, redirect, render_template, request, session, url_for
 
 from ...core import groups as group_core
 from ...core.accounts import SOURCE_LABELS
+from ...providers import entra_directory
 from ...db.repositories import audit, users
 from ...db.repositories import groups as repo
 from ...i18n import _
@@ -21,7 +24,7 @@ from ..guards import admin_required, client_ip, safe_next
 
 bp = Blueprint("groups", __name__, url_prefix="/admin/groups")
 
-VIEWS = ("list", "panel", "matrix")
+VIEWS = ("list", "panel")  # vistas de Personas → Grupos; la matriz está en Acceso
 TABS = ("members", "shares", "link")
 
 
@@ -50,6 +53,19 @@ def _group_label(group) -> str:
 @bp.app_template_filter("group_description")
 def _group_description(group) -> str:
     return group_core.description(group)
+
+
+def entra_names(ids) -> dict[str, str]:
+    """Nombres de grupos de Entra ID para mostrarlos junto a su Object ID (vacío si no se pueden leer)."""
+    return entra_directory.names_for(settings()["auth"]["entra"], ids)
+
+
+@bp.route("/entra/search")
+@admin_required
+def entra_search():
+    """Buscador de grupos de Entra ID por nombre para el formulario de alta (JSON)."""
+    return jsonify(groups=entra_directory.search_groups(settings()["auth"]["entra"], request.args.get("q", "")),
+                   available=entra_directory.configured(settings()["auth"]["entra"]))
 
 
 @bp.context_processor
@@ -89,20 +105,24 @@ def list_view():
     source = source if source in group_core.GROUP_SOURCES else ""
     rows = repo.list_all(get_db(), search=search, source=source or None)
     shares = _shares()
+    detected = group_core.detected(get_db(), shares)
     return render_template("admin/groups/list.html", groups=rows, search=search, source=source,
                            shares_by_group={r["id"]: group_core.shares_of(r, shares) for r in rows},
-                           detected=group_core.detected(get_db(), shares))
+                           detected=detected, names=entra_names(
+                               [d["id"] for d in detected] + [r["external_id"] for r in rows if r["external_id"]]))
 
 
 @bp.route("/new", methods=["GET", "POST"])
 @admin_required
 def new():
-    form = {"name": request.args.get("name", ""), "label": "", "description": "",
+    form = {"name": request.args.get("name", ""), "label": request.args.get("label", ""), "description": "",
             "source": request.args.get("source", "local"), "external_id": request.args.get("external_id", "")}
     if form["source"] not in group_core.GROUP_SOURCES:
         form["source"] = "local"
     if request.method == "POST":
         form = {**_form_data(), "name": request.form.get("name", "").strip()}
+        if form["source"] == "entra" and form["external_id"] and not form["label"]:
+            form["label"] = entra_names([form["external_id"]]).get(form["external_id"].lower(), "")
         try:
             gid = group_core.create_group(get_db(), **form)
         except group_core.GroupError as exc:
@@ -210,7 +230,8 @@ def panel_view():
                "shares": group_core.shares_of(current, _shares()),
                "form": dict(current)}
     return render_template("admin/groups/panel.html", groups=rows, current=current, tab=tab, search=search,
-                           detected=group_core.detected(get_db(), _shares()), **ctx)
+                           detected=(detected := group_core.detected(get_db(), _shares())),
+                           names=entra_names([d["id"] for d in detected]), **ctx)
 
 
 # --------------------------------------------------------------------------- vista C
@@ -224,7 +245,6 @@ def _matrix(rows, shares) -> list[dict]:
 @bp.route("/matrix", methods=["GET", "POST"])
 @admin_required
 def matrix_view():
-    _remember("matrix")
     rows = repo.list_all(get_db())
     if request.method == "POST":
         new = runtime_view(settings())

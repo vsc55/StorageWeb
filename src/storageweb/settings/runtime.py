@@ -14,7 +14,7 @@ from sqlite3 import Connection
 
 from ..db.repositories import settings as repo
 from .defaults import SECRET_FIELDS
-from .loader import ConfigError, _get, _set, normalize
+from .loader import ConfigError, _get, _set, diff_overrides, drop_path, leaf_paths, normalize, runtime_view
 
 RUNTIME_KEY = "runtime"
 _log = logging.getLogger(__name__)
@@ -27,6 +27,17 @@ class RuntimeSettings:
         self._lock = threading.Lock()
         self._rev: int | None = None
         self._cfg: dict | None = None
+        self._base: dict | None = None
+
+    def base(self) -> dict:
+        """Secciones editables tal como quedan solo con config.json (sin ajustes web)."""
+        if self._base is None:
+            self._base = runtime_view(normalize(self.file_cfg, self.cfg_path))
+        return self._base
+
+    def changed_paths(self, conn: Connection) -> set[str]:
+        """Rutas cuyo valor efectivo difiere del de config.json (cambiadas desde la web)."""
+        return leaf_paths(diff_overrides(self.base(), runtime_view(self.current(conn))))
 
     def current(self, conn: Connection) -> dict:
         rev = repo.revision(conn, RUNTIME_KEY)
@@ -57,9 +68,19 @@ class RuntimeSettings:
         for path in SECRET_FIELDS:
             if path[0] in runtime and not _get(runtime, path) and _get(previous, path):
                 _set(runtime, path, _get(previous, path))  # vacío = conservar el anterior
-        self.validate(runtime)
-        repo.put(conn, RUNTIME_KEY, runtime, username)
-        return runtime
+        full = self.validate(runtime)
+        # Solo se guarda lo que difiere de config.json: así cada campo sabe de dónde viene y
+        # un cambio posterior en config.json se aplica a lo que no se tocó en la web.
+        minimal = diff_overrides(self.base(), runtime_view(full))
+        repo.put(conn, RUNTIME_KEY, minimal, username)
+        return minimal
+
+    def reset_path(self, conn: Connection, dotted: str, username: str | None) -> None:
+        """Vuelve un ajuste al valor de config.json."""
+        current = diff_overrides(self.base(), runtime_view(self.current(conn)))
+        remaining = drop_path(current, dotted)
+        self.validate(remaining)
+        repo.put(conn, RUNTIME_KEY, remaining, username)
 
     def reset(self, conn: Connection, username: str | None) -> None:
         repo.put(conn, RUNTIME_KEY, {}, username)

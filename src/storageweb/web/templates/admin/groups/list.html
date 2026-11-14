@@ -36,7 +36,7 @@
       <td class="name"><a href="{{ url_for('groups.edit', group_id=gr['id']) }}"><strong>{{ (gr|group_label) }}</strong></a>{% if gr['builtin'] %} <svg class="icon icon-sm muted-icon" aria-label="{{ _('Built-in group') }}" role="img"><use href="#i-lock"></use></svg>{% endif %}
         <div class="muted small"><code>{{ gr['name'] }}</code>{% if (gr|group_description) %} · {{ (gr|group_description) }}{% endif %}</div></td>
       <td>{{ source_badge(gr['source']) }}</td>
-      <td class="muted small">{% if gr['external_id'] %}<code>{{ gr['external_id'] }}</code>{% else %}—{% endif %}</td>
+      <td class="muted small">{% if gr['external_id'] %}{% if names.get(gr['external_id']) %}{{ names[gr['external_id']] }}<br>{% endif %}<code>{{ gr['external_id'] }}</code>{% else %}—{% endif %}</td>
       <td class="num">{{ gr['members'] }}{% if gr['source'] != 'local' and gr['manual_members'] %} <span class="muted small">({{ _("+%(num)s manual", num=gr['manual_members']) }})</span>{% endif %}</td>
       <td class="small">{{ shares_by_group[gr['id']] | map(attribute='label') | join(', ') or '—' }}</td>
       <td class="actions"><a class="btn btn-small" href="{{ url_for('groups.edit', group_id=gr['id']) }}">{{ _("Edit") }}</a></td>
@@ -48,5 +48,5 @@
 </table>
 </div>
 
-{{ detected_box(detected) }}
+{{ detected_box(detected, names) }}
 {% endblock %}

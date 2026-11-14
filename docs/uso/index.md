@@ -35,7 +35,7 @@ Tus preferencias se guardan en tu cuenta. En la página de inicio de sesión tam
 └────┴──────────────┴───────────────────────────────┴──────────────┘
 ```
 
-- **Barra de la izquierda:** *Archivos* y, si eres administrador, *Usuarios*, *Ajustes* y *Auditoría*. Abajo, tus iniciales abren el menú de tu cuenta.
+- **Barra de la izquierda:** *Archivos* y, si eres administrador, el *Resumen* y las zonas *Personas*, *Acceso*, *Seguridad* y *Sistema* (Ctrl+K busca en todas). Abajo, tus iniciales abren el menú de tu cuenta.
 - **Ubicaciones:** *Mi carpeta*, solo tuya, y las carpetas compartidas que te haya asignado el administrador. Las marcadas *(lectura)* solo permiten descargar. Bajo la ubicación abierta se ven la ruta actual y sus subcarpetas.
 - **Lista:** pulsa el nombre de una carpeta para entrar en ella, o el de un archivo para descargarlo. Pulsa los títulos *Nombre*, *Tamaño* o *Modificado* para ordenar; la segunda pulsación invierte el orden. El cuadro *Filtrar en esta carpeta* oculta lo que no coincide.
 - **Detalle (derecha):** al pulsar una fila (fuera del nombre) se selecciona y se muestran su tipo, tamaño, fecha y acciones. En pantallas estrechas el detalle aparece debajo de la lista, y en el móvil los paneles se apilan.
@@ -59,6 +59,12 @@ Marca las casillas de la izquierda, o la de la cabecera para seleccionar todo lo
 - **Renombrar y Eliminar:** desde la barra de selección o el panel de detalle. Eliminar una carpeta borra todo su contenido y no se puede deshacer.
 
 Si no ves alguna de estas opciones, tu rol no tiene ese permiso o la carpeta es de solo lectura.
+
+## Sesiones y tokens de API
+
+En *Mi perfil* ves los dispositivos en los que tienes la sesión abierta y puedes cerrar los demás. Si cambias la contraseña, las otras sesiones se cierran solas.
+
+Si necesitas usar tus archivos desde un script, crea un **token de API** en *Mi perfil*: elige si solo puede leer o también escribir, y cuándo caduca. Se muestra una sola vez; guárdalo como una contraseña. Ejemplos de uso en la [guía de seguridad](../administracion/seguridad.md#sesiones-y-tokens-de-api).
 
 ## Cerrar sesión
 

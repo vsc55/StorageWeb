@@ -1,0 +1,71 @@
+{% extends "admin/_layout.html" %}
+{% block title %}{{ _("Register in Entra ID") }} · {{ app_name }}{% endblock %}
+{% block admin_content %}
+<div class="wizard">
+  <a class="small" href="{{ url_for('settings.section', name='auth') }}">← {{ _("Sign-in settings") }}</a>
+  {% set kind = flow.kind if flow else 'register' %}
+  <h1>{% if kind == 'rotate' %}{{ _("Renew the client secret") }}{% elif kind == 'grant_groups' %}{{ _("Allow reading group names") }}{% else %}{{ _("Register StorageWeb in Entra ID") }}{% endif %}</h1>
+  <p class="muted small">{% if kind == 'rotate' %}{{ _("Sign in with Microsoft and StorageWeb creates a new secret in the application and saves it. The current one keeps working until it expires.") }}
+    {% elif kind == 'grant_groups' %}{{ _("Sign in with Microsoft and StorageWeb gives the application the Group.Read.All permission with admin consent, so it can show group names instead of Object IDs.") }}
+    {% else %}{{ _("You sign in with Microsoft once and StorageWeb creates and configures the application for you. Nothing to copy from the Azure portal.") }}{% endif %}</p>
+
+  {% if flow %}
+  <div class="card device-card">
+    <ol class="device-steps">
+      <li>{{ _("Open %(link)s on any device.", link='<a href="%s" target="_blank" rel="noopener">%s</a>'|format(flow.verification_uri, flow.verification_uri.split('//')[-1])|safe) }}</li>
+      <li>{{ _("Enter this code:") }}
+        <div class="copy-row device-code-row">
+          <input type="text" readonly value="{{ flow.user_code }}" id="device-code" class="device-code" aria-label="{{ _('Code') }}">
+          <button type="button" class="btn js-copy" data-copy="#device-code">{{ _("Copy") }}</button>
+        </div></li>
+      <li>{{ _("Sign in with an account that can register applications (Application Administrator or Global Administrator) and accept.") }}</li>
+    </ol>
+    <p class="register-status" id="register-status" role="status" aria-live="polite"
+       data-poll-url="{{ url_for('settings.entra_register_poll') }}" data-interval="{{ flow.interval }}">
+      {{ _("Waiting for you to sign in… The code expires in %(minutes)s minutes.", minutes=(expires_in // 60) or 1) }}</p>
+    <div class="form-actions">
+      <form method="post" action="{{ url_for('settings.entra_register_poll') }}" class="inline" id="register-poll-form">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button class="btn btn-primary" type="submit">{{ _("I have signed in: continue") }}</button>
+      </form>
+      <form method="post" action="{{ url_for('settings.entra_register_cancel') }}" class="inline">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button class="btn btn-ghost" type="submit">{{ _("Cancel") }}</button>
+      </form>
+    </div>
+  </div>
+
+  {% else %}
+  <form method="post" class="card form-grid">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label class="span2">{{ _("Name of the application in Entra ID") }}
+      <input type="text" name="app_name" value="{{ app_name }}" maxlength="120" required></label>
+    <div class="field span2"><span class="label">Redirect URI</span><code>{{ redirect_uri }}</code>
+      {% if not https_ok %}<span class="field-error">{{ _("Entra ID only accepts HTTPS return addresses (or localhost).") }}
+        <a href="{{ url_for('settings.section', name='network') }}">{{ _("Set the public name in Network and HTTPS") }}</a></span>
+      {% else %}<small class="muted">{{ _("It comes from the public name (Network and HTTPS) or, if empty, from the address you are using now.") }}</small>{% endif %}</div>
+    <label class="check span2"><input type="checkbox" name="app_roles" checked>
+      <span>{{ _("Create the App Roles StorageWeb.Admin and StorageWeb.User") }}
+        <small class="muted">{{ _("You get StorageWeb.Admin, and it is mapped to the administrator role. Assign them in Enterprise applications.") }}</small></span></label>
+    <label class="check span2"><input type="checkbox" name="group_claims">
+      <span>{{ _("Send the user's groups in the token (groups claim)") }}
+        <small class="muted">{{ _("Needed to use Entra ID groups in StorageWeb.") }}</small></span></label>
+    <label class="check span2"><input type="checkbox" name="group_read" checked>
+      <span>{{ _("Allow reading group names (Group.Read.All)") }}
+        <small class="muted">{{ _("So StorageWeb shows the names of your Entra ID groups instead of their Object IDs.") }}</small></span></label>
+    <label class="check span2"><input type="checkbox" name="require_assignment">
+      <span>{{ _("Only assigned users can sign in") }}
+        <small class="muted">{{ _("Assignment required = yes. You are assigned automatically if the App Roles are created.") }}</small></span></label>
+    <div class="span2 muted small register-summary">
+      <strong>{{ _("What will be created:") }}</strong>
+      {{ _("an application for your organization only, with the permissions openid, profile, email and User.Read and admin consent, a client secret valid for 24 months and its enterprise application. Tenant, client and secret are saved in the settings; Entra ID is enabled in the last step, after checking it.") }}
+    </div>
+    <div class="span2 form-actions">
+      <a class="btn" href="{{ url_for('settings.entra_setup') }}">{{ _("Do it by hand instead") }}</a>
+      <button class="btn btn-primary" type="submit" {% if not https_ok %}disabled{% endif %}>{{ _("Sign in with Microsoft and register") }}</button>
+    </div>
+  </form>
+  <p class="muted small">{{ _("The sign-in uses the device code flow with the public «Microsoft Graph Command Line Tools» client. The first time, Microsoft may ask you to consent to it. StorageWeb does not keep that token.") }}</p>
+  {% endif %}
+</div>
+{% endblock %}

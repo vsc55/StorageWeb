@@ -1,0 +1,87 @@
+{% extends "admin/_layout.html" %}
+{% from "admin/_page.html" import page_kind with context %}
+{% from "admin/settings/_macros.html" import save_bar with context %}
+{% block title %}{{ title }} · {{ _("Shared folders") }} · {{ app_name }}{% endblock %}
+{% block admin_content %}
+<p class="small"><a href="{{ url_for('access.folders') }}">← {{ _("Shared folders") }}</a></p>
+<div class="page-head">
+  <div>
+    <div class="settings-title"><h1>{{ title }}</h1>{{ page_kind() }}</div>
+    {% if original %}<p class="muted small">/f/{{ share.name }} ·
+      {% if exists %}<span>{{ _("the folder exists on the server") }}</span>{% else %}<span class="text-danger">{{ _("It does not exist on the server.") }}</span>{% endif %}</p>{% endif %}
+  </div>
+</div>
+{% if error %}<div class="flash flash-error" role="alert">{{ _("The changes were not saved: %(error)s", error=error) }}</div>{% endif %}
+
+<form method="post" class="settings-form" data-watch>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="card form-grid">
+    <label><span class="label-row">{{ _("Label") }}</span>
+      <input type="text" name="label" value="{{ share.label }}" placeholder="{{ _('Accounting') }}"></label>
+    <label><span class="label-row">{{ _("Name (URL)") }}</span>
+      <input type="text" name="name" value="{{ share.name }}" required pattern="[A-Za-z0-9_\-]+" maxlength="64" placeholder="accounting">
+      <small class="muted">{{ _("Letters, digits, _ and -. Changing it changes the address of the folder.") }}</small></label>
+    <label class="span2"><span class="label-row">{{ _("Path on the server") }}</span>
+      <input type="text" name="path" value="{{ share.path }}" required class="mono" placeholder="/srv/storageweb/shares/accounting">
+      <small class="muted">{{ _("Relative paths are resolved from the folder of config.json.") }}</small></label>
+    <label class="check span2"><input type="checkbox" name="read_only" {% if share.read_only %}checked{% endif %}>
+      <span>{{ _("Read only for everyone") }}
+        <small class="muted">{{ _("Only downloading is allowed, administrators included, whatever the permission of each entry.") }}</small></span></label>
+  </div>
+
+  <section class="card" aria-labelledby="who-title">
+    <h2 class="card-title" id="who-title">{{ _("Who enters") }}</h2>
+    <p class="muted small">{{ _("A user can write if any of the ways they enter allows it.") }}</p>
+    <ul class="entry-list">
+      {% for e in entries %}
+      <li class="entry">
+        <input type="hidden" name="entry_kind" value="{{ e.kind }}">
+        <input type="hidden" name="entry_ref" value="{{ e.ref }}">
+        <span class="badge entry-kind{% if e.kind == 'group' %} badge-src-entra{% endif %}">{{ ENTRY_KIND_LABELS[e.kind] }}</span>
+        <span class="entry-name">{{ e.label }}
+          {% if e.kind != 'all' and e.label != e.ref %}<span class="muted small">· {{ e.ref }}</span>{% endif %}
+          {% if e.kind == 'group' and e.ref in directory.groups and directory.groups[e.ref].members is not none %}
+          <span class="muted small">· {{ ngettext("%(num)s member", "%(num)s members", directory.groups[e.ref].members) }}</span>{% endif %}
+          {% if not e.known %}<span class="muted small">· {{ _("not registered") }}</span>{% endif %}</span>
+        <select name="entry_level" aria-label="{{ _('Permission for %(name)s', name=e.label) }}">
+            {% for lv in ('write', 'read') %}<option value="{{ lv }}" {% if e.level == lv %}selected{% endif %}>{{ LEVEL_LABELS[lv] }}</option>{% endfor %}
+            <option value="none">{{ _("Remove access") }}</option>
+        </select>
+        <button type="button" class="btn btn-small btn-ghost js-remove-row js-only" aria-label="{{ _('Remove %(name)s', name=e.label) }}">×</button>
+      </li>
+      {% else %}
+      <li class="muted small">{{ _("Nobody has access yet.") }}</li>
+      {% endfor %}
+    </ul>
+
+    <div class="entry-add section-gap">
+      <select name="add_kind" aria-label="{{ _('Kind') }}">
+        <option value="group">{{ _("Group") }}</option>
+        <option value="user">{{ _("User") }}</option>
+        <option value="all">{{ _("All users") }}</option>
+      </select>
+      <input type="text" name="add_ref" list="access-candidates" autocomplete="off"
+             placeholder="{{ _('Give access to a group or user…') }}" aria-label="{{ _('Group or user') }}">
+      <select name="add_level" aria-label="{{ _('Permission') }}">
+        {% for lv in ('write', 'read') %}<option value="{{ lv }}">{{ LEVEL_LABELS[lv] }}</option>{% endfor %}
+      </select>
+      <datalist id="access-candidates">
+        {% for grp in directory.group_rows %}<option value="{{ grp['name'] }}">{{ grp|group_label }} · {{ _("group") }}</option>{% endfor %}
+        {% for name, display in directory.users.items() %}<option value="{{ name }}">{{ display }} · {{ _("user") }}</option>{% endfor %}
+      </datalist>
+    </div>
+    <p class="muted small">{{ _("Groups: the identifier of a group in People → Groups, a system group or an Entra ID Object ID.") }}</p>
+  </section>
+  {{ save_bar() }}
+</form>
+
+{% if original %}
+<form method="post" action="{{ url_for('access.folder_delete', name=original) }}" class="card section-gap js-confirm"
+      data-confirm="{{ _('Remove the shared folder %(name)s? Its files stay on the server.', name=share.label) }}">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <h2 class="card-title">{{ _("Remove the folder") }}</h2>
+  <p class="muted small">{{ _("Users stop seeing it. The files are not deleted from the server.") }}</p>
+  <button class="btn btn-danger" type="submit">{{ _("Remove shared folder") }}</button>
+</form>
+{% endif %}
+{% endblock %}

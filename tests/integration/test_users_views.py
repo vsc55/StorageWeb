@@ -1,4 +1,4 @@
-"""Administración de usuarios: vistas Lista (A), Paneles (B) y Tarjetas (C), acciones en bloque y edición rápida."""
+"""Administración de usuarios: vistas Lista (A) y Paneles (B) y acciones en bloque."""
 import pytest
 
 from storageweb.core import groups as gc
@@ -29,7 +29,7 @@ def _join(app, uid, *names):
         gc.set_manual_groups(get_db(), uid, list(names))
 
 
-@pytest.mark.parametrize("url", ["/admin/users/", "/admin/users/panel", "/admin/users/cards"])
+@pytest.mark.parametrize("url", ["/admin/users/", "/admin/users/panel"])
 def test_admin_only(logged, url):
     client, _ = logged
     assert client.get(url).status_code == 403
@@ -38,8 +38,6 @@ def test_admin_only(logged, url):
 def test_index_remembers_last_view(admin):
     client, _ = admin
     assert client.get("/admin/users/").location.endswith("/admin/users")
-    client.get("/admin/users/cards")
-    assert client.get("/admin/users/").location.endswith("/admin/users/cards")
     client.get("/admin/users/panel")
     assert client.get("/admin/users/").location.endswith("/admin/users/panel")
 
@@ -134,27 +132,9 @@ def test_panel_tabs_and_edit_returns_to_panel(app, admin):
     assert _user(app, "ana")["display_name"] == "Ana L."
 
 
-# --------------------------------------------------------------------------- C: tarjetas
-
-def test_cards_sections_and_quick_edit(app, admin):
-    client, token = admin
-    ana = add_user(app, "ana", display_name="Ana López")
-    add_user(app, "baja", enabled=False)
-    html = client.get("/admin/users/cards").get_data(as_text=True)
-    assert "Administradores · 1" in html and "Usuarios · 1" in html and "Deshabilitado · 1" in html
-    assert "Edición rápida" not in html
-    html = client.get(f"/admin/users/cards?u={ana}").get_data(as_text=True)
-    assert 'aria-label="Edición rápida"' in html and "Ana López" in html
-
-    resp = client.post(f"/admin/users/{ana}/quick", data={"_csrf": token, "role": "admin",
-                                                          "next": f"/admin/users/cards?u={ana}"})
-    assert resp.location.endswith(f"/admin/users/cards?u={ana}")
-    assert _user(app, "ana")["role"] == "admin" and not _user(app, "ana")["enabled"]
-
-    me = _user(app, "root")["id"]
-    html = client.post(f"/admin/users/{me}/quick", data={"_csrf": token, "role": "user", "enabled": "on"},
-                       follow_redirects=True).get_data(as_text=True)
-    assert "No puedes quitarte" in html and _user(app, "root")["role"] == "admin"
+def test_cards_view_removed(admin):
+    client, _ = admin
+    assert client.get("/admin/users/cards").status_code == 404
 
 
 def test_rail_link_goes_to_last_view(app, admin):

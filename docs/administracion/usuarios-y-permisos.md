@@ -27,7 +27,7 @@ Hay tres protecciones: un admin no puede quitarse el rol, ni desactivarse, ni bo
 | Renombrar | ✔ | ✘ | ✘ |
 | Eliminar | ✔ | ✘ | ✘ |
 
-Los permisos del rol `user` se cambian en *Administración → Ajustes → Permisos*. El servidor los comprueba en cada acción, también en la API: la interfaz solo oculta los botones.
+Los permisos del rol `user` se cambian en *Acceso → Permisos del rol*. El servidor los comprueba en cada acción, también en la API: la interfaz solo oculta los botones.
 
 ## Carpetas
 
@@ -36,7 +36,7 @@ Los permisos del rol `user` se cambian en *Administración → Ajustes → Permi
 
 ## Grupos
 
-*Administración → Grupos* reúne los grupos que dan acceso a las carpetas compartidas. Cada grupo tiene un **identificador** (el que usan las carpetas, p. ej. `rrhh`), un nombre visible y un origen:
+*Personas → Grupos* reúne los grupos que dan acceso a las carpetas compartidas. Cada grupo tiene un **identificador** (el que usan las carpetas, p. ej. `rrhh`), un nombre visible y un origen:
 
 | Origen | Miembros |
 |---|---|
@@ -50,11 +50,11 @@ Un admin también puede añadir a mano a un usuario a un grupo de Entra ID o del
 
 Los grupos que llegan del proveedor o que usan las carpetas pero no están dados de alta aparecen como **grupos sin dar de alta**, con un botón para darlos de alta. Siguen funcionando igual mientras tanto: las carpetas pueden referenciar directamente un Object ID.
 
-Hay tres vistas para elegir, con el selector *Lista · Paneles · Matriz de accesos* (se recuerda la última):
+Hay dos vistas para elegir, con el selector *Lista · Paneles* (se recuerda la última):
 
 - **Lista:** tabla de grupos y una ficha por grupo con sus datos, miembros, carpetas y baja.
 - **Paneles:** lista a la izquierda y detalle con las pestañas *Miembros*, *Carpetas* y *Ajustes*.
-- **Matriz de accesos:** una fila por grupo y una columna por carpeta compartida; cada celda es *—*, *Lectura* o *Escritura*. Guarda los cambios en los ajustes de las carpetas (`groups` y `read_only_groups`). Las carpetas abiertas a todos (`users: ["*"]`) no dependen de los grupos.
+La **matriz de accesos** está en *Acceso → Matriz de accesos*: una fila por grupo y una columna por carpeta compartida; cada celda es *—*, *Lectura* o *Escritura*. Guarda los cambios en los ajustes de las carpetas (`groups` y `read_only_groups`). Las carpetas abiertas a todos (`users: ["*"]`) no dependen de los grupos.
 
 Eliminar un grupo quita el acceso que da; no toca usuarios ni archivos. La [decisión 0011](../arquitectura/decisiones/0011-grupos-gestionados.md) explica el modelo.
 
@@ -62,12 +62,11 @@ Eliminar un grupo quita el acceso que da; no toca usuarios ni archivos. La [deci
 
 === "Web"
 
-    *Administración → Usuarios*: crear, editar (rol, grupos, carpeta, estado, contraseña), activar o desactivar y eliminar.
-    Hay tres vistas para elegir con el selector *Lista · Paneles · Tarjetas* (se recuerda la última):
+    *Personas → Usuarios*: crear, editar (rol, grupos, carpeta, estado, contraseña), activar o desactivar y eliminar.
+    Hay dos vistas para elegir con el selector *Lista · Paneles* (se recuerda la última):
 
     - **Lista:** filtros por estado, origen, rol y grupo, paginación y **acciones en bloque** (añadir a un grupo, cambiar el rol, activar, desactivar). Cada acción se aplica a cada usuario con sus protecciones; los que no se pueden cambiar se listan.
     - **Paneles:** lista a la izquierda y detalle con las pestañas *Perfil*, *Grupos*, *Acceso efectivo* y *Actividad*.
-    - **Tarjetas:** tarjetas agrupadas en administradores, usuarios y desactivados, con un panel de edición rápida (estado y rol).
 
     La ficha de cada usuario muestra su **acceso efectivo** (qué carpetas ve, con qué permiso y por qué: su carpeta, abierta a todos, por su nombre o por un grupo) y su **actividad reciente** en la auditoría.
     La lista se puede filtrar por estado (*Todos*, *Activos*, *Desactivados*) y cada fila tiene su botón *Desactivar*/*Activar*.

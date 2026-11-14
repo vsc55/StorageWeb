@@ -2,7 +2,7 @@ import pytest
 
 from storageweb.db.repositories import users
 
-from tests.helpers import PASSWORD, add_user, get_csrf, login, settings_form, visible
+from tests.helpers import PASSWORD, add_user, get_csrf, login, page_form, settings_form, visible
 from storageweb.web.context import get_db
 
 
@@ -40,7 +40,8 @@ def test_admin_link_only_for_admin(app, client, logged):
 def test_admin_sees_admin_link(admin):
     client, _ = admin
     assert "Administración" in client.get("/f/home/").get_data(as_text=True)
-    assert client.get("/admin/").location.endswith("/admin/users")
+    html = client.get("/admin/").get_data(as_text=True)  # el Resumen
+    assert "Resumen" in html and "Personas" in html and "Acceso" in html
 
 
 # --------------------------------------------------------------------------- usuarios
@@ -171,27 +172,45 @@ def test_edit_unknown_user(admin):
 
 # --------------------------------------------------------------------------- ajustes
 
-def test_settings_page_renders(admin):
+def test_settings_sections_render(admin):
     client, _ = admin
-    html = client.get("/admin/settings").get_data(as_text=True)
-    assert "Carpetas compartidas" in html and "Entra ID" in html and "Permisos" in html
+    assert client.get("/admin/settings").location.endswith("/admin/settings/general")
+    for section, text in (("general", "Idioma por defecto"), ("storage", "Plantilla de carpeta personal"),
+                          ("permissions", "Permisos del rol"), ("auth", "Entra ID"),
+                          ("security", "Minutos de bloqueo"), ("ips", "IPs bloqueadas"),
+                          ("maintenance", "Copias que se conservan"), ("backups", "Copias y base de datos"),
+                          ("sessions", "Sesiones y tokens"), ("system", "Arranque")):
+        resp = client.get(f"/admin/settings/{section}")
+        assert resp.status_code == 200 and text in resp.get_data(as_text=True), section
+    assert client.get("/admin/settings/nada").status_code == 404
+    # La antigua sección de carpetas compartidas ahora está en Acceso
+    assert client.get("/admin/settings/shares").location.endswith("/admin/access/folders")
+    token = get_csrf(client, "/admin/settings/system")
+    assert client.post("/admin/settings/system", data={"_csrf": token}).status_code == 405
 
 
-def test_settings_roundtrip_unchanged(app, admin):
-    client, token = admin
-    data = settings_form(client)
-    resp = client.post("/admin/settings", data=data)
+@pytest.mark.parametrize("section", ["general", "storage", "permissions", "auth", "security", "network",
+                                     "maintenance"])
+def test_settings_roundtrip_unchanged(app, admin, section):
+    from storageweb.web.context import runtime
+
+    client, _ = admin
+    resp = client.post(f"/admin/settings/{section}", data=settings_form(client, section))
     assert resp.status_code == 302, resp.get_data(as_text=True)
+    with app.app_context():
+        assert runtime().overrides(get_db()) == {}      # guardar sin cambios no deja nada en la web
 
 
 def test_settings_change_applies_immediately(app, admin, tmp_path):
     client, _ = admin
     (tmp_path / "equipo").mkdir()
-    data = settings_form(client)
-    data.update({"app_name": ["Mi Nube"], "share_name": ["equipo"], "share_label": ["Equipo"],
-                 "share_path": [str(tmp_path / "equipo")], "share_read_only": ["1"],
-                 "share_users": ["*"], "share_groups": [""]})
-    assert client.post("/admin/settings", data=data).status_code == 302
+    data = settings_form(client, "general")
+    data["app_name"] = ["Mi Nube"]
+    assert client.post("/admin/settings/general", data=data).status_code == 302
+    data = page_form(client, "/admin/access/folders/new")
+    data.update({"name": ["equipo"], "label": ["Equipo"], "path": [str(tmp_path / "equipo")],
+                 "read_only": ["on"], "add_kind": ["all"], "add_ref": [""], "add_level": ["write"]})
+    assert client.post("/admin/access/folders/new", data=data).status_code == 302
     html = client.get("/f/home/").get_data(as_text=True)
     assert "Mi Nube" in html and "Equipo" in html
     assert client.get("/f/equipo/").status_code == 200
@@ -199,9 +218,9 @@ def test_settings_change_applies_immediately(app, admin, tmp_path):
 
 def test_settings_permissions_affect_users(app, admin):
     client, _ = admin
-    data = settings_form(client)
+    data = settings_form(client, "permissions")
     data.pop("perm_upload", None)
-    assert client.post("/admin/settings", data=data).status_code == 302
+    assert client.post("/admin/settings/permissions", data=data).status_code == 302
     add_user(app, "ana")
     user_client = app.test_client()
     login(user_client, "ana")
@@ -212,59 +231,94 @@ def test_settings_permissions_affect_users(app, admin):
     assert "Subir archivos" in client.get("/f/home/").get_data(as_text=True)
 
 
-def test_settings_invalid_not_saved(app, admin):
+def test_settings_invalid_shows_error_next_to_field(app, admin):
     client, _ = admin
-    data = settings_form(client)
+    data = settings_form(client, "storage")
     data["home_template"] = ["/srv/sin-placeholder"]
-    resp = client.post("/admin/settings", data=data)
-    assert resp.status_code == 400
-    assert "{username}" in resp.get_data(as_text=True)
-    data = settings_form(client)
-    assert data["home_template"][0] != "/srv/sin-placeholder"
+    resp = client.post("/admin/settings/storage", data=data)
+    html = resp.get_data(as_text=True)
+    assert resp.status_code == 400 and "{username}" in html
+    assert 'class="span2 has-error"' in html and 'class="field-error"' in html
+    assert 'value="/srv/sin-placeholder"' in html                     # se conserva lo escrito
+    assert settings_form(client, "storage")["home_template"][0] != "/srv/sin-placeholder"
 
 
 def test_settings_cannot_disable_all_logins(app, admin):
     client, _ = admin
-    data = settings_form(client)
+    data = settings_form(client, "auth")
     data.pop("local_enabled", None)
-    resp = client.post("/admin/settings", data=data)
+    resp = client.post("/admin/settings/auth", data=data)
     assert resp.status_code == 400 and "al menos un" in resp.get_data(as_text=True)
 
 
-def test_settings_bad_role_mapping(app, admin):
+def test_settings_role_mappings(app, admin):
+    from storageweb.web.context import settings
+
     client, _ = admin
-    data = settings_form(client)
+    data = settings_form(client, "auth")
     data["entra_role_mappings"] = ["GrupoX = superadmin"]
-    assert client.post("/admin/settings", data=data).status_code == 400
+    assert client.post("/admin/settings/auth", data=data).status_code == 400
     data["entra_role_mappings"] = ["sin igual"]
-    assert client.post("/admin/settings", data=data).status_code == 400
+    assert client.post("/admin/settings/auth", data=data).status_code == 400
+    data = settings_form(client, "auth")
+    data.update({"mapping_group": ["StorageWeb.Admin", "lectores", ""], "mapping_role": ["admin", "user", "user"]})
+    assert client.post("/admin/settings/auth", data=data).status_code == 302
+    with app.test_request_context():
+        assert settings()["auth"]["entra"]["role_mappings"] == {"storageweb.admin": "admin", "lectores": "user"}
+    html = client.get("/admin/settings/auth").get_data(as_text=True)
+    assert 'name="mapping_group" value="storageweb.admin"' in html
 
 
 def test_secret_kept_when_blank_and_never_shown(app, admin):
     from storageweb.web.context import settings
 
     client, _ = admin
-    data = settings_form(client)
+    data = settings_form(client, "auth")
     data.update({"entra_enabled": ["on"], "entra_tenant_id": ["t1"], "entra_client_id": ["c1"],
                  "entra_client_secret": ["muy-secreto"]})
-    assert client.post("/admin/settings", data=data).status_code == 302
-    html = client.get("/admin/settings").get_data(as_text=True)
+    assert client.post("/admin/settings/auth", data=data).status_code == 302
+    html = client.get("/admin/settings/auth").get_data(as_text=True)
     assert "muy-secreto" not in html and "configurado" in html
 
-    data = settings_form(client)
+    data = settings_form(client, "auth")
     assert data["entra_client_secret"] == [""]
     data["entra_button_label"] = ["Entrar con Microsoft"]
-    assert client.post("/admin/settings", data=data).status_code == 302
+    assert client.post("/admin/settings/auth", data=data).status_code == 302
     with app.test_request_context():
         assert settings()["auth"]["entra"]["client_secret"] == "muy-secreto"
     assert "Entrar con Microsoft" in app.test_client().get("/login").get_data(as_text=True)
 
 
+def test_settings_origin_and_field_reset(app, make_app, admin):
+    """Solo se guarda lo cambiado; cada campo cambiado se marca y se puede devolver a config.json."""
+    from storageweb.web.context import runtime, settings
+
+    client, token = admin
+    data = settings_form(client, "general")
+    data["app_name"] = ["Desde la web"]
+    client.post("/admin/settings/general", data=data)
+    data = settings_form(client, "security")
+    data["lockout_minutes"] = ["30"]
+    client.post("/admin/settings/security", data=data)
+    with app.app_context():
+        assert runtime().overrides(get_db()) == {"app_name": "Desde la web", "security": {"lockout_minutes": 30}}
+    html = client.get("/admin/settings/general").get_data(as_text=True)
+    assert 'value="app_name"' in html and "Restablecer" in html and "1 web" in html
+    html = client.get("/admin/settings/system").get_data(as_text=True)
+    assert "<code>app_name</code>" in html and "<code>security.lockout_minutes</code>" in html
+
+    resp = client.post("/admin/settings/reset-field", data={"_csrf": token, "path": "app_name"})
+    assert resp.location.endswith("/admin/settings/general")
+    with app.test_request_context():
+        assert settings()["app_name"] == "StorageWeb" and settings()["security"]["lockout_minutes"] == 30
+    assert "settings_field_reset" in client.get("/admin/audit").get_data(as_text=True)
+
+
 def test_settings_reset(app, admin):
     client, token = admin
-    data = settings_form(client)
+    data = settings_form(client, "general")
     data["app_name"] = ["Temporal"]
-    client.post("/admin/settings", data=data)
+    client.post("/admin/settings/general", data=data)
     assert "Temporal" in client.get("/f/home/").get_data(as_text=True)
     client.post("/admin/settings/reset", data={"_csrf": token})
     assert "Temporal" not in client.get("/f/home/").get_data(as_text=True)
@@ -272,9 +326,9 @@ def test_settings_reset(app, admin):
 
 def test_settings_audited(app, admin):
     client, _ = admin
-    client.post("/admin/settings", data=settings_form(client))
+    client.post("/admin/settings/security", data=settings_form(client, "security"))
     html = client.get("/admin/audit?action=settings_updated").get_data(as_text=True)
-    assert "settings_updated" in html and "root" in html
+    assert "settings_updated" in html and "root" in html and "security" in html
 
 
 def test_audit_page_filters(app, admin):

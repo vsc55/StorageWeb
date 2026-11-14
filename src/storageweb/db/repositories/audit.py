@@ -42,3 +42,8 @@ def recent(conn: Connection, limit: int = 100, username: str | None = None,
     query += " ORDER BY id DESC LIMIT ?"
     params.append(int(limit))
     return conn.execute(query, params).fetchall()
+
+
+def count_since(conn: Connection, action: str, since_iso: str) -> int:
+    return conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = ? AND ts >= ?",
+                        (action, since_iso)).fetchone()[0]

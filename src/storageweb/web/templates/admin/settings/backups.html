@@ -1,0 +1,63 @@
+{% extends "admin/settings/_layout.html" %}
+{% block section %}
+<section class="card" aria-labelledby="db-title">
+  <h3 class="card-title" id="db-title">{{ _("Database") }}</h3>
+  <dl class="kv section-gap">
+    <dt>{{ _("Size") }}</dt><dd>{{ db.size|filesize }}</dd>
+    <dt>{{ _("Audit entries") }}</dt><dd>{{ db.tables.audit_log }}{% if db.audit_oldest %} <span class="muted small">({{ _("since %(date)s", date=db.audit_oldest|datetime) }})</span>{% endif %}</dd>
+    <dt>{{ _("Users") }}</dt><dd>{{ db.tables.users }}</dd>
+    <dt>{{ _("Open sessions") }}</dt><dd>{{ db.tables.sessions }}</dd>
+    <dt>{{ _("API tokens") }}</dt><dd>{{ db.tables.api_tokens }}</dd>
+    {% if maint_state.audit_purge %}<dt>{{ _("Last audit cleanup") }}</dt><dd>{{ maint_state.audit_purge|datetime }}</dd>{% endif %}
+  </dl>
+  <div class="form-actions section-gap">
+    <form method="post" action="{{ url_for('settings.maintenance_vacuum') }}" class="inline">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button class="btn" type="submit">{{ _("Compact the database") }}</button>
+    </form>
+    <form method="post" action="{{ url_for('settings.maintenance_purge') }}" class="inline js-confirm"
+          data-confirm="{{ _('Remove the audit entries older than %(days)s days?', days=cfg.maintenance.audit_retention_days) }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button class="btn" type="submit" {% if not cfg.maintenance.audit_retention_days %}disabled{% endif %}>{{ _("Clean the audit log now") }}</button>
+    </form>
+    <a class="btn btn-ghost" href="{{ url_for('admin.audit_export') }}">{{ _("Export the audit log (CSV)") }}</a>
+  </div>
+</section>
+
+<section class="card section-gap" id="backups" aria-labelledby="backups-title">
+  <div class="page-head">
+    <h3 class="card-title" id="backups-title">{{ _("Backups") }}</h3>
+    <form method="post" action="{{ url_for('settings.backup_create') }}" class="inline">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button class="btn btn-primary" type="submit">{{ _("Create a backup now") }}</button>
+    </form>
+  </div>
+  <p class="muted small">{{ _("Database, config.json and secret_key, in %(folder)s. Files are not included: back them up with your usual tool.", folder=backup_folder) }}</p>
+  <div class="table-scroll">
+  <table class="files small">
+    <thead><tr><th>{{ _("File") }}</th><th>{{ _("Date") }}</th><th class="num">{{ _("Size") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr></thead>
+    <tbody>
+      {% for b in backups %}
+      <tr>
+        <td class="name"><code>{{ b.name }}</code></td>
+        <td class="nowrap">{{ b.created|datetime }}</td>
+        <td class="num">{{ b.size|filesize }}</td>
+        <td class="actions">
+          <a class="btn btn-small" href="{{ url_for('settings.backup_download', name=b.name) }}">{{ _("Download") }}</a>
+          <form method="post" action="{{ url_for('settings.backup_delete', name=b.name) }}" class="inline js-confirm"
+                data-confirm="{{ _('Delete the backup %(name)s?', name=b.name) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="btn btn-small btn-danger" type="submit">{{ _("Delete") }}</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">{{ _("There are no backups yet.") }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted small">{{ _("Restoring replaces the database, so it is done with the service stopped:") }}
+    <code>sudo systemctl stop storageweb && sudo storageweb-admin restore {{ backup_folder }}/&lt;{{ _("file") }}&gt; && sudo systemctl start storageweb</code></p>
+</section>
+{% endblock %}

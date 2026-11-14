@@ -7,7 +7,7 @@ from __future__ import annotations
 import re
 from sqlite3 import Connection
 
-from ..db.repositories import audit, users
+from ..db.repositories import audit, sessions, users
 from ..i18n import _, _l
 from ..settings.defaults import ROLES
 from ..providers import local, pam
@@ -212,6 +212,8 @@ def update_account(conn: Connection, user, actor, *, role: str, enabled: bool, d
     users.update(conn, user["id"], **fields)
     if groups is not None:
         _set_groups(conn, user["id"], groups)
+    if not enabled or password:
+        sessions.delete_for_user(conn, user["id"])  # fuera las sesiones abiertas
 
 
 def set_role(conn: Connection, user, actor, role: str) -> None:
@@ -234,6 +236,8 @@ def set_enabled(conn: Connection, user, actor, enabled: bool) -> None:
         raise AccountError(_("You cannot disable your own account."))
     _guard_last_admin(conn, user, user["role"], enabled)
     users.update(conn, user["id"], enabled=enabled)
+    if not enabled:
+        sessions.delete_for_user(conn, user["id"])
 
 
 def delete_account(conn: Connection, user, actor) -> None:

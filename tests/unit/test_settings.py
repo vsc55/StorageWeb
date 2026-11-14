@@ -149,3 +149,35 @@ def test_mask_secrets(tmp_path):
     cfg = load_config(_cfg(tmp_path, {"auth": {"entra": {"client_secret": "s3cr3t"}}}))
     assert mask_secrets(cfg)["auth"]["entra"]["client_secret"] == "********"
     assert cfg["auth"]["entra"]["client_secret"] == "s3cr3t"
+
+
+def test_overrides_merge_over_file_field_by_field(tmp_path):
+    """Los ajustes web se combinan sobre config.json: lo que no cambian sigue viniendo del fichero."""
+    p = _cfg(tmp_path, {"auth": {"entra": {"tenant_id": "del-fichero", "client_id": "c"}}})
+    cfg = load_config(p, overrides={"auth": {"entra": {"client_id": "web"}}})
+    assert cfg["auth"]["entra"]["tenant_id"] == "del-fichero" and cfg["auth"]["entra"]["client_id"] == "web"
+
+
+def test_diff_and_paths_helpers():
+    from storageweb.settings import diff_overrides, drop_path, leaf_paths
+
+    base = {"app_name": "A", "auth": {"entra": {"tenant_id": "t", "role_mappings": {"g": "admin"}}}}
+    new = {"app_name": "A", "auth": {"entra": {"tenant_id": "x", "role_mappings": {}}}}
+    diff = diff_overrides(base, new)
+    assert diff == {"auth": {"entra": {"tenant_id": "x", "role_mappings": {}}}}
+    assert leaf_paths(diff) == {"auth.entra.tenant_id", "auth.entra.role_mappings"}
+    assert drop_path(diff, "auth.entra.tenant_id") == {"auth": {"entra": {"role_mappings": {}}}}
+    assert drop_path({"auth": {"entra": {"tenant_id": "x"}}}, "auth.entra.tenant_id") == {}
+
+
+def test_runtime_saves_only_differences(tmp_path, db_conn):
+    from storageweb.settings import RuntimeSettings, read_config_file, runtime_view
+
+    p = _cfg(tmp_path, {"app_name": "Fichero"})
+    rt = RuntimeSettings(*read_config_file(p))
+    view = runtime_view(rt.current(db_conn))
+    view["security"]["lockout_minutes"] = 42
+    assert rt.save(db_conn, view, "root") == {"security": {"lockout_minutes": 42}}
+    assert rt.changed_paths(db_conn) == {"security.lockout_minutes"}
+    rt.reset_path(db_conn, "security.lockout_minutes", "root")
+    assert rt.overrides(db_conn) == {} and rt.changed_paths(db_conn) == set()

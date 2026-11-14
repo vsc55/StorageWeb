@@ -9,6 +9,7 @@
 # Variables para la configuración generada (solo se usan la primera vez):
 #   STORAGEWEB_PORT (8080)  STORAGEWEB_BEHIND_PROXY (true)  STORAGEWEB_COOKIE_SECURE (true)
 #   STORAGEWEB_MAX_UPLOAD_MB (2048)  STORAGEWEB_APP_NAME (StorageWeb)
+#   STORAGEWEB_PUBLIC_URL (vacía; FQDN, p. ej. files.empresa.es: se asume HTTPS)  STORAGEWEB_PROXY_HOPS (1)
 set -e
 
 CONFIG="${STORAGEWEB_CONFIG:-/data/config.json}"
@@ -33,8 +34,10 @@ cfg = {
         "host": "0.0.0.0",
         "port": int(os.environ.get("STORAGEWEB_PORT", "8080")),
         "behind_proxy": flag("STORAGEWEB_BEHIND_PROXY", "true"),
+        "proxy_hops": int(os.environ.get("STORAGEWEB_PROXY_HOPS", "1")),
         "max_upload_mb": int(os.environ.get("STORAGEWEB_MAX_UPLOAD_MB", "2048")),
     },
+    "network": {"public_url": os.environ.get("STORAGEWEB_PUBLIC_URL", "")},
     "data_dir": "/data/db",
     "session": {"cookie_secure": flag("STORAGEWEB_COOKIE_SECURE", "true")},
     "storage": {

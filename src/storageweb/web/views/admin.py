@@ -1,21 +1,32 @@
-"""Administración web (solo rol admin): usuarios, ajustes y auditoría."""
+"""Administración web (solo rol admin): Resumen, buscador, usuarios y auditoría.
+
+Los ajustes están en ``settings.py`` y las carpetas compartidas en ``access.py``.
+"""
 from __future__ import annotations
 
-import json
 import re
 
-from flask import Blueprint, abort, flash, g, redirect, render_template, request, session, url_for
+import csv
+import io
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
-from ...core import accounts
+from flask import (Blueprint, Response, abort, flash, g, jsonify, redirect, render_template, request, session,
+                   url_for)
+
+from ...core import accounts, maintenance
+from ...core import shares as share_core
 from ...core import groups as group_core
 from ...core.permissions import ADMIN, PERMISSION_LABELS, ROLE_LABELS, permissions_for
 from ...core.storage import explain_access
-from ...db.repositories import audit, users
+from ...db.repositories import api_tokens, audit, users
+from ...db.repositories import ip_rules as ip_repo
+from ...db.repositories import sessions as session_repo
 from ...db.repositories import groups as group_repo
-from ...i18n import LOCALES, _, locale_display_name, ngettext
-from ...providers import SSO_PROVIDERS
-from ...settings import DEFAULTS, PERMISSIONS, ROLES, ConfigError, deep_merge, mask_secrets, runtime_view
-from ..context import boot_config, get_db, invalidate_settings, runtime, settings
+from ...i18n import _, ngettext
+from ...settings import PERMISSIONS, ROLES
+from .. import nav, search as admin_search
+from ..context import admin_alerts, boot_config, get_db, settings
 from ..guards import admin_required, client_ip, safe_next
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -35,16 +46,60 @@ def _labels():
             "PERMISSION_LABELS": PERMISSION_LABELS, "ROLES": ROLES}
 
 
+# --------------------------------------------------------------------------- Resumen y buscador
+
+def _alert_links(found: list[dict]) -> list[dict]:
+    return [{**a, "url": nav.PAGES[a["page"]].url() + (f"#{a['anchor']}" if a["anchor"] else "")} for a in found]
+
+
+def _network_alerts() -> list[dict]:
+    """Avisos de Red y HTTPS (dependen de cómo llega esta petición, así que solo salen en el Resumen)."""
+    from .settings import network_context  # noqa: PLC0415 (evita la importación circular)
+    notes = network_context(settings())["notes"]
+    return [{"level": level, "key": "network", "title": text, "detail": "", "page": "network",
+             "action": _("Review the network"), "anchor": ""} for level, text in notes if level in ("warn", "danger")]
+
+
 @bp.route("/")
 @admin_required
 def index():
-    return redirect(url_for("admin.users_list"))
+    conn, cfg = get_db(), settings()
+    found = _alert_links(admin_alerts() + _network_alerts())
+    sessions = session_repo.list_all(conn)
+    bans = ip_repo.list_rules(conn, "ban")
+    backups = maintenance.list_backups(boot_config())
+    day_ago = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(timespec="seconds")
+    shares = [{"share": s, "exists": Path(s["path"]).exists() or cfg["storage"]["create_shares"],
+               "entries": share_core.entries(s)} for s in cfg["storage"]["shares"]]
+    auth = cfg["auth"]
+    methods = [label for on, label in ((auth["local"]["enabled"], _("Local")), (auth["pam"]["enabled"], "PAM"),
+                                      (auth["entra"]["enabled"], "Entra ID")) if on]
+    return render_template(
+        "admin/overview.html", alerts=found, user_counts=users.counts(conn), groups=len(group_repo.list_all(conn)),
+        online=len({r["user_id"] for r in sessions}), tokens=len(api_tokens.list_all(conn)), shares=shares,
+        role_perms=[PERMISSION_LABELS[p] for p in PERMISSIONS if cfg["permissions"]["user"][p]],
+        methods=methods, failed_logins=audit.count_since(conn, "login_failed", day_ago),
+        bans=len(bans), auto_bans=sum(1 for b in bans if b["automatic"]),
+        public_url=cfg["network"]["public_url"], newest_backup=backups[0] if backups else None,
+        backup_count=len(backups), db_size=maintenance.db_stats(conn, boot_config()["database"])["size"],
+        recent=audit.recent(conn, 6), z={zone.key: zone for zone in nav.ZONES})
+
+
+@bp.route("/search")
+@admin_required
+def search():
+    """Buscador de la administración: JSON para el diálogo (Ctrl+K) o una página de resultados sin JavaScript."""
+    query = request.args.get("q", "").strip()
+    results = admin_search.find(query, get_db(), settings())
+    if request.args.get("format") == "json":
+        return jsonify(query=query, results=results)
+    return render_template("admin/search.html", query=query, results=results)
 
 
 # --------------------------------------------------------------------------- usuarios
 
 USER_STATUS_FILTERS = ("all", "active", "disabled")
-USER_VIEWS = ("list", "panel", "cards")
+USER_VIEWS = ("list", "panel")
 USER_TABS = ("profile", "groups", "access", "activity")
 PAGE_SIZE = 25
 BULK_ACTIONS = ("disable", "enable", "role_user", "role_admin", "add_group")
@@ -92,7 +147,7 @@ def _group_names(user_rows) -> dict:
 @admin_required
 def users_index():
     view = session.get("users_view")
-    return redirect(url_for({"panel": "admin.users_panel", "cards": "admin.users_cards"}.get(view, "admin.users_list")))
+    return redirect(url_for("admin.users_panel" if view == "panel" else "admin.users_list"))
 
 
 @bp.route("/users")
@@ -106,6 +161,7 @@ def users_list():
     page = min(page, pages)
     shown = rows[(page - 1) * PAGE_SIZE: page * PAGE_SIZE]
     return render_template("admin/users.html", users=shown, total=len(rows), page=page, pages=pages,
+                           session_count=len(session_repo.list_all(get_db())),
                            filters=f, search=f["q"], status=f["status"], counts=users.counts(get_db()),
                            all_groups=group_repo.list_all(get_db()), group_names=_group_names(shown),
                            page_size=PAGE_SIZE)
@@ -163,6 +219,8 @@ def _user_detail(user) -> dict:
             labels[grp["external_id"]] = group_core.label(grp)
     perms = permissions_for(user, cfg)
     return {**_user_groups_context(user),
+            "user_sessions": session_repo.list_all(get_db(), user["id"]),
+            "user_tokens": api_tokens.list_for_user(get_db(), user["id"]),
             "access": explain_access(user, cfg, labels) if user["enabled"] else [],
             "activity": audit.for_user(get_db(), user["username"], 8),
             "role_permissions": [PERMISSION_LABELS[p] for p in PERMISSIONS if p in perms]}
@@ -189,47 +247,6 @@ def users_panel():
         ctx = {**_user_detail(current), "form": {**dict(current), "enabled": bool(current["enabled"])}}
     return render_template("admin/users/panel.html", users=rows, current=current, tab=tab, filters=f,
                            counts=users.counts(get_db()), **ctx)
-
-
-@bp.route("/users/cards")
-@admin_required
-def users_cards():
-    session["users_view"] = "cards"
-    f = _user_filters()
-    rows = _filtered_users(f)
-    current = None
-    if request.args.get("u", type=int):
-        current = _pick(rows, request.args.get("u", type=int))
-    sections = [
-        ("admins", _("Administrators"), [u for u in rows if u["enabled"] and u["role"] == ADMIN]),
-        ("users", _("Users"), [u for u in rows if u["enabled"] and u["role"] != ADMIN]),
-        ("disabled", _("Disabled"), [u for u in rows if not u["enabled"]]),
-    ]
-    return render_template("admin/users/cards.html", sections=sections, current=current, filters=f,
-                           group_names=_group_names(rows), **(_user_detail(current) if current else {}))
-
-
-@bp.route("/users/<int:user_id>/quick", methods=["POST"])
-@admin_required
-def user_quick(user_id: int):
-    """Edición rápida (vista de tarjetas): estado y rol."""
-    user = users.get_by_id(get_db(), user_id)
-    if user is None:
-        abort(404)
-    enabled = request.form.get("enabled") == "on"
-    role = request.form.get("role", user["role"])
-    try:
-        if role != user["role"]:
-            accounts.set_role(get_db(), user, g.user, role)
-            _audit("user_updated", user["username"], f"role={role}")
-        if enabled != bool(user["enabled"]):
-            accounts.set_enabled(get_db(), users.get_by_id(get_db(), user_id), g.user, enabled)
-            _audit("user_enabled" if enabled else "user_disabled", user["username"], user["source"])
-    except accounts.AccountError as exc:
-        flash(exc.message, "error")
-    else:
-        flash(_("Changes saved."), "info")
-    return _back(url_for("admin.users_cards", u=user_id))
 
 
 @bp.route("/users/<int:user_id>/status", methods=["POST"])
@@ -319,7 +336,9 @@ def _user_groups_context(user) -> dict:
     known = {g["name"] for g in group_repo.list_all(get_db())} | \
         {g["external_id"] for g in group_repo.list_all(get_db()) if g["external_id"]}
     unknown = sorted(group_core.split(user["external_groups"]) - names - known)
+    from .groups import entra_names
     return {"memberships": rows, "unknown_groups": unknown,
+            "unknown_names": entra_names(unknown) if user["source"] == "entra" else {},
             "addable_groups": [g for g in group_repo.list_all(get_db()) if g["id"] not in mine]}
 
 
@@ -353,149 +372,50 @@ def user_delete(user_id: int):
     return redirect(url_for("admin.users_list"))
 
 
-# --------------------------------------------------------------------------- ajustes
+# --------------------------------------------------------------------------- sesiones y tokens
 
-def _int(name: str, label: str) -> int:
-    try:
-        return int(request.form.get(name, ""))
-    except ValueError as exc:
-        raise ConfigError(_("%(field)s must be a number", field=label)) from exc
-
-
-def _role_mappings(text: str) -> dict:
-    mappings = {}
-    for n, line in enumerate((text or "").splitlines(), 1):
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        key, sep, role = line.rpartition("=")
-        if not sep or not key.strip():
-            raise ConfigError(_("Role mapping, line %(line)s: use the format «group = role»", line=n))
-        mappings[key.strip()] = role.strip()
-    return mappings
-
-
-def _runtime_from_form() -> dict:
-    f = request.form
-    on = lambda name: f.get(name) == "on"  # noqa: E731
-
-    shares = []
-    names = f.getlist("share_name")
-    ro_groups = f.getlist("share_read_only_groups")
-    ro_groups += [""] * (len(names) - len(ro_groups))  # filas nuevas o formularios antiguos
-    rows = zip(names, f.getlist("share_label"), f.getlist("share_path"), f.getlist("share_read_only"),
-               f.getlist("share_users"), f.getlist("share_groups"), ro_groups)
-    for name, label, path, read_only, users_, groups, ro in rows:
-        if not name.strip() and not path.strip():
-            continue  # fila vacía
-        groups = _split(groups)
-        shares.append({"name": name.strip(), "label": label.strip(), "path": path.strip(),
-                       "read_only": read_only == "1", "users": _split(users_), "groups": groups,
-                       # la matriz de accesos los edita; aquí solo se conservan los que siguen en groups
-                       "read_only_groups": [g for g in _split(ro) if g.lower() in {x.lower() for x in groups}]})
-
-    return {
-        "app_name": f.get("app_name", "").strip(),
-        "default_locale": f.get("default_locale", ""),
-        "storage": {
-            "home_template": f.get("home_template", "").strip(),
-            "create_home": on("create_home"),
-            "create_shares": on("create_shares"),
-            "show_hidden": on("show_hidden"),
-            "max_file_size_mb": _int("max_file_size_mb", _("Maximum size per file")),
-            "shares": shares,
-        },
-        "permissions": {"user": {p: on(f"perm_{p}") for p in PERMISSIONS}},
-        "auth": {
-            "local": {"enabled": on("local_enabled")},
-            "pam": {
-                "enabled": on("pam_enabled"),
-                "service": f.get("pam_service", "login").strip() or "login",
-                "allowed_groups": _split(f.get("pam_allowed_groups", "")),
-                "admin_groups": _split(f.get("pam_admin_groups", "")),
-                "use_system_home": on("pam_use_system_home"),
-            },
-            "entra": {
-                "enabled": on("entra_enabled"),
-                "provider": f.get("entra_provider", "oauth2"),
-                "tenant_id": f.get("entra_tenant_id", "").strip(),
-                "client_id": f.get("entra_client_id", "").strip(),
-                "client_secret": f.get("entra_client_secret", "").strip(),
-                "redirect_uri": f.get("entra_redirect_uri", "").strip(),
-                "scopes": f.get("entra_scopes", "").split(),
-                "button_label": f.get("entra_button_label", "").strip(),
-                "username_claim": f.get("entra_username_claim", "").strip() or "preferred_username",
-                "strip_domain": on("entra_strip_domain"),
-                "allowed_groups": _split(f.get("entra_allowed_groups", "")),
-                "auto_provision": on("entra_auto_provision"),
-                "default_role": f.get("entra_default_role", "user"),
-                "role_mappings": _role_mappings(f.get("entra_role_mappings", "")),
-                "sync_role_on_login": on("entra_sync_role_on_login"),
-                "single_logout": on("entra_single_logout"),
-                "authorize_url": f.get("entra_authorize_url", "").strip(),
-                "token_url": f.get("entra_token_url", "").strip(),
-                "issuer": f.get("entra_issuer", "").strip(),
-                "logout_url": f.get("entra_logout_url", "").strip(),
-                "timeout_seconds": _int("entra_timeout_seconds", _("Timeout")),
-            },
-        },
-        "security": {
-            "max_login_failures": _int("max_login_failures", _("Failed attempts")),
-            "lockout_minutes": _int("lockout_minutes", _("Lockout minutes")),
-        },
-    }
-
-
-def _render_settings(cfg: dict, status: int = 200):
-    info = runtime().info(get_db())
-    has_overrides = bool(runtime().overrides(get_db()))
-    boot = boot_config()
-    return render_template(
-        "admin/settings.html", cfg=cfg, info=info, has_overrides=has_overrides,
-        providers=list(SSO_PROVIDERS), permissions=PERMISSIONS,
-        locales=[(code, locale_display_name(code)) for code in LOCALES],
-        secret_set=bool(settings()["auth"]["entra"].get("client_secret")),
-        boot={"config_path": boot["_config_path"], "database": boot["database"],
-              "host": boot["server"]["host"], "port": boot["server"]["port"],
-              "max_upload_mb": boot["server"]["max_upload_mb"],
-              "behind_proxy": boot["server"]["behind_proxy"],
-              "cookie_secure": boot["session"]["cookie_secure"]},
-        effective_json=json.dumps(mask_secrets(runtime_view(settings())), indent=2,
-                                  ensure_ascii=False),
-    ), status
-
-
-@bp.route("/settings", methods=["GET", "POST"])
+@bp.route("/sessions")
 @admin_required
-def settings_page():
-    if request.method == "POST":
-        draft = None
-        try:
-            draft = _runtime_from_form()
-            runtime().save(get_db(), draft, g.user["username"])
-            invalidate_settings()
-        except ConfigError as exc:
-            flash(_("The changes were not saved: %(error)s", error=exc), "error")
-            # Se vuelve a mostrar lo que el admin escribió para que pueda corregirlo
-            return _render_settings(_draft_view(draft) if draft else settings(), 400)
-        _audit("settings_updated")
-        flash(_("Settings saved and applied."), "info")
-        return redirect(url_for("admin.settings_page"))
-    return _render_settings(settings())
+def sessions_list():
+    return redirect(url_for("settings.section", name="sessions"))
 
 
-def _draft_view(draft: dict) -> dict:
-    return {k: deep_merge(DEFAULTS[k], v) if isinstance(DEFAULTS[k], dict) else v for k, v in draft.items()}
-
-
-@bp.route("/settings/reset", methods=["POST"])
+@bp.route("/sessions/<sid>/close", methods=["POST"])
 @admin_required
-def settings_reset():
-    runtime().reset(get_db(), g.user["username"])
-    invalidate_settings()
-    _audit("settings_reset")
-    flash(_("Web settings discarded; config.json applies again."), "info")
-    return redirect(url_for("admin.settings_page"))
+def session_close(sid: str):
+    row = session_repo.get(get_db(), sid)
+    if row is not None:
+        session_repo.delete(get_db(), sid)
+        user = users.get_by_id(get_db(), row["user_id"])
+        _audit("session_closed", user["username"] if user else None, row["ip"])
+        flash(_("Session closed."), "info")
+    return _back(url_for("settings.section", name="sessions"))
+
+
+@bp.route("/users/<int:user_id>/sessions/close", methods=["POST"])
+@admin_required
+def user_sessions_close(user_id: int):
+    user = users.get_by_id(get_db(), user_id)
+    if user is None:
+        abort(404)
+    keep = g.get("session_id") if user_id == g.user["id"] else None
+    closed = session_repo.delete_for_user(get_db(), user_id, keep=keep)
+    _audit("sessions_closed", user["username"], str(closed))
+    flash(ngettext("%(num)s session closed.", "%(num)s sessions closed.", closed), "info")
+    return _back(url_for("admin.user_edit", user_id=user_id))
+
+
+@bp.route("/users/<int:user_id>/tokens/<int:token_id>/delete", methods=["POST"])
+@admin_required
+def user_token_delete(user_id: int, token_id: int):
+    token = api_tokens.get(get_db(), token_id)
+    user = users.get_by_id(get_db(), user_id)
+    if token is None or user is None or token["user_id"] != user_id:
+        abort(404)
+    api_tokens.delete(get_db(), token_id)
+    _audit("api_token_revoked", user["username"], token["name"])
+    flash(_("Token «%(name)s» revoked.", name=token["name"]), "info")
+    return _back(url_for("admin.user_edit", user_id=user_id))
 
 
 # --------------------------------------------------------------------------- auditoría
@@ -508,3 +428,22 @@ def audit_log():
     rows = audit.recent(get_db(), limit=500, username=username, action=action)
     return render_template("admin/audit.html", rows=rows, user_filter=username or "",
                            action_filter=action or "")
+
+
+@bp.route("/audit/export.csv")
+@admin_required
+def audit_export():
+    """Toda la auditoría (o la filtrada) en CSV, con BOM para que Excel respete los acentos."""
+    username = request.args.get("user", "").strip() or None
+    action = request.args.get("action", "").strip() or None
+    rows = audit.recent(get_db(), limit=1_000_000, username=username, action=action)
+    out = io.StringIO()
+    out.write("\ufeff")
+    writer = csv.writer(out)
+    writer.writerow(["ts", "username", "action", "target", "ip", "detail"])
+    for r in rows:
+        writer.writerow([r["ts"], r["username"] or "", r["action"], r["target"] or "", r["ip"] or "", r["detail"] or ""])
+    _audit("audit_exported", None, f"{len(rows)} rows")
+    name = f"storageweb-audit-{datetime.now(timezone.utc):%Y%m%d-%H%M}.csv"
+    return Response(out.getvalue(), mimetype="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
