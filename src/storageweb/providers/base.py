@@ -117,6 +117,9 @@ class GroupDirectory:
         """``[{"id", "name"}]`` (y ``description`` si se sabe)."""
         return []
 
+    def clear_cache(self) -> None:
+        """Olvida lo que tenga guardado en memoria (p. ej. tras restaurar una copia de seguridad)."""
+
 
 class AuthMethod:
     """Un método de inicio de sesión. Las subclases con ``key`` se registran solas (``providers.discover``)."""
@@ -164,10 +167,6 @@ class AuthMethod:
     def complete(self, section: dict, flow: dict, args: dict) -> Identity:
         """Valida la vuelta del proveedor. :class:`SSOError` (protocolo) o :class:`AuthDenied`."""
         raise NotImplementedError
-
-    def redirect_uri(self, section: dict) -> str:
-        """Dirección de vuelta configurada; vacía = la calcula la web."""
-        return section.get("redirect_uri", "")
 
     def logout_url(self, section: dict, post_logout_redirect_uri: str) -> str:
         """Cierre de sesión también en el proveedor (vacío = no)."""

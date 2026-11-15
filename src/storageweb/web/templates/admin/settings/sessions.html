@@ -47,7 +47,7 @@
       <tr>
         <td class="col-check">{% if s['id'] != current_sid %}<input type="checkbox" name="sids" value="{{ s['id'] }}" form="bulk-form"
             class="bulk-check" aria-label="{{ _('Select the session of %(name)s', name=s['username']) }}">{% endif %}</td>
-        <td class="name"><a href="{{ url_for('admin.user_edit', user_id=s['user_id']) }}">{{ s['display_name'] or s['username'] }}</a>
+        <td class="name"><a href="{{ url_for('admin.user_edit', user_uid=s['user_uid']) }}">{{ s['display_name'] or s['username'] }}</a>
           {% if s['display_name'] and s['display_name'] != s['username'] %}<div class="muted small">{{ s['username'] }}</div>{% endif %}</td>
         <td title="{{ s['user_agent'] or '' }}">{{ s['user_agent']|ua_summary }}{% if s['id'] == current_sid %} <span class="badge">{{ _("this one") }}</span>{% endif %}</td>
         <td><code>{{ s['ip'] or '—' }}</code></td>
@@ -60,7 +60,7 @@
             <input type="hidden" name="next" value="{{ request.path }}">
             <button class="btn btn-small" type="submit">{{ _("Close") }}</button>
           </form>
-          <form method="post" action="{{ url_for('settings.user_sessions_close', user_id=s['user_id']) }}" class="inline">
+          <form method="post" action="{{ url_for('settings.user_sessions_close', user_uid=s['user_uid']) }}" class="inline">
             <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
             <input type="hidden" name="next" value="{{ request.path }}">
             <button class="btn btn-small btn-ghost" type="submit" title="{{ _('Close all the sessions of %(name)s', name=s['username']) }}">{{ _("All of the user") }}</button>
@@ -95,13 +95,13 @@
     <tbody>
       {% for t in all_tokens %}
       <tr>
-        <td class="name"><a href="{{ url_for('admin.user_edit', user_id=t['user_id']) }}">{{ t['display_name'] or t['username'] }}</a></td>
+        <td class="name"><a href="{{ url_for('admin.user_edit', user_uid=t['user_uid']) }}">{{ t['display_name'] or t['username'] }}</a></td>
         <td>{{ t['name'] }} <code class="muted">{{ t['prefix'] }}…</code></td>
         <td>{{ t['scope'] }}</td>
         <td class="nowrap">{{ t['last_used_at']|datetime }}{% if t['last_ip'] %} <span class="muted">· {{ t['last_ip'] }}</span>{% endif %}</td>
         <td class="nowrap">{{ t['expires_at']|datetime if t['expires_at'] else _("never") }}</td>
         <td class="actions">
-          <form method="post" action="{{ url_for('settings.user_token_delete', user_id=t['user_id'], token_id=t['id']) }}" class="inline js-confirm"
+          <form method="post" action="{{ url_for('settings.user_token_delete', user_uid=t['user_uid'], token_id=t['id']) }}" class="inline js-confirm"
                 data-confirm="{{ _('Revoke the token «%(name)s»?', name=t['name']) }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
             <input type="hidden" name="next" value="{{ request.path }}">

@@ -747,6 +747,10 @@ class FolderSync {
     this.loopChecked = true;
     this.lastSync = new Date();
     this.error = summary.errors.length ? summary.errors[0].error : undefined;
+    if (summary.noSpace) {
+      vscode.window.showWarningMessage(t("StorageWeb: «{0}» could not upload everything because there is no space on the server. {1}",
+        this.folder.name, summary.noSpace));
+    }
     for (const { path: rel, copy } of summary.conflicts) {
       const compare = t("Compare");
       vscode.window.showWarningMessage(

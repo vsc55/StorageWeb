@@ -65,6 +65,7 @@ def test_register_flow_end_to_end(admin_client, microsoft):
         en = settings()["auth"]["entra"]
     assert (en["tenant_id"], en["client_id"], en["client_secret"]) == ("tenant-1", "client-1", "s3cr3t")
     assert en["role_mappings"] == {"storageweb.admin": "admin"} and not en["enabled"]
+    assert "redirect_uri" not in en            # no se guarda: se calcula de la dirección pública
     assert "entra_app_registered" in client.get("/admin/audit").get_data(as_text=True)
 
     # el paso 4 del asistente muestra lo creado y sus avisos (y luego ya no)

@@ -27,8 +27,10 @@ from email.utils import format_datetime
 from xml.sax.saxutils import escape
 
 from flask import Blueprint, Response, abort, g, request
+from werkzeug.exceptions import HTTPException
 
 from ... import patterns
+from ... import metrics
 from ...core import backends, quota, storage, tokens
 from ...core.permissions import effective_for_root, permissions_for
 from ...core.security import UPLOAD_TMP_PREFIX, PathError, safe_filename
@@ -40,6 +42,13 @@ from ..downloads import SANDBOX, etag, send_entry
 from ..guards import client_ip
 
 bp = Blueprint("dav", __name__, url_prefix="/dav")
+
+
+class InsufficientStorage(HTTPException):
+    """507 (RFC 4918): no cabe (cuota o disco). Werkzeug no la trae."""
+    code = 507
+    name = "Insufficient Storage"
+    description = "Not enough space for this request."
 
 METHODS = ["OPTIONS", "PROPFIND", "PROPPATCH", "GET", "HEAD", "PUT", "DELETE", "MKCOL", "COPY", "MOVE", "LOCK",
            "UNLOCK"]
@@ -126,6 +135,14 @@ def _preconditions(entry) -> None:
             abort(412)
 
 
+def _check_quota(root: dict, incoming: int, freed: int = 0) -> None:
+    """507 (Insufficient Storage, RFC 4918) con el motivo si no cabe en la cuota de la carpeta."""
+    try:
+        quota.check(root, settings(), incoming, freed)
+    except quota.QuotaExceeded as exc:
+        raise InsufficientStorage(exc.message) from exc
+
+
 def _check_name(rel: str) -> None:
     """En WebDAV el nombre lo elige el cliente: si no es válido tal cual, se rechaza (no se cambia)."""
     name = backends.name_of(rel)
@@ -191,6 +208,33 @@ def _props(name: str, entry_is_dir: bool, size: int = 0, mtime: float = 0.0, ent
     return props
 
 
+# Cuota de las carpetas (RFC 4331): el Explorador de Windows las pide para mostrar el espacio de la unidad. Solo
+# se calculan si se piden expresamente (no van en «allprop»: contar lo que ocupa una carpeta puede costar).
+QUOTA_PROPS = ("quota-available-bytes", "quota-used-bytes")
+
+
+def _wants_quota(wanted: list[tuple[str, str]] | None) -> bool:
+    return bool(wanted) and any(ns == "DAV:" and local in QUOTA_PROPS for ns, local in wanted)
+
+
+def _quota_props(root: dict) -> dict[str, str]:
+    """Lo usado y lo que queda: el mínimo entre lo que deja la cuota y el espacio libre del almacenamiento (si
+    se sabe). Sin cuota ni espacio conocido, solo lo usado."""
+    try:
+        used, _complete = quota.usage(root)
+        space = root["backend"].space("") or {}
+    except (backends.BackendError, OSError):
+        return {}
+    limit = quota.limit_bytes(root)
+    available = max(limit - used, 0) if limit > 0 else None
+    if "free" in space:
+        available = space["free"] if available is None else min(available, space["free"])
+    props = {"quota-used-bytes": str(used)}
+    if available is not None:
+        props["quota-available-bytes"] = str(available)
+    return props
+
+
 def _response(href: str, props: dict[str, str], wanted: list[tuple[str, str]] | None) -> str:
     if wanted is None:
         found = "".join(f"<d:{k}>{v}</d:{k}>" if v else f"<d:{k}/>" for k, v in props.items())
@@ -230,10 +274,14 @@ def _depth() -> str:
 def _propfind_top() -> Response:
     """``/dav/``: una colección con las carpetas del usuario."""
     wanted = _requested_props()
-    responses = [_response(_href(), _props("StorageWeb", True), wanted)]
+    roots = storage.available_roots(g.user, settings())
+    quota_of = _quota_props if _wants_quota(wanted) else (lambda _root: {})
+    # La raíz de la unidad muestra el espacio de la carpeta personal
+    responses = [_response(_href(), {**_props("StorageWeb", True), **quota_of(roots[0])}, wanted)]
     if _depth() != "0":
-        for root in storage.available_roots(g.user, settings()):
-            responses.append(_response(_href(root["name"], is_dir=True), _props(str(root["label"]), True), wanted))
+        for root in roots:
+            responses.append(_response(_href(root["name"], is_dir=True),
+                                       {**_props(str(root["label"]), True), **quota_of(root)}, wanted))
     return _multistatus(responses)
 
 
@@ -243,8 +291,10 @@ def _propfind(root: dict, rel: str) -> Response:
     if entry is None:
         abort(404)
     name = backends.name_of(rel) or str(root["label"])
+    folder_quota = _quota_props(root) if _wants_quota(wanted) else {}  # la de la carpeta, para cada subcarpeta
     responses = [_response(_href(root["name"], rel, entry.is_dir),
-                           _props(name, entry.is_dir, entry.size, entry.mtime, entry), wanted)]
+                           {**_props(name, entry.is_dir, entry.size, entry.mtime, entry),
+                            **(folder_quota if entry.is_dir else {})}, wanted)]
     if entry.is_dir and _depth() == "infinity":
         return _xml('<d:error xmlns:d="DAV:"><d:propfind-finite-depth/></d:error>', 403)
     if entry.is_dir and _depth() == "1":
@@ -257,8 +307,9 @@ def _propfind(root: dict, rel: str) -> Response:
         for child in children:
             child_entry = backends.Entry(child["name"], child["is_dir"], child["bytes"], child["ts"])
             responses.append(_response(_href(root["name"], child["rel"], child["is_dir"]),
-                                       _props(child["name"], child["is_dir"], child["bytes"], child["ts"],
-                                              child_entry), wanted))
+                                       {**_props(child["name"], child["is_dir"], child["bytes"], child["ts"],
+                                                 child_entry), **(folder_quota if child["is_dir"] else {})},
+                                       wanted))
     return _multistatus(responses)
 
 
@@ -300,11 +351,13 @@ def _put(root: dict, rel: str) -> Response:
     limit = settings()["storage"]["max_file_size_mb"] * 1024 * 1024
     if limit and length and length > limit:
         abort(413)
+    old_size = entry.size if entry is not None else 0  # sobrescribir libera lo anterior
+    _check_quota(root, length or 0, old_size)
     try:
         if length:
             check_space(backend, parent, length)
     except UploadError:
-        abort(507)
+        raise InsufficientStorage()
     tmp = backend.staging_dir(parent) / f"{UPLOAD_TMP_PREFIX}{secrets.token_hex(8)}.part"
     received = 0
     try:
@@ -317,6 +370,8 @@ def _put(root: dict, rel: str) -> Response:
                 if limit and received > limit:
                     abort(413)
                 out.write(block)
+        if not length:
+            _check_quota(root, received, old_size)  # sin Content-Length: ahora se sabe cuánto es
         backend.store(tmp, rel)
     except backends.BackendError:
         abort(502)
@@ -324,7 +379,8 @@ def _put(root: dict, rel: str) -> Response:
         tmp.unlink(missing_ok=True)
     _audit("upload", root, rel, f"webdav:{received}")
     stored = _stat(root, rel)
-    quota.invalidate(root)
+    quota.record(root, received - old_size)
+    metrics.inc("storageweb_upload_bytes_total", received, via="webdav")
     return _empty(204 if entry is not None else 201, {"ETag": f'"{etag(stored)}"'} if stored else None)
 
 
@@ -409,6 +465,13 @@ def _copy_move(root: dict, rel: str, move: bool) -> Response:
         abort(409)
     if same and (dst_rel == rel or dst_rel.startswith(rel + "/")):
         abort(403)  # en sí misma
+    if not (move and same):
+        try:
+            size = quota.size_of(root["backend"], rel)
+            freed = quota.size_of(dst_root["backend"], dst_rel) if existing is not None else 0
+        except backends.BackendError:
+            abort(502)
+        _check_quota(dst_root, size, freed)
     try:
         if existing is not None:
             dst_root["backend"].delete(dst_rel)

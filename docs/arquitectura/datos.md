@@ -49,8 +49,56 @@ erDiagram
         text ip
         text detail
     }
+    settings_values {
+        text profile PK "default"
+        text path PK "auth.entra.client_secret"
+        text value "JSON"
+        int secret
+        text updated_at
+        text updated_by
+    }
+    settings_profiles {
+        text name PK
+        int revision
+        text updated_at
+        text updated_by
+    }
+    settings_profiles ||--o{ settings_values : ""
+    shares {
+        text profile PK
+        text name PK
+        text label
+        text location
+        text path
+        int read_only
+        int quota_mb
+        int position
+    }
+    share_access {
+        text profile PK
+        text share PK
+        text kind PK "all | user | group"
+        text ref PK
+        text level "read | write"
+    }
+    shares ||--o{ share_access : ""
+    locations {
+        text profile PK
+        text name PK
+        text label
+        text type
+        int position
+    }
+    location_options {
+        text profile PK
+        text location PK
+        text name PK
+        text value "JSON simple"
+        int secret
+    }
+    locations ||--o{ location_options : ""
     settings {
-        text key PK "runtime"
+        text key PK "maintenance_state"
         text value "JSON"
         int revision
         text updated_at
@@ -71,11 +119,15 @@ erDiagram
 
 | Tabla | Uso |
 |---|---|
-| `users` | Cuentas. `source` es la clave de su método de inicio de sesión (cualquiera registrado; sin `CHECK` desde la migración 007). `(source, external_id)` es único: una cuenta de Entra por `oid`. `username` no distingue mayúsculas. `groups` es la lista efectiva que usan las carpetas: `external_groups` más los nombres de sus grupos. |
-| `groups` | Grupos dados de alta. `(source, external_id)` es único. `builtin = 1` marca el grupo de serie `admins` (migración 005), cuyos miembros son los usuarios con rol admin. Ver la [decisión 0011](decisiones/0011-grupos-gestionados.md). |
+| `users` | Cuentas. `uid` es su identificador público (UUID v4): el que va en las direcciones y los formularios de la administración; `id` es la clave interna de las relaciones. `source` es la clave de su método de inicio de sesión (cualquiera registrado; sin `CHECK` desde la migración 007). `(source, external_id)` es único: una cuenta de Entra por `oid`. `username` no distingue mayúsculas. `groups` es la lista efectiva que usan las carpetas: `external_groups` más los nombres de sus grupos. |
+| `groups` | Grupos dados de alta. Como los usuarios, `uid` es su identificador público. `(source, external_id)` es único. `home_quota_mb` es la cuota de la carpeta personal de sus miembros. `builtin = 1` marca el grupo de serie `admins` (migración 005), cuyos miembros son los usuarios con rol admin. Ver la [decisión 0011](decisiones/0011-grupos-gestionados.md). |
 | `user_groups` | Pertenencias. Al iniciar sesión solo se reemplazan las `sync`; las `manual` se conservan. |
 | `audit_log` | Registro de eventos; ver la [referencia de auditoría](../referencia/auditoria.md). |
-| `settings` | Ajustes web como un documento JSON (`key = runtime`). `revision` se incrementa en cada cambio para invalidar cachés. |
+| `settings_values` | Ajustes guardados desde la web: una fila por perfil (`settings_profile`) y campo, con su valor en JSON (los secretos, cifrados), y quién y cuándo lo cambió. Solo lo que difiere de los predeterminados. Ver la [decisión 0017](decisiones/0017-ajustes-web-por-campo.md). |
+| `settings_profiles` | Un perfil por fila; `revision` sube en cada guardado para invalidar la caché de los ajustes efectivos. |
+| `shares`, `share_access` | Carpetas compartidas creadas desde la web (por perfil) y quién entra en cada una: todos, un usuario o un grupo, con lectura o escritura. Las de `config.json` no están aquí: se leen del fichero y se ven de solo lectura. Ver la [decisión 0018](decisiones/0018-carpetas-y-ubicaciones-como-entidades.md). |
+| `locations`, `location_options` | Ubicaciones de almacenamiento externo creadas desde la web y sus opciones (dependen del tipo); los secretos, cifrados. |
+| `settings` | Estado interno como documentos JSON: cuándo corrió cada tarea de mantenimiento (`maintenance_state`), permisos del último inicio de sesión de cada método SSO… |
 | `uploads` | Subidas por partes en curso. El progreso **no** se guarda aquí: es el tamaño del `.part`. |
 
 `PRAGMA user_version` guarda la versión del esquema.

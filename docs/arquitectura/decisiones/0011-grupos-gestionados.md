@@ -30,5 +30,4 @@ Hasta la versión 1.0 los grupos eran una lista de texto en `users.groups`. Ten�
 
 - Los grupos manuales de los usuarios de SSO ya no se pierden.
 - Cada cambio de pertenencias recalcula `users.groups` (`core.groups.refresh_user`); el código que escriba pertenencias debe usar `core.groups`, no el repositorio directamente.
-- La migración 004 convierte los grupos de los usuarios locales en grupos locales con pertenencia manual; los de Entra ID y PAM pasan a `external_groups` y se ven como «grupos sin dar de alta» hasta que el admin les dé nombre.
 - Se mantienen dos vistas, lista y paneles; la matriz de accesos pasó a ser una página de *Acceso* ([0012](0012-administracion-por-zonas.md)).

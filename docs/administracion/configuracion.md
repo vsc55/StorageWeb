@@ -45,7 +45,7 @@ STORAGEWEB_STORAGE__SHARES='[{"name": "comun", "path": "/srv/comun", "users": ["
 
 ### Varias configuraciones en una base de datos
 
-`settings_profile` (o `STORAGEWEB_SETTINGS_PROFILE`) elige el **perfil** de ajustes web que usa la instancia. Por defecto es `default`. Varias instancias pueden compartir base de datos con ajustes distintos, igual que si cada una tuviera su `config.json`: por ejemplo, una de pruebas y otra de producción. Lo demás de la base de datos (usuarios, grupos, sesiones, auditoría) es común. `settings-reset` solo descarta el perfil de la instancia.
+`settings_profile` (o `STORAGEWEB_SETTINGS_PROFILE`) elige el **perfil** de ajustes web que usa la instancia. Por defecto es `default`. Varias instancias pueden compartir base de datos con ajustes distintos, igual que si cada una tuviera su `config.json`: por ejemplo, una de pruebas y otra de producción. Lo demás de la base de datos (usuarios, grupos, sesiones, auditoría) es común. `settings-reset` solo descarta el perfil de la instancia. *Sistema → Información* muestra el perfil activo, los demás perfiles de la base de datos y quién y cuándo cambió cada ajuste. Si las instancias comparten base de datos, que compartan también la [clave de los secretos](seguridad.md#secretos-guardados) (`STORAGEWEB_SECRETS_KEY` o el mismo `secrets.key`): al restaurar una copia se vuelven a cifrar los secretos de todos los perfiles con la clave de quien restaura.
 
 ## La administración
 

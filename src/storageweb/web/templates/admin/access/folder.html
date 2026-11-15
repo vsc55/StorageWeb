@@ -40,7 +40,7 @@
         <small class="muted">{{ _("Only downloading is allowed, administrators included, whatever the permission of each entry.") }}</small></span></label>
     <label>{{ _("Quota (MB)") }}
       <input type="number" name="quota_mb" min="0" value="{{ share.quota_mb or 0 }}">
-      <small class="muted">{{ _("0 = no quota. It only warns (from 90%% and when exceeded); it does not stop uploads.") }}</small></label>
+      <small class="muted">{{ _("0 = no quota.") }} {% if cfg_quota_enforce %}{{ _("What does not fit cannot be uploaded.") }}{% else %}{{ _("It only warns (from 90%% and when exceeded).") }}{% endif %}</small></label>
     {% if usage %}
     <div class="field">
       <span class="label">{{ _("In use") }}</span>

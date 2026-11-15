@@ -16,7 +16,7 @@ La primera versión tenía el español escrito directamente en las plantillas, l
   - Así `core` (errores de negocio) y `settings` (errores de configuración) traducen igual en la web y en la CLI, sin depender de Flask-Babel.
   - Las constantes de módulo usan traducción diferida (`_l`).
 - **Elección del idioma en la web**, por este orden:
-  1. preferencia del usuario (`users.locale`, migración 002);
+  1. preferencia del usuario (`users.locale`);
   2. idioma elegido en la sesión (selector ES/EN, también antes de iniciar sesión);
   3. `Accept-Language` del navegador;
   4. `default_locale`, que por defecto es `en` y es configurable desde la web.

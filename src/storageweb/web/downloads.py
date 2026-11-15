@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 from flask import abort, request, send_file
 
+from .. import metrics
 from ..core import backends
 
 SANDBOX = "sandbox"
@@ -40,6 +41,9 @@ def send_entry(root: dict, rel: str, entry, *, head: bool = False):
     rv.headers["Content-Security-Policy"] = SANDBOX
     if head:
         rv.response = []
+    elif rv.status_code in (200, 206):  # un 304 no manda nada
+        metrics.inc("storageweb_download_bytes_total", rv.content_length or 0,
+                    via="webdav" if request.blueprint == "dav" else "web")
     return rv
 
 

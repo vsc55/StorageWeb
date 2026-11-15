@@ -62,6 +62,7 @@ nav:
       - Usuarios, roles y permisos: administracion/usuarios-y-permisos.md
       - Almacenamiento externo: administracion/almacenamiento.md
       - Copias de seguridad: administracion/copias-seguridad.md
+      - Monitorización: administracion/monitorizacion.md
       - Actualización: administracion/actualizacion.md
       - Seguridad en producción: administracion/seguridad.md
       - Solución de problemas: administracion/solucion-problemas.md
@@ -94,6 +95,8 @@ nav:
           - 0014 Almacenamiento externo: arquitectura/decisiones/0014-almacenamiento-externo.md
           - 0015 Extensiones que se registran solas: arquitectura/decisiones/0015-extensiones-que-se-descubren.md
           - 0016 Conectar aplicaciones con el navegador: arquitectura/decisiones/0016-conectar-aplicaciones-con-el-navegador.md
+          - 0017 Ajustes web por campo: arquitectura/decisiones/0017-ajustes-web-por-campo.md
+          - 0018 Carpetas y ubicaciones como entidades: arquitectura/decisiones/0018-carpetas-y-ubicaciones-como-entidades.md
           - Plantilla: arquitectura/decisiones/plantilla.md
   - Desarrollo:
       - desarrollo/index.md

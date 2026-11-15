@@ -218,12 +218,13 @@ def test_locations_locked_by_config_file(write_config, s3):
     client = app.test_client()
     login(client, "root")
     page = visible(client.get("/admin/storage/").get_data(as_text=True))
-    assert "config.json" in page and "Nueva ubicación" not in page
+    assert "config.json</span>" in page and "Nueva ubicación" in page            # se pueden añadir otras
+    assert '<fieldset class="plain-fieldset" disabled>' in client.get("/admin/storage/s3").get_data(as_text=True)
     token = get_csrf(client, "/admin/storage/")
     r = client.post("/admin/storage/s3/delete", data={"_csrf": token})
     assert r.status_code == 302
     with app.app_context():
-        assert len(settings()["storage"]["locations"]) == 2
+        assert len(settings()["storage"]["locations"]) == 2                       # la de config.json no se borra
     # El listado de la configuración no enseña los secretos
     with app.app_context():
         from storageweb.settings.loader import mask_secrets

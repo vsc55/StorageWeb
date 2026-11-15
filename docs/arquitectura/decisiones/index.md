@@ -16,10 +16,12 @@ Un ADR (*Architecture Decision Record*) explica **por qué** se tomó una decisi
 | [0010](0010-internacionalizacion.md) | Internacionalización con gettext/Babel y textos fuente en inglés | Aceptada |
 | [0011](0011-grupos-gestionados.md) | Grupos gestionados con pertenencias manuales y sincronizadas | Aceptada |
 | [0012](0012-administracion-por-zonas.md) | Administración por zonas con Resumen y buscador | Aceptada |
-| [0013](0013-capas-de-configuracion.md) | Capas de configuración: web < config.json < entorno | Aceptada |
+| [0013](0013-capas-de-configuracion.md) | Capas de configuración: web < config.json < entorno | Aceptada (el almacenamiento, sustituido por 0017) |
 | [0014](0014-almacenamiento-externo.md) | Almacenamiento externo: backends por raíz | Aceptada |
 | [0015](0015-extensiones-que-se-descubren.md) | Extensiones que se registran solas | Aceptada |
 | [0016](0016-conectar-aplicaciones-con-el-navegador.md) | Conectar aplicaciones iniciando sesión en el navegador (PKCE) | Aceptada |
+| [0017](0017-ajustes-web-por-campo.md) | Ajustes web por campo, una fila por perfil y campo | Aceptada |
+| [0018](0018-carpetas-y-ubicaciones-como-entidades.md) | Carpetas compartidas, ubicaciones y cuotas de grupo como entidades | Aceptada |
 
 ## Cómo proponer uno
 

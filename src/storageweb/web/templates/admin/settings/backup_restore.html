@@ -1,0 +1,44 @@
+{% extends "admin/_layout.html" %}
+{% block title %}{{ _("Restore a backup") }} · {{ app_name }}{% endblock %}
+{% block admin_content %}
+<div class="wizard">
+  <a class="small" href="{{ url_for('settings.section', name='backups') }}">← {{ _("Backups and database") }}</a>
+  <h1>{{ _("Restore a backup") }}</h1>
+
+  <section class="card">
+    <dl class="kv">
+      <dt>{{ _("File") }}</dt><dd><code>{{ name }}</code></dd>
+      {% if manifest %}
+      <dt>{{ _("Made on") }}</dt><dd>{{ manifest.created_at|datetime }}</dd>
+      <dt>{{ _("StorageWeb version") }}</dt><dd>{{ manifest.storageweb_version }}</dd>
+      <dt>{{ _("Database version") }}</dt><dd>{{ manifest.schema_version }}
+        {% if manifest.schema_version < current_schema %}<span class="muted small">({{ _("this server uses %(version)s: it is updated after restoring", version=current_schema) }})</span>{% endif %}</dd>
+      {% endif %}
+    </dl>
+  </section>
+
+  {% if problem %}
+  <div class="flash flash-error" role="alert">{{ _("This backup cannot be restored here: %(error)s", error=problem) }}</div>
+  {% else %}
+  <section class="card stack" aria-labelledby="what-title">
+    <h2 class="card-title" id="what-title">{{ _("What happens") }}</h2>
+    <ul class="small">
+      <li>{{ _("The database is replaced by the one in the backup: users, groups, shared folders and every setting saved from the web, sessions, API tokens and the audit log go back to how they were then. What changed afterwards is lost.") }}</li>
+      <li>{{ _("Before that, a backup of the current state is made (it is not removed by the rotation), so you can go back.") }}</li>
+      <li>{{ _("While it is restored the service answers «under maintenance»; it only takes a moment.") }}</li>
+      <li>{{ _("Everyone has to sign in again. You stay signed in if your account is an enabled administrator in the backup.") }}</li>
+      <li>{{ _("The files of the users, config.json and the session key are not touched.") }}</li>
+    </ul>
+    <form method="post" class="form-grid">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label class="span2">{{ _("Type %(word)s to confirm", word=word) }}
+        <input type="text" name="confirm" required autocomplete="off" spellcheck="false" class="mono" placeholder="{{ word }}"></label>
+      <div class="span2 form-actions">
+        <button class="btn btn-danger" type="submit">{{ _("Restore this backup") }}</button>
+        <a class="btn btn-ghost" href="{{ url_for('settings.section', name='backups') }}">{{ _("Cancel") }}</a>
+      </div>
+    </form>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

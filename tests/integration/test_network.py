@@ -47,13 +47,13 @@ def test_public_url_invalid(tmp_path, value):
     ("https://www.example.com/archivos", "https://www.example.com/archivos/auth/entra/callback"),
 ])
 def test_entra_redirect_uses_public_url(make_app, token_endpoint, public, expected):
-    app = make_app({"network": {"public_url": public}, "auth": {"entra": entra_cfg(redirect_uri="")}})
+    app = make_app({"network": {"public_url": public}, "auth": {"entra": entra_cfg()}})
     _, q = start_login(app.test_client(), token_endpoint)
     assert q["redirect_uri"] == expected
 
 
 def test_without_public_url_uses_request_host(make_app, token_endpoint):
-    app = make_app({"auth": {"entra": entra_cfg(redirect_uri="")}})
+    app = make_app({"auth": {"entra": entra_cfg()}})
     _, q = start_login(app.test_client(), token_endpoint)
     assert q["redirect_uri"] == "http://localhost/auth/entra/callback"
 

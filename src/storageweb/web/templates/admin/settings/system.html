@@ -9,7 +9,14 @@
     <dt>{{ _("Listening on") }}</dt><dd>{{ boot.host }}:{{ boot.port }}{% if boot.behind_proxy %} ({{ _("behind a proxy") }}){% endif %}</dd>
     <dt>{{ _("Maximum per request") }}</dt><dd>{{ boot.max_upload_mb }} MB <small class="muted">({{ _("each part of an upload and the upload without JavaScript") }})</small></dd>
     <dt>{{ _("Secure cookie (HTTPS)") }}</dt><dd>{{ _("Yes") if boot.cookie_secure else _("No") }}</dd>
+    <dt>{{ _("Settings profile") }}</dt><dd><code>{{ profile }}</code>
+      <small class="muted">({{ _("settings_profile: the set of settings saved from the web that this instance uses") }})</small></dd>
   </dl>
+  {% set others = profiles|rejectattr('name', 'equalto', profile)|list %}
+  {% if others %}
+  <p class="muted small">{{ _("Other profiles in this database (other instances can use them with settings_profile):") }}
+    {% for p in others %}<code>{{ p.name }}</code> ({{ ngettext("%(num)s field", "%(num)s fields", p.fields) }}{% if p.updated_at %}, {{ p.updated_at|datetime }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}</p>
+  {% endif %}
 </div>
 
 <section class="card section-gap" aria-labelledby="layers-title">
@@ -20,13 +27,14 @@
   {% if origin_rows %}
   <div class="table-scroll section-gap">
   <table class="files small">
-    <thead><tr><th>{{ _("Setting") }}</th><th>{{ _("Value") }}</th><th>{{ _("Origin") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr></thead>
+    <thead><tr><th>{{ _("Setting") }}</th><th>{{ _("Value") }}</th><th>{{ _("Origin") }}</th><th>{{ _("Changed") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr></thead>
     <tbody>
       {% for row in origin_rows %}
       <tr>
         <td><a href="{{ row.url }}">{{ row.label }}</a>{% if row.label != row.path %} <code class="muted small">{{ row.path }}</code>{% endif %}</td>
         <td class="value-cell">{{ row.value }}</td>
         <td class="nowrap">{{ origin_badge(row.origin, row.path, show_env=True) }}</td>
+        <td class="nowrap small muted">{% if row.changed %}{{ row.changed.at|datetime }} · {{ row.changed.by or '—' }}{% endif %}</td>
         <td class="actions">{% if row.origin == 'web' %}<button class="link-btn small" type="submit" form="reset-field-form" name="path" value="{{ row.path }}"
                 title="{{ _('Back to the default value: %(value)s', value=default_text(row.path)) }}">{{ _("Reset") }}</button>{% endif %}</td>
       </tr>

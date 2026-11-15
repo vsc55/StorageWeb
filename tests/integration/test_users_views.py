@@ -4,7 +4,7 @@ import pytest
 from storageweb.core import groups as gc
 from storageweb.db.repositories import audit, users
 from storageweb.web.context import get_db
-from tests.helpers import add_user, login, visible
+from tests.helpers import add_user, login, visible, U, G
 
 
 @pytest.fixture
@@ -61,7 +61,7 @@ def test_list_filters_and_counts(app, admin):
         return {n for n in ("ana", "eva@x.com", "baja", "root") if f'aria-label="Seleccionar {n}"' in page}
     assert names("source=entra") == {"eva@x.com"}
     assert names("role=admin") == {"root"}
-    assert names(f"group={gid}") == {"ana"}
+    assert names(f"group={G(gid)}") == {"ana"}
     assert names("status=disabled") == {"baja"}
 
 
@@ -81,18 +81,18 @@ def test_bulk_actions(app, admin):
     a, b = add_user(app, "ana"), add_user(app, "beto")
     me = _user(app, "root")["id"]
 
-    client.post("/admin/users/bulk", data={"_csrf": token, "action": "disable", "ids": [a, b, me]})
+    client.post("/admin/users/bulk", data={"_csrf": token, "action": "disable", "ids": [U(a), U(b), U(me)]})
     assert not _user(app, "ana")["enabled"] and not _user(app, "beto")["enabled"]
     assert _user(app, "root")["enabled"]                              # no se desactiva a sí mismo
     html = client.get("/admin/users").get_data(as_text=True)
     assert "No puedes deshabilitar tu propia cuenta" in html
 
-    client.post("/admin/users/bulk", data={"_csrf": token, "action": "enable", "ids": [a, b]})
-    client.post("/admin/users/bulk", data={"_csrf": token, "action": "role_admin", "ids": [a]})
+    client.post("/admin/users/bulk", data={"_csrf": token, "action": "enable", "ids": [U(a), U(b)]})
+    client.post("/admin/users/bulk", data={"_csrf": token, "action": "role_admin", "ids": [U(a)]})
     assert _user(app, "ana")["role"] == "admin"
-    client.post("/admin/users/bulk", data={"_csrf": token, "action": "add_group", "group_id": gid, "ids": [a, b]})
+    client.post("/admin/users/bulk", data={"_csrf": token, "action": "add_group", "group_uid": G(gid), "ids": [U(a), U(b)]})
     assert "it" in _user(app, "beto")["groups"]
-    resp = client.post("/admin/users/bulk", data={"_csrf": token, "action": "add_group", "ids": [a],
+    resp = client.post("/admin/users/bulk", data={"_csrf": token, "action": "add_group", "ids": [U(a)],
                                                   "next": "/admin/users?status=active"})
     assert resp.location == "/admin/users?status=active"
     with app.app_context():
@@ -108,11 +108,11 @@ def test_record_shows_effective_access_and_activity(app, admin):
     ana = add_user(app, "ana")
     login(app.test_client(), "ana")
     _join(app, ana, "it")
-    html = client.get(f"/admin/users/{ana}").get_data(as_text=True)
+    html = client.get(f"/admin/users/{U(ana)}").get_data(as_text=True)
     assert "Acceso efectivo" in html and "grupo Sistemas" in html and "abierta a todos los usuarios" in html
     assert "Actividad reciente" in html and "<code>login</code>" in html        # la fixture logged inició sesión
-    client.post(f"/admin/users/{ana}/status", data={"_csrf": token, "enabled": "0"})
-    html = client.get(f"/admin/users/{ana}").get_data(as_text=True)
+    client.post(f"/admin/users/{U(ana)}/status", data={"_csrf": token, "enabled": "0"})
+    html = client.get(f"/admin/users/{U(ana)}").get_data(as_text=True)
     assert "no ve ninguna carpeta" in html
 
 
@@ -121,14 +121,14 @@ def test_record_shows_effective_access_and_activity(app, admin):
 def test_panel_tabs_and_edit_returns_to_panel(app, admin):
     client, token = admin
     ana = add_user(app, "ana", display_name="Ana López")
-    html = client.get(f"/admin/users/panel?u={ana}").get_data(as_text=True)
+    html = client.get(f"/admin/users/panel?u={U(ana)}").get_data(as_text=True)
     assert '<h2 class="md-title">Ana López</h2>' in html and 'name="display_name"' in html
     for tab, text in (("groups", "Añadir a un grupo"), ("access", "Mi carpeta"), ("activity", "auditoría")):
-        assert text in client.get(f"/admin/users/panel?u={ana}&tab={tab}").get_data(as_text=True)
-    resp = client.post(f"/admin/users/{ana}", data={
+        assert text in client.get(f"/admin/users/panel?u={U(ana)}&tab={tab}").get_data(as_text=True)
+    resp = client.post(f"/admin/users/{U(ana)}", data={
         "_csrf": token, "display_name": "Ana L.", "email": "", "role": "user", "home_path": "", "enabled": "on",
-        "next": f"/admin/users/panel?u={ana}&tab=profile"})
-    assert resp.location.endswith(f"/admin/users/panel?u={ana}&tab=profile")
+        "next": f"/admin/users/panel?u={U(ana)}&tab=profile"})
+    assert resp.location.endswith(f"/admin/users/panel?u={U(ana)}&tab=profile")
     assert _user(app, "ana")["display_name"] == "Ana L."
 
 
@@ -141,3 +141,41 @@ def test_rail_link_goes_to_last_view(app, admin):
     client, _ = admin
     html = client.get("/admin/users").get_data(as_text=True)
     assert 'href="/admin/users/"' in html
+
+
+def test_public_ids_in_addresses_and_forms(app, admin):
+    """Usuarios y grupos se nombran por su identificador público (UUID) en las direcciones y los formularios: el
+    número interno no sirve y no aparece en la página."""
+    import re
+    from html.parser import HTMLParser
+
+    client, token = admin
+    ana = add_user(app, "ana")
+    with app.app_context():
+        from storageweb.core import groups as gc
+        from storageweb.web.context import get_db
+        gid = gc.create_group(get_db(), name="fin", label="Finanzas")
+    assert re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", U(ana))
+    assert client.get(f"/admin/users/{ana}").status_code == 404              # el número interno no vale
+    assert client.get(f"/admin/groups/{gid}").status_code == 404
+    assert client.get(f"/admin/users/{U(ana)}").status_code == 200
+
+    class Fields(HTMLParser):                                                # lo que enviaría el navegador
+        def __init__(self):
+            super().__init__()
+            self.found = []
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if tag in ("input", "select", "option"):
+                self.found.append((tag, attrs.get("name"), attrs.get("value")))
+
+    reader = Fields()
+    reader.feed(client.get("/admin/users").get_data(as_text=True))
+    assert ("input", "ids", U(ana)) in reader.found
+    assert ("select", "group_uid", None) in reader.found and ("option", None, G(gid)) in reader.found
+    reader = Fields()
+    reader.feed(client.get(f"/admin/users/{U(ana)}").get_data(as_text=True))
+    assert ("select", "group_uid", None) in reader.found and ("option", None, G(gid)) in reader.found
+    client.post(f"/admin/users/{U(ana)}/groups", data={"_csrf": token, "group_uid": G(gid)})
+    assert "Finanzas" in client.get(f"/admin/users/{U(ana)}").get_data(as_text=True)

@@ -8,7 +8,7 @@ import pytest
 
 from storageweb.core import files as files_core
 
-from tests.helpers import add_user, get_csrf, login
+from tests.helpers import add_user, get_csrf, login, update_settings, U, G
 
 
 @pytest.fixture
@@ -252,8 +252,14 @@ def test_quota_of_personal_and_shared_folders(quota_app):
     assert "Cuota superada (150%)" in html
 
 
+def _set_storage(app, **values):
+    """Cambia ajustes de storage como si los guardara un admin desde la web."""
+    update_settings(app, storage=values)
+
+
 def test_quota_only_warns_and_is_recalculated_after_writing(quota_app):
-    _app, client, token, home = quota_app
+    app, client, token, home = quota_app
+    _set_storage(app, quota_enforce=False)                                 # modo «solo avisar»
     assert "quota-notice" not in client.get("/f/home/").get_data(as_text=True)
     for name in ("mucho-1.bin", "mucho-2.bin", "mucho-3.bin"):               # 12 MB de una cuota de 10
         resp = client.post("/upload/home/", data={"files": [(io.BytesIO(b"x" * (4 * 1024 * 1024)), name)]},
@@ -282,18 +288,18 @@ def test_quota_per_user_in_the_admin_and_profile(quota_app):
     with app.app_context():
         uid = users.get_by_username(get_db(), "ana")["id"]
     form = {"_csrf": token, "role": "user", "enabled": "on", "display_name": "", "email": "", "home_path": ""}
-    html = admin.get(f"/admin/users/{uid}").get_data(as_text=True)
+    html = admin.get(f"/admin/users/{U(uid)}").get_data(as_text=True)
     assert 'name="quota_mb"' in html and "por defecto: 10" in html and "1.0 MB" in html.replace(",", ".")
-    admin.post(f"/admin/users/{uid}", data={**form, "quota_mb": "1"})
+    admin.post(f"/admin/users/{U(uid)}", data={**form, "quota_mb": "1"})
     with app.app_context():
         assert users.get_by_id(get_db(), uid)["quota_mb"] == 1
     assert "Cuota: 1.0 MB de 1.0 MB" in client.get("/f/home/").get_data(as_text=True).replace(",", ".")
-    admin.post(f"/admin/users/{uid}", data={**form, "quota_mb": "0"})       # 0 = sin cuota
+    admin.post(f"/admin/users/{U(uid)}", data={**form, "quota_mb": "0"})       # 0 = sin cuota
     assert "Cuota:" not in client.get("/f/home/").get_data(as_text=True)
-    admin.post(f"/admin/users/{uid}", data={**form, "quota_mb": ""})        # vacío = la de por defecto
+    admin.post(f"/admin/users/{U(uid)}", data={**form, "quota_mb": ""})        # vacío = la de por defecto
     with app.app_context():
         assert users.get_by_id(get_db(), uid)["quota_mb"] is None
-    resp = admin.post(f"/admin/users/{uid}", data={**form, "quota_mb": "-3"}, follow_redirects=True)
+    resp = admin.post(f"/admin/users/{U(uid)}", data={**form, "quota_mb": "-3"}, follow_redirects=True)
     assert "número entero de MB" in resp.get_data(as_text=True)
 
 
@@ -307,3 +313,124 @@ def test_quota_of_a_shared_folder_in_its_page(quota_app):
     assert 'name="quota_mb" min="0" value="2"' in html and "Cuota superada" in html and "3.0 MB" in html.replace(",", ".")
     with app.app_context():
         assert settings()["storage"]["shares"][0]["quota_mb"] == 2
+
+
+# --------------------------------------------------------------------------- cuotas que bloquean
+
+def _dav_auth(app, username="ana"):
+    import base64
+    from storageweb.core import tokens
+    from storageweb.db.repositories import users
+    from storageweb.web.context import get_db
+    with app.app_context():
+        plain, _id = tokens.create(get_db(), users.get_by_username(get_db(), username), name="dav", scope="write",
+                                   days=0)
+    return {"Authorization": "Basic " + base64.b64encode(f"{username}:{plain}".encode()).decode()}
+
+
+def test_quota_blocks_uploads_that_do_not_fit(quota_app):
+    app, client, token, home = quota_app
+    (home / "base.bin").write_bytes(b"x" * (8 * 1024 * 1024))             # 8 de 10 MB
+    from storageweb.core import quota
+    quota.clear()
+    # Subida clásica: lo que cabe entra, lo que no se rechaza con el motivo
+    resp = client.post("/upload/home/", data={"files": [(io.BytesIO(b"x" * (1024 * 1024)), "cabe.bin"),
+                                                        (io.BytesIO(b"x" * (2 * 1024 * 1024)), "no-cabe.bin")]},
+                       headers={"X-CSRF-Token": token, "Accept": "application/json"}, content_type="multipart/form-data")
+    data = resp.get_json()
+    assert data["saved"] == ["cabe.bin"] and "no-cabe.bin: No hay cuota suficiente en «Mi carpeta»" in data["errors"][0]
+    assert not (home / "no-cabe.bin").exists() and not [p for p in home.iterdir() if p.name.startswith(".sw-upload")]
+    # API por partes: se rechaza al empezar (507) con el motivo
+    resp = client.post("/api/uploads", json={"root": "home", "path": "", "name": "grande.bin", "size": 2 * 1024 * 1024},
+                       headers={"X-CSRF-Token": token})
+    assert resp.status_code == 507 and "No hay cuota suficiente" in resp.get_json()["error"]
+    ok = client.post("/api/uploads", json={"root": "home", "path": "", "name": "chico.bin", "size": 1024},
+                     headers={"X-CSRF-Token": token})
+    assert ok.status_code == 201
+    # WebDAV: 507 con el motivo en texto; sobrescribir cuenta lo que libera el archivo anterior
+    auth = _dav_auth(app)
+    resp = client.put("/dav/home/dav.bin", data=b"x" * (2 * 1024 * 1024), headers=auth)
+    assert resp.status_code == 507 and "No hay cuota suficiente" in resp.get_data(as_text=True)
+    # 9 MB usados + 4 MB pasaría de 10, pero sustituye a los 8 MB de base.bin
+    assert client.put("/dav/home/base.bin", data=b"x" * (4 * 1024 * 1024), headers=auth).status_code == 204
+    # Con «solo avisar», entra
+    _set_storage(app, quota_enforce=False)
+    assert client.put("/dav/home/dav.bin", data=b"x" * (2 * 1024 * 1024), headers=auth).status_code == 201
+
+
+def test_quota_blocks_copies_but_not_moves_in_the_same_folder(quota_app, tmp_path):
+    app, client, token, home = quota_app
+    (home / "carpeta").mkdir()
+    (home / "carpeta" / "a.bin").write_bytes(b"x" * (2 * 1024 * 1024))
+    (home / "dentro").mkdir()
+    from storageweb.core import quota
+    quota.clear()
+    # «equipo» ya está por encima de su cuota de 2 MB: no se le puede copiar nada
+    resp = client.post("/transfer", data={"_csrf": token, "action": "copy", "root": "home", "items": ["carpeta"],
+                                          "dest_root": "equipo", "dest_path": ""}, headers={"Accept": "application/json"})
+    assert resp.status_code == 400 and "No hay cuota suficiente en «Equipo»" in resp.get_json()["errors"][0]
+    assert not (tmp_path / "equipo" / "carpeta").exists()
+    resp = client.post("/transfer", data={"_csrf": token, "action": "move", "root": "home", "items": ["carpeta"],
+                                          "dest_root": "home", "dest_path": "dentro"}, headers={"Accept": "application/json"})
+    assert resp.get_json()["done"] == ["carpeta"]                              # dentro de la misma: no ocupa más
+    auth = _dav_auth(app)
+    resp = client.open("/dav/home/dentro/carpeta", method="COPY", headers={**auth, "Destination": "/dav/equipo/c"})
+    assert resp.status_code == 507
+
+
+def test_group_quota_for_personal_folders(quota_app):
+    from storageweb.core import groups as gc
+    from storageweb.core.storage import home_quota_mb
+    from storageweb.db.repositories import users
+    from storageweb.web.context import get_db, settings
+    app, _client, _token, _home = quota_app
+    with app.app_context():
+        gc.create_group(get_db(), name="rrhh", label="RRHH")
+        gc.create_group(get_db(), name="it", label="IT")
+        gc.add_member(get_db(), gc.repo.get_by_name(get_db(), "rrhh"), users.get_by_username(get_db(), "ana"))
+        gid = gc.repo.get_by_name(get_db(), "rrhh")["id"]
+    admin = app.test_client()
+    login(admin, "root")
+    assert 'name="home_quota_mb"' in admin.get(f"/admin/groups/{G(gid)}").get_data(as_text=True)
+    form = {"_csrf": get_csrf(admin, f"/admin/groups/{G(gid)}"), "label": "RRHH", "description": "", "source": "local",
+            "external_id": "", "home_quota_mb": "50"}
+    admin.post(f"/admin/groups/{G(gid)}", data=form)
+
+    def ana_quota():
+        with app.app_context():
+            return home_quota_mb(users.get_by_username(get_db(), "ana"), settings())
+
+    with app.app_context():
+        assert settings()["storage"]["group_quotas"] == {"rrhh": 50}
+    assert ana_quota() == 50                                                   # la del grupo
+    with app.app_context():
+        gc.add_member(get_db(), gc.repo.get_by_name(get_db(), "it"), users.get_by_username(get_db(), "ana"))
+    _set_storage(app, group_quotas={"rrhh": 50, "it": 80})
+    assert ana_quota() == 80                                                   # la mayor
+    with app.app_context():
+        users.update(get_db(), users.get_by_username(get_db(), "ana")["id"], quota_mb=5)
+    assert ana_quota() == 5                                                    # la suya, siempre
+    with app.app_context():
+        users.update(get_db(), users.get_by_username(get_db(), "ana")["id"], quota_mb=None)
+    _set_storage(app, group_quotas={"rrhh": 50, "it": 0})
+    assert ana_quota() == 0                                                    # 0 = sin cuota gana
+    admin.post(f"/admin/groups/{G(gid)}", data={**form, "home_quota_mb": ""})     # vacía = sin cuota de grupo
+    with app.app_context():
+        assert "rrhh" not in settings()["storage"]["group_quotas"]
+
+
+def test_webdav_reports_quota_to_windows_explorer(quota_app):
+    app, client, _token, home = quota_app
+    (home / "a.bin").write_bytes(b"x" * (1024 * 1024))
+    from storageweb.core import quota
+    quota.clear()
+    body = ('<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:quota-available-bytes/>'
+            '<d:quota-used-bytes/></d:prop></d:propfind>')
+    auth = _dav_auth(app)
+    xml = client.open("/dav/home/", method="PROPFIND", data=body, headers={**auth, "Depth": "0"}).get_data(as_text=True)
+    assert f"<d:quota-used-bytes>{1024 * 1024}</d:quota-used-bytes>" in xml
+    assert f"<d:quota-available-bytes>{9 * 1024 * 1024}</d:quota-available-bytes>" in xml
+    top = client.open("/dav/", method="PROPFIND", data=body, headers={**auth, "Depth": "0"})
+    assert f"<d:quota-used-bytes>{1024 * 1024}</d:quota-used-bytes>" in top.get_data(as_text=True)   # la personal
+    plain = client.open("/dav/home/", method="PROPFIND", headers={**auth, "Depth": "0"})
+    assert "quota-used-bytes" not in plain.get_data(as_text=True)              # allprop: no se calculan

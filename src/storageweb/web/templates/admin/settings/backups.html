@@ -43,6 +43,7 @@
         <td class="nowrap">{{ b.created|datetime }}</td>
         <td class="num">{{ b.size|filesize }}</td>
         <td class="actions">
+          <a class="btn btn-small" href="{{ url_for('settings.backup_restore', name=b.name) }}">{{ _("Restore") }}</a>
           <a class="btn btn-small" href="{{ url_for('settings.backup_download', name=b.name) }}">{{ _("Download") }}</a>
           <form method="post" action="{{ url_for('settings.backup_delete', name=b.name) }}" class="inline js-confirm"
                 data-confirm="{{ _('Delete the backup %(name)s?', name=b.name) }}">
@@ -57,7 +58,13 @@
     </tbody>
   </table>
   </div>
-  <p class="muted small">{{ _("Restoring replaces the database, so it is done with the service stopped:") }}
-    <code>sudo systemctl stop storageweb && sudo storageweb-admin restore {{ backup_folder }}/&lt;{{ _("file") }}&gt; && sudo systemctl start storageweb</code></p>
+  <form method="post" action="{{ url_for('settings.backup_upload') }}" enctype="multipart/form-data" class="inline section-gap">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label class="sr-only" for="backup-file">{{ _("Backup file") }}</label>
+    <input type="file" id="backup-file" name="backup" accept=".gz,.tar.gz,application/gzip" required>
+    <button class="btn" type="submit">{{ _("Upload a backup") }}</button>
+  </form>
+  <p class="muted small">{{ _("Restore replaces the database with the one in the backup, with the service running (a copy of the current state is made first). An uploaded backup, for example from another server, is added to the list. From the command line, with the service stopped:") }}
+    <code>sudo storageweb-admin restore {{ backup_folder }}/&lt;{{ _("file") }}&gt;</code></p>
 </section>
 {% endblock %}

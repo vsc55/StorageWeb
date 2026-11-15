@@ -6,7 +6,7 @@ import pytest
 
 from storageweb.db.repositories import sessions, users
 from storageweb.web.context import get_db
-from tests.helpers import PASSWORD, add_user, get_csrf, login
+from tests.helpers import PASSWORD, add_user, get_csrf, login, U
 
 
 def _sessions(app, username=None):
@@ -46,10 +46,10 @@ def test_close_all_sessions_of_user_and_disable(app, admin):
     login(a1, "ana")
     login(a2, "ana")
     assert len(_sessions(app, "ana")) == 2
-    client.post(f"/admin/settings/sessions/user/{uid}/close", data={"_csrf": token})
+    client.post(f"/admin/settings/sessions/user/{U(uid)}/close", data={"_csrf": token})
     assert _sessions(app, "ana") == [] and a1.get("/f/home/").status_code == 302
     login(a1, "ana")
-    client.post(f"/admin/users/{uid}/status", data={"_csrf": token, "enabled": "0"})
+    client.post(f"/admin/users/{U(uid)}/status", data={"_csrf": token, "enabled": "0"})
     assert _sessions(app, "ana") == []
 
 
@@ -67,13 +67,14 @@ def test_profile_sessions_and_password_change(app, client):
     assert len(_sessions(app, "ana")) == 1
 
 
-def test_legacy_session_without_id_is_adopted(app, client):
+def test_cookie_without_a_registered_session_is_rejected(app, client):
+    """Una cookie firmada sin sesión registrada (sin «sid») no da acceso: toda sesión pasa por la tabla."""
     uid = add_user(app, "ana")
     with client.session_transaction() as s:
         s["uid"] = uid
         s["src"] = "local"
-    assert client.get("/f/home/").status_code == 200
-    assert len(_sessions(app, "ana")) == 1
+    assert client.get("/f/home/").status_code == 302
+    assert _sessions(app, "ana") == []
 
 
 # --------------------------------------------------------------------------- tokens de API

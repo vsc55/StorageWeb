@@ -31,7 +31,7 @@ Cada cosa se **declara en el módulo que sabe de ella** y un registro la recoge.
 Además:
 
 - **Capas.** `settings` no importa a nadie: los métodos de inicio de sesión registran su configuración en `settings.auth_methods`, como los tipos de almacenamiento en `settings.location_types`. El **punto de ensamblado** es `storageweb/__init__.py`, que importa `core` y `providers` antes que nada, así que la configuración por defecto y su validación ya incluyen lo registrado.
-- **Base de datos.** La migración 007 quita el `CHECK (source IN (…))` de `users` y `groups`. El migrador admite migraciones que reconstruyen tablas (`-- foreign_keys: off` y comprobación de claves ajenas antes de confirmar).
+- **Base de datos.** `users.source` y `groups.source` no limitan la lista de métodos con un `CHECK`. El migrador admite migraciones que reconstruyen tablas (`-- foreign_keys: off` y comprobación de claves ajenas antes de confirmar).
 - **Interfaz.** La página *Inicio de sesión* pinta una tarjeta por método: la plantilla del método si la tiene (`auth/<método>.html`) o una genérica construida con su configuración. El login muestra un botón por método SSO; las rutas son `/auth/<método>/login` y `/auth/<método>/callback` (para Entra ID, la misma dirección de vuelta de siempre).
 - **Se mantiene centralizado** lo que es una decisión de diseño y conviene ver en un solo sitio: la navegación de la administración (`web/nav.py`, [0012](0012-administracion-por-zonas.md)), el registro de blueprints y las secciones de ajustes.
 

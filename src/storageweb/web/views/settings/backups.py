@@ -1,13 +1,21 @@
 """Copias de seguridad y base de datos (Sistema → Copias y base de datos)."""
 from __future__ import annotations
 
-from flask import abort, flash, redirect, send_file, url_for
+import os
+import tempfile
+from pathlib import Path
 
-from ....core import maintenance
+from flask import abort, flash, g, redirect, render_template, request, send_file, url_for
+
+from .... import providers
+from ....core import backends, backup, ipban, maintenance, monitoring, quota
 from ....core.backup import BackupError
+from ....core.permissions import ADMIN
+from ....db import connect, schema_version
+from ....db.repositories import users
 from ....i18n import _, _l, format_size, ngettext
-from ...context import boot_config, get_db, settings
-from ...guards import admin_required, audit_event
+from ...context import boot_config, close_db, get_db, invalidate_settings, settings
+from ...guards import admin_required, audit_event, clear_session, client_ip, start_session
 from ... import search
 from . import bp
 
@@ -59,6 +67,87 @@ def backup_download(name: str):
     return send_file(path, as_attachment=True, download_name=name, mimetype="application/gzip")
 
 
+RESTORE_WORD = _l("RESTORE")  # lo que hay que escribir para confirmar
+
+
+@bp.route("/maintenance/backups/upload", methods=["POST"])
+@admin_required
+def backup_upload():
+    """Sube una copia (de este u otro servidor) a la lista, para poder restaurarla."""
+    item = request.files.get("backup")
+    if not item or not item.filename:
+        flash(_("Choose a backup file (.tar.gz)."), "error")
+        return redirect(url_for("settings.section", name="backups"))
+    folder = maintenance.backup_dir(boot_config())
+    folder.mkdir(parents=True, exist_ok=True)
+    handle, tmp = tempfile.mkstemp(dir=folder, prefix=".subida-", suffix=".part")
+    os.close(handle)
+    try:
+        item.save(tmp)
+        path = maintenance.add_backup(boot_config(), Path(tmp), item.filename)
+    except (BackupError, OSError) as exc:
+        flash(_("The file is not a valid backup: %(error)s", error=exc), "error")
+        return redirect(url_for("settings.section", name="backups"))
+    finally:
+        Path(tmp).unlink(missing_ok=True)
+    audit_event("backup_uploaded", path.name, str(path.stat().st_size))
+    flash(_("Backup %(name)s uploaded. You can restore it from the list.", name=path.name), "info")
+    return redirect(url_for("settings.section", name="backups"))
+
+
+def _forget_caches() -> None:
+    """Lo que el proceso guarda en memoria de la base de datos anterior."""
+    invalidate_settings()
+    quota.clear()
+    ipban.invalidate()
+    backends.clear_clients()
+    monitoring.reset()
+    for method in providers.methods():  # p. ej. los nombres de grupos de Entra ID
+        found = method.directory(method.section(settings()))
+        if found is not None:
+            found.clear_cache()
+
+
+@bp.route("/maintenance/backups/<name>/restore", methods=["GET", "POST"])
+@admin_required
+def backup_restore(name: str):
+    """Restaurar una copia con el servicio en marcha (con confirmación fuerte): ver ``maintenance.restore_backup``."""
+    boot = boot_config()
+    path = maintenance.backup_path(boot, name)
+    if path is None:
+        abort(404)
+    try:
+        manifest, problem = backup.check_restorable(path), None
+    except BackupError as exc:
+        manifest, problem = None, str(exc)
+    if request.method == "POST" and problem is None:
+        typed = request.form.get("confirm", "").strip().upper()
+        if typed not in {str(RESTORE_WORD).upper(), "RESTORE"}:
+            flash(_("Type %(word)s to confirm.", word=RESTORE_WORD), "error")
+        else:
+            me = dict(g.user)
+            close_db()  # la conexión de esta petición no se queda abierta mientras se sustituye la base de datos
+            try:
+                result = maintenance.restore_backup(lambda: connect(boot["database"]), boot, name,
+                                                    actor=me["username"], ip=client_ip())
+            except BackupError as exc:
+                flash(_("The backup could not be restored: %(error)s", error=exc), "error")
+                return redirect(url_for("settings.backup_restore", name=name))
+            _forget_caches()
+            back = users.get_by_id(get_db(), me["id"])
+            message = _("Backup %(name)s restored. The previous state was saved as %(safety)s, in case you need to "
+                        "go back. Everyone has to sign in again.", name=name, safety=result["safety"])
+            if back is not None and back["username"] == me["username"] and back["enabled"] and back["role"] == ADMIN:
+                start_session(back)  # quien restaura sigue dentro si su cuenta está en la copia
+                flash(message, "info")
+                return redirect(url_for("settings.section", name="backups"))
+            clear_session()
+            flash(message, "info")
+            return redirect(url_for("auth.login", manual=1))
+    return render_template("admin/settings/backup_restore.html", name=name, manifest=manifest, problem=problem,
+                           current_schema=schema_version(get_db()), word=RESTORE_WORD), (400 if problem else 200)
+
+
 @bp.route("/maintenance/backups/<name>/delete", methods=["POST"])
 @admin_required
 def backup_delete(name: str):
@@ -73,5 +162,7 @@ def backup_delete(name: str):
 
 search.action("download", _l("Create a backup now"), "settings.section", {"name": "backups"}, "backups",
               "copia seguridad backup ahora", order=40)
+search.action("upload", _l("Restore a backup"), "settings.section", {"name": "backups"}, "backups",
+              "restaurar copia seguridad backup restore recuperar", order=41)
 search.action("sync", _l("Compact the database"), "settings.section", {"name": "backups"},
               words="base datos compactar vacuum", order=100)

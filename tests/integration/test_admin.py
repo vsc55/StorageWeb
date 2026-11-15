@@ -2,7 +2,7 @@ import pytest
 
 from storageweb.db.repositories import users
 
-from tests.helpers import PASSWORD, add_user, get_csrf, login, page_form, settings_form, visible
+from tests.helpers import PASSWORD, add_user, get_csrf, login, page_form, settings_form, visible, U
 from storageweb.web.context import get_db
 
 
@@ -94,7 +94,7 @@ def test_precreate_entra_user(app, admin):
 def test_edit_user(app, admin, tmp_path):
     client, token = admin
     uid = add_user(app, "ana")
-    resp = client.post(f"/admin/users/{uid}", data={
+    resp = client.post(f"/admin/users/{U(uid)}", data={
         "_csrf": token, "display_name": "Ana L.", "email": "ana@x.com", "role": "admin",
         "home_path": str(tmp_path / "h"), "enabled": "on"})
     assert resp.status_code == 302
@@ -106,7 +106,7 @@ def test_edit_user(app, admin, tmp_path):
 def test_reset_password(app, admin):
     client, token = admin
     uid = add_user(app, "ana")
-    client.post(f"/admin/users/{uid}", data={"_csrf": token, "role": "user", "enabled": "on",
+    client.post(f"/admin/users/{U(uid)}", data={"_csrf": token, "role": "user", "enabled": "on",
                                              "password": "nueva-contraseña-1"})
     other = app.test_client()
     assert login(other, "ana", "nueva-contraseña-1").status_code == 302
@@ -115,7 +115,7 @@ def test_reset_password(app, admin):
 def test_disable_user(app, admin):
     client, token = admin
     uid = add_user(app, "ana")
-    client.post(f"/admin/users/{uid}", data={"_csrf": token, "role": "user"})  # sin 'enabled'
+    client.post(f"/admin/users/{U(uid)}", data={"_csrf": token, "role": "user"})  # sin 'enabled'
     assert not _user(app, "ana")["enabled"]
     assert "incorrectos" in login(app.test_client(), "ana").get_data(as_text=True)
 
@@ -123,10 +123,10 @@ def test_disable_user(app, admin):
 def test_cannot_demote_or_disable_self(app, admin):
     client, token = admin
     me = _user(app, "root")
-    html = client.post(f"/admin/users/{me['id']}", data={"_csrf": token, "role": "user", "enabled": "on"},
+    html = client.post(f"/admin/users/{U(me['id'])}", data={"_csrf": token, "role": "user", "enabled": "on"},
                        follow_redirects=True).get_data(as_text=True)
     assert "No puedes quitarte" in html
-    html = client.post(f"/admin/users/{me['id']}", data={"_csrf": token, "role": "admin"},
+    html = client.post(f"/admin/users/{U(me['id'])}", data={"_csrf": token, "role": "admin"},
                        follow_redirects=True).get_data(as_text=True)
     assert "No puedes deshabilitar" in html
     assert _user(app, "root")["role"] == "admin" and _user(app, "root")["enabled"]
@@ -136,7 +136,7 @@ def test_last_admin_guard(app, admin):
     client, token = admin
     # Hay otro admin deshabilitado: no cuenta. Al intentar borrar a root (uno mismo) falla.
     me = _user(app, "root")
-    html = client.post(f"/admin/users/{me['id']}/delete", data={"_csrf": token},
+    html = client.post(f"/admin/users/{U(me['id'])}/delete", data={"_csrf": token},
                        follow_redirects=True).get_data(as_text=True)
     assert "No puedes eliminar tu propia cuenta" in html
     # Con un segundo admin, se puede degradar al primero desde el segundo
@@ -144,7 +144,7 @@ def test_last_admin_guard(app, admin):
     other = app.test_client()
     login(other, "admin2")
     tok2 = get_csrf(other, "/admin/users")
-    assert other.post(f"/admin/users/{me['id']}", data={"_csrf": tok2, "role": "user", "enabled": "on"}
+    assert other.post(f"/admin/users/{U(me['id'])}", data={"_csrf": tok2, "role": "user", "enabled": "on"}
                       ).status_code == 302
     # ...pero ahora admin2 es el último y no puede ser degradado por nadie más
     with app.app_context():
@@ -158,7 +158,7 @@ def test_delete_user(app, admin, tmp_path):
     home = tmp_path / "data" / "homes" / "ana"
     home.mkdir(parents=True)
     (home / "dato.txt").write_text("x")
-    resp = client.post(f"/admin/users/{uid}/delete", data={"_csrf": token})
+    resp = client.post(f"/admin/users/{U(uid)}/delete", data={"_csrf": token})
     assert resp.status_code == 302
     assert _user(app, "ana") is None
     assert (home / "dato.txt").exists()  # los archivos se conservan
@@ -374,7 +374,7 @@ def test_audit_pagination(app, admin):
 # --------------------------------------------------------------------------- activar / desactivar
 
 def _toggle(client, token, uid, enabled, **extra):
-    return client.post(f"/admin/users/{uid}/status", data={"_csrf": token, "enabled": "1" if enabled else "0", **extra})
+    return client.post(f"/admin/users/{U(uid)}/status", data={"_csrf": token, "enabled": "1" if enabled else "0", **extra})
 
 
 @pytest.mark.parametrize("source", ["local", "entra", "pam"])
@@ -383,7 +383,7 @@ def test_disable_any_source(app, admin, source):
     uid = add_user(app, "persona", password=None if source != "local" else PASSWORD, source=source,
                    external_id="oid-x" if source == "entra" else None)
     resp = _toggle(client, token, uid, False)
-    assert resp.status_code == 302 and resp.location.endswith(f"/admin/users/{uid}")
+    assert resp.status_code == 302 and resp.location.endswith(f"/admin/users/{U(uid)}")
     assert not _user(app, "persona")["enabled"]
     _toggle(client, token, uid, True)
     assert _user(app, "persona")["enabled"]
@@ -469,5 +469,5 @@ def test_user_cannot_toggle(app, logged):
 def test_entra_delete_warning(app, admin):
     client, _ = admin
     uid = add_user(app, "juan@contoso.com", password=None, source="entra", external_id="o9")
-    html = client.get(f"/admin/users/{uid}").get_data(as_text=True)
+    html = client.get(f"/admin/users/{U(uid)}").get_data(as_text=True)
     assert "se vuelve a crear" in html and "Desactivar usuario" in html

@@ -82,30 +82,30 @@ def session_close(sid: str):
     return back(url_for("settings.section", name="sessions"))
 
 
-@bp.route("/sessions/user/<int:user_id>/close", methods=["POST"])
+@bp.route("/sessions/user/<user_uid>/close", methods=["POST"])
 @admin_required
-def user_sessions_close(user_id: int):
-    user = users.get_by_id(get_db(), user_id)
+def user_sessions_close(user_uid: str):
+    user = users.get_by_uid(get_db(), user_uid)
     if user is None:
         abort(404)
-    keep = g.get("session_id") if user_id == g.user["id"] else None
-    closed = session_repo.delete_for_user(get_db(), user_id, keep=keep)
+    keep = g.get("session_id") if user["id"] == g.user["id"] else None
+    closed = session_repo.delete_for_user(get_db(), user["id"], keep=keep)
     audit_event("sessions_closed", user["username"], str(closed))
     flash(ngettext("%(num)s session closed.", "%(num)s sessions closed.", closed), "info")
-    return back(url_for("admin.user_edit", user_id=user_id))
+    return back(url_for("admin.user_edit", user_uid=user_uid))
 
 
-@bp.route("/sessions/user/<int:user_id>/tokens/<int:token_id>/delete", methods=["POST"])
+@bp.route("/sessions/user/<user_uid>/tokens/<int:token_id>/delete", methods=["POST"])
 @admin_required
-def user_token_delete(user_id: int, token_id: int):
+def user_token_delete(user_uid: str, token_id: int):
     token = token_repo.get(get_db(), token_id)
-    user = users.get_by_id(get_db(), user_id)
-    if token is None or user is None or token["user_id"] != user_id:
+    user = users.get_by_uid(get_db(), user_uid)
+    if token is None or user is None or token["user_id"] != user["id"]:
         abort(404)
     token_repo.delete(get_db(), token_id)
     audit_event("api_token_revoked", user["username"], token["name"])
     flash(_("Token «%(name)s» revoked.", name=token["name"]), "info")
-    return back(url_for("admin.user_edit", user_id=user_id))
+    return back(url_for("admin.user_edit", user_uid=user_uid))
 
 
 search.action("logout", _l("Close all sessions"), "settings.section", {"name": "sessions"},

@@ -6,6 +6,7 @@ Una copia es un ``.tar.gz`` con:
     storageweb.db    copia consistente de SQLite (API de backup en línea: válida con el servicio arrancado)
     config.json      el fichero de configuración, si se puede leer
     secret_key       la clave de sesiones generada, si existe
+    secrets.key      la clave con la que están cifrados los secretos de los ajustes (``settings.secretbox``)
 
 Los archivos de los usuarios (homes y carpetas compartidas) NO se incluyen: pueden ocupar mucho
 y se copian mejor con herramientas incrementales (rsync, borg, restic, snapshots del sistema de
@@ -26,11 +27,12 @@ from pathlib import Path
 from .. import __version__
 from ..db import available_migrations, connect, init_db, schema_version
 from ..i18n import _
+from ..settings import secretbox
 
 FORMAT = 1
 PREFIX = "storageweb-backup-"
 SUFFIX = ".tar.gz"
-_MEMBERS = {"manifest.json", "storageweb.db", "config.json", "secret_key"}
+_MEMBERS = {"manifest.json", "storageweb.db", "config.json", "secret_key", secretbox.KEY_FILE}
 
 
 class BackupError(Exception):
@@ -51,16 +53,18 @@ def _sqlite_copy(src_path: str, dst_path: Path) -> int:
         src.close()
 
 
-def create(cfg: dict, output_dir: Path, keep: int | None = None) -> Path:
-    """Crea una copia en ``output_dir`` y, si ``keep`` se indica, borra las más antiguas."""
+def create(cfg: dict, output_dir: Path, keep: int | None = None, label: str = "") -> Path:
+    """Crea una copia en ``output_dir`` y, si ``keep`` se indica, borra las más antiguas. ``label`` va en el
+    nombre (``storageweb-backup-<label>-<fecha>``): esas no entran en la rotación."""
     if not Path(cfg["database"]).exists():
         raise BackupError(_("The database %(path)s does not exist", path=cfg["database"]))
     output_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    final = output_dir / f"{PREFIX}{stamp}{SUFFIX}"
+    base = f"{PREFIX}{label}-{stamp}" if label else f"{PREFIX}{stamp}"
+    final = output_dir / f"{base}{SUFFIX}"
     n = 1
     while final.exists():
-        final = output_dir / f"{PREFIX}{stamp}-{n}{SUFFIX}"
+        final = output_dir / f"{base}-{n}{SUFFIX}"
         n += 1
 
     with tempfile.TemporaryDirectory(dir=output_dir, prefix=".backup-") as tmp:
@@ -75,6 +79,16 @@ def create(cfg: dict, output_dir: Path, keep: int | None = None) -> Path:
         key_file = Path(cfg["data_dir"]) / "secret_key"
         if key_file.is_file():
             extra.append((key_file, "secret_key"))
+        # La clave de los secretos: del fichero o, si viene del entorno, la que se usa (sin ella, la copia no
+        # sirve para restaurar los secretos en otro servidor)
+        secrets_text = os.environ.get(secretbox.ENV, "").strip()
+        secrets_file = secretbox.key_path(cfg["data_dir"])
+        if not secrets_text and secrets_file.is_file():
+            secrets_text = secrets_file.read_text(encoding="utf-8").strip()
+        if secrets_text:
+            key_copy = tmp_dir / secretbox.KEY_FILE
+            key_copy.write_text(secrets_text, encoding="utf-8")
+            extra.append((key_copy, secretbox.KEY_FILE))
         included += [name for _, name in extra]
         manifest = {"format": FORMAT, "storageweb_version": __version__, "schema_version": version,
                     "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -99,12 +113,19 @@ def create(cfg: dict, output_dir: Path, keep: int | None = None) -> Path:
 
 
 def list_backups(output_dir: Path) -> list[Path]:
-    return sorted(output_dir.glob(f"{PREFIX}*{SUFFIX}"), key=lambda p: p.name)
+    """Las copias, de la más antigua a la más reciente (por fecha del fichero)."""
+    return sorted(output_dir.glob(f"{PREFIX}*{SUFFIX}"), key=lambda p: (p.stat().st_mtime, p.name))
+
+
+def _dated(path: Path) -> bool:
+    """Copia con fecha hecha por StorageWeb (``storageweb-backup-20261115-…``): las que entran en la rotación.
+    Las de antes de restaurar y las subidas desde la web se quedan hasta que se borren a mano."""
+    return path.name[len(PREFIX):len(PREFIX) + 1].isdigit()
 
 
 def prune(output_dir: Path, keep: int) -> list[Path]:
-    """Conserva las ``keep`` copias más recientes y borra el resto. Devuelve las borradas."""
-    backups = list_backups(output_dir)
+    """Conserva las ``keep`` copias con fecha más recientes y borra el resto. Devuelve las borradas."""
+    backups = [p for p in list_backups(output_dir) if _dated(p)]  # de la más antigua a la más reciente
     removed = backups[:-keep] if keep > 0 else []
     for path in removed:
         path.unlink()
@@ -135,6 +156,68 @@ def _open(archive: Path) -> tuple[tarfile.TarFile, dict]:
 def read_manifest(archive: Path) -> dict:
     tar, manifest = _open(archive)
     tar.close()
+    return manifest
+
+
+def _rekey(db_path: Path, tar: tarfile.TarFile, data_dir: str) -> None:
+    """Los secretos de la base de datos restaurada estaban cifrados con la clave de la copia: se vuelven a cifrar
+    con la de este servidor (si es la misma, no cambia nada; si este no tenía, se queda con la de la copia)."""
+    backup_key = None
+    if secretbox.KEY_FILE in tar.getnames():
+        text = tar.extractfile(secretbox.KEY_FILE).read().decode("utf-8").strip()
+        backup_key = secretbox.parse_key(text)
+        if not os.environ.get(secretbox.ENV) and not secretbox.key_path(data_dir).exists():
+            secretbox.write_key(data_dir, text)  # servidor nuevo: la clave de la copia
+    current = secretbox.load_key(data_dir)
+    conn = connect(str(db_path))
+    try:
+        secretbox.rekey(conn, backup_key, current)
+    finally:
+        conn.close()
+
+
+def check_restorable(archive: Path) -> dict:
+    """El manifiesto de una copia que se puede restaurar aquí; :class:`BackupError` si no (formato, contenido o
+    una versión de StorageWeb más nueva que esta)."""
+    tar, manifest = _open(archive)
+    tar.close()
+    if manifest.get("schema_version", 0) > available_migrations()[-1][0]:
+        raise BackupError(_("The backup is from a newer StorageWeb version: upgrade before restoring"))
+    return manifest
+
+
+def restore_online(cfg: dict, archive: Path) -> dict:
+    """Restaura la base de datos de una copia **con el servicio en marcha**, con la API de copia de SQLite sobre
+    la base de datos en uso (otras conexiones esperan; nunca ven un fichero a medias). Después aplica las
+    migraciones pendientes. No toca ``config.json`` ni la ``secret_key``. El llamante pone el servicio en
+    mantenimiento y hace antes una copia de lo actual (``core.maintenance.restore_backup``)."""
+    db_path = Path(cfg["database"])
+    tar, manifest = _open(archive)
+    with tar:
+        if manifest.get("schema_version", 0) > available_migrations()[-1][0]:
+            raise BackupError(_("The backup is from a newer StorageWeb version: upgrade before restoring"))
+        with tempfile.TemporaryDirectory(dir=db_path.parent, prefix=".restore-") as tmp:
+            source_path = Path(tmp) / "storageweb.db"
+            with open(source_path, "wb") as fh:
+                shutil.copyfileobj(tar.extractfile("storageweb.db"), fh)
+            source = sqlite3.connect(source_path)
+            try:
+                if source.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                    raise BackupError(_("The database in the backup is damaged"))
+                target = sqlite3.connect(db_path, timeout=60)
+                try:
+                    source.backup(target)
+                finally:
+                    target.close()
+            finally:
+                source.close()
+        init_db(str(db_path))
+        _rekey(db_path, tar, cfg["data_dir"])
+    conn = connect(str(db_path))
+    try:
+        manifest["restored_schema_version"] = schema_version(conn)
+    finally:
+        conn.close()
     return manifest
 
 
@@ -183,7 +266,8 @@ def restore(cfg: dict, archive: Path, *, force: bool = False, config_to: Path | 
                 raise BackupError(_("The backup does not include config.json"))
             config_to.write_bytes(tar.extractfile("config.json").read())
 
-    init_db(str(db_path))
+        init_db(str(db_path))
+        _rekey(db_path, tar, cfg["data_dir"])
     conn = connect(str(db_path))
     try:
         manifest["restored_schema_version"] = schema_version(conn)

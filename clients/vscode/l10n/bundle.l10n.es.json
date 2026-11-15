@@ -128,5 +128,6 @@
   "paused": "en pausa",
   "Pause synchronization": "Pausar la sincronización",
   "Resume synchronization": "Reanudar la sincronización",
-  "{0}: {1} files are hidden on the server (storage.hidden): they stay only on this computer.": "{0}: {1} archivos están ocultos en el servidor (storage.hidden): se quedan solo en este equipo."
+  "{0}: {1} files are hidden on the server (storage.hidden): they stay only on this computer.": "{0}: {1} archivos están ocultos en el servidor (storage.hidden): se quedan solo en este equipo.",
+  "StorageWeb: «{0}» could not upload everything because there is no space on the server. {1}": "StorageWeb: «{0}» no ha podido subirlo todo porque no queda espacio en el servidor. {1}"
 }

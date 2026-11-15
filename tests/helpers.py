@@ -9,6 +9,72 @@ from werkzeug.security import generate_password_hash
 PASSWORD = "contraseña-segura"
 
 
+APPS: list = []  # las aplicaciones que crea make_app (U y G buscan en la última)
+
+
+def _public(table: str, x) -> str:
+    """Identificador público (``uid``) de un usuario o grupo: de la fila si se pasa una, o buscando su id numérico
+    en la última aplicación creada."""
+    if hasattr(x, "keys") and "uid" in x.keys():
+        return x["uid"]
+    from storageweb.web.context import get_db
+    with APPS[-1].app_context():
+        row = get_db().execute(f"SELECT uid FROM {table} WHERE id = ?", (int(x),)).fetchone()  # noqa: S608
+    assert row is not None, f"{table} {x} no existe"
+    return row["uid"]
+
+
+def U(x) -> str:  # noqa: N802 (corto a propósito: va dentro de las direcciones de las pruebas)
+    """Identificador público del usuario (fila o id numérico): el de /admin/users/<uid>."""
+    return _public("users", x)
+
+
+def G(x) -> str:  # noqa: N802
+    """Identificador público del grupo (fila o id numérico): el de /admin/groups/<uid>."""
+    return _public("groups", x)
+
+
+def stored_settings(app, profile: str = "default") -> dict:
+    """Los ajustes web guardados del perfil, tal cual (los secretos, cifrados si se guardaron desde la web), con las
+    carpetas, ubicaciones y cuotas de grupo de sus tablas (solo si hay)."""
+    from storageweb.settings import store
+    from storageweb.web.context import get_db
+    with app.app_context():
+        doc = store.read_doc(get_db(), profile)
+        entities = {k: v for k, v in store.read_entities(get_db(), profile).items() if v}
+    if entities:
+        doc.setdefault("storage", {}).update(entities)
+    return doc
+
+
+def store_settings(app, doc: dict, profile: str = "default") -> None:
+    """Deja los ajustes web del perfil exactamente como ``doc`` (como si los hubiera guardado un admin); las
+    carpetas, ubicaciones y cuotas de grupo que traiga van a sus tablas."""
+    from storageweb.settings import store
+    from storageweb.web.context import get_db
+    with app.app_context():
+        conn = get_db()
+        current = store.read_entities(conn, profile)
+        wanted = {k: (doc.get("storage") or {}).get(k, [] if k != "group_quotas" else {})
+                  for k in ("shares", "locations", "group_quotas")}
+        store.apply_entities(conn, profile, current, wanted, "tests")
+        settings_only = {**doc, "storage": {k: v for k, v in (doc.get("storage") or {}).items() if k not in wanted}}
+        if not settings_only["storage"]:
+            settings_only.pop("storage")
+        store.put_doc(conn, profile, settings_only, "tests")
+
+
+def update_settings(app, profile: str = "default", **sections) -> None:
+    """Cambia ajustes web: ``update_settings(app, storage={"quota_enforce": False}, app_name="X")``."""
+    current = stored_settings(app, profile)
+    for name, value in sections.items():
+        if isinstance(value, dict):
+            current.setdefault(name, {}).update(value)
+        else:
+            current[name] = value
+    store_settings(app, current, profile)
+
+
 def deep_update(base: dict, override: dict) -> dict:
     for key, value in override.items():
         if isinstance(value, dict) and isinstance(base.get(key), dict):

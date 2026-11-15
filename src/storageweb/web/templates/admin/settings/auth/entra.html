@@ -73,9 +73,10 @@
             <input{{ lock('auth.entra.secret_expires') }} type="date" name="entra_secret_expires" value="{{ (en.secret_expires or '')[:10] }}">
             <small class="muted">{{ _("To be warned 30 days before. Filled in automatically when StorageWeb creates the secret.") }}</small>
             {{ field_error('auth.entra.secret_expires') }}</label>
-          <label class="span2"><span class="label-row">Redirect URI {{ origin('auth.entra.redirect_uri') }}</span>
-            <input{{ lock('auth.entra.redirect_uri') }} type="url" name="entra_redirect_uri" value="{{ en.redirect_uri }}" placeholder="{{ redirect_default }}" class="mono">
-            <small class="muted">{{ _("Empty = %(uri)s. It must be registered in Entra ID → Authentication → Web.", uri=redirect_default) }}</small></label>
+          <div class="field span2"><span class="label">Redirect URI</span>
+            <div class="copy-row"><input type="text" readonly value="{{ redirect_default }}" class="mono" id="entra-redirect-uri" aria-label="Redirect URI">
+              <button type="button" class="btn js-copy" data-copy="#entra-redirect-uri">{{ _("Copy") }}</button></div>
+            <small class="muted">{{ _("Worked out from the public address (Network and HTTPS) or, without it, from the address you used to get here; it is not saved, so it follows the public address if it changes. It must be registered in Entra ID → Authentication → Web (Repair permissions adds it).") }}</small></div>
           <label><span class="label-row">{{ _("Button text") }} {{ origin('auth.entra.button_label') }}</span>
             <input{{ lock('auth.entra.button_label') }} type="text" name="entra_button_label" value="{{ en.button_label }}" placeholder="{{ _('Sign in with Microsoft') }}"></label>
           <label class="check"><input{{ lock('auth.entra.single_logout') }} type="checkbox" name="entra_single_logout" {% if en.single_logout %}checked{% endif %}> {{ _("Also sign out of Microsoft when signing out") }} {{ origin('auth.entra.single_logout') }}</label>

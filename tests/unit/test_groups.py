@@ -1,13 +1,9 @@
-"""Grupos: pertenencias manuales y sincronizadas, lista efectiva, migración y acceso a carpetas."""
-import sqlite3
-
+"""Grupos: pertenencias manuales y sincronizadas, lista efectiva y acceso a carpetas."""
 import pytest
 
 from storageweb.core import accounts
 from storageweb.core import groups as gc
 from storageweb.core.storage import available_roots
-from storageweb.db import connect, migrate
-from storageweb.db import connection
 from storageweb.db.repositories import groups as repo
 from storageweb.db.repositories import users
 from storageweb.providers.entra.method import identity_from_claims
@@ -132,28 +128,6 @@ def test_storage_read_only_per_group(tmp_path):
     assert mode(username="jefa", groups="lectores") == "rw"  # entra por usuario
 
 
-def test_migration_004_moves_groups(tmp_path):
-    db = str(tmp_path / "v3.db")
-    conn = sqlite3.connect(db)
-    for version in (1, 2, 3):
-        path = next(p for v, p in connection.available_migrations() if v == version)
-        conn.executescript(path.read_text(encoding="utf-8"))
-    conn.execute("PRAGMA user_version = 3")
-    conn.execute("INSERT INTO users (username, source, groups, created_at) VALUES ('ana', 'local', 'it,rrhh', 'x')")
-    conn.execute("INSERT INTO users (username, source, groups, created_at) VALUES ('eva', 'entra', 'oid-1', 'x')")
-    conn.commit()
-    conn.close()
-    conn = connect(db)
-    assert migrate(conn) == [v for v, _ in connection.available_migrations() if v > 3]
-    ana = users.get_by_username(conn, "ana")
-    eva = users.get_by_username(conn, "eva")
-    assert {g["name"] for g in repo.memberships(conn, ana["id"])} == {"it", "rrhh"}
-    assert all(g["origin"] == "manual" for g in repo.memberships(conn, ana["id"]))
-    assert eva["external_groups"] == "oid-1" and repo.memberships(conn, eva["id"]) == []
-    gc.refresh_user(conn, ana["id"])
-    assert users.get_by_id(conn, ana["id"])["groups"] == "it,rrhh"
-
-
 def test_builtin_admins_group(db_conn):
     admins = repo.get_builtin(db_conn, gc.ADMINS_GROUP)
     assert admins is not None and gc.label(admins) == "Administradores"
@@ -189,18 +163,3 @@ def test_admins_group_gives_share_access(tmp_path):
     assert "it" not in {r["name"] for r in available_roots({**base, "role": "user"}, cfg)}
 
 
-def test_migration_005_on_database_already_at_004(tmp_path):
-    """Una BD que ya aplicó la 004 (sin grupos de serie) recibe «admins»; un grupo local homónimo se renombra."""
-    db = str(tmp_path / "v4.db")
-    conn = sqlite3.connect(db)
-    for version, path in connection.available_migrations():
-        if version <= 4:
-            conn.executescript(path.read_text(encoding="utf-8"))
-    conn.execute("PRAGMA user_version = 4")
-    conn.execute("INSERT INTO groups (name, label, source, created_at) VALUES ('admins', 'admins', 'local', 'x')")
-    conn.commit()
-    conn.close()
-    conn = connect(db)
-    assert 5 in migrate(conn)
-    rows = {r["name"]: r["builtin"] for r in conn.execute("SELECT name, builtin FROM groups")}
-    assert rows == {"admins": 1, "admins-local": 0}

@@ -10,9 +10,9 @@ import threading
 import time
 from functools import wraps
 
-from flask import abort, g, redirect, request, session, url_for
+from flask import Response, abort, g, redirect, render_template, request, session, url_for
 
-from ..core import accounts, ipban, tokens
+from ..core import accounts, ipban, maintenance, tokens
 from ..core.permissions import is_admin
 from ..db.connection import now_iso
 from ..db.repositories import audit
@@ -89,6 +89,7 @@ TOUCH_SECONDS = 60
 DAV_BLUEPRINT = "dav"
 TOKEN_BLUEPRINTS = ("files", "uploads", "health", DAV_BLUEPRINT)
 CONNECT_TOKEN_ENDPOINT = "connect.token"
+METRICS_ENDPOINT = "metrics.metrics_page"
 
 
 def select_locale() -> None:
@@ -112,6 +113,8 @@ def load_current_user() -> None:
     g.api_token = None
     g.session_id = None
     header = request.headers.get("Authorization", "")
+    if request.endpoint == METRICS_ENDPOINT:
+        return  # /metrics comprueba su propio token (no es un token de API ni hay sesión)
     if request.blueprint == DAV_BLUEPRINT:
         _load_dav_user(header)  # WebDAV: solo credenciales en la cabecera, nunca la cookie del navegador
         return
@@ -126,17 +129,13 @@ def load_current_user() -> None:
         session.clear()
         return
     sid = session.get("sid")
-    if not sid:
-        # Sesión iniciada antes de que existiera el registro de sesiones: se registra ahora
-        sid = session["sid"] = _new_session(user["id"])
-    else:
-        row = session_repo.get(get_db(), sid)
-        if row is None or row["user_id"] != user["id"]:
-            clear_session()  # cerrada por un admin, por cambio de contraseña o caducada
-            return
-        now = now_iso()
-        if row["last_seen"][:16] < now[:16] or row["ip"] != client_ip():  # como mucho una escritura por minuto
-            session_repo.touch(get_db(), sid, client_ip())
+    row = session_repo.get(get_db(), sid) if sid else None
+    if row is None or row["user_id"] != user["id"]:
+        clear_session()  # cerrada por un admin, por cambio de contraseña o caducada
+        return
+    now = now_iso()
+    if row["last_seen"][:16] < now[:16] or row["ip"] != client_ip():  # como mucho una escritura por minuto
+        session_repo.touch(get_db(), sid, client_ip())
     g.user = user
     g.session_id = sid
 
@@ -244,6 +243,18 @@ def safe_next(target: str | None) -> str:
 
 # Páginas que el proveedor SSO carga en un marco invisible (cierre de sesión de canal frontal)
 FRAMED_BY_PROVIDER = {"auth.sso_frontchannel_logout"}
+
+
+def maintenance_gate():
+    """Mientras se restaura una copia (``maintenance.RESTORING``), el resto de peticiones esperan fuera: 503."""
+    if not maintenance.RESTORING.is_set() or request.endpoint == "static":
+        return None
+    message = _("A backup is being restored. Try again in a moment.")
+    if request.blueprint == DAV_BLUEPRINT or request.accept_mimetypes.best == "application/json":
+        return Response(f"503 Service Unavailable\n{message}\n", 503, mimetype="text/plain",
+                        headers={"Retry-After": "30"})
+    return Response(render_template("error.html", code=503, name=_("Under maintenance"), description=message), 503,
+                    headers={"Retry-After": "30"})
 
 
 def set_security_headers(response):

@@ -24,18 +24,15 @@ def test_idempotent(tmp_path):
     assert init_db(db) == []
 
 
-def test_adopts_pre_versioning_database(tmp_path):
-    """Una BD creada antes de las migraciones (user_version = 0) se adopta sin perder datos."""
-    db = str(tmp_path / "old.db")
-    conn = sqlite3.connect(db)
-    conn.executescript((connection.MIGRATIONS_DIR / "001_initial.sql").read_text(encoding="utf-8"))
-    conn.execute("INSERT INTO users (username, source, created_at) VALUES ('ana', 'local', 'x')")
-    conn.commit()
-    conn.close()
-    assert init_db(db) == [v for v, _ in available_migrations()]
+def test_initial_schema_has_the_builtin_group_and_public_ids(tmp_path):
+    """La 001 crea el grupo de serie «admins» con su identificador público, y el uid es obligatorio."""
+    db = str(tmp_path / "a.db")
+    init_db(db)
     conn = connect(db)
-    assert conn.execute("SELECT username FROM users").fetchone()[0] == "ana"
-    assert "locale" in {r[1] for r in conn.execute("PRAGMA table_info(users)")}
+    row = conn.execute("SELECT name, builtin, uid FROM groups").fetchone()
+    assert (row["name"], row["builtin"]) == ("admins", 1) and len(row["uid"]) == 36
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute("INSERT INTO users (username, source, created_at) VALUES ('ana', 'local', 'x')")
 
 
 def test_migrations_are_consecutive():

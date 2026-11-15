@@ -9,7 +9,7 @@ from ....core import accounts
 from ....core import groups as group_core
 from ....core.permissions import ADMIN, PERMISSION_LABELS, permissions_for
 from ....core import quota
-from ....core.storage import available_roots, explain_access
+from ....core.storage import available_roots, explain_access, home_quota_mb
 from ....db.repositories import api_tokens, audit, users
 from ....db.repositories import groups as group_repo
 from ....db.repositories import sessions as session_repo
@@ -48,12 +48,22 @@ def _user_filters() -> dict:
             "status": status if status in USER_STATUS_FILTERS else "all",
             "source": source if source in accounts.sources() else "",
             "role": role if role in ROLES else "",
-            "group": a.get("group", type=int)}
+            "group": a.get("group", "")}  # identificador público del grupo
 
 
 def _filtered_users(f: dict) -> list:
+    group = group_repo.get_by_uid(get_db(), f["group"]) if f["group"] else None
     return users.list_all(get_db(), search=f["q"], status=None if f["status"] == "all" else f["status"],
-                          source=f["source"] or None, role=f["role"] or None, group_id=f["group"])
+                          source=f["source"] or None, role=f["role"] or None,
+                          group_id=group["id"] if group else (-1 if f["group"] else None))
+
+
+def _user_or_404(user_uid: str):
+    """La cuenta por su identificador público (el de las direcciones); 404 si no existe."""
+    user = users.get_by_uid(get_db(), user_uid)
+    if user is None:
+        abort(404)
+    return user
 
 
 def _group_names(user_rows) -> dict:
@@ -93,13 +103,13 @@ def users_list():
 def users_bulk():
     """Acción sobre varios usuarios. Se aplica a cada uno con sus protecciones; los errores se listan."""
     action = request.form.get("action", "")
-    ids = [int(x) for x in request.form.getlist("ids") if x.isdigit()]
+    ids = [row["id"] for row in (users.get_by_uid(get_db(), x) for x in request.form.getlist("ids")) if row]
     if action not in BULK_ACTIONS or not ids:
         flash(_("Select some users and an action."), "error")
         return back(url_for("admin.users_list"))
     group = None
     if action == "add_group":
-        group = group_repo.get_by_id(get_db(), request.form.get("group_id", type=int) or 0)
+        group = group_repo.get_by_uid(get_db(), request.form.get("group_uid", ""))
         if group is None:
             flash(_("Choose the group."), "error")
             return back(url_for("admin.users_list"))
@@ -143,7 +153,8 @@ def _user_detail(user) -> dict:
     used, complete = quota.usage(home)
     return {**_user_groups_context(user),
             "home_usage": {"used": format_size(used), "complete": complete}, "home_quota": quota.status(home),
-            "default_quota_mb": cfg["storage"].get("home_quota_mb", 0),
+            # La que tendría sin una propia: la de sus grupos o la de por defecto
+            "default_quota_mb": home_quota_mb({**dict(user), "quota_mb": None}, cfg),
             "user_sessions": session_repo.list_all(get_db(), user["id"]),
             "user_tokens": api_tokens.list_for_user(get_db(), user["id"]),
             "access": explain_access(user, cfg, labels) if user["enabled"] else [],
@@ -151,9 +162,9 @@ def _user_detail(user) -> dict:
             "role_permissions": [PERMISSION_LABELS[p] for p in PERMISSIONS if p in perms]}
 
 
-def _pick(rows, wanted: int | None):
+def _pick(rows, wanted: str | None):
     for row in rows:
-        if row["id"] == wanted:
+        if row["uid"] == wanted:
             return row
     return rows[0] if rows else None
 
@@ -164,7 +175,7 @@ def users_panel():
     session["users_view"] = "panel"
     f = _user_filters()
     rows = _filtered_users(f)
-    current = _pick(rows, request.args.get("u", type=int))
+    current = _pick(rows, request.args.get("u"))
     tab = request.args.get("tab", "profile")
     tab = tab if tab in USER_TABS else "profile"
     ctx = {}
@@ -174,13 +185,11 @@ def users_panel():
                            counts=users.counts(get_db()), **ctx)
 
 
-@bp.route("/users/<int:user_id>/status", methods=["POST"])
+@bp.route("/users/<user_uid>/status", methods=["POST"])
 @admin_required
-def user_status(user_id: int):
+def user_status(user_uid: str):
     """Activa o desactiva una cuenta (también de Entra ID o PAM: desactivar bloquea el acceso)."""
-    user = users.get_by_id(get_db(), user_id)
-    if user is None:
-        abort(404)
+    user = _user_or_404(user_uid)
     enabled = request.form.get("enabled") == "1"
     try:
         accounts.set_enabled(get_db(), user, g.user, enabled)
@@ -191,7 +200,7 @@ def user_status(user_id: int):
         message = _("User «%(name)s» enabled.", name=user["username"]) if enabled else \
             _("User «%(name)s» disabled: they can no longer sign in.", name=user["username"])
         flash(message, "info")
-    return back(url_for("admin.user_edit", user_id=user_id))
+    return back(url_for("admin.user_edit", user_uid=user_uid))
 
 
 def _user_form_data() -> dict:
@@ -236,17 +245,15 @@ def user_new():
         else:
             audit_event("user_created", form["username"], f"{form['source']}:{form['role']}")
             flash(_("User «%(name)s» created.", name=form["username"]), "info")
-            return redirect(url_for("admin.user_edit", user_id=uid))
+            return redirect(url_for("admin.user_edit", user_uid=users.get_by_id(get_db(), uid)["uid"]))
         form.pop("password", None)
     return render_template("admin/user_form.html", user=None, form=form, sources=accounts.sources())
 
 
-@bp.route("/users/<int:user_id>", methods=["GET", "POST"])
+@bp.route("/users/<user_uid>", methods=["GET", "POST"])
 @admin_required
-def user_edit(user_id: int):
-    user = users.get_by_id(get_db(), user_id)
-    if user is None:
-        abort(404)
+def user_edit(user_uid: str):
+    user = _user_or_404(user_uid)
     form = {**dict(user), "enabled": bool(user["enabled"])}
     if request.method == "POST":
         data = _user_form_data()
@@ -259,9 +266,9 @@ def user_edit(user_id: int):
             detail = f"role={data['role']} enabled={data['enabled']}" + (" password" if data["password"] else "")
             audit_event("user_updated", user["username"], detail)
             flash(_("Changes saved."), "info")
-            return back(url_for("admin.user_edit", user_id=user_id))
+            return back(url_for("admin.user_edit", user_uid=user_uid))
         if request.form.get("next"):
-            return back(url_for("admin.user_edit", user_id=user_id))
+            return back(url_for("admin.user_edit", user_uid=user_uid))
     return render_template("admin/user_form.html", user=user, form=form, sources=accounts.sources(),
                            **_user_detail(user))
 
@@ -280,31 +287,29 @@ def _user_groups_context(user) -> dict:
             "addable_groups": [g for g in group_repo.list_all(get_db()) if g["id"] not in mine]}
 
 
-@bp.route("/users/<int:user_id>/groups", methods=["POST"])
+@bp.route("/users/<user_uid>/groups", methods=["POST"])
 @admin_required
-def user_group_add(user_id: int):
-    user = users.get_by_id(get_db(), user_id)
-    group = group_repo.get_by_id(get_db(), request.form.get("group_id", type=int) or 0)
+def user_group_add(user_uid: str):
+    user = users.get_by_uid(get_db(), user_uid)
+    group = group_repo.get_by_uid(get_db(), request.form.get("group_uid", ""))
     if user is None or group is None:
         abort(404)
     group_core.add_member(get_db(), group, user)
     audit_event("group_member_added", group["name"], user["username"])
     flash(_("«%(user)s» added to the group «%(group)s».", user=user["username"],
             group=group_core.label(group)), "info")
-    return back(url_for("admin.user_edit", user_id=user_id))
+    return back(url_for("admin.user_edit", user_uid=user_uid))
 
 
-@bp.route("/users/<int:user_id>/delete", methods=["POST"])
+@bp.route("/users/<user_uid>/delete", methods=["POST"])
 @admin_required
-def user_delete(user_id: int):
-    user = users.get_by_id(get_db(), user_id)
-    if user is None:
-        abort(404)
+def user_delete(user_uid: str):
+    user = _user_or_404(user_uid)
     try:
         accounts.delete_account(get_db(), user, g.user)
     except accounts.AccountError as exc:
         flash(exc.message, "error")
-        return redirect(url_for("admin.user_edit", user_id=user_id))
+        return redirect(url_for("admin.user_edit", user_uid=user_uid))
     audit_event("user_deleted", user["username"])
     flash(_("User «%(name)s» deleted (their files have not been removed).", name=user["username"]), "info")
     return redirect(url_for("admin.users_list"))
@@ -317,7 +322,7 @@ search.action("user", _l("New user"), "admin.user_new", words="alta crear usuari
 def _search_users(terms, conn, cfg):
     # Se filtra aquí y no en SQL para no distinguir tildes (LIKE sí las distingue)
     return [search.item("user", row["display_name"] or row["username"], f"{row['username']} · {row['source']}",
-                        url_for("admin.user_edit", user_id=row["id"]), "" if row["enabled"] else _("Disabled"),
+                        url_for("admin.user_edit", user_uid=row["uid"]), "" if row["enabled"] else _("Disabled"),
                         "user")
             for row in users.list_all(conn) if search.matches(terms, row["username"], row["display_name"],
                                                               row["email"])]

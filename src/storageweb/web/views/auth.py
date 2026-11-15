@@ -96,10 +96,10 @@ def logout():
     return redirect(url_for("auth.login", manual=1))
 
 
-def redirect_uri(key: str, section: dict) -> str:
-    """Dirección de vuelta del método: la configurada o ``/auth/<método>/callback`` en la dirección pública."""
-    method = providers.get(key)
-    return (method.redirect_uri(section) if method else "") or external_url("auth.sso_callback", method=key)
+def redirect_uri(key: str) -> str:
+    """Dirección de vuelta del método: ``/auth/<método>/callback`` en la dirección pública (``network.public_url``)
+    o, sin ella, en la dirección con la que entró el navegador. Nunca se guarda: así sigue a la dirección pública."""
+    return external_url("auth.sso_callback", method=key)
 
 
 def _sso_method(key: str):
@@ -117,7 +117,7 @@ def sso_login(method: str):
         return redirect(url_for("auth.login", manual=1))
     section = m.section(cfg)
     try:
-        auth_url, flow = m.begin(section, redirect_uri(m.key, section))
+        auth_url, flow = m.begin(section, redirect_uri(m.key))
     except Exception:  # p. ej. MSAL sin conexión al descubrir la autoridad
         current_app.logger.exception("Could not start the SSO login")
         flash(_("Could not contact the identity provider."), "error")
@@ -158,13 +158,13 @@ def sso_callback(method: str):
 def _rename_in_shares(old: str, new: str) -> None:
     """Una cuenta cambió de nombre al entrar (UPN nuevo): las carpetas compartidas que la nombraban pasan al
     nombre nuevo. Si esa lista está fijada en config.json no se puede: queda en la auditoría para hacerlo a mano."""
-    current = runtime_view(settings())
-    renamed = share_core.rename_user(current["storage"]["shares"], old, new)
+    base = runtime_view(settings())
+    renamed = share_core.rename_user(base["storage"]["shares"], old, new)
     if renamed is None:
         return
-    current["storage"]["shares"] = renamed
+    current = {**base, "storage": {**base["storage"], "shares": renamed}}
     try:
-        runtime().save(get_db(), current, "system", strict=True)
+        runtime().save(get_db(), current, "system", strict=True, base=base)
     except ConfigError as exc:
         current_app.logger.warning("Shared folders still name %s: %s", old, exc)
         audit.log(get_db(), "user_rename_failed", username=new, detail=f"shares: {exc}"[:200])

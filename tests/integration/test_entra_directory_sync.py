@@ -10,7 +10,7 @@ from storageweb.db.repositories import audit, sessions, users
 from storageweb.db.repositories import groups as group_repo
 from storageweb.providers.entra import directory as entra_directory
 from storageweb.web.context import get_db, settings
-from tests.helpers import add_user, get_csrf
+from tests.helpers import add_user, get_csrf, U, G
 from tests.sso_helpers import entra_cfg, finish_login, start_login
 
 G_SALES, G_IT = "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"
@@ -84,7 +84,7 @@ def test_accounts_with_access_are_checked_and_disabled(entra_app, token_endpoint
         assert tokens.authenticate(get_db(), plain) is None
     assert browser.get("/f/home/").status_code == 302
     assert any(a == "user_disabled" and d.startswith("entra:disabled") for a, d in _actions(app))
-    html = _admin_page(app, f"/admin/users/{juan['id']}")
+    html = _admin_page(app, f"/admin/users/{U(juan['id'])}")
     assert "Desactivada automáticamente" in html
 
     # La vuelven a activar: se reactiva sola y el token vuelve a valer
@@ -238,7 +238,7 @@ def test_registered_groups_follow_the_directory(entra_app, token_endpoint, direc
     assert _sync(app)["entra"]["groups"] == 1                             # en la revisión periódica
 
     directory.details[G_SALES] = {"name": "Ventas Iberia", "description": "Comercial"}
-    html = _admin_page(app, f"/admin/groups/{gid}")                        # y al abrir su ficha, de solo lectura
+    html = _admin_page(app, f"/admin/groups/{G(gid)}")                        # y al abrir su ficha, de solo lectura
     assert 'value="Ventas Iberia" maxlength="200" required' in html and "readonly" in html
     assert "se actualizan solos" in html
 

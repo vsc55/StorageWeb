@@ -27,7 +27,7 @@
   <a class="folder-row{% if row.exists is sameas false and not create_shares %} is-missing{% endif %}" id="share-{{ s.name }}"
      href="{{ url_for('access.folder', name=s.name) }}">
     <span class="folder-main">
-      <strong>{{ s.label }} <span class="muted small">/f/{{ s.name }}</span></strong>
+      <strong>{{ s.label }} <span class="muted small">/f/{{ s.name }}</span>{% if s.origin in ('file', 'env') %} {{ origin_badge(s.origin) }}{% endif %}</strong>
       <span class="small muted"><code>{{ row.where }}</code>
         {% if row.exists is sameas false %}· <span class="text-danger">{{ _("It does not exist on the server.") if not create_shares else _("It will be created on first use.") }}</span>{% endif %}</span>
     </span>

@@ -47,7 +47,6 @@
         <input type="password" name="entra_client_secret" autocomplete="new-password" {% if not secret_set %}required{% endif %}
                placeholder="{{ _('•••••••• (configured, leave empty to keep it)') if secret_set else '' }}">
         <small class="muted">{{ _("Certificates & secrets → New client secret. Copy the value, not the ID. It expires: note the date.") }}</small></label>
-      <label class="span2">Redirect URI<input type="url" name="entra_redirect_uri" value="{{ en.redirect_uri or redirect_uri }}" class="mono"></label>
       <div class="span2 form-actions">
         <a class="btn" href="{{ url_for('settings.entra_setup', step=1) }}">{{ _("Previous") }}</a>
         <button class="btn btn-primary" type="submit">{{ _("Save and continue") }}</button>

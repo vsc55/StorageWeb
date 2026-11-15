@@ -193,7 +193,7 @@ Como en S3, las carpetas son prefijos (una carpeta vacía es un blob `carpeta/`)
 ### Secretos y bloqueo
 
 - Los secretos (`secret_key`, `password`, `private_key`, `account_key`, `sas_token`) se guardan en la base de datos de StorageWeb (o en `config.json` si los pones ahí) y nunca se vuelven a mostrar. Si dejas el campo vacío al editar, se conserva el guardado. `check-config` y *Sistema → Información* los ocultan.
-- Si `storage.locations` está en `config.json` o en `STORAGEWEB_STORAGE__LOCATIONS` (JSON), la página se ve pero no se puede editar.
+- Las ubicaciones de `config.json` o de `STORAGEWEB_STORAGE__LOCATIONS` (JSON) se ven en la página con su origen y de solo lectura; junto a ellas se pueden crear otras desde la web, que se guardan en la base de datos. Si un nombre está en los dos sitios, manda el de `config.json`. Lo mismo con las carpetas compartidas (`storage.shares`) y la cuota de cada grupo (`storage.group_quotas`).
 - El nombre de una ubicación no cambia una vez creada (las carpetas lo usan), y no se puede quitar mientras alguna carpeta la use. Quitarla no borra ningún archivo.
 
 ## Ocultar archivos para todos
@@ -219,10 +219,20 @@ Se aplican a la ruta dentro de cada carpeta de StorageWeb (la personal o cada co
 
 ## Cuotas
 
-Las cuotas **solo avisan**: no impiden subir. Se ven en el explorador (barra en el panel de la carpeta y un aviso encima de la lista a partir del 90 % y al superarla), en *Mi perfil* y en la administración.
+Las cuotas **impiden escribir lo que no quepa** (`storage.quota_enforce`, activado por defecto): no se puede subir, copiar ni mover a una carpeta lo que la deje por encima de su cuota. La web lo explica en cada archivo rechazado, la unidad de red y la API responden `507 Insufficient Storage` con el motivo, y la extensión de VS Code para y lo avisa. Desactivado, las cuotas solo avisan. En los dos casos se ven en el explorador (barra en el panel de la carpeta y un aviso encima de la lista a partir del 90 % y al superarla), en *Mi perfil* y en la administración.
 
-- **Carpetas personales:** cuota por defecto en *Acceso → Carpetas personales* (`storage.home_quota_mb`, en MB; `0` = sin cuota). Cada usuario puede tener otra en su ficha (*Personas → Usuarios*): vacío = la de por defecto, `0` = sin cuota. La ficha muestra también cuánto ocupa su carpeta.
+- **Carpetas personales:** cuota por defecto en *Acceso → Carpetas personales* (`storage.home_quota_mb`, en MB; `0` = sin cuota).
+    - **Por grupo:** en la ficha de cada grupo (*Personas → Grupos*), la cuota de la carpeta personal de sus miembros (`storage.group_quotas`). Si alguien está en varios grupos con cuota se aplica la mayor (`0` = sin cuota gana).
+    - **Por usuario:** en su ficha (*Personas → Usuarios*), y manda sobre la de sus grupos: vacío = la de sus grupos o la de por defecto, `0` = sin cuota. La ficha muestra también cuánto ocupa su carpeta.
 - **Carpetas compartidas:** cuota de cada una en su ficha (*Acceso → Carpetas compartidas*; `storage.shares[].quota_mb`). La ficha muestra cuánto ocupa.
+
+Qué cuenta en cada operación:
+
+- **Subir** (web, por partes y unidad de red): el tamaño del archivo. Con la subida por partes se comprueba al empezar, así que varias subidas a la vez pueden pasarse un poco de la cuota. Por WebDAV, sobrescribir un archivo descuenta lo que ocupaba el anterior.
+- **Copiar** y **mover a otra carpeta**: lo que ocupa lo copiado en la carpeta de destino. Mover dentro de la misma carpeta no ocupa más y nunca se rechaza.
+- Borrar nunca se rechaza, aunque la carpeta esté por encima de la cuota.
+
+La unidad de red publica la cuota (propiedades `quota-used-bytes` y `quota-available-bytes` de WebDAV, RFC 4331), así que el Explorador de Windows muestra el espacio usado y libre de la unidad: lo que deja la cuota o, sin cuota, el espacio libre del disco del servidor.
 
 El uso se calcula sumando todo lo que hay en la carpeta (también lo oculto) y se guarda **10 minutos** en memoria, porque en almacenamiento remoto recorrerla es caro. Lo que se sube, borra, mueve o copia desde la web o por WebDAV lo actualiza al momento; lo que cambie por fuera de StorageWeb (directamente en el disco o en el bucket) tarda hasta esos 10 minutos en reflejarse. Si una carpeta es tan grande que no da tiempo a recorrerla (10 segundos o 500.000 elementos), se muestra como «≥» lo contado.
 

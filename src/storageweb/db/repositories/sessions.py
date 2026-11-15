@@ -45,6 +45,12 @@ def delete_for_user(conn: Connection, user_id: int, keep: str | None = None) -> 
     return cur.rowcount
 
 
+def delete_all(conn: Connection) -> int:
+    cur = conn.execute("DELETE FROM sessions")
+    conn.commit()
+    return cur.rowcount
+
+
 def delete_idle(conn: Connection, before_iso: str) -> int:
     cur = conn.execute("DELETE FROM sessions WHERE last_seen < ?", (before_iso,))
     conn.commit()
@@ -52,7 +58,7 @@ def delete_idle(conn: Connection, before_iso: str) -> int:
 
 
 def list_all(conn: Connection, user_id: int | None = None) -> list:
-    sql = """SELECT s.*, u.username, u.display_name, u.source, u.role FROM sessions s
+    sql = """SELECT s.*, u.username, u.display_name, u.source, u.role, u.uid AS user_uid FROM sessions s
              JOIN users u ON u.id = s.user_id"""
     params: tuple = ()
     if user_id is not None:

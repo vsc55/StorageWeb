@@ -78,12 +78,23 @@ def make_root(cfg: dict, name: str, label: str, location: str, path: str, **extr
 
 
 def home_quota_mb(user, cfg: dict) -> int:
-    """Cuota de la carpeta personal: la del usuario si tiene (0 = sin cuota) o la de por defecto."""
+    """Cuota de la carpeta personal (0 = sin cuota): la del usuario si tiene; si no, la de sus grupos
+    (``storage.group_quotas``: si alguno no tiene límite, ninguno; si no, la mayor); si no, la de por defecto."""
     try:
         value = user["quota_mb"]
     except (KeyError, IndexError):
         value = None
-    return int(cfg["storage"].get("home_quota_mb", 0) or 0) if value is None else int(value)
+    if value is not None:
+        return int(value)
+    by_group = cfg["storage"].get("group_quotas") or {}
+    if by_group:
+        names = groups_of(user)
+        if user["role"] == ADMIN:
+            names.add(ADMINS_GROUP)
+        found = [int(by_group[n]) for n in names if n in by_group]
+        if found:
+            return 0 if 0 in found else max(found)
+    return int(cfg["storage"].get("home_quota_mb", 0) or 0)
 
 
 def available_roots(user, cfg: dict) -> list[dict]:

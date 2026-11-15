@@ -28,7 +28,7 @@ def base_claims(expected_nonce: str, **extra) -> dict:
 
 def entra_cfg(**extra) -> dict:
     cfg = {"enabled": True, "provider": "oauth2", "tenant_id": TENANT, "client_id": CLIENT_ID,
-           "client_secret": "secreto", "redirect_uri": "https://files.ejemplo.com/auth/entra/callback"}
+           "client_secret": "secreto"}
     cfg.update(extra)
     return cfg
 

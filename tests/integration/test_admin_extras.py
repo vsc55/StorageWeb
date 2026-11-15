@@ -8,7 +8,7 @@ from storageweb.core import ipban
 from storageweb.db.repositories import ip_rules
 from storageweb.providers.entra import check as entra_check, directory as entra_directory, register as entra_register
 from storageweb.web.context import get_db
-from tests.helpers import PASSWORD, add_user, get_csrf, login
+from tests.helpers import PASSWORD, add_user, get_csrf, login, U
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\0" * 64
 OTHER_IP = {"REMOTE_ADDR": "203.0.113.50"}
@@ -186,7 +186,7 @@ def test_grant_groups_and_group_names(entra_admin, monkeypatch):
     html = client.get("/admin/groups/list").get_data(as_text=True)
     assert "<strong>Sistemas</strong>" in html and f"external_id={gid}" in html
     assert client.get("/admin/groups/directory/entra/search?q=Sis").get_json()["groups"][0]["name"] == "Sistemas"
-    html = client.get(f"/admin/users/{uid}").get_data(as_text=True)
+    html = client.get(f"/admin/users/{U(uid)}").get_data(as_text=True)
     assert "<strong>Sistemas</strong>" in html
 
 

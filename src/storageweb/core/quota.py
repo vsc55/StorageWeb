@@ -1,7 +1,9 @@
-"""Cuotas de espacio de las carpetas (personales y compartidas). **Solo avisan**: no impiden subir.
+"""Cuotas de espacio de las carpetas (personales y compartidas).
 
 La cuota de una carpeta es ``root["quota_mb"]`` (0 = sin cuota): la personal sale del usuario
-(``users.quota_mb``) o de ``storage.home_quota_mb``; la compartida, de ``storage.shares[].quota_mb``.
+(``users.quota_mb``), de sus grupos (``storage.group_quotas``) o de ``storage.home_quota_mb``; la compartida, de
+``storage.shares[].quota_mb``. Avisan a partir del 90 % y, con ``storage.quota_enforce`` (por defecto), además
+**impiden escribir** lo que no quepa: :func:`check` antes de cada subida, copia o traslado a otra carpeta.
 
 El uso se calcula sumando lo que hay en la carpeta (todo, también lo oculto: ocupa espacio igual) y se guarda en
 memoria unos minutos, porque en un almacenamiento remoto recorrerlo es caro. Las escrituras desde la web y por
@@ -13,7 +15,8 @@ from __future__ import annotations
 import threading
 import time
 
-from ..i18n import format_size
+from .. import metrics
+from ..i18n import _, format_size
 from . import backends
 
 MB = 1024 * 1024
@@ -30,8 +33,62 @@ def _key(root: dict) -> str:
     return str(root.get("where") or f"{root.get('location', '')}:{root.get('path')}")
 
 
+class QuotaExceeded(Exception):
+    """No cabe en la cuota de la carpeta. ``message`` es para la persona (HTTP 507)."""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
+
+
 def limit_bytes(root: dict) -> int:
     return int(root.get("quota_mb") or 0) * MB
+
+
+def enforced(cfg: dict) -> bool:
+    return bool(cfg["storage"].get("quota_enforce", True))
+
+
+def check(root: dict, cfg: dict, incoming: int, freed: int = 0) -> None:
+    """:class:`QuotaExceeded` si escribir ``incoming`` bytes (liberando ``freed``, p. ej. el archivo que se
+    sobrescribe) deja la carpeta por encima de su cuota. Sin cuota, o si no se aplican, no hace nada."""
+    limit = limit_bytes(root)
+    if limit <= 0 or not enforced(cfg):
+        return
+    used, _complete = usage(root)
+    if used - max(freed, 0) + max(incoming, 0) > limit:
+        metrics.inc("storageweb_quota_rejections_total")
+        free = max(limit - used, 0)
+        raise QuotaExceeded(_("Not enough quota in «%(folder)s»: %(free)s free of %(limit)s, and this needs "
+                              "%(size)s. Free some space or ask an administrator.", folder=root.get("label") or
+                              root.get("name"), free=format_size(free), limit=format_size(limit),
+                              size=format_size(max(incoming - max(freed, 0), 0))))
+
+
+def record(root: dict, delta: int) -> None:
+    """Se escribieron (o liberaron, si es negativo) ``delta`` bytes: ajusta el uso guardado sin volver a recorrer
+    la carpeta. Si no había nada guardado, se calculará cuando haga falta."""
+    with _lock:
+        hit = _cache.get(_key(root))
+        if hit is not None:
+            _cache[_key(root)] = (hit[0], max(hit[1] + delta, 0), hit[2])
+
+
+def size_of(backend, rel: str) -> int:
+    """Lo que ocupa un archivo o una carpeta (para comprobar la cuota antes de copiarla)."""
+    entry = backend.stat(rel)
+    if entry is None:
+        return 0
+    if not entry.is_dir:
+        return max(int(entry.size or 0), 0)
+    return _walk(backend, rel)[0]
+
+
+def peek(root: dict) -> tuple[int, bool] | None:
+    """El uso guardado, sin recorrer nada (las métricas no pueden esperar a un recorrido)."""
+    with _lock:
+        hit = _cache.get(_key(root))
+    return (hit[1], hit[2]) if hit and time.monotonic() - hit[0] < CACHE_SECONDS * 3 else None
 
 
 def invalidate(*roots: dict) -> None:
@@ -47,10 +104,13 @@ def clear() -> None:
 
 
 def _measure(root: dict) -> tuple[int, bool]:
-    backend = root["backend"]
+    return _walk(root["backend"], "")
+
+
+def _walk(backend, start: str) -> tuple[int, bool]:
     total, entries, complete = 0, 0, True
     deadline = time.monotonic() + MAX_SECONDS
-    pending = [""]
+    pending = [start]
     while pending:
         if time.monotonic() > deadline or entries >= MAX_ENTRIES:
             complete = False

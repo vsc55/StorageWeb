@@ -98,7 +98,7 @@ def test_keep_prunes_old(cfg, tmp_path):
     for _ in range(4):
         made.append(backup.create(cfg, out, keep=2))
         time.sleep(0.01)
-    assert backup.list_backups(out) == sorted(made)[-2:]
+    assert backup.list_backups(out) == made[-2:]  # las dos últimas hechas (aunque sean del mismo segundo)
 
 
 def _tar(path, members: dict, manifest: dict | None = None):

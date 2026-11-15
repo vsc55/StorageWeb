@@ -55,7 +55,7 @@ def diagnose(facts: dict, headers: dict, cfg: dict, boot: dict) -> dict:
     if not cookie_secure and (scheme == "https" or (pub and pub.scheme == "https")):
         notes.append(("warn", _("session.cookie_secure is disabled: enable it in production (config.json).")))
     for method in providers.methods():  # p. ej. la dirección de vuelta de Entra ID
-        if method.enabled(cfg) or method.section(cfg).get("redirect_uri"):
+        if method.enabled(cfg):
             notes.extend(method.network_notes(method.section(cfg), public))
     if not any(level in ("warn", "danger") for level, _text in notes):
         notes.insert(0, ("ok", _("The proxy, the scheme and the public address match.")))

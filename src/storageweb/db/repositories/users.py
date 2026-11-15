@@ -1,6 +1,7 @@
 """Repositorio de usuarios."""
 from __future__ import annotations
 
+import uuid
 from sqlite3 import Connection
 from typing import Iterable
 
@@ -21,6 +22,11 @@ def groups_of(user) -> set[str]:
 
 def get_by_id(conn: Connection, user_id: int):
     return conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+
+
+def get_by_uid(conn: Connection, uid: str):
+    """Por el identificador público (el de las direcciones de la administración)."""
+    return conn.execute("SELECT * FROM users WHERE uid = ?", (uid,)).fetchone()
 
 
 def get_by_username(conn: Connection, username: str):
@@ -93,10 +99,10 @@ def create(conn: Connection, *, username: str, source: str, role: str = "user",
            enabled: bool = True) -> int:
     cur = conn.execute(
         """INSERT INTO users (username, display_name, email, source, role, password_hash,
-                              external_id, groups, home_path, enabled, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                              external_id, groups, home_path, enabled, created_at, uid)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (username, display_name, email, source, role, password_hash, external_id,
-         _join_groups(groups), home_path or None, 1 if enabled else 0, now_iso()),
+         _join_groups(groups), home_path or None, 1 if enabled else 0, now_iso(), str(uuid.uuid4())),
     )
     conn.commit()
     return cur.lastrowid

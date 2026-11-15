@@ -13,6 +13,23 @@
     <label class="{{ err_class('maintenance.backup_keep') }}"><span class="label-row">{{ _("Backups to keep") }} {{ origin('maintenance.backup_keep') }}</span>
       <input{{ lock('maintenance.backup_keep') }} type="number" name="backup_keep" value="{{ m.backup_keep }}" min="1">{{ field_error('maintenance.backup_keep') }}</label>
   </div>
+
+  {% set mt = cfg.metrics %}
+  <section class="card form-grid section-gap" aria-labelledby="metrics-title">
+    <h2 class="card-title span2" id="metrics-title">{{ _("Metrics for monitoring") }}</h2>
+    <label class="check span2"><input{{ lock('metrics.enabled') }} type="checkbox" name="metrics_enabled" {% if mt.enabled %}checked{% endif %}>
+      <span>{{ _("Publish metrics for Prometheus") }} {{ origin('metrics.enabled') }}
+        <small class="muted">{{ _("At %(url)s: requests and errors by route, uploads and downloads, sign-ins and failures, blocked IPs, space of the shared folders, remote locations, backups and alerts.", url=metrics_url) }}</small></span></label>
+    <label class="{{ err_class('metrics.token') }}"><span class="label-row">{{ _("Metrics token") }} {{ origin('metrics.token') }}</span>
+      <input{{ lock('metrics.token') }} type="password" name="metrics_token" autocomplete="new-password" minlength="16"
+             placeholder="{{ _('•••••••• (configured, leave empty to keep it)') if metrics_token_set else _('Not configured') }}">
+      <small class="muted">{{ _("Prometheus sends it as «Authorization: Bearer …» (bearer_token). At least 16 characters.") }}</small>
+      {{ field_error('metrics.token') }}</label>
+    <label class="{{ err_class('metrics.allowed_networks') }}"><span class="label-row">{{ _("Networks allowed to read the metrics") }} {{ origin('metrics.allowed_networks') }}</span>
+      <input{{ lock('metrics.allowed_networks') }} type="text" name="metrics_allowed_networks" value="{{ mt.allowed_networks|join(', ') }}" placeholder="10.0.0.5, 192.168.10.0/24" class="mono">
+      <small class="muted">{{ _("Without the token. With neither a token nor networks, only from this server.") }}</small>
+      {{ field_error('metrics.allowed_networks') }}</label>
+  </section>
   {{ save_bar() }}
 </form>
 {% endblock %}

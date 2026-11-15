@@ -85,7 +85,7 @@ Detrás de un proxy, la aplicación no sabe por sí sola con qué nombre entran 
 
 Si hace falta, con puerto o subruta: `files.midominio.com:8443` o `www.midominio.com/archivos`. Escribe `http://` delante solo para pruebas en local (`http://localhost:8080`).
 
-Se usa para las URLs que salen hacia fuera: la dirección de vuelta de Entra ID (si `auth.entra.redirect_uri` está vacía) y la de salida de Microsoft. Si está vacía, se usa el host de cada petición, que vale cuando solo se entra por un nombre y el proxy envía `X-Forwarded-Host` y `X-Forwarded-Proto`.
+Se usa para las URLs que salen hacia fuera: la dirección de vuelta de Entra ID (que siempre se calcula de aquí) y la de salida de Microsoft. Si está vacía, se usa el host de cada petición, que vale cuando solo se entra por un nombre y el proxy envía `X-Forwarded-Host` y `X-Forwarded-Proto`.
 
 ## Varios proxies y subrutas
 

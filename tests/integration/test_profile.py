@@ -83,8 +83,13 @@ def test_profile_browser_language_clears_preference(app, logged):
 
 def test_profile_entra_user_cannot_change_name(app, client):
     add_user(app, "juan@contoso.com", password=None, source="entra", external_id="o1", display_name="Juan")
+    from storageweb.db.repositories import sessions
+    from storageweb.web.context import get_db
+    juan = _user(app, "juan@contoso.com")
+    with app.app_context():                             # como un inicio de sesión con Microsoft: sesión registrada
+        sessions.create(get_db(), "sesion-juan", juan["id"], "127.0.0.1", "pruebas")
     with client.session_transaction() as sess:
-        sess["uid"] = _user(app, "juan@contoso.com")["id"]
+        sess["uid"], sess["sid"], sess["src"] = juan["id"], "sesion-juan", "entra"
     html = client.get("/profile").get_data(as_text=True)
     assert "readonly" in html and 'id="password"' not in html
     token = get_csrf(client, "/profile")

@@ -32,14 +32,14 @@ from .common import back, checked, form_int, save_partial, split_list
 WIZARD_STEPS = (1, 2, 3, 4)
 
 
-def redirect_uri(ecfg: dict) -> str:
-    return sso_redirect_uri("entra", ecfg)
+def redirect_uri(_ecfg: dict | None = None) -> str:
+    """La dirección de vuelta: se calcula siempre (``auth.redirect_uri``), nunca se guarda."""
+    return sso_redirect_uri("entra")
 
 
 def entra_connection() -> dict:
     f = request.form
-    data = {"tenant_id": f.get("entra_tenant_id", "").strip(), "client_id": f.get("entra_client_id", "").strip(),
-            "redirect_uri": f.get("entra_redirect_uri", "").strip()}
+    data = {"tenant_id": f.get("entra_tenant_id", "").strip(), "client_id": f.get("entra_client_id", "").strip()}
     if f.get("entra_client_secret", "").strip():  # vacío = conservar el actual
         data["client_secret"] = f["entra_client_secret"].strip()
         mark_new_secret()
@@ -140,7 +140,7 @@ def _card(cfg: dict) -> dict:
             "entra_repairable": entra_check.repairs(check["results"]) if check else None,
             "entra_portal": entra_register.portal_url(ecfg["client_id"])
             if ecfg.get("client_id") and not any(ecfg.get(k) for k in ("authorize_url", "token_url", "issuer")) else "",
-            "redirect_default": redirect_uri(ecfg),
+            "redirect_default": redirect_uri(),
             **group_lookup(*ecfg.get("role_mappings", {}).keys(), *ecfg.get("allowed_groups", []))}
 
 
@@ -243,7 +243,7 @@ def _drop_flow(key: str | None) -> None:
 
 def _register_target() -> tuple[str, bool]:
     """Redirect URI que se registrará y si Entra ID la aceptará (HTTPS o localhost)."""
-    uri = external_url("auth.sso_callback", method="entra")
+    uri = redirect_uri()
     parts = urlsplit(uri)
     return uri, parts.scheme == "https" or parts.hostname in LOOPBACK
 
@@ -274,7 +274,7 @@ def entra_register_page():
 
 
 FLOW_WRITES = {"register": ("auth.entra.tenant_id", "auth.entra.client_id", "auth.entra.client_secret",
-                            "auth.entra.secret_expires", "auth.entra.redirect_uri"),
+                            "auth.entra.secret_expires"),
                "rotate": ("auth.entra.client_secret", "auth.entra.secret_expires"),
                "repair": ("auth.entra.client_secret", "auth.entra.secret_expires")}  # solo si crea secreto
 
@@ -454,9 +454,10 @@ def entra_register_poll():
         mappings = dict(settings()["auth"]["entra"]["role_mappings"])
         if result["app_roles"]:
             mappings[entra_register.ADMIN_ROLE.lower()] = "admin"
+        # La dirección de vuelta no se guarda: se calcula siempre de la dirección pública
         return {"auth": {"entra": {"tenant_id": result["tenant_id"], "client_id": result["client_id"],
                                    "client_secret": result["client_secret"], "secret_expires": result["secret_expires"],
-                                   "redirect_uri": options["redirect_uri"], "role_mappings": mappings}}}
+                                   "role_mappings": mappings}}}
     _draft, save_error = save_partial(_entra_fields, strict=True)
     if save_error:
         return answer("error", _("The application was created in Entra ID (%(client)s) but the settings could not "

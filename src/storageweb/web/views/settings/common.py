@@ -27,8 +27,9 @@ def save_partial(partial_builder, strict: bool = False) -> tuple[dict | None, Co
     """
     draft = None
     try:
-        draft = merge_overrides(runtime_view(settings()), partial_builder())
-        runtime().save(get_db(), draft, g.user["username"], strict=strict)
+        base = runtime_view(settings())  # lo que había en pantalla: solo se guarda lo que cambia sobre esto
+        draft = merge_overrides(base, partial_builder())
+        runtime().save(get_db(), draft, g.user["username"], strict=strict, base=base)
     except ConfigError as exc:
         return draft, exc
     invalidate_settings()

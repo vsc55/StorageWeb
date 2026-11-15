@@ -36,6 +36,8 @@ storageweb [--config RUTA] <comando> [opciones]
 | [`backup`](#backup) | Copia de seguridad de la base de datos, config.json y secret_key |
 | [`backup-list`](#backup-list) | Lista las copias de seguridad de una carpeta |
 | [`restore`](#restore) | Restaura una copia (con el servicio parado) |
+| [`encrypt-secret`](#encrypt-secret) | Cifrar un secreto para ponerlo en config.json o en una variable de entorno |
+| [`rotate-secrets-key`](#rotate-secrets-key) | Crear una clave nueva para los secretos guardados y volver a cifrarlos (con el servicio parado) |
 
 ### `serve` {#serve}
 
@@ -265,3 +267,24 @@ storageweb restore <archive> [--force] [--config-to CONFIG_TO]
 | `archive` | Fichero storageweb-backup-*.tar.gz |
 | `--force` | Reemplaza la base de datos existente (antes guarda una copia .antes-de-restaurar-*) |
 | `--config-to` `CONFIG_TO` | Escribe el config.json de la copia en esta ruta |
+
+### `encrypt-secret` {#encrypt-secret}
+
+Cifrar un secreto para ponerlo en config.json o en una variable de entorno.
+
+```
+storageweb encrypt-secret [--value VALUE]
+```
+
+| Argumento | Descripción |
+|---|---|
+| `--value` `VALUE` | El secreto (si falta, se pide sin mostrarlo) |
+
+### `rotate-secrets-key` {#rotate-secrets-key}
+
+Crear una clave nueva para los secretos guardados y volver a cifrarlos (con el servicio parado).
+
+```
+storageweb rotate-secrets-key
+```
+

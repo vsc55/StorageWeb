@@ -28,7 +28,8 @@ def list_for_user(conn: Connection, user_id: int) -> list:
 
 
 def list_all(conn: Connection) -> list:
-    return conn.execute("""SELECT t.*, u.username, u.display_name FROM api_tokens t JOIN users u ON u.id = t.user_id
+    return conn.execute("""SELECT t.*, u.username, u.display_name, u.uid AS user_uid FROM api_tokens t
+                           JOIN users u ON u.id = t.user_id
                            ORDER BY t.created_at DESC""").fetchall()
 
 

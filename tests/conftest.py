@@ -47,9 +47,7 @@ def make_app(write_config):
     Para probar campos bloqueados por config.json, escribe el fichero con ``write_config``."""
     def _make(overrides: dict | None = None):
         from storageweb import create_app
-        from storageweb.db.repositories import settings as settings_repo
-        from storageweb.settings import RUNTIME_KEY, runtime_part
-        from storageweb.web.context import get_db
+        from storageweb.settings import runtime_part
 
         path = write_config(overrides)
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -57,8 +55,9 @@ def make_app(write_config):
         path.write_text(json.dumps({k: v for k, v in data.items() if k not in runtime}), encoding="utf-8")
         app = create_app(str(path))
         app.testing = True
-        with app.app_context():
-            settings_repo.put(get_db(), RUNTIME_KEY, runtime, "tests")
+        from tests.helpers import APPS, store_settings
+        store_settings(app, runtime)  # los ajustes a settings_values; carpetas, ubicaciones y cuotas, a sus tablas
+        APPS.append(app)
         return app
     return _make
 

@@ -17,7 +17,7 @@
 {% call filters_form(filters, 'admin.users_list') %}
   <select name="group" aria-label="{{ _('Group') }}">
     <option value="">{{ _("Any group") }}</option>
-    {% for gr in all_groups %}<option value="{{ gr['id'] }}" {% if filters.group == gr['id'] %}selected{% endif %}>{{ (gr|group_label) }}</option>{% endfor %}
+    {% for gr in all_groups %}<option value="{{ gr['uid'] }}" {% if filters.group == gr['uid'] %}selected{% endif %}>{{ (gr|group_label) }}</option>{% endfor %}
   </select>
 {% endcall %}
 
@@ -35,9 +35,9 @@
     <option value="disable">{{ _("Disable") }}</option>
   </select>
   <label class="sr-only" for="bulk-group">{{ _("Group") }}</label>
-  <select name="group_id" id="bulk-group">
+  <select name="group_uid" id="bulk-group">
     <option value="">{{ _("Group…") }}</option>
-    {% for gr in all_groups %}<option value="{{ gr['id'] }}">{{ (gr|group_label) }}</option>{% endfor %}
+    {% for gr in all_groups %}<option value="{{ gr['uid'] }}">{{ (gr|group_label) }}</option>{% endfor %}
   </select>
   <button class="btn" type="submit">{{ _("Apply") }}</button>
 </form>
@@ -52,9 +52,9 @@
   <tbody>
     {% for u in users %}
     <tr{% if not u['enabled'] %} class="row-disabled"{% endif %}>
-      <td class="col-check"><input type="checkbox" name="ids" value="{{ u['id'] }}" form="bulk-form" class="bulk-check"
+      <td class="col-check"><input type="checkbox" name="ids" value="{{ u['uid'] }}" form="bulk-form" class="bulk-check"
                                    aria-label="{{ _('Select %(name)s', name=u['username']) }}"></td>
-      <td class="name"><a class="user-cell" href="{{ url_for('admin.user_edit', user_id=u['id']) }}">{{ avatar(u) }}
+      <td class="name"><a class="user-cell" href="{{ url_for('admin.user_edit', user_uid=u['uid']) }}">{{ avatar(u) }}
         <span><strong>{{ u['display_name'] or u['username'] }}</strong>{% if u['display_name'] and u['display_name'] != u['username'] %}<span class="muted small">{{ u['username'] }}</span>{% endif %}</span></a></td>
       <td><span class="badge badge-src badge-src-{{ u['source'] }}">{{ SOURCE_LABELS[u['source']] }}</span></td>
       <td><span class="badge badge-{{ u['role'] }}">{{ ROLE_LABELS[u['role']] }}</span></td>
@@ -63,7 +63,7 @@
       <td class="small">{{ u['last_login']|datetime }}</td>
       <td class="actions">
         {% if u['id'] != current_user['id'] %}
-        <form method="post" action="{{ url_for('admin.user_status', user_id=u['id']) }}" class="inline{% if u['enabled'] %} js-confirm{% endif %}"
+        <form method="post" action="{{ url_for('admin.user_status', user_uid=u['uid']) }}" class="inline{% if u['enabled'] %} js-confirm{% endif %}"
               {% if u['enabled'] %}data-confirm="{{ _('Disable «%(name)s»? They will not be able to sign in, not even with %(source)s.', name=u['username'], source=SOURCE_LABELS[u['source']]) }}"{% endif %}>
           <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
           <input type="hidden" name="enabled" value="{{ '0' if u['enabled'] else '1' }}">
@@ -71,7 +71,7 @@
           <button class="btn btn-small{% if u['enabled'] %} btn-danger{% endif %}" type="submit">{{ _("Disable") if u['enabled'] else _("Enable") }}</button>
         </form>
         {% endif %}
-        <a class="btn btn-small" href="{{ url_for('admin.user_edit', user_id=u['id']) }}">{{ _("Edit") }}</a>
+        <a class="btn btn-small" href="{{ url_for('admin.user_edit', user_uid=u['uid']) }}">{{ _("Edit") }}</a>
       </td>
     </tr>
     {% else %}

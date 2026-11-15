@@ -18,7 +18,7 @@ Según [0005](0005-ajustes-web-sqlite.md), los ajustes web ganaban sobre `config
 - **Bloqueo.** Lo que fijan `config.json` o una variable está **bloqueado** en la web: se muestra con su origen y no se puede cambiar ni restablecer. Los formularios lo desactivan y `RuntimeSettings.save` lo descarta. Los cambios hechos por código (matriz, carpetas, logo, Entra ID) usan `strict` y fallan con un mensaje que dice dónde está fijado.
 - **Variables de entorno.** `STORAGEWEB_` + la ruta en mayúsculas con `__` entre niveles; listas y objetos en JSON. Se mantienen como alias los nombres cortos de Docker. Se leen en cada arranque.
 - **Lo que se guarda.** Los ajustes web son la diferencia mínima con los **valores predeterminados**, sin los campos bloqueados. *Restablecer* vuelve al predeterminado. La web marca como **modificado** lo que no es predeterminado y lo cuenta por página.
-- **Perfiles.** `settings_profile` elige la clave de la tabla `settings` (`runtime` para `default`, `runtime:<perfil>` para los demás). Así varias instancias pueden compartir base de datos con ajustes distintos, como con varios `config.json`.
+- **Perfiles.** `settings_profile` elige la clave de la tabla `settings` (`runtime` para `default`, `runtime:<perfil>` para los demás). Así varias instancias pueden compartir base de datos con ajustes distintos, como con varios `config.json`. *(Desde la [0017](0017-ajustes-web-por-campo.md), el perfil es una columna de `settings_values`, con una fila por campo.)*
 - **Ficheros mínimos.** El `config.json` de los paquetes y el que genera Docker solo llevan lo de arranque y la plantilla de las carpetas personales.
 
 ## Alternativas consideradas

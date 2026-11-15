@@ -15,10 +15,12 @@ from ....db.repositories import sessions as session_repo
 from ....i18n import LOCALES, _, _l, locale_display_name
 from ....settings import PERMISSIONS, ROLES, ConfigError, fields, get_path, mask_secrets, runtime_view
 from ... import nav
-from ...context import boot_config, get_db, invalidate_settings, runtime, settings
+from ...context import boot_config, external_url, get_db, invalidate_settings, runtime, settings
 from ...guards import admin_required, audit_event, client_ip, safe_next
 from . import bp
 from . import auth_forms
+from ....settings import store as settings_store
+from ...forms import split_list
 from .common import checked, form_int, network_context, save_partial
 
 
@@ -32,7 +34,7 @@ SECTION_DESCRIPTIONS = {
     "auth": _l("How users sign in. Several methods can be enabled at the same time."),
     "security": _l("Protection against password guessing, automatic IP blocking and API tokens."),
     "ips": _l("Addresses blocked by hand or automatically, and addresses that are never blocked."),
-    "maintenance": _l("How long the audit log is kept and how often backups are made."),
+    "maintenance": _l("How long the audit log is kept, how often backups are made and the metrics for monitoring."),
     "backups": _l("Backups, database size and cleanup tasks."),
     "sessions": _l("Who is signed in now and which API tokens exist. Closing a session signs that browser out on its "
                    "next request."),
@@ -59,6 +61,7 @@ def _storage() -> dict:
         "create_home": checked("create_home"), "create_shares": checked("create_shares"), "show_hidden": checked("show_hidden"),
         "max_file_size_mb": form_int("max_file_size_mb", "storage.max_file_size_mb", _("Maximum size per file")),
         "home_quota_mb": form_int("home_quota_mb", "storage.home_quota_mb", _("Quota of personal folders (MB)")),
+        "quota_enforce": checked("quota_enforce"),
         "hidden": [line.strip() for line in request.form.get("hidden", "").splitlines() if line.strip()],
     }}
 
@@ -91,6 +94,10 @@ def _maintenance() -> dict:
         "backup_interval_hours": form_int("backup_interval_hours", "maintenance.backup_interval_hours",
                                       _("Automatic backups")),
         "backup_keep": form_int("backup_keep", "maintenance.backup_keep", _("Backups to keep")),
+    }, "metrics": {
+        "enabled": checked("metrics_enabled"),
+        "token": request.form.get("metrics_token", "").strip(),  # vacío = conservar el que hay
+        "allowed_networks": split_list(request.form.get("metrics_allowed_networks", "")),
     }}
 
 
@@ -120,14 +127,19 @@ def _context(section: str, cfg: dict) -> dict:
         "info": info, "locales": [(code, locale_display_name(code)) for code in LOCALES],
         "permissions": PERMISSIONS, "PERMISSION_LABELS": PERMISSION_LABELS,
         "ROLES": ROLES, "ROLE_LABELS": ROLE_LABELS,
+        "metrics_token_set": bool(settings()["metrics"]["token"]),
+        "metrics_url": external_url("metrics.metrics_page"),
     }
 
 
 def _origin_rows(origins: dict) -> list[dict]:
-    """Campos que no tienen su valor predeterminado (o que están bloqueados), con su origen y su página."""
+    """Campos que no tienen su valor predeterminado (o que están bloqueados), con su origen, su página y, los
+    guardados desde la web, quién y cuándo los cambió."""
     order = {"env": 0, "file": 1, "web": 2}
+    changes = runtime().changes(get_db())
     return [{"path": path, "label": fields.label(path), "origin": origin,
              "value": fields.display(path, get_path(settings(), path)),
+             "changed": changes.get(path) if origin == "web" else None,
              "url": nav.PAGES[nav.page_for_path(path)].url() + "#f-" + path.replace(".", "-")}
             for path, origin in sorted(origins.items(), key=lambda item: (order[item[1]], item[0]))]
 
@@ -141,7 +153,8 @@ def _render(section: str, cfg: dict, status: int = 200, error: ConfigError | Non
                          "behind_proxy": boot["server"]["behind_proxy"],
                          "cookie_secure": boot["session"]["cookie_secure"]},
                    effective_json=json.dumps(mask_secrets(runtime_view(settings())), indent=2, ensure_ascii=False),
-                   origin_rows=_origin_rows(ctx["origins"]), info=ctx["info"])
+                   origin_rows=_origin_rows(ctx["origins"]), info=ctx["info"],
+                   profiles=settings_store.profiles(get_db()))
     if section == "network":
         ctx.update(network_context(cfg))
     if section == "ips":

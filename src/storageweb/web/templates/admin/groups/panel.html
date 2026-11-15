@@ -19,7 +19,7 @@
     <ul>
       {% for gr in groups %}
       <li><a class="md-item{% if current and gr['id'] == current['id'] %} active{% endif %}"
-             href="{{ url_for('groups.panel_view', g=gr['id'], tab=tab, q=search or None) }}"
+             href="{{ url_for('groups.panel_view', g=gr['uid'], tab=tab, q=search or None) }}"
              {% if current and gr['id'] == current['id'] %}aria-current="true"{% endif %}>
         <span class="md-item-text"><strong>{{ (gr|group_label) }}</strong>
           <span class="muted small">{{ gr['name'] }} · {{ ngettext("%(num)s member", "%(num)s members", gr['members']) }}</span></span>
@@ -33,14 +33,14 @@
 
   <section class="md-detail">
     {% if current %}
-    {% set here = url_for('groups.panel_view', g=current['id'], tab=tab) %}
+    {% set here = url_for('groups.panel_view', g=current['uid'], tab=tab) %}
     <div class="page-head">
       <div>
         <div class="inline"><h2 class="md-title">{{ (current|group_label) }}</h2>{{ source_badge(current['source']) }}</div>
         <p class="muted small"><code>{{ current['name'] }}</code>{% if (current|group_description) %} · {{ (current|group_description) }}{% endif %}</p>
       </div>
       {% if current['builtin'] %}<span class="badge"><svg class="icon icon-xs" aria-hidden="true"><use href="#i-lock"></use></svg> {{ _("Built-in group") }}</span>{% else %}
-      <form method="post" action="{{ url_for('groups.delete', group_id=current['id']) }}" class="inline js-confirm"
+      <form method="post" action="{{ url_for('groups.delete', group_uid=current['uid']) }}" class="inline js-confirm"
             data-confirm="{{ _('Delete the group «%(name)s»?', name=(current|group_label)) }}">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
         <button class="btn btn-small btn-danger" type="submit">{{ _("Delete") }}</button>
@@ -48,9 +48,9 @@
     </div>
 
     <nav class="tabs" aria-label="{{ _('Sections of the group') }}">
-      <a class="tab{% if tab == 'members' %} active{% endif %}" href="{{ url_for('groups.panel_view', g=current['id'], tab='members') }}"{% if tab == 'members' %} aria-current="page"{% endif %}>{{ _("Members (%(count)s)", count=members|length) }}</a>
-      <a class="tab{% if tab == 'shares' %} active{% endif %}" href="{{ url_for('groups.panel_view', g=current['id'], tab='shares') }}"{% if tab == 'shares' %} aria-current="page"{% endif %}>{{ _("Folders (%(count)s)", count=shares|length) }}</a>
-      <a class="tab{% if tab == 'link' %} active{% endif %}" href="{{ url_for('groups.panel_view', g=current['id'], tab='link') }}"{% if tab == 'link' %} aria-current="page"{% endif %}>{{ _("Settings") }}</a>
+      <a class="tab{% if tab == 'members' %} active{% endif %}" href="{{ url_for('groups.panel_view', g=current['uid'], tab='members') }}"{% if tab == 'members' %} aria-current="page"{% endif %}>{{ _("Members (%(count)s)", count=members|length) }}</a>
+      <a class="tab{% if tab == 'shares' %} active{% endif %}" href="{{ url_for('groups.panel_view', g=current['uid'], tab='shares') }}"{% if tab == 'shares' %} aria-current="page"{% endif %}>{{ _("Folders (%(count)s)", count=shares|length) }}</a>
+      <a class="tab{% if tab == 'link' %} active{% endif %}" href="{{ url_for('groups.panel_view', g=current['uid'], tab='link') }}"{% if tab == 'link' %} aria-current="page"{% endif %}>{{ _("Settings") }}</a>
     </nav>
 
     {% if tab == 'members' %}
@@ -62,7 +62,7 @@
     {% elif current['builtin'] %}
       <p class="muted">{{ current|group_description }} {{ _("It comes with StorageWeb: it cannot be edited or deleted. Shared folders can use it with the identifier %(name)s.", name=current['name']) }}</p>
     {% else %}
-      <form method="post" action="{{ url_for('groups.edit', group_id=current['id']) }}" class="form-grid">
+      <form method="post" action="{{ url_for('groups.edit', group_uid=current['uid']) }}" class="form-grid">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
         <input type="hidden" name="next" value="{{ here }}">
         {{ group_fields(form, current, from_directory) }}

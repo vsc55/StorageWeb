@@ -18,17 +18,21 @@ def init_web(app: Flask) -> None:
     from .background import maintenance_tick
     from .context import close_db
     from .errors import register_error_handlers
-    from .guards import (check_csrf, ip_gate, load_current_user, reset_request_locale, select_locale,
-                         set_security_headers)
+    from .guards import (check_csrf, ip_gate, load_current_user, maintenance_gate, reset_request_locale,
+                         select_locale, set_security_headers)
     from .templating import init_templating
+    from .views.metrics import count_request, start_timer
 
     # El orden importa: primero el usuario y su idioma, para que hasta el error de CSRF salga traducido
+    app.before_request(start_timer)
+    app.before_request(maintenance_gate)
     app.before_request(ip_gate)
     app.before_request(load_current_user)
     app.before_request(select_locale)
     app.before_request(check_csrf)
     app.before_request(maintenance_tick)
     app.after_request(set_security_headers)
+    app.after_request(count_request)
     app.teardown_request(reset_request_locale)
     app.teardown_appcontext(close_db)
     init_templating(app)
@@ -38,8 +42,9 @@ def init_web(app: Flask) -> None:
 
 def register_blueprints(app: Flask) -> None:
     from .api import health, uploads
-    from .views import access, admin, auth, brand, connect, dav, files, groups, locations, profile, settings
+    from .views import (access, admin, auth, brand, connect, dav, files, groups, locations, metrics, profile,
+                        settings)
 
     for module in (auth, files, admin, groups, access, locations, settings, brand, profile, connect, uploads, health,
-                   dav):
+                   dav, metrics):
         app.register_blueprint(module.bp)

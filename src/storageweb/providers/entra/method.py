@@ -60,7 +60,6 @@ CONFIG = AuthConfig(
         "tenant_id": "",
         "client_id": "",
         "client_secret": "",
-        "redirect_uri": "",
         "scopes": ["User.Read"],
         # Vacío = texto traducido por defecto ("Iniciar sesión con Microsoft")
         "button_label": "",
@@ -105,10 +104,6 @@ CONFIG = AuthConfig(
                            words="entra aplicación app client"),
         "client_secret": Field(doc="Secreto del registro de aplicación. Nunca se muestra en la web.",
                                label="Client secret", page="auth", words="entra secreto secret contraseña"),
-        "redirect_uri": Field(
-            doc=("URL de vuelta registrada en Entra ID, p. ej. `https://files.midominio.com/auth/entra/callback`. "
-                 "Vacía = se calcula a partir de la petición."),
-            label="Redirect URI", page="auth", words="entra redirección callback"),
         "scopes": Field(doc="Scopes adicionales a `openid profile email`.", label=_l("Additional scopes"),
                         page="auth", form=lambda value: " ".join(map(str, value))),
         "button_label": Field(
@@ -190,6 +185,9 @@ class EntraDirectory(GroupDirectory):
 
     def search(self, text: str) -> list[dict]:
         return directory.search_groups(self.section, text)
+
+    def clear_cache(self) -> None:
+        directory.clear_cache()
 
 
 def secret_days(section: dict) -> int | None:
@@ -292,10 +290,11 @@ class EntraMethod(AuthMethod):
                        _("Renew the secret"), "f-auth-entra-secret_expires")]
 
     def network_notes(self, section: dict, public_url: str) -> list[tuple[str, str]]:
-        uri = section.get("redirect_uri")
-        if uri and public_url and not uri.startswith(public_url + "/"):
-            return [("warn", _("The Entra ID redirect URI (%(uri)s) does not use the public address.", uri=uri))]
-        return []
+        if public_url:
+            return []
+        return [("warn", _("Without a public address, the Entra ID return address depends on the name each person "
+                           "uses to reach the server, and each one must be registered in Entra ID. Set the public "
+                           "address."))]
 
     def directory(self, section: dict) -> GroupDirectory:
         return EntraDirectory(section)

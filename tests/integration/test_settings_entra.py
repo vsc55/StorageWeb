@@ -42,7 +42,7 @@ def test_wizard_end_to_end(app, admin_client, check_ok):
     assert resp.location.endswith("step=4")
 
     html = client.get("/admin/settings/entra/setup?step=4").get_data(as_text=True)
-    assert check_ok == [("t1", "https://files.example.com/auth/entra/callback")]
+    assert check_ok == [("t1", "http://localhost/auth/entra/callback")]   # calculada, no guardada
     assert "La Redirect URI no está registrada." in html and "¿Activar Entra ID de todos modos?" in html
 
     resp = client.post("/admin/settings/entra/setup", data={"_csrf": token, "step": "4"})
@@ -103,3 +103,24 @@ def test_new_secret_is_rechecked_automatically(app, admin_client, monkeypatch):
         sess["entra_secret_at"] = 0
     client.get("/admin/settings/entra/setup?step=4")
     assert seen[-1] is False
+
+
+
+def test_redirect_uri_is_never_stored(make_app):
+    """La dirección de vuelta se calcula siempre de network.public_url (o de la dirección con la que se entra): ni
+    se edita ni se guarda."""
+    from tests.helpers import update_settings
+    app = make_app({"network": {"public_url": "https://files.example.com"}})
+    add_user(app, "root", role="admin")
+    client = app.test_client()
+    login(client, "root")
+    page = client.get("/admin/settings/auth").get_data(as_text=True)
+    assert 'name="entra_redirect_uri"' not in page and 'value="https://files.example.com/auth/entra/callback"' in page
+    assert 'name="entra_redirect_uri"' not in client.get("/admin/settings/entra/setup?step=2").get_data(as_text=True)
+    update_settings(app, network={"public_url": "https://archivos.example.com"})   # cambia el FQDN: la sigue
+    assert "https://archivos.example.com/auth/entra/callback" in client.get("/admin/settings/auth").get_data(as_text=True)
+    update_settings(app, network={"public_url": ""})                                # sin FQDN: la del navegador
+    from storageweb.web.views.settings.entra import redirect_uri
+    with app.test_request_context("/", base_url="http://192.0.2.10:8080"):
+        assert redirect_uri() == "http://192.0.2.10:8080/auth/entra/callback"   # IP y puerto con los que se entró
+

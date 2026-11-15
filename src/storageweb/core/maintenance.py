@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -94,9 +96,71 @@ def backup_path(cfg: dict, name: str) -> Path | None:
     return path if path in backup.list_backups(backup_dir(cfg)) else None
 
 
-def create_backup(cfg: dict) -> Path:
-    keep = cfg["maintenance"]["backup_keep"]
+def create_backup(cfg: dict, prune: bool = True) -> Path:
+    keep = cfg["maintenance"]["backup_keep"] if prune else None
     return backup.create(cfg, backup_dir(cfg), keep=keep or None)
+
+
+# --------------------------------------------------------------------------- restaurar con el servicio en marcha
+
+_restoring = threading.Lock()
+RESTORING = threading.Event()   # mientras está puesto, la web responde 503 «en mantenimiento»
+SAFETY_PREFIX = "antes-de-restaurar"
+
+
+def add_backup(cfg: dict, upload: Path, filename: str) -> Path:
+    """Guarda una copia subida desde la web (de este u otro servidor) junto a las demás, si es válida."""
+    backup.check_restorable(upload)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    name = Path(filename or "").name
+    if not (name.startswith(backup.PREFIX) and name.endswith(backup.SUFFIX)) or "/" in name or "\\" in name:
+        name = f"{backup.PREFIX}subida-{stamp}{backup.SUFFIX}"
+    target = backup_dir(cfg) / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    n = 1
+    while target.exists():
+        target = backup_dir(cfg) / name.replace(backup.SUFFIX, f"-{n}{backup.SUFFIX}")
+        n += 1
+    shutil.copyfile(upload, target)
+    os.chmod(target, 0o600)  # contiene hashes de contraseñas y secretos
+    return target
+
+
+def restore_backup(conn_factory: Callable[[], Connection], cfg: dict, name: str, *, actor: str,
+                   ip: str | None = None) -> dict:
+    """Restaura la copia ``name`` con el servicio en marcha:
+
+    1. pone el servicio en mantenimiento (:data:`RESTORING`: el resto de peticiones reciben 503);
+    2. hace antes una copia de lo actual (no se borra en la rotación; queda en la lista para volver atrás);
+    3. sustituye la base de datos (``backup.restore_online``) y aplica las migraciones;
+    4. cierra todas las sesiones (las de la copia no deben revivir) y anota la restauración en la auditoría.
+
+    ``conn_factory`` abre una conexión nueva (la de la petición puede quedar vieja). Devuelve el manifiesto
+    con ``safety`` (el nombre de la copia previa). :class:`backup.BackupError` si no se puede.
+    """
+    path = backup_path(cfg, name)
+    if path is None:
+        raise backup.BackupError(_("The backup %(name)s does not exist.", name=name))
+    backup.check_restorable(path)
+    if not _restoring.acquire(blocking=False):
+        raise backup.BackupError(_("Another restore is already in progress."))
+    RESTORING.set()
+    try:
+        named = backup.create(cfg, backup_dir(cfg), keep=None, label=SAFETY_PREFIX)
+        manifest = backup.restore_online(cfg, path)
+        conn = conn_factory()
+        try:
+            closed = sessions.delete_all(conn)  # las de la copia no deben revivir
+            audit.log(conn, "backup_restored", name, username=actor, ip=ip,
+                      detail=f"schema {manifest.get('schema_version')}->{manifest.get('restored_schema_version')}; "
+                             f"safety {named.name}; sessions {closed}")
+        finally:
+            conn.close()
+        manifest["safety"] = named.name
+        return manifest
+    finally:
+        RESTORING.clear()
+        _restoring.release()
 
 
 # --------------------------------------------------------------------------- tareas periódicas

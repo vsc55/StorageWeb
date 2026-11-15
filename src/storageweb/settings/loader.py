@@ -10,6 +10,7 @@ puede cambiar. Combinar capas: ``layers.py``; variables de entorno: ``env.py``.
 from __future__ import annotations
 
 import copy
+import ipaddress
 import json
 import os
 import re
@@ -78,7 +79,8 @@ def _resolve(base_dir: Path, value: str) -> Path:
 
 def _field_path(field: str) -> str | None:
     """Ruta completa del ajuste a partir del nombre que usan los mensajes («storage.shares»)."""
-    if field.startswith(("storage.", "security.", "auth.", "network.", "server.", "maintenance.", "branding.")):
+    if field.startswith(("storage.", "security.", "auth.", "network.", "server.", "maintenance.", "branding.",
+                         "metrics.")):
         return field
     return "storage.shares" if "." in field else None
 
@@ -136,6 +138,7 @@ def _locations(items) -> list[dict]:
             raise ConfigError(_("Storage location %(name)s: the type must be one of: %(values)s", name=repr(name),
                                 values=", ".join(location_types.kinds())), "storage.locations")
         loc = schema.normalize(item, name)
+        loc["origin"] = item.get("origin", "file")
         result.append(loc)
     return result
 
@@ -168,14 +171,63 @@ def _positive_int(value, field: str) -> int:
     return number
 
 
+ENTITY_KEYS = ("shares", "locations", "group_quotas")  # storage.<clave>: entidades, no ajustes (tienen tabla)
+CONFIG_ORIGINS = ("file", "env")
+
+
+def _split_entities(overrides: dict | None) -> tuple[dict | None, dict]:
+    """Las carpetas, ubicaciones y cuotas de grupo que llegan con los ajustes web son las de la web (las de
+    config.json o el entorno que vengan mezcladas, con su ``origin``, se descartan: salen de su fichero)."""
+    if not overrides or not isinstance(overrides.get("storage"), dict):
+        return overrides, {}
+    overrides = copy.deepcopy(overrides)
+    web = {key: overrides["storage"].pop(key) for key in ENTITY_KEYS if key in overrides["storage"]}
+    for key in ("shares", "locations"):
+        if key in web:
+            if not isinstance(web[key], list):
+                raise ConfigError(_("storage.%(key)s must be a list", key=key), f"storage.{key}")
+            web[key] = [item for item in web[key]
+                        if not (isinstance(item, dict) and item.get("origin") in CONFIG_ORIGINS)]
+    return overrides, web
+
+
+def _combine_entities(cfg: dict, file_cfg: dict, env_cfg: dict | None, web: dict) -> None:
+    """Las de config.json o del entorno (de solo lectura, con su ``origin``) y después las de la web; si un nombre
+    está en las dos, manda la de config.json."""
+    storage = cfg["storage"]
+    for key in ("shares", "locations"):
+        origin = "env" if (env_cfg or {}).get("storage", {}).get(key) is not None else "file"
+        items = storage.get(key) or []
+        if not isinstance(items, list):
+            raise ConfigError(_("storage.%(key)s must be a list", key=key), f"storage.{key}")
+        config_items = [{**item, "origin": origin} if isinstance(item, dict) else item for item in items]
+        names = {str(i.get("name", "")).strip().lower() for i in config_items if isinstance(i, dict)}
+        web_items = [{**item, "origin": "web"} for item in web.get(key, []) if isinstance(item, dict)
+                     and str(item.get("name", "")).strip().lower() not in names]
+        storage[key] = config_items + web_items
+    config_quotas = storage.get("group_quotas") or {}
+    if not isinstance(config_quotas, dict):
+        raise ConfigError(_("storage.group_quotas must be an object {group: MB}"), "storage.group_quotas")
+    web_quotas = web.get("group_quotas") or {}
+    if not isinstance(web_quotas, dict):
+        raise ConfigError(_("storage.group_quotas must be an object {group: MB}"), "storage.group_quotas")
+    storage["group_quotas"] = {**web_quotas, **config_quotas}
+
+
 def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env_cfg: dict | None = None) -> dict:
-    """Combina DEFAULTS < ajustes web < config.json < entorno, resuelve rutas y valida."""
+    """Combina DEFAULTS < ajustes web < config.json < entorno, resuelve rutas y valida.
+
+    Las carpetas compartidas, ubicaciones y cuotas de grupo no se combinan campo a campo: son entidades. Las de
+    config.json o del entorno (``origin`` = ``file``/``env``, de solo lectura) van primero y las de la web
+    (``origin`` = ``web``, en ``overrides``) después."""
+    overrides, web_entities = _split_entities(overrides)
     cfg = copy.deepcopy(DEFAULTS)
     if overrides:
         cfg = _apply_overrides(cfg, overrides)
     cfg = merge_overrides(cfg, file_cfg)
     if env_cfg:
         cfg = merge_overrides(cfg, env_cfg)
+    _combine_entities(cfg, file_cfg, env_cfg, web_entities)
     base_dir = cfg_path.resolve().parent
     cfg["_config_path"] = str(cfg_path)
 
@@ -210,6 +262,12 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
         raise ConfigError(str(exc), "storage.hidden") from exc
     storage["max_file_size_mb"] = _non_negative_int(storage["max_file_size_mb"], "storage.max_file_size_mb")
     storage["home_quota_mb"] = _non_negative_int(storage.get("home_quota_mb", 0), "storage.home_quota_mb")
+    storage["quota_enforce"] = bool(storage.get("quota_enforce", True))
+    group_quotas = storage.get("group_quotas") or {}
+    if not isinstance(group_quotas, dict):
+        raise ConfigError(_("storage.group_quotas must be an object {group: MB}"), "storage.group_quotas")
+    storage["group_quotas"] = {str(k).strip().lower(): _non_negative_int(v, "storage.group_quotas")
+                               for k, v in group_quotas.items() if str(k).strip()}
 
     seen = {"home"}
     shares = []
@@ -241,6 +299,7 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
             "groups": [g.lower() for g in _str_list(share.get("groups", []), f"{name}.groups")],
             "read_only_groups": [g.lower() for g in _str_list(share.get("read_only_groups", []),
                                                               f"{name}.read_only_groups")],
+            "origin": share.get("origin", "file"),  # file | env (solo lectura) | web (tabla shares)
         })
     storage["shares"] = shares
 
@@ -280,6 +339,21 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
                                                        "maintenance.backup_interval_hours")
     maint["backup_keep"] = _positive_int(maint["backup_keep"], "maintenance.backup_keep")
 
+    # --- métricas
+    metrics = cfg["metrics"]
+    metrics["enabled"] = bool(metrics.get("enabled"))
+    metrics["token"] = str(metrics.get("token") or "").strip()
+    if metrics["token"] and len(metrics["token"]) < 16:
+        raise ConfigError(_("metrics.token must be at least 16 characters long"), "metrics.token")
+    networks = []
+    for item in _str_list(metrics.get("allowed_networks") or [], "metrics.allowed_networks"):
+        try:
+            networks.append(str(ipaddress.ip_network(item, strict=False)))
+        except ValueError as exc:
+            raise ConfigError(_("metrics.allowed_networks: %(value)s is not an IP address or network", value=item),
+                              "metrics.allowed_networks") from exc
+    metrics["allowed_networks"] = networks
+
     # --- marca
     brand = cfg["branding"]
     brand["primary_color"] = str(brand.get("primary_color") or "").strip().lower()
@@ -298,9 +372,28 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
 
 
 def load_config(path: str | os.PathLike | None = None, overrides: dict | None = None, environ=None) -> dict:
-    """Configuración efectiva: config.json + variables de entorno (+ ajustes web si se pasan)."""
+    """Configuración efectiva: config.json + variables de entorno (+ ajustes web si se pasan). Los secretos
+    cifrados (``enc:v1:…``) se descifran con la clave de ``secretbox`` si la hay."""
+    from . import secretbox  # noqa: PLC0415 (secretbox importa de aquí)
     file_cfg, cfg_path = read_config_file(path)
-    return normalize(file_cfg, cfg_path, overrides, env_config(environ))
+    env_cfg = env_config(environ)
+    if any(secretbox.is_encrypted(v) for v in _all_strings((file_cfg, env_cfg))):
+        data_dir = normalize(file_cfg, cfg_path, None, env_cfg)["data_dir"]
+        key = secretbox.load_key(data_dir, environ, create=False)
+        file_cfg = secretbox.decrypt_layer(key, file_cfg, "config.json")
+        env_cfg = secretbox.decrypt_layer(key, env_cfg, "STORAGEWEB_*")
+    return normalize(file_cfg, cfg_path, overrides, env_cfg)
+
+
+def _all_strings(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from _all_strings(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _all_strings(item)
 
 
 def ensure_secret_key(cfg: dict) -> str:

@@ -200,7 +200,8 @@ class SyncEngine {
       actions = actions.map((a) => a.type === "deleteLocal" ? { ...a, type: "upload" }
         : a.type === "deleteRemote" ? { ...a, type: "download" } : a);
     }
-    const summary = { uploaded: 0, downloaded: 0, deletedLocal: 0, deletedRemote: 0, hidden: 0,
+    // `noSpace`: el servidor no tiene cuota (o disco) para lo que falta por subir: se para y se avisa
+    const summary = { uploaded: 0, downloaded: 0, deletedLocal: 0, deletedRemote: 0, hidden: 0, noSpace: "",
       /** @type {{path: string, copy: string}[]} */ conflicts: [], /** @type {{path: string, error: string}[]} */ errors: [] };
     let done = 0, saved = Date.now();
     for (const action of actions) {
@@ -216,6 +217,10 @@ class SyncEngine {
         summary.errors.push({ path: action.path, error: message });
         this.log(`! ${action.type} ${action.path}: ${message}`);
         if (err instanceof DavError && (err.status === 0 || err.status === 401)) break;  // sin red o sin acceso
+        if (err instanceof DavError && err.status === 507) {   // sin cuota: el resto de subidas fallaría igual
+          summary.noSpace = err.reason || message;
+          break;
+        }
       }
     }
     await this.store.save(state);

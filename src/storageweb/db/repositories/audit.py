@@ -6,13 +6,16 @@ import sqlite3
 from sqlite3 import Connection
 
 from ..connection import now_iso
+from ... import metrics
 
 _log = logging.getLogger(__name__)
 
 
 def log(conn: Connection, action: str, target: str | None = None, *, username: str | None = None,
         ip: str | None = None, detail: str | None = None) -> None:
-    """Registra un evento. Nunca lanza excepciones: la auditoría no debe romper la operación."""
+    """Registra un evento. Nunca lanza excepciones: la auditoría no debe romper la operación. Cada evento suma
+    también en la métrica ``storageweb_events_total`` (inicios de sesión, fallos, subidas, descargas…)."""
+    metrics.inc("storageweb_events_total", action=action)
     try:
         conn.execute(
             "INSERT INTO audit_log (ts, username, action, target, ip, detail) VALUES (?, ?, ?, ?, ?, ?)",

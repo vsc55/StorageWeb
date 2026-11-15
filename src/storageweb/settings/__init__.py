@@ -14,11 +14,12 @@ from .errors import ConfigError
 from .layers import (deep_merge, diff_overrides, drop_path, get_path, leaf_paths, merge_overrides, runtime_part,
                      runtime_view)
 from .loader import default_config_path, ensure_secret_key, load_config, mask_secrets, normalize, read_config_file
-from .runtime import ORIGINS, RUNTIME_KEY, RuntimeSettings, runtime_key
+from .runtime import ORIGINS, RuntimeSettings
+from . import store
 
 __all__ = [
-    "DEFAULTS", "ENV_ALIASES", "is_secret", "ORIGINS", "PERMISSIONS", "ROLES", "RUNTIME_KEY", "RUNTIME_SECTIONS", "SECRET_PATHS",
+    "DEFAULTS", "ENV_ALIASES", "is_secret", "ORIGINS", "PERMISSIONS", "ROLES", "RUNTIME_SECTIONS", "SECRET_PATHS",
     "ConfigError", "RuntimeSettings", "deep_merge", "default_config_path", "diff_overrides", "drop_path",
     "ensure_secret_key", "env_config", "env_name", "fields", "get_path", "leaf_paths", "load_config", "mask_secrets",
-    "merge_overrides", "normalize", "read_config_file", "runtime_key", "runtime_part", "runtime_view", "setting_paths",
+    "merge_overrides", "normalize", "read_config_file", "runtime_part", "runtime_view", "setting_paths",
 ]

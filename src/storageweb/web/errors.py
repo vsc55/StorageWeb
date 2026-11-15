@@ -32,8 +32,11 @@ def _render_error(code: int, name, description: str | None):
 def register_error_handlers(app: Flask) -> None:
     @app.errorhandler(HTTPException)
     def handle_http_error(exc: HTTPException):
-        if request.blueprint == "dav":  # WebDAV: solo el código, sin la página (los clientes no la muestran)
-            return Response(f"{exc.code} {exc.name}", exc.code, mimetype="text/plain")
+        if request.blueprint == "dav":  # WebDAV: el código en texto, sin la página (los clientes no la muestran)
+            body = f"{exc.code} {exc.name}"
+            if exc.description and exc.description != type(exc).description:
+                body += f"\n{exc.description}"  # p. ej. por qué no cabe en la cuota (lo muestra la extensión)
+            return Response(body, exc.code, mimetype="text/plain")
         # Si la descripción es la genérica de Werkzeug (en inglés), se usa la traducida
         description = exc.description
         if description == type(exc).description:

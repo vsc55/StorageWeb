@@ -11,12 +11,29 @@
 class DavError extends Error {
   /**
    * `hidden`: el servidor oculta esa ruta para todos (`storage.hidden`): ni existe ni se puede crear.
-   * @param {number} status @param {string} message @param {boolean} [hidden]
+   * `reason`: el motivo que da el servidor (p. ej. por qué no cabe en la cuota, con el 507).
+   * @param {number} status @param {string} message @param {boolean} [hidden] @param {string} [reason]
    */
-  constructor(status, message, hidden = false) {
-    super(message);
+  constructor(status, message, hidden = false, reason = "") {
+    super(reason ? `${message}: ${reason}` : message);
     this.status = status;
     this.hidden = hidden;
+    this.reason = reason;
+  }
+}
+
+/**
+ * El motivo que StorageWeb da en texto tras la primera línea («507 Insufficient Storage\n<motivo>»): sin cuota o
+ * archivo demasiado grande. Solo en esos casos (es lo que la persona tiene que saber), y corto.
+ * @param {Response} resp @returns {Promise<string>}
+ */
+async function reasonOf(resp) {
+  if (resp.status !== 507 && resp.status !== 413) return "";
+  try {
+    const text = (await resp.text()).slice(0, 1000);
+    return text.split("\n").slice(1).join(" ").trim();
+  } catch {
+    return "";
   }
 }
 
@@ -128,7 +145,7 @@ class DavClient {
     if (!ok.includes(resp.status)) {
       const hidden = resp.headers.get(HIDDEN_HEADER) === "1";
       throw new DavError(resp.status, `${method} ${path}: HTTP ${resp.status}${hidden ? " (hidden on the server)" : ""}`,
-        hidden);
+        hidden, await reasonOf(resp));
     }
     return resp;
   }

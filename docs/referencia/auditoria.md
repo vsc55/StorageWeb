@@ -69,6 +69,9 @@ Cada acción relevante se guarda en la tabla `audit_log`. Se puede consultar en 
 | `backup_created` | Copia de seguridad creada (web o automática) | `web` o `auto` |
 | `backup_downloaded` | Copia de seguridad descargada desde la web |  |
 | `backup_deleted` | Copia de seguridad borrada desde la web |  |
+| `backup_uploaded` | Copia de seguridad subida desde la web (de este u otro servidor) | Tamaño en bytes |
+| `backup_restored` | Copia restaurada desde la web (en la base de datos restaurada) | Versión del esquema, copia previa y sesiones cerradas |
+| `secrets_key_rotated` | Clave de los secretos cambiada con `rotate-secrets-key` (*usuario* = `cli`) | Juegos de ajustes vueltos a cifrar |
 | `backup_failed` | Falló una copia automática | Error |
 | `branding_logo_updated` | Logo propio subido | Fichero |
 | `branding_logo_removed` | Logo propio quitado |  |

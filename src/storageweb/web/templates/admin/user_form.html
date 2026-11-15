@@ -79,7 +79,7 @@
   <label>{{ _("Quota (MB)") }}
     <input type="number" name="quota_mb" min="0" value="{{ '' if form.quota_mb is none else form.quota_mb }}"
            placeholder="{{ _('default: %(mb)s', mb=default_quota_mb) if default_quota_mb else _('default: no quota') }}">
-    <small class="muted">{{ _("Empty = the default one; 0 = no quota. It only warns.") }}</small></label>
+    <small class="muted">{{ _("Empty = the one of their groups or the default one; 0 = no quota.") }}</small></label>
   <div class="field">
     <span class="label">{{ _("In use") }}</span>
     <span>{{ ('≥ ' if not home_usage.complete else '') ~ home_usage.used }}{% if home_quota %} · {{ _("%(percent)s%% of the quota", percent=home_quota.percent) }}{% endif %}</span>
@@ -129,7 +129,7 @@
         {% endif %}
       </p>
     </div>
-    <form method="post" action="{{ url_for('admin.user_status', user_id=user['id']) }}" class="inline{% if user['enabled'] %} js-confirm{% endif %}"
+    <form method="post" action="{{ url_for('admin.user_status', user_uid=user['uid']) }}" class="inline{% if user['enabled'] %} js-confirm{% endif %}"
           {% if user['enabled'] %}data-confirm="{{ _('Disable «%(name)s»? They will not be able to sign in, not even with %(source)s.', name=user['username'], source=SOURCE_LABELS[user['source']]) }}"{% endif %}>
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
       <input type="hidden" name="enabled" value="{{ '0' if user['enabled'] else '1' }}">
@@ -146,7 +146,7 @@
         {% endif %}
       </p>
     </div>
-    <form method="post" action="{{ url_for('admin.user_delete', user_id=user['id']) }}" class="inline js-confirm"
+    <form method="post" action="{{ url_for('admin.user_delete', user_uid=user['uid']) }}" class="inline js-confirm"
           data-confirm="{{ _('Delete the user «%(name)s»? Their files will not be removed.', name=user['username']) }}">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
       <button class="btn btn-danger" type="submit">{{ _("Delete user") }}</button>
@@ -180,14 +180,14 @@
       <li><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg>
         <span class="access-text"><strong>{{ t['name'] }}</strong>
           <span class="muted small"><code>{{ t['prefix'] }}…</code> · {{ t['scope'] }} · {{ _("last used %(when)s", when=t['last_used_at']|datetime) }}</span></span>
-        <form method="post" action="{{ url_for('settings.user_token_delete', user_id=user['id'], token_id=t['id']) }}" class="inline js-confirm"
+        <form method="post" action="{{ url_for('settings.user_token_delete', user_uid=user['uid'], token_id=t['id']) }}" class="inline js-confirm"
               data-confirm="{{ _('Revoke the token «%(name)s»?', name=t['name']) }}">
           <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
           <button class="link-btn small" type="submit">{{ _("Revoke") }}</button></form></li>
       {% endfor %}
     </ul>
     {% if user_sessions %}
-    <form method="post" action="{{ url_for('settings.user_sessions_close', user_id=user['id']) }}" class="inline">
+    <form method="post" action="{{ url_for('settings.user_sessions_close', user_uid=user['uid']) }}" class="inline">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
       <button class="btn btn-small" type="submit">{{ _("Close all their sessions") }}</button></form>
     {% endif %}

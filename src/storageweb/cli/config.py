@@ -56,10 +56,9 @@ def cmd_check_config(cfg, conn, args):
 @command("settings-reset", _l("Discard the settings saved from the web and go back to the default values"), order=120)
 def cmd_settings_reset(cfg, conn, args):
     """Vía de rescate si unos ajustes web dejan a todos sin poder entrar."""
-    from ..db.repositories import settings as settings_repo
-    from ..settings import runtime_key
+    from ..settings import store
 
-    settings_repo.put(conn, runtime_key(cfg["settings_profile"]), {}, "cli")
+    store.put_doc(conn, cfg["settings_profile"], {}, "cli")
     audit.log(conn, "settings_reset", username="cli", detail=cfg["settings_profile"])
     print(_("Web settings of the profile %(profile)s discarded: the default values apply again, except what "
             "config.json and the environment set (the service notices on the next request).",

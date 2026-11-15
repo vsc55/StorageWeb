@@ -28,6 +28,6 @@ def token_endpoint(monkeypatch):
 
 @pytest.fixture
 def entra_app(make_app):
-    def _make(**entra):
-        return make_app({"auth": {"entra": entra_cfg(**entra)}})
+    def _make(**entra):  # la dirección de vuelta sale de la dirección pública
+        return make_app({"network": {"public_url": "https://files.ejemplo.com"}, "auth": {"entra": entra_cfg(**entra)}})
     return _make

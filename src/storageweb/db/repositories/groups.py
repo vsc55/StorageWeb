@@ -1,6 +1,7 @@
 """Repositorio de grupos y pertenencias (tablas ``groups`` y ``user_groups``)."""
 from __future__ import annotations
 
+import uuid
 from sqlite3 import Connection
 from typing import Iterable
 
@@ -19,6 +20,11 @@ _WITH_COUNTS = """
 
 def get_by_id(conn: Connection, group_id: int):
     return conn.execute("SELECT * FROM groups WHERE id = ?", (group_id,)).fetchone()
+
+
+def get_by_uid(conn: Connection, uid: str):
+    """Por el identificador público (el de las direcciones de la administración)."""
+    return conn.execute("SELECT * FROM groups WHERE uid = ?", (uid,)).fetchone()
 
 
 def get_by_name(conn: Connection, name: str):
@@ -51,8 +57,9 @@ def list_all(conn: Connection, search: str = "", source: str | None = None) -> l
 def create(conn: Connection, *, name: str, label: str, description: str = "", source: str = "local",
            external_id: str | None = None) -> int:
     cur = conn.execute(
-        "INSERT INTO groups (name, label, description, source, external_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-        (name, label, description or "", source, external_id or None, now_iso()))
+        "INSERT INTO groups (name, label, description, source, external_id, created_at, uid) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (name, label, description or "", source, external_id or None, now_iso(), str(uuid.uuid4())))
     conn.commit()
     return cur.lastrowid
 

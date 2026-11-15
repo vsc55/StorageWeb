@@ -52,15 +52,15 @@
     {% if m['origin'] == 'role' %}
     <span class="chip chip-role" title="{{ _('Given by the administrator role.') }}">
       <svg class="icon icon-sm" aria-hidden="true"><use href="#i-lock"></use></svg>
-      <a href="{{ url_for('groups.edit', group_id=m['id']) }}">{{ (m|group_label) }}</a> <span class="small">· {{ _("by role") }}</span></span>
+      <a href="{{ url_for('groups.edit', group_uid=m['uid']) }}">{{ (m|group_label) }}</a> <span class="small">· {{ _("by role") }}</span></span>
     {% elif m['origin'] == 'sync' %}
     <span class="chip chip-sync" title="{{ _('Comes from %(source)s and is updated on each sign-in.', source=SOURCE_LABELS[m['source']]) }}">
       <svg class="icon icon-sm" aria-hidden="true"><use href="#i-lock"></use></svg>
-      <a href="{{ url_for('groups.edit', group_id=m['id']) }}">{{ (m|group_label) }}</a> <span class="small">· {{ SOURCE_LABELS[m['source']] }}</span></span>
+      <a href="{{ url_for('groups.edit', group_uid=m['uid']) }}">{{ (m|group_label) }}</a> <span class="small">· {{ SOURCE_LABELS[m['source']] }}</span></span>
     {% else %}
     <span class="chip">
-      <a href="{{ url_for('groups.edit', group_id=m['id']) }}">{{ (m|group_label) }}</a>
-      <form method="post" action="{{ url_for('groups.member_remove', group_id=m['id'], user_id=user['id']) }}" class="inline">
+      <a href="{{ url_for('groups.edit', group_uid=m['uid']) }}">{{ (m|group_label) }}</a>
+      <form method="post" action="{{ url_for('groups.member_remove', group_uid=m['uid'], user_uid=user['uid']) }}" class="inline">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
         <input type="hidden" name="next" value="{{ next }}">
         <button class="chip-remove" type="submit" aria-label="{{ _('Remove from the group %(name)s', name=(m|group_label)) }}">×</button>
@@ -75,13 +75,13 @@
   {% if not memberships and not unknown_groups %}<span class="muted small">{{ _("No groups.") }}</span>{% endif %}
 </div>
 {% if addable_groups %}
-<form method="post" action="{{ url_for('admin.user_group_add', user_id=user['id']) }}" class="inline section-gap">
+<form method="post" action="{{ url_for('admin.user_group_add', user_uid=user['uid']) }}" class="inline section-gap">
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
   <input type="hidden" name="next" value="{{ next }}">
-  <label class="sr-only" for="add-group-{{ user['id'] }}">{{ _("Add to a group") }}</label>
-  <select name="group_id" id="add-group-{{ user['id'] }}" required>
+  <label class="sr-only" for="add-group-{{ user['uid'] }}">{{ _("Add to a group") }}</label>
+  <select name="group_uid" id="add-group-{{ user['uid'] }}" required>
     <option value="">{{ _("Add to a group…") }}</option>
-    {% for gr in addable_groups %}<option value="{{ gr['id'] }}">{{ (gr|group_label) }} ({{ gr['name'] }})</option>{% endfor %}
+    {% for gr in addable_groups %}<option value="{{ gr['uid'] }}">{{ (gr|group_label) }} ({{ gr['name'] }})</option>{% endfor %}
   </select>
   <button class="btn" type="submit">{{ _("Add") }}</button>
 </form>

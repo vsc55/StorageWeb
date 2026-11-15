@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: StorageWeb VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-15 20:05+0100\n"
+"POT-Creation-Date: 2026-11-15 22:58+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -242,6 +242,46 @@ msgid ""
 msgstr ""
 "Ajustes web del perfil %(profile)s descartados: vuelven los valores predeterminados, salvo lo que"
 " fijan config.json y el entorno (el servicio lo nota en la siguiente petición)."
+
+#: storageweb/cli/secrets.py
+msgid "The secret (if missing, it is asked without showing it)"
+msgstr "El secreto (si falta, se pide sin mostrarlo)"
+
+#: storageweb/cli/secrets.py
+msgid "Encrypt a secret to put it in config.json or in an environment variable"
+msgstr "Cifrar un secreto para ponerlo en config.json o en una variable de entorno"
+
+#: storageweb/cli/secrets.py
+msgid "Secret: "
+msgstr "Secreto: "
+
+#: storageweb/cli/secrets.py
+msgid "Nothing to encrypt."
+msgstr "No hay nada que cifrar."
+
+#: storageweb/cli/secrets.py
+msgid "Create a new key for the stored secrets and encrypt them again (service stopped)"
+msgstr "Crear una clave nueva para los secretos guardados y volver a cifrarlos (con el servicio parado)"
+
+#: storageweb/cli/secrets.py
+#, python-format
+msgid "%(count)s settings re-encrypted with a new key. Put it in %(env)s before starting the service:"
+msgstr ""
+"%(count)s juegos de ajustes vueltos a cifrar con una clave nueva. Ponla en %(env)s antes de "
+"arrancar el servicio:"
+
+#: storageweb/cli/secrets.py
+#, python-format
+msgid "New key saved in %(path)s; %(count)s settings re-encrypted. Start the service again."
+msgstr ""
+"Clave nueva guardada en %(path)s; %(count)s juegos de ajustes vueltos a cifrar. Vuelve a arrancar"
+" el servicio."
+
+#: storageweb/cli/secrets.py
+msgid "Secrets encrypted in config.json with the old key must be encrypted again with encrypt-secret."
+msgstr ""
+"Los secretos de config.json cifrados con la clave antigua hay que volver a cifrarlos con encrypt-"
+"secret."
 
 #: storageweb/cli/security.py
 msgid "List blocked and allowed IP addresses"
@@ -601,13 +641,13 @@ msgid "The backup is from a newer StorageWeb version: upgrade before restoring"
 msgstr "La copia es de una versión de StorageWeb más nueva: actualiza antes de restaurar"
 
 #: storageweb/core/backup.py
+msgid "The database in the backup is damaged"
+msgstr "La base de datos de la copia está dañada"
+
+#: storageweb/core/backup.py
 #, python-format
 msgid "%(path)s already exists; use --force to replace it"
 msgstr "Ya existe %(path)s; usa --force para reemplazarla"
-
-#: storageweb/core/backup.py
-msgid "The database in the backup is damaged"
-msgstr "La base de datos de la copia está dañada"
 
 #: storageweb/core/backup.py
 msgid "The backup does not include config.json"
@@ -737,7 +777,7 @@ msgstr "Esta pertenencia viene de %(source)s y se cambia allí."
 msgid "The group %(name)s is given by the administrator role; change the role instead."
 msgstr "El grupo %(name)s lo da el rol de administrador; cambia el rol en su lugar."
 
-#: storageweb/core/groups.py
+#: storageweb/core/groups.py storageweb/settings/store.py
 #, python-format
 msgid "The group %(name)s does not exist."
 msgstr "El grupo %(name)s no existe."
@@ -785,6 +825,15 @@ msgstr "Carpetas personales"
 #, python-format
 msgid "It is in use by: %(names)s. Move those folders to another location first."
 msgstr "La usan: %(names)s. Mueve antes esas carpetas a otra ubicación."
+
+#: storageweb/core/maintenance.py
+#, python-format
+msgid "The backup %(name)s does not exist."
+msgstr "La copia %(name)s no existe."
+
+#: storageweb/core/maintenance.py
+msgid "Another restore is already in progress."
+msgstr "Ya hay otra restauración en marcha."
 
 #: storageweb/core/maintenance.py
 msgid "Automatic backups are not being made"
@@ -912,6 +961,15 @@ msgstr "Renombrar"
 #: storageweb/web/templates/admin/settings/backups.html storageweb/web/templates/browse.html
 msgid "Delete"
 msgstr "Eliminar"
+
+#: storageweb/core/quota.py
+#, python-format
+msgid ""
+"Not enough quota in «%(folder)s»: %(free)s free of %(limit)s, and this needs %(size)s. Free some "
+"space or ask an administrator."
+msgstr ""
+"No hay cuota suficiente en «%(folder)s»: quedan %(free)s de %(limit)s y esto necesita %(size)s. "
+"Libera espacio o pide más a un administrador."
 
 #: storageweb/core/security.py
 msgid "Invalid file name"
@@ -1687,9 +1745,13 @@ msgid "On %(date)s; after that nobody can sign in with Microsoft."
 msgstr "El %(date)s; después nadie podrá entrar con Microsoft."
 
 #: storageweb/providers/entra/method.py
-#, python-format
-msgid "The Entra ID redirect URI (%(uri)s) does not use the public address."
-msgstr "La Redirect URI de Entra ID (%(uri)s) no usa la dirección pública."
+msgid ""
+"Without a public address, the Entra ID return address depends on the name each person uses to "
+"reach the server, and each one must be registered in Entra ID. Set the public address."
+msgstr ""
+"Sin dirección pública, la dirección de vuelta de Entra ID depende del nombre con el que cada "
+"persona entra al servidor, y cada uno tiene que estar registrado en Entra ID. Configura la "
+"dirección pública."
 
 #: storageweb/providers/entra/register.py
 #, python-format
@@ -1960,6 +2022,14 @@ msgstr "Ocultos para todos"
 msgid "Quota of personal folders (MB)"
 msgstr "Cuota de las carpetas personales (MB)"
 
+#: storageweb/settings/fields.py storageweb/web/templates/admin/groups/_macros.html
+msgid "Personal folder quota of the members (MB)"
+msgstr "Cuota de la carpeta personal de sus miembros (MB)"
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/storage.html
+msgid "Block uploads that do not fit in the quota"
+msgstr "Impedir subir lo que no quepa en la cuota"
+
 #: storageweb/settings/fields.py storageweb/web/templates/admin/settings/storage.html
 msgid "Maximum size per file (MB)"
 msgstr "Tamaño máximo por archivo (MB)"
@@ -2033,6 +2103,18 @@ msgstr "Copia automática cada (horas)"
 msgid "Backups to keep"
 msgstr "Copias que se conservan"
 
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/maintenance.html
+msgid "Publish metrics for Prometheus"
+msgstr "Publicar métricas para Prometheus"
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/maintenance.html
+msgid "Metrics token"
+msgstr "Token de las métricas"
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/maintenance.html
+msgid "Networks allowed to read the metrics"
+msgstr "Redes que pueden leer las métricas"
+
 #: storageweb/settings/fields.py storageweb/web/templates/admin/settings/general.html
 msgid "Use my own main color"
 msgstr "Usar mi propio color principal"
@@ -2103,6 +2185,16 @@ msgstr "Ubicación de almacenamiento %(name)s: el tipo debe ser uno de: %(values
 
 #: storageweb/settings/loader.py
 #, python-format
+msgid "storage.%(key)s must be a list"
+msgstr "storage.%(key)s tiene que ser una lista"
+
+#: storageweb/settings/loader.py
+#, python-brace-format
+msgid "storage.group_quotas must be an object {group: MB}"
+msgstr "storage.group_quotas tiene que ser un objeto {grupo: MB}"
+
+#: storageweb/settings/loader.py
+#, python-format
 msgid "storage.home_location: there is no storage location named %(name)s"
 msgstr "storage.home_location: no hay ninguna ubicación de almacenamiento llamada %(name)s"
 
@@ -2129,6 +2221,15 @@ msgstr "La carpeta compartida %(name)s no tiene ruta"
 #: storageweb/settings/loader.py
 msgid "At least one sign-in method must be enabled"
 msgstr "Debe haber al menos un método de inicio de sesión activado"
+
+#: storageweb/settings/loader.py
+msgid "metrics.token must be at least 16 characters long"
+msgstr "metrics.token tiene que tener al menos 16 caracteres"
+
+#: storageweb/settings/loader.py
+#, python-format
+msgid "metrics.allowed_networks: %(value)s is not an IP address or network"
+msgstr "metrics.allowed_networks: %(value)s no es una dirección IP ni una red"
 
 #: storageweb/settings/loader.py
 msgid "branding.primary_color must be a color like #2563eb"
@@ -2186,6 +2287,57 @@ msgstr "«%(path)s» lo fija la variable de entorno %(name)s y no se puede cambi
 #, python-format
 msgid "«%(path)s» is set in config.json and cannot be changed from the web."
 msgstr "«%(path)s» está fijado en config.json y no se puede cambiar desde la web."
+
+#: storageweb/settings/runtime.py
+#, python-format
+msgid "There is already one named %(name)s in config.json."
+msgstr "Ya hay una llamada %(name)s en config.json."
+
+#: storageweb/settings/runtime.py storageweb/web/views/groups.py
+#, python-format
+msgid ""
+"The quota of the group %(name)s is set in config.json or the environment and cannot be changed "
+"from the web."
+msgstr ""
+"La cuota del grupo %(name)s está fijada en config.json o en el entorno y no se puede cambiar "
+"desde la web."
+
+#: storageweb/settings/runtime.py
+#, python-format
+msgid "The shared folder %(name)s"
+msgstr "La carpeta compartida %(name)s"
+
+#: storageweb/settings/runtime.py
+#, python-format
+msgid "The storage location %(name)s"
+msgstr "La ubicación %(name)s"
+
+#: storageweb/settings/runtime.py
+#, python-format
+msgid "%(what)s is set by an environment variable and cannot be changed from the web."
+msgstr "%(what)s está definida por una variable de entorno y no se puede cambiar desde la web."
+
+#: storageweb/settings/runtime.py
+#, python-format
+msgid "%(what)s is set in config.json and cannot be changed from the web."
+msgstr "%(what)s está definida en config.json y no se puede cambiar desde la web."
+
+#: storageweb/settings/secretbox.py
+msgid "The secrets key is not valid base64."
+msgstr "La clave de los secretos no es base64 válido."
+
+#: storageweb/settings/secretbox.py
+msgid "The secrets key must be 32 bytes (44 base64 characters)."
+msgstr "La clave de los secretos tiene que ser de 32 bytes (44 caracteres en base64)."
+
+#: storageweb/settings/secretbox.py
+#, python-format
+msgid "A secret is encrypted but there is no secrets key (%(file)s or %(env)s)."
+msgstr "Hay un secreto cifrado pero no hay clave de los secretos (%(file)s o %(env)s)."
+
+#: storageweb/settings/secretbox.py
+msgid "A secret cannot be decrypted with this secrets key (was it changed?)."
+msgstr "Un secreto no se puede descifrar con esta clave de los secretos (¿se ha cambiado?)."
 
 #: storageweb/web/errors.py
 msgid "Bad request"
@@ -2258,6 +2410,14 @@ msgstr "Los tokens de API solo sirven para listar, descargar y subir archivos."
 #: storageweb/web/guards.py
 msgid "This section is for administrators only."
 msgstr "Esta sección es solo para administradores."
+
+#: storageweb/web/guards.py
+msgid "A backup is being restored. Try again in a moment."
+msgstr "Se está restaurando una copia de seguridad. Vuelve a intentarlo en un momento."
+
+#: storageweb/web/guards.py
+msgid "Under maintenance"
+msgstr "En mantenimiento"
 
 #: storageweb/web/js_messages.py
 msgid "Are you sure?"
@@ -2416,8 +2576,9 @@ msgstr "aquí"
 msgid "Accept"
 msgstr "Aceptar"
 
-#: storageweb/web/js_messages.py storageweb/web/templates/admin/settings/entra_register.html
-#: storageweb/web/templates/browse.html storageweb/web/templates/connect.html
+#: storageweb/web/js_messages.py storageweb/web/templates/admin/settings/backup_restore.html
+#: storageweb/web/templates/admin/settings/entra_register.html storageweb/web/templates/browse.html
+#: storageweb/web/templates/connect.html
 msgid "Cancel"
 msgstr "Cancelar"
 
@@ -2595,10 +2756,10 @@ msgid "Maintenance"
 msgstr "Mantenimiento"
 
 #: storageweb/web/nav.py
-msgid "Audit retention and automatic backups"
-msgstr "Retención de la auditoría y copias automáticas"
+msgid "Audit retention, automatic backups and metrics"
+msgstr "Retención de la auditoría, copias automáticas y métricas"
 
-#: storageweb/web/nav.py
+#: storageweb/web/nav.py storageweb/web/templates/admin/settings/backup_restore.html
 msgid "Backups and database"
 msgstr "Copias y base de datos"
 
@@ -2882,6 +3043,7 @@ msgstr "Carpeta superior"
 msgid "%(ext)s file"
 msgstr "Archivo %(ext)s"
 
+#: storageweb/web/templates/admin/settings/backup_restore.html
 #: storageweb/web/templates/admin/settings/backups.html storageweb/web/templates/browse.html
 msgid "File"
 msgstr "Archivo"
@@ -3163,6 +3325,7 @@ msgstr "Cópialo ahora: no se volverá a mostrar."
 msgid "New token"
 msgstr "Token nuevo"
 
+#: storageweb/web/templates/admin/settings/auth/entra.html
 #: storageweb/web/templates/admin/settings/entra_register.html
 #: storageweb/web/templates/admin/settings/entra_setup.html storageweb/web/templates/profile.html
 msgid "Copy"
@@ -3325,7 +3488,7 @@ msgstr "Lo fija la variable de entorno %(name)s: no se puede cambiar aquí."
 msgid "Set by an environment variable: it cannot be changed here."
 msgstr "Lo fija una variable de entorno: no se puede cambiar aquí."
 
-#: storageweb/web/templates/admin/_page.html
+#: storageweb/web/templates/admin/_page.html storageweb/web/templates/admin/groups/matrix.html
 msgid "Set in config.json: it cannot be changed here. Remove it from the file to edit it from the web."
 msgstr "Fijado en config.json: no se puede cambiar aquí. Quítalo del fichero para editarlo desde la web."
 
@@ -3692,8 +3855,8 @@ msgid "default: no quota"
 msgstr "por defecto: sin cuota"
 
 #: storageweb/web/templates/admin/user_form.html
-msgid "Empty = the default one; 0 = no quota. It only warns."
-msgstr "Vacío = la de por defecto; 0 = sin cuota. Solo avisa."
+msgid "Empty = the one of their groups or the default one; 0 = no quota."
+msgstr "Vacío = la de sus grupos o la de por defecto; 0 = sin cuota."
 
 #: storageweb/web/templates/admin/access/folder.html storageweb/web/templates/admin/user_form.html
 msgid "In use"
@@ -3954,9 +4117,17 @@ msgid "Only downloading is allowed, administrators included, whatever the permis
 msgstr "Solo se permite descargar, también a los administradores, tenga el permiso que tenga cada entrada."
 
 #: storageweb/web/templates/admin/access/folder.html
+msgid "0 = no quota."
+msgstr "0 = sin cuota."
+
+#: storageweb/web/templates/admin/access/folder.html
+msgid "What does not fit cannot be uploaded."
+msgstr "Lo que no quepa no se puede subir."
+
+#: storageweb/web/templates/admin/access/folder.html
 #, python-format
-msgid "0 = no quota. It only warns (from 90%% and when exceeded); it does not stop uploads."
-msgstr "0 = sin cuota. Solo avisa (a partir del 90%% y al superarla); no impide subir."
+msgid "It only warns (from 90%% and when exceeded)."
+msgstr "Solo avisa (a partir del 90%% y al superarla)."
 
 #: storageweb/web/templates/admin/access/folder.html
 msgid "Who enters"
@@ -4110,6 +4281,18 @@ msgid ""
 "The name and the description come from %(source)s and are updated automatically: change them "
 "there."
 msgstr "El nombre y la descripción vienen de %(source)s y se actualizan solos: cámbialos allí."
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "none"
+msgstr "ninguna"
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid ""
+"Empty = none; 0 = no quota. If someone is in several groups, the largest one applies; the quota "
+"of the user wins."
+msgstr ""
+"Vacío = ninguna; 0 = sin cuota. Si alguien está en varios grupos se aplica la mayor; la del "
+"propio usuario manda."
 
 #: storageweb/web/templates/admin/groups/_macros.html
 msgid "Where the members come from"
@@ -4519,6 +4702,77 @@ msgstr "Restablecer"
 msgid "Save to apply the changes."
 msgstr "Guarda para aplicar los cambios."
 
+#: storageweb/web/templates/admin/settings/backup_restore.html storageweb/web/views/settings/backups.py
+msgid "Restore a backup"
+msgstr "Restaurar una copia de seguridad"
+
+#: storageweb/web/templates/admin/settings/backup_restore.html
+msgid "Made on"
+msgstr "Hecha el"
+
+#: storageweb/web/templates/admin/settings/backup_restore.html
+msgid "StorageWeb version"
+msgstr "Versión de StorageWeb"
+
+#: storageweb/web/templates/admin/settings/backup_restore.html
+msgid "Database version"
+msgstr "Versión de la base de datos"
+
+#: storageweb/web/templates/admin/settings/backup_restore.html
+#, python-format
+msgid "this server uses %(version)s: it is updated after restoring"
+msgstr "este servidor usa la %(version)s: se actualiza después de restaurar"
+
+#: storageweb/web/templates/admin/settings/backup_restore.html
+#, python-format
+msgid "This backup cannot be restored here: %(error)s"
+msgstr "Esta copia no se puede restaurar aquí: %(error)s"
+
+#: storageweb/web/templates/admin/settings/backup_restore.html
+msgid "What happens"
+msgstr "Qué pasa"
+
+#: storageweb/web/templates/admin/settings/backup_restore.html
+msgid ""
+"The database is replaced by the one in the backup: users, groups, shared folders and every "
+"setting saved from the web, sessions, API tokens and the audit log go back to how they were then."
+" What changed afterwards is lost."
+msgstr ""
+"La base de datos se sustituye por la de la copia: usuarios, grupos, carpetas compartidas y todos "
+"los ajustes guardados desde la web, sesiones, tokens de API y la auditoría vuelven a como estaban"
+" entonces. Lo que cambió después se pierde."
+
+#: storageweb/web/templates/admin/settings/backup_restore.html
+msgid ""
+"Before that, a backup of the current state is made (it is not removed by the rotation), so you "
+"can go back."
+msgstr "Se hace antes una copia de lo actual (no la borra la rotación), para poder volver atrás."
+
+#: storageweb/web/templates/admin/settings/backup_restore.html
+msgid "While it is restored the service answers «under maintenance»; it only takes a moment."
+msgstr "Mientras se restaura, el servicio responde «en mantenimiento»; es solo un momento."
+
+#: storageweb/web/templates/admin/settings/backup_restore.html
+msgid ""
+"Everyone has to sign in again. You stay signed in if your account is an enabled administrator in "
+"the backup."
+msgstr ""
+"Todo el mundo tiene que volver a iniciar sesión. Tú sigues dentro si tu cuenta es un "
+"administrador activo en la copia."
+
+#: storageweb/web/templates/admin/settings/backup_restore.html
+msgid "The files of the users, config.json and the session key are not touched."
+msgstr "No se tocan los archivos de los usuarios, ni config.json, ni la clave de sesiones."
+
+#: storageweb/web/templates/admin/settings/backup_restore.html
+#, python-format
+msgid "Type %(word)s to confirm"
+msgstr "Escribe %(word)s para confirmar"
+
+#: storageweb/web/templates/admin/settings/backup_restore.html
+msgid "Restore this backup"
+msgstr "Restaurar esta copia"
+
 #: storageweb/web/templates/admin/settings/backups.html
 msgid "Audit entries"
 msgstr "Entradas de auditoría"
@@ -4568,6 +4822,10 @@ msgstr ""
 " tu herramienta habitual."
 
 #: storageweb/web/templates/admin/settings/backups.html
+msgid "Restore"
+msgstr "Restaurar"
+
+#: storageweb/web/templates/admin/settings/backups.html
 #, python-format
 msgid "Delete the backup %(name)s?"
 msgstr "¿Borrar la copia %(name)s?"
@@ -4577,8 +4835,22 @@ msgid "There are no backups yet."
 msgstr "Todavía no hay copias."
 
 #: storageweb/web/templates/admin/settings/backups.html
-msgid "Restoring replaces the database, so it is done with the service stopped:"
-msgstr "Restaurar sustituye la base de datos, así que se hace con el servicio parado:"
+msgid "Backup file"
+msgstr "Archivo de la copia"
+
+#: storageweb/web/templates/admin/settings/backups.html
+msgid "Upload a backup"
+msgstr "Subir una copia"
+
+#: storageweb/web/templates/admin/settings/backups.html
+msgid ""
+"Restore replaces the database with the one in the backup, with the service running (a copy of the"
+" current state is made first). An uploaded backup, for example from another server, is added to "
+"the list. From the command line, with the service stopped:"
+msgstr ""
+"Restaurar sustituye la base de datos por la de la copia, con el servicio en marcha (antes se hace"
+" una copia de lo actual). Una copia subida, por ejemplo de otro servidor, se añade a la lista. "
+"Desde la línea de comandos, con el servicio parado:"
 
 #: storageweb/web/templates/admin/settings/backups.html
 msgid "file"
@@ -4861,6 +5133,7 @@ msgstr "Id. de aplicación (cliente)"
 #: storageweb/web/templates/admin/settings/auth/_generic.html
 #: storageweb/web/templates/admin/settings/auth/entra.html
 #: storageweb/web/templates/admin/settings/entra_setup.html
+#: storageweb/web/templates/admin/settings/maintenance.html
 msgid "•••••••• (configured, leave empty to keep it)"
 msgstr "•••••••• (configurado, dejar vacío para conservar)"
 
@@ -5131,6 +5404,33 @@ msgstr "0 = siempre. Las entradas más antiguas se borran una vez al día."
 msgid "0 = never from the service (the systemd timer storageweb-backup.timer can do it instead)."
 msgstr "0 = nunca desde el servicio (puede hacerlo el timer de systemd storageweb-backup.timer)."
 
+#: storageweb/web/templates/admin/settings/maintenance.html
+msgid "Metrics for monitoring"
+msgstr "Métricas para monitorización"
+
+#: storageweb/web/templates/admin/settings/maintenance.html
+#, python-format
+msgid ""
+"At %(url)s: requests and errors by route, uploads and downloads, sign-ins and failures, blocked "
+"IPs, space of the shared folders, remote locations, backups and alerts."
+msgstr ""
+"En %(url)s: peticiones y errores por ruta, subidas y descargas, inicios de sesión y fallos, IPs "
+"bloqueadas, espacio de las carpetas compartidas, ubicaciones remotas, copias y avisos."
+
+#: storageweb/web/templates/admin/settings/auth/_generic.html
+#: storageweb/web/templates/admin/settings/auth/entra.html
+#: storageweb/web/templates/admin/settings/maintenance.html
+msgid "Not configured"
+msgstr "No configurado"
+
+#: storageweb/web/templates/admin/settings/maintenance.html
+msgid "Prometheus sends it as «Authorization: Bearer …» (bearer_token). At least 16 characters."
+msgstr "Prometheus lo envía como «Authorization: Bearer …» (bearer_token). Al menos 16 caracteres."
+
+#: storageweb/web/templates/admin/settings/maintenance.html
+msgid "Without the token. With neither a token nor networks, only from this server."
+msgstr "Sin el token. Sin token ni redes, solo desde este servidor."
+
 #: storageweb/web/templates/admin/settings/network.html
 msgid "Public name (FQDN)"
 msgstr "Nombre público (FQDN)"
@@ -5395,13 +5695,21 @@ msgid "0 = no limit; uploads are sent in parts"
 msgstr "0 = sin límite; las subidas van por partes"
 
 #: storageweb/web/templates/admin/settings/storage.html
+msgid ""
+"0 = no quota. Each user can have another one in their profile, and each group one for its members"
+" (in the group)."
+msgstr ""
+"0 = sin cuota. Cada usuario puede tener otra en su ficha, y cada grupo una para sus miembros (en "
+"el grupo)."
+
+#: storageweb/web/templates/admin/settings/storage.html
 #, python-format
 msgid ""
-"0 = no quota. It only warns (from 90%% and when exceeded); it does not stop uploads. Each user "
-"can have another one in their profile."
+"Personal and shared folders: what does not fit cannot be uploaded, copied or moved there (web, "
+"API, network drive). Unchecked, quotas only warn from 90%%."
 msgstr ""
-"0 = sin cuota. Solo avisa (a partir del 90%% y al superarla); no impide subir. Cada usuario puede"
-" tener otra en su ficha."
+"Carpetas personales y compartidas: lo que no quepa no se puede subir, copiar ni mover allí (web, "
+"API, unidad de red). Sin marcar, las cuotas solo avisan a partir del 90%%."
 
 #: storageweb/web/templates/admin/settings/storage.html
 msgid ""
@@ -5442,6 +5750,25 @@ msgid "Secure cookie (HTTPS)"
 msgstr "Cookie segura (HTTPS)"
 
 #: storageweb/web/templates/admin/settings/system.html
+msgid "Settings profile"
+msgstr "Perfil de ajustes"
+
+#: storageweb/web/templates/admin/settings/system.html
+msgid "settings_profile: the set of settings saved from the web that this instance uses"
+msgstr "settings_profile: el juego de ajustes guardados desde la web que usa esta instancia"
+
+#: storageweb/web/templates/admin/settings/system.html
+msgid "Other profiles in this database (other instances can use them with settings_profile):"
+msgstr "Otros perfiles en esta base de datos (otras instancias pueden usarlos con settings_profile):"
+
+#: storageweb/web/templates/admin/settings/system.html
+#, python-format
+msgid "%(num)s field"
+msgid_plural "%(num)s fields"
+msgstr[0] "%(num)s campo"
+msgstr[1] "%(num)s campos"
+
+#: storageweb/web/templates/admin/settings/system.html
 msgid "Where each value comes from"
 msgstr "De dónde sale cada valor"
 
@@ -5478,6 +5805,10 @@ msgid "Origin"
 msgstr "Origen"
 
 #: storageweb/web/templates/admin/settings/system.html
+msgid "Changed"
+msgstr "Cambiado"
+
+#: storageweb/web/templates/admin/settings/system.html
 msgid "Every setting has its default value."
 msgstr "Todos los ajustes tienen su valor predeterminado."
 
@@ -5508,11 +5839,6 @@ msgstr "Activado"
 #: storageweb/web/templates/admin/settings/auth/pam.html
 msgid "Configure"
 msgstr "Configurar"
-
-#: storageweb/web/templates/admin/settings/auth/_generic.html
-#: storageweb/web/templates/admin/settings/auth/entra.html
-msgid "Not configured"
-msgstr "No configurado"
 
 #: storageweb/web/templates/admin/settings/auth/entra.html
 #, python-format
@@ -5590,9 +5916,14 @@ msgid "To be warned 30 days before. Filled in automatically when StorageWeb crea
 msgstr "Para avisarte 30 días antes. Se rellena sola cuando StorageWeb crea el secreto."
 
 #: storageweb/web/templates/admin/settings/auth/entra.html
-#, python-format
-msgid "Empty = %(uri)s. It must be registered in Entra ID → Authentication → Web."
-msgstr "Vacío = %(uri)s. Debe estar registrada en Entra ID → Autenticación → Web."
+msgid ""
+"Worked out from the public address (Network and HTTPS) or, without it, from the address you used "
+"to get here; it is not saved, so it follows the public address if it changes. It must be "
+"registered in Entra ID → Authentication → Web (Repair permissions adds it)."
+msgstr ""
+"Se calcula a partir de la dirección pública (Red y HTTPS) o, sin ella, de la dirección con la que"
+" has entrado; no se guarda, así que sigue a la dirección pública si cambia. Tiene que estar "
+"registrada en Entra ID → Autenticación → Web («Reparar permisos» la añade)."
 
 #: storageweb/web/templates/admin/settings/auth/entra.html
 #, python-format
@@ -5892,6 +6223,10 @@ msgstr[1] "%(num)s grupos dados de alta: %(names)s."
 msgid "There were no groups to register."
 msgstr "No había grupos que dar de alta."
 
+#: storageweb/web/views/groups.py
+msgid "The quota must be a whole number of MB (0 = no quota; empty = none)."
+msgstr "La cuota tiene que ser un número entero de MB (0 = sin cuota; vacío = ninguna)."
+
 #: storageweb/web/views/admin/users.py storageweb/web/views/groups.py
 msgid "Changes saved."
 msgstr "Cambios guardados."
@@ -6055,6 +6390,43 @@ msgid "Backup %(name)s created."
 msgstr "Copia %(name)s creada."
 
 #: storageweb/web/views/settings/backups.py
+msgid "RESTORE"
+msgstr "RESTAURAR"
+
+#: storageweb/web/views/settings/backups.py
+msgid "Choose a backup file (.tar.gz)."
+msgstr "Elige un archivo de copia (.tar.gz)."
+
+#: storageweb/web/views/settings/backups.py
+#, python-format
+msgid "The file is not a valid backup: %(error)s"
+msgstr "El archivo no es una copia válida: %(error)s"
+
+#: storageweb/web/views/settings/backups.py
+#, python-format
+msgid "Backup %(name)s uploaded. You can restore it from the list."
+msgstr "Copia %(name)s subida. Puedes restaurarla desde la lista."
+
+#: storageweb/web/views/settings/backups.py
+#, python-format
+msgid "Type %(word)s to confirm."
+msgstr "Escribe %(word)s para confirmar."
+
+#: storageweb/web/views/settings/backups.py
+#, python-format
+msgid "The backup could not be restored: %(error)s"
+msgstr "No se pudo restaurar la copia: %(error)s"
+
+#: storageweb/web/views/settings/backups.py
+#, python-format
+msgid ""
+"Backup %(name)s restored. The previous state was saved as %(safety)s, in case you need to go "
+"back. Everyone has to sign in again."
+msgstr ""
+"Copia %(name)s restaurada. La copia anterior se ha guardado como %(safety)s, por si necesitas "
+"volver atrás. Todo el mundo tiene que volver a iniciar sesión."
+
+#: storageweb/web/views/settings/backups.py
 #, python-format
 msgid "Backup %(name)s deleted."
 msgstr "Copia %(name)s borrada."
@@ -6209,8 +6581,8 @@ msgid "Addresses blocked by hand or automatically, and addresses that are never 
 msgstr "Direcciones bloqueadas a mano o automáticamente, y direcciones que nunca se bloquean."
 
 #: storageweb/web/views/settings/forms.py
-msgid "How long the audit log is kept and how often backups are made."
-msgstr "Cuánto se guarda la auditoría y cada cuánto se hacen copias."
+msgid "How long the audit log is kept, how often backups are made and the metrics for monitoring."
+msgstr "Cuánto se conserva la auditoría, cada cuánto se hacen copias y las métricas para monitorización."
 
 #: storageweb/web/views/settings/forms.py
 msgid "Backups, database size and cleanup tasks."

@@ -116,8 +116,9 @@ def _labels():
             "GROUP_SOURCES": group_core.group_sources(), "group_methods": _group_methods}
 
 
-def _get_group(group_id: int):
-    group = repo.get_by_id(get_db(), group_id)
+def _get_group(group_uid: str):
+    """El grupo por su identificador público (el de las direcciones); 404 si no existe."""
+    group = repo.get_by_uid(get_db(), group_uid)
     if group is None:
         abort(404)
     return group
@@ -175,7 +176,7 @@ def new():
             group = repo.get_by_id(get_db(), gid)
             _audit("group_created", group["name"], f"{group['source']}:{group['external_id'] or ''}")
             flash(_("Group «%(name)s» created.", name=group_core.label(group)), "info")
-            return back(url_for("groups.edit", group_id=gid))
+            return back(url_for("groups.edit", group_uid=group["uid"]))
     return render_template("admin/groups/form.html", group=None, form=form, next=request.args.get("next", ""),
                            from_directory=False)
 
@@ -227,6 +228,47 @@ def register_detected():
     return back(url_for("groups.index"))
 
 
+def _quota_lock(name: str) -> str:
+    """Si la cuota de ese grupo está fijada en config.json o en el entorno (las demás se guardan en el grupo)."""
+    if name in runtime().config_entities()["group_quotas"]:
+        return _("The quota of the group %(name)s is set in config.json or the environment and cannot be changed "
+                 "from the web.", name=repr(name))
+    return ""
+
+
+def _shares_quota(name: str):
+    """Cuota de la carpeta personal de los miembros del grupo (MB), o ``""`` si no tiene."""
+    value = settings()["storage"].get("group_quotas", {}).get(name)
+    return "" if value is None else value
+
+
+def _save_group_quota(name: str, raw: str | None) -> None:
+    """Guarda la cuota del grupo en ``storage.group_quotas`` (vacía = sin cuota de grupo). :class:`GroupError` si
+    no es un número o si ese ajuste está fijado en config.json."""
+    if raw is None:
+        return
+    raw = raw.strip()
+    if raw and not raw.isdigit():
+        raise group_core.GroupError(_("The quota must be a whole number of MB (0 = no quota; empty = none)."))
+    current = settings()["storage"].get("group_quotas", {})
+    wanted = int(raw) if raw else None
+    if current.get(name) == wanted:
+        return
+    base = runtime_view(settings())
+    new = runtime_view(settings())
+    quotas = dict(new["storage"].get("group_quotas") or {})
+    if wanted is None:
+        quotas.pop(name, None)
+    else:
+        quotas[name] = wanted
+    new["storage"]["group_quotas"] = quotas
+    try:
+        runtime().save(get_db(), new, g.user["username"], strict=True, base=base)
+    except ConfigError as exc:
+        raise group_core.GroupError(str(exc)) from exc
+    invalidate_settings()
+
+
 def _sync_from_directory(group):
     """Grupo de un proveedor que su directorio conoce: se le ponen su nombre y descripción de allí. Devuelve
     (grupo al día, si vienen del directorio)."""
@@ -239,50 +281,57 @@ def _sync_from_directory(group):
     return repo.get_by_id(get_db(), group["id"]), True
 
 
-@bp.route("/<int:group_id>", methods=["GET", "POST"])
+@bp.route("/<group_uid>", methods=["GET", "POST"])
 @admin_required
-def edit(group_id: int):
-    group, from_directory = _sync_from_directory(_get_group(group_id))
+def edit(group_uid: str):
+    group, from_directory = _sync_from_directory(_get_group(group_uid))
     form = dict(group)
     if request.method == "POST" and group["builtin"]:
         flash(_("This group comes with StorageWeb and cannot be changed."), "error")
-        return back(url_for("groups.edit", group_id=group_id))
+        return back(url_for("groups.edit", group_uid=group_uid))
     if request.method == "POST":
         data = _form_data()
         if from_directory and data["source"] == group["source"] and data["external_id"].lower() == group["external_id"]:
             data.update(label=group["label"], description=group["description"])  # los pone el directorio
         try:
             group_core.update_group(get_db(), group, **data)
+            _save_group_quota(group["name"], request.form.get("home_quota_mb"))
         except group_core.GroupError as exc:
             flash(exc.message, "error")
             form.update(data)
         else:
             _audit("group_updated", group["name"], f"{data['source']}:{data['external_id']}")
             flash(_("Changes saved."), "info")
-            return back(url_for("groups.edit", group_id=group_id))
+            return back(url_for("groups.edit", group_uid=group_uid))
+    form["home_quota_mb"] = request.form.get("home_quota_mb", form.get("home_quota_mb")) if request.method == "POST"         else _shares_quota(group["name"])
     return render_template("admin/groups/form.html", group=group, form=form, from_directory=from_directory,
+                           quota_lock=_quota_lock(group["name"]),
                            members=group_core.members(get_db(), group),
                            shares=group_core.shares_of(group, _shares()), next="")
 
 
-@bp.route("/<int:group_id>/delete", methods=["POST"])
+@bp.route("/<group_uid>/delete", methods=["POST"])
 @admin_required
-def delete(group_id: int):
-    group = _get_group(group_id)
+def delete(group_uid: str):
+    group = _get_group(group_uid)
     try:
         group_core.delete_group(get_db(), group)
     except group_core.GroupError as exc:
         flash(exc.message, "error")
-        return redirect(url_for("groups.edit", group_id=group_id))
+        return redirect(url_for("groups.edit", group_uid=group_uid))
     _audit("group_deleted", group["name"])
+    try:
+        _save_group_quota(group["name"], "")  # su cuota ya no aplica a nadie
+    except group_core.GroupError:
+        pass  # fijada en config.json: un grupo que no existe no da cuota a nadie
     flash(_("Group «%(name)s» deleted. Users and files have not been touched.", name=group["label"]), "info")
     return redirect(url_for("groups.index"))
 
 
-@bp.route("/<int:group_id>/members", methods=["POST"])
+@bp.route("/<group_uid>/members", methods=["POST"])
 @admin_required
-def member_add(group_id: int):
-    group = _get_group(group_id)
+def member_add(group_uid: str):
+    group = _get_group(group_uid)
     username = request.form.get("username", "").strip()
     user = users.get_by_username(get_db(), username) if username else None
     if user is None:
@@ -292,14 +341,14 @@ def member_add(group_id: int):
         _audit("group_member_added", group["name"], user["username"])
         flash(_("«%(user)s» added to the group «%(group)s».", user=user["username"],
                 group=group_core.label(group)), "info")
-    return back(url_for("groups.edit", group_id=group_id))
+    return back(url_for("groups.edit", group_uid=group_uid))
 
 
-@bp.route("/<int:group_id>/members/<int:user_id>/remove", methods=["POST"])
+@bp.route("/<group_uid>/members/<user_uid>/remove", methods=["POST"])
 @admin_required
-def member_remove(group_id: int, user_id: int):
-    group = _get_group(group_id)
-    user = users.get_by_id(get_db(), user_id)
+def member_remove(group_uid: str, user_uid: str):
+    group = _get_group(group_uid)
+    user = users.get_by_uid(get_db(), user_uid)
     if user is None:
         abort(404)
     try:
@@ -310,7 +359,7 @@ def member_remove(group_id: int, user_id: int):
         _audit("group_member_removed", group["name"], user["username"])
         flash(_("«%(user)s» removed from the group «%(group)s».", user=user["username"],
                 group=group_core.label(group)), "info")
-    return back(url_for("groups.edit", group_id=group_id))
+    return back(url_for("groups.edit", group_uid=group_uid))
 
 
 # --------------------------------------------------------------------------- vista B
@@ -322,11 +371,11 @@ def panel_view():
     search = request.args.get("q", "").strip()
     rows = repo.list_all(get_db(), search=search)
     current = None
-    wanted = request.args.get("g", type=int)
+    wanted = request.args.get("g")
     for row in rows:
-        if row["id"] == wanted or current is None:
+        if row["uid"] == wanted or current is None:
             current = row
-            if row["id"] == wanted:
+            if row["uid"] == wanted:
                 break
     tab = request.args.get("tab", "members")
     tab = tab if tab in TABS else "members"
@@ -335,7 +384,8 @@ def panel_view():
         current, from_directory = _sync_from_directory(current)
         ctx = {"from_directory": from_directory, "members": group_core.members(get_db(), current),
                "shares": group_core.shares_of(current, _shares()),
-               "form": dict(current)}
+               "form": {**dict(current), "home_quota_mb": _shares_quota(current["name"])},
+               "quota_lock": _quota_lock(current["name"])}
     return render_template("admin/groups/panel.html", groups=rows, current=current, tab=tab, search=search,
                            detected=(detected := group_core.detected(get_db(), _shares())),
                            names=directory_names([d["id"] for d in detected]), **ctx)
@@ -354,13 +404,14 @@ def _matrix(rows, shares) -> list[dict]:
 def matrix_view():
     rows = repo.list_all(get_db())
     if request.method == "POST":
+        base = runtime_view(settings())
         new = runtime_view(settings())
         shares = new["storage"]["shares"]
         changes = []
         for row in rows:
             for share in list(shares):
-                value = request.form.get(f"access-{row['id']}-{share['name']}")
-                if value is None or group_core.open_to_everyone(share):
+                value = request.form.get(f"access-{row['uid']}-{share['name']}")
+                if value is None or group_core.open_to_everyone(share) or share.get("origin") in ("file", "env"):
                     continue
                 current = next(s for s in shares if s["name"] == share["name"])
                 if value != group_core.share_level(row, current):
@@ -373,7 +424,7 @@ def matrix_view():
         if changes:
             new["storage"]["shares"] = shares
             try:
-                runtime().save(get_db(), new, g.user["username"], strict=True)
+                runtime().save(get_db(), new, g.user["username"], strict=True, base=base)
             except ConfigError as exc:
                 flash(_("The changes were not saved: %(error)s", error=exc), "error")
                 return redirect(url_for("groups.matrix_view"))
@@ -387,7 +438,7 @@ def matrix_view():
     names = {r["name"] for r in rows} | {r["external_id"] for r in rows if r["external_id"]}
     unregistered = sorted({ref for s in shares for ref in s["groups"] if ref not in names})
     return render_template("admin/groups/matrix.html", shares=shares, matrix=_matrix(rows, shares),
-                           unregistered=unregistered, locked_message=runtime().lock_notice("storage.shares"))
+                           unregistered=unregistered, locked_message="")
 
 
 search.action("users", _l("New group"), "groups.new", words="crear grupo add create", order=20)
@@ -395,7 +446,7 @@ search.action("users", _l("New group"), "groups.new", words="crear grupo add cre
 
 @search.provider("group", _l("Groups"), order=20)
 def _search_groups(terms, conn, cfg):
-    return [search.item("group", group_core.label(row), row["name"], url_for("groups.edit", group_id=row["id"]),
+    return [search.item("group", group_core.label(row), row["name"], url_for("groups.edit", group_uid=row["uid"]),
                         icon="users")
             for row in repo.list_all(conn)
             if search.matches(terms, row["name"], group_core.label(row), row["description"], row["external_id"])]

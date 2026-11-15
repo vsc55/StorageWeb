@@ -51,8 +51,9 @@ FIELDS: dict[str, Field] = {
     "network.public_url": Field(
         doc=("Nombre público (FQDN) por el que entran los usuarios: `files.empresa.es`, con puerto o subruta si hace"
          " falta (`files.empresa.es/archivos`). Se asume HTTPS; escribe `http://` delante solo para pruebas en "
-         "local. Se usa para las URLs externas: la de vuelta de Entra ID (si `auth.entra.redirect_uri` está "
-         "vacía) y la de salida. Vacío = el host de cada petición. Se puede cambiar desde la web."),
+         "local. Se usa para las URLs externas: la de vuelta de Entra ID (`/auth/entra/callback`, que nunca se "
+         "guarda: se calcula siempre de aquí) y la de salida. Vacío = la dirección con la que entra el navegador "
+         "(su host y puerto). Se puede cambiar desde la web."),
         label=_l("Name users type in the browser"),
         page="network",
         words="fqdn dominio url pública https proxy public domain"),
@@ -103,11 +104,25 @@ FIELDS: dict[str, Field] = {
         page="storage",
         words="ocultar ocultos patrones ignorar gitignore excluir hidden"),
     "storage.home_quota_mb": Field(
-        doc="Cuota por defecto de las **carpetas personales**, en MB; `0` = sin cuota. Solo avisa (a partir del 90 % "
-            "y al superarla), no impide subir. Cada usuario puede tener otra en su ficha.",
+        doc="Cuota por defecto de las **carpetas personales**, en MB; `0` = sin cuota. Cada usuario puede tener otra "
+            "en su ficha, y cada grupo una para sus miembros (`storage.group_quotas`).",
         label=_l("Quota of personal folders (MB)"),
         page="storage",
         words="cuota espacio limite quota personal"),
+    "storage.group_quotas": Field(
+        doc="Cuota de la carpeta personal de los miembros de cada grupo, en MB: `{\"rrhh\": 5120}`. Si alguien está en "
+            "varios, la mayor (`0` = sin cuota gana). La del propio usuario manda sobre la de sus grupos. Se edita en la "
+            "ficha de cada grupo (se guarda en el grupo); la de un grupo puesta aquí en config.json no se puede "
+            "cambiar desde la web.",
+        label=_l("Personal folder quota of the members (MB)"),
+        page="storage",
+        words="cuota grupo miembros quota group"),
+    "storage.quota_enforce": Field(
+        doc="Si las cuotas **impiden escribir**: lo que no quepa no se puede subir, copiar ni mover (web, API y "
+            "unidad de red responden 507). `false` = solo avisan (a partir del 90 % y al superarla).",
+        label=_l("Block uploads that do not fit in the quota"),
+        page="storage",
+        words="cuota bloquear impedir subir quota enforce block"),
     "storage.max_file_size_mb": Field(
         doc="Tamaño máximo por archivo en MB; `0` = sin límite.",
         label=_l("Maximum size per file (MB)"),
@@ -120,7 +135,9 @@ FIELDS: dict[str, Field] = {
         page="storage",
         words="ubicación almacenamiento s3 smb nas carpetas personales home"),
     "storage.locations": Field(
-        doc="Almacenamientos externos con nombre, que eligen las carpetas (ver *Tipos de ubicación*, abajo).",
+        doc="Almacenamientos externos con nombre, que eligen las carpetas (ver *Tipos de ubicación*, abajo). Los "
+            "de config.json o del entorno se ven en la web de solo lectura, junto a los creados desde la web (que "
+            "se guardan en su propia tabla).",
         label=_l("Storage locations"),
         page="locations",
         words="almacenamiento externo s3 smb nas minio bucket samba windows ubicación"),
@@ -129,7 +146,9 @@ FIELDS: dict[str, Field] = {
     "storage.locations[].type": Field(doc="Tipo de almacenamiento; sus opciones, en la tabla de su tipo (abajo).",
                                       page="locations"),
     "storage.shares": Field(
-        doc="Lista de carpetas compartidas (ver los campos de cada elemento abajo).",
+        doc="Lista de carpetas compartidas (ver los campos de cada elemento abajo). Las de config.json o del "
+            "entorno se ven en la web de solo lectura, junto a las creadas desde la web (que se guardan en su propia "
+            "tabla); si un nombre está en los dos sitios, manda config.json.",
         label=_l("Shared folders"),
         page="folders"),
     "storage.shares[].name": Field(
@@ -231,6 +250,24 @@ FIELDS: dict[str, Field] = {
         label=_l("Backups to keep"),
         page="maintenance",
         words="copias conservar backup retención"),
+    "metrics.enabled": Field(
+        doc="Publicar métricas para Prometheus en `/metrics` (peticiones, subidas y descargas, inicios de sesión, IPs "
+            "bloqueadas, espacio de las carpetas, ubicaciones remotas…).",
+        label=_l("Publish metrics for Prometheus"),
+        page="maintenance",
+        words="métricas prometheus grafana monitorización metrics monitoring"),
+    "metrics.token": Field(
+        doc="Token que tiene que enviar Prometheus (`Authorization: Bearer <token>`, `bearer_token` en su "
+            "configuración); al menos 16 caracteres. Nunca se muestra en la web.",
+        label=_l("Metrics token"),
+        page="maintenance",
+        words="métricas token prometheus"),
+    "metrics.allowed_networks": Field(
+        doc="IPs o redes (CIDR) desde las que se puede leer `/metrics` sin token. Sin token ni redes, solo desde el "
+            "propio servidor.",
+        label=_l("Networks allowed to read the metrics"),
+        page="maintenance",
+        words="métricas redes permitidas ip prometheus"),
     "branding.primary_color": Field(
         doc="Color principal de la interfaz (`#rrggbb`). Vacío = el de serie.",
         label=_l("Use my own main color"),

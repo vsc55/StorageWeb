@@ -246,8 +246,9 @@ def test_runtime_locks_and_strict_save(tmp_path, db_conn):
 
     p = _cfg(tmp_path, {"storage": {"shares": []}})
     rt = RuntimeSettings(*read_config_file(p), env_cfg={"auth": {"entra": {"client_id": "env"}}})
-    assert rt.locked() == {"storage.shares": "file", "auth.entra.client_id": "env"}
-    assert rt.lock_of("storage.shares") == "file" and rt.lock_of("auth.entra.client_id") == "env"
+    # Las carpetas de config.json no bloquean la lista: se bloquea cada una (su «origin»; ver test_entities)
+    assert rt.locked() == {"auth.entra.client_id": "env"}
+    assert rt.lock_of("storage.shares") is None and rt.lock_of("auth.entra.client_id") == "env"
     assert rt.lock_of("auth.entra.tenant_id") is None
     view = runtime_view(rt.current(db_conn))
     view["auth"]["entra"]["client_id"] = "otro"

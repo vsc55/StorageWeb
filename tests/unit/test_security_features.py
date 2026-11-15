@@ -186,7 +186,8 @@ def test_stylesheet_and_color_validation(tmp_path):
 def test_token_rotation_keeps_expiry_policy(db_conn):
     from storageweb.core import tokens
     from storageweb.db.repositories import api_tokens
-    db_conn.execute("INSERT INTO users (username, role, source, created_at) VALUES ('ana', 'user', 'local', '2026-01-01')")
+    from storageweb.db.repositories import users as users_repo
+    users_repo.create(db_conn, username="ana", source="local")
     user = db_conn.execute("SELECT * FROM users WHERE username = 'ana'").fetchone()
     for days in (30, 90, 365, 0):
         _plain, tid = tokens.create(db_conn, user, name=f"t{days}", scope="write", days=days)

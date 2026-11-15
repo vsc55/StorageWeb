@@ -6,7 +6,7 @@ from storageweb.core.storage import available_roots
 from storageweb.db.repositories import audit, users
 from storageweb.db.repositories import groups as repo
 from storageweb.web.context import get_db, settings
-from tests.helpers import add_user, page_form, visible
+from tests.helpers import add_user, page_form, visible, U, G
 
 
 @pytest.fixture
@@ -60,11 +60,11 @@ def test_create_edit_delete_group(app, admin):
                                                   "description": "Personal", "source": "local"})
     with app.app_context():
         group = repo.get_by_name(get_db(), "rrhh")
-    assert resp.location.endswith(f"/admin/groups/{group['id']}") and group["name"] == "rrhh"
+    assert resp.location.endswith(f"/admin/groups/{G(group['id'])}") and group["name"] == "rrhh"
     html = client.get("/admin/groups/list").get_data(as_text=True)
     assert "Recursos Humanos" in html and "Personal" in html
 
-    resp = client.post(f"/admin/groups/{group['id']}", data={
+    resp = client.post(f"/admin/groups/{G(group['id'])}", data={
         "_csrf": token, "label": "RR. HH.", "description": "", "source": "local", "external_id": ""})
     assert resp.status_code == 302 and _get(app, group["id"])["label"] == "RR. HH."
 
@@ -72,7 +72,7 @@ def test_create_edit_delete_group(app, admin):
                        follow_redirects=True).get_data(as_text=True)
     assert "Ya existe un grupo" in html
 
-    client.post(f"/admin/groups/{group['id']}/delete", data={"_csrf": token})
+    client.post(f"/admin/groups/{G(group['id'])}/delete", data={"_csrf": token})
     assert _get(app, group["id"]) is None
     assert {"group_created", "group_updated", "group_deleted"} <= set(_actions(app))
 
@@ -85,17 +85,17 @@ def test_members_manual_and_sync(app, admin):
         gc.sync_external(get_db(), eva, "entra", ["oid-it"])
     ana = add_user(app, "ana")
 
-    client.post(f"/admin/groups/{gid}/members", data={"_csrf": token, "username": "ana"})
-    html = client.get(f"/admin/groups/{gid}").get_data(as_text=True)
+    client.post(f"/admin/groups/{G(gid)}/members", data={"_csrf": token, "username": "ana"})
+    html = client.get(f"/admin/groups/{G(gid)}").get_data(as_text=True)
     assert "Sincronizado" in html and "Manual" in html and "Se gestiona en Entra ID" in html
 
-    html = client.post(f"/admin/groups/{gid}/members/{eva}/remove", data={"_csrf": token},
+    html = client.post(f"/admin/groups/{G(gid)}/members/{U(eva)}/remove", data={"_csrf": token},
                        follow_redirects=True).get_data(as_text=True)
     assert "se cambia allí" in html
-    client.post(f"/admin/groups/{gid}/members/{ana}/remove", data={"_csrf": token})
+    client.post(f"/admin/groups/{G(gid)}/members/{U(ana)}/remove", data={"_csrf": token})
     with app.app_context():
         assert repo.get_membership(get_db(), ana, gid) is None
-    html = client.post(f"/admin/groups/{gid}/members", data={"_csrf": token, "username": "nadie"},
+    html = client.post(f"/admin/groups/{G(gid)}/members", data={"_csrf": token, "username": "nadie"},
                        follow_redirects=True).get_data(as_text=True)
     assert "no existe" in html
     assert {"group_member_added", "group_member_removed"} <= set(_actions(app))
@@ -120,15 +120,15 @@ def test_panel_view_tabs(app, admin):
     second = _group(app, "bbb", label="Beta")
     html = client.get("/admin/groups/panel").get_data(as_text=True)
     assert '<h2 class="md-title">Administradores</h2>' in html          # el grupo de serie va primero
-    html = client.get(f"/admin/groups/panel?g={first}").get_data(as_text=True)
+    html = client.get(f"/admin/groups/panel?g={G(first)}").get_data(as_text=True)
     assert '<h2 class="md-title">Alfa</h2>' in html
-    html = client.get(f"/admin/groups/panel?g={second}&tab=link").get_data(as_text=True)
+    html = client.get(f"/admin/groups/panel?g={G(second)}&tab=link").get_data(as_text=True)
     assert '<h2 class="md-title">Beta</h2>' in html and 'name="external_id"' in html
-    resp = client.post(f"/admin/groups/{second}", data={
+    resp = client.post(f"/admin/groups/{G(second)}", data={
         "_csrf": token, "label": "Beta 2", "description": "", "source": "local", "external_id": "",
-        "next": f"/admin/groups/panel?g={second}&tab=link"})
-    assert resp.location.endswith(f"/admin/groups/panel?g={second}&tab=link")
-    html = client.get(f"/admin/groups/panel?g={first}&tab=shares").get_data(as_text=True)
+        "next": f"/admin/groups/panel?g={G(second)}&tab=link"})
+    assert resp.location.endswith(f"/admin/groups/panel?g={G(second)}&tab=link")
+    html = client.get(f"/admin/groups/panel?g={G(first)}&tab=shares").get_data(as_text=True)
     assert "no da acceso a ninguna carpeta" in html
 
 
@@ -142,25 +142,25 @@ def test_matrix_changes_share_access(app, admin):
         gc.set_manual_groups(get_db(), uid, ["it"])
 
     html = client.get("/admin/groups/matrix").get_data(as_text=True)
-    assert f'name="access-{gid}-software"' in html
-    assert f'name="access-{gid}-publico"' not in html and "Todos" in html   # abierta a todos
+    assert f'name="access-{G(gid)}-software"' in html
+    assert f'name="access-{G(gid)}-publico"' not in html and "Todos" in html   # abierta a todos
 
     def roots():
         with app.test_request_context():
             return {r["name"]: r["read_only"] for r in available_roots(users.get_by_id(get_db(), uid), settings())}
     assert "software" not in roots()
 
-    resp = client.post("/admin/groups/matrix", data={"_csrf": token, f"access-{gid}-software": "write",
-                                                     f"access-{gid}-facturas": "write"})
+    resp = client.post("/admin/groups/matrix", data={"_csrf": token, f"access-{G(gid)}-software": "write",
+                                                     f"access-{G(gid)}-facturas": "write"})
     assert resp.status_code == 302
     assert roots()["software"] is False and roots()["facturas"] is True      # carpeta de solo lectura
-    client.post("/admin/groups/matrix", data={"_csrf": token, f"access-{gid}-software": "read",
-                                              f"access-{gid}-facturas": "read"})
+    client.post("/admin/groups/matrix", data={"_csrf": token, f"access-{G(gid)}-software": "read",
+                                              f"access-{G(gid)}-facturas": "read"})
     assert roots()["software"] is True
-    html = client.post("/admin/groups/matrix", data={"_csrf": token, f"access-{gid}-software": "read"},
+    html = client.post("/admin/groups/matrix", data={"_csrf": token, f"access-{G(gid)}-software": "read"},
                        follow_redirects=True).get_data(as_text=True)
     assert "No había cambios" in html
-    client.post("/admin/groups/matrix", data={"_csrf": token, f"access-{gid}-software": "none"})
+    client.post("/admin/groups/matrix", data={"_csrf": token, f"access-{G(gid)}-software": "none"})
     assert "software" not in roots()
     assert "group_access_updated" in _actions(app)
 
@@ -168,7 +168,7 @@ def test_matrix_changes_share_access(app, admin):
 def test_settings_page_keeps_read_only_groups(app, admin):
     client, token = admin
     gid = _group(app, "it")
-    client.post("/admin/groups/matrix", data={"_csrf": token, f"access-{gid}-software": "read"})
+    client.post("/admin/groups/matrix", data={"_csrf": token, f"access-{G(gid)}-software": "read"})
     # La ficha de la carpeta lo muestra y guardarla sin cambios lo conserva
     data = page_form(client, "/admin/access/folders/software")
     assert data["entry_ref"] == ["it"] and data["entry_level"] == ["read"]
@@ -186,14 +186,14 @@ def test_user_form_group_chips(app, admin):
     eva = add_user(app, "eva@x.com", password=None, source="entra", external_id="o-eva")
     with app.app_context():
         gc.sync_external(get_db(), eva, "entra", ["oid-it", "oid-raro"])
-    html = visible(client.get(f"/admin/users/{eva}").get_data(as_text=True))
+    html = visible(client.get(f"/admin/users/{U(eva)}").get_data(as_text=True))
     assert "chip-sync" in html and "Sistemas" in html and "oid-raro" in html and "sin dar de alta" in html
-    assert f'<option value="{gid}">Finanzas (fin)</option>' in html and f'value="{entra}"' not in html
+    assert f'<option value="{G(gid)}">Finanzas (fin)</option>' in html and f'value="{G(entra)}"' not in html
 
-    client.post(f"/admin/users/{eva}/groups", data={"_csrf": token, "group_id": gid})
+    client.post(f"/admin/users/{U(eva)}/groups", data={"_csrf": token, "group_uid": G(gid)})
     with app.app_context():
         assert gc.split(users.get_by_id(get_db(), eva)["groups"]) == {"oid-it", "oid-raro", "it", "fin"}
-    html = client.get(f"/admin/users/{eva}").get_data(as_text=True)
+    html = client.get(f"/admin/users/{U(eva)}").get_data(as_text=True)
     assert "Quitar del grupo Finanzas" in html
 
 
@@ -231,25 +231,25 @@ def test_builtin_admins_group_pages(app, admin):
         admins = repo.get_builtin(get_db(), gc.ADMINS_GROUP)
     html = client.get("/admin/groups/list").get_data(as_text=True)
     assert "Administradores" in html
-    html = client.get(f"/admin/groups/{admins['id']}").get_data(as_text=True)
+    html = client.get(f"/admin/groups/{G(admins['id'])}").get_data(as_text=True)
     assert "Grupo de serie" in html and "Eliminar grupo" not in html and 'name="label"' not in html
     assert "Rol de administrador" in html and "root" in html
 
-    html = client.post(f"/admin/groups/{admins['id']}/delete", data={"_csrf": token},
+    html = client.post(f"/admin/groups/{G(admins['id'])}/delete", data={"_csrf": token},
                        follow_redirects=True).get_data(as_text=True)
     assert "no se puede eliminar" in html
-    client.post(f"/admin/groups/{admins['id']}", data={"_csrf": token, "label": "Otro", "source": "local"})
+    client.post(f"/admin/groups/{G(admins['id'])}", data={"_csrf": token, "label": "Otro", "source": "local"})
     with app.app_context():
         assert repo.get_builtin(get_db(), gc.ADMINS_GROUP)["label"] == "Administrators"
 
     ana = add_user(app, "ana")
-    client.post(f"/admin/groups/{admins['id']}/members", data={"_csrf": token, "username": "ana"})
+    client.post(f"/admin/groups/{G(admins['id'])}/members", data={"_csrf": token, "username": "ana"})
     with app.app_context():
         assert users.get_by_id(get_db(), ana)["role"] == "admin"
-    client.post(f"/admin/groups/{admins['id']}/members/{ana}/remove", data={"_csrf": token})
+    client.post(f"/admin/groups/{G(admins['id'])}/members/{U(ana)}/remove", data={"_csrf": token})
     with app.app_context():
         assert users.get_by_id(get_db(), ana)["role"] == "user"
-    html = client.get(f"/admin/groups/panel?g={admins['id']}&tab=link").get_data(as_text=True)
+    html = client.get(f"/admin/groups/panel?g={G(admins['id'])}&tab=link").get_data(as_text=True)
     assert "no se puede editar" in html and 'name="external_id"' not in html
 
 

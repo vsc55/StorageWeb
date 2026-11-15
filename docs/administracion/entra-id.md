@@ -55,6 +55,10 @@ Cuando alguien cierra sesión en Microsoft (en Office, en el portal…), Entra I
 - El **email** de las cuentas de la organización solo llega en el token si la aplicación pide el claim opcional `email` (sin él, Microsoft solo manda el de los invitados y StorageWeb usa el UPN). El registro automático y *Reparar permisos* lo añaden. El nombre y el email se actualizan en cada inicio de sesión y no se editan en StorageWeb.
 - La cuenta se identifica por el **origen + identificador de Entra ID** (`oid`), no por el nombre. Si cambia el **UPN** (`juan@contoso.com` → `juan.perez@contoso.com`), al iniciar sesión la cuenta se **renombra**: su carpeta personal se renombra en el disco del servidor (si la nueva no existe; si existe, o está en una ubicación remota, la cuenta conserva la antigua como ruta propia) y las carpetas compartidas que la nombraban pasan al nombre nuevo. Si el nombre nuevo ya es de otra cuenta, no se cambia. Queda como `user_renamed` (o `user_rename_failed`).
 
+## Dirección de vuelta (Redirect URI)
+
+Es `/auth/entra/callback` en la **dirección pública** (`network.public_url`, *Sistema → Red y HTTPS*) o, si no está configurada, en la dirección con la que entra el navegador (su host y puerto). **No se guarda ni se configura**: se calcula en cada petición, así que si cambias la dirección pública, la sigue. La tarjeta de Entra ID la muestra para copiarla. Entra ID solo acepta las que tenga registradas: el registro automático registra la actual y *Reparar permisos* añade la nueva si cambia. Sin dirección pública, cada nombre con el que se entre al servidor tendría que estar registrado; por eso el diagnóstico de red avisa.
+
 ## Implementaciones
 
 | `auth.entra.provider` | Descripción |
@@ -104,7 +108,6 @@ También se puede configurar a mano en **Seguridad → Inicio de sesión**, o fi
   "tenant_id": "<Directory (tenant) ID>",
   "client_id": "<Application (client) ID>",
   "client_secret": "<secreto>",
-  "redirect_uri": "https://files.midominio.com/auth/entra/callback",
   "allowed_groups": ["StorageWeb.User", "StorageWeb.Admin"],
   "auto_provision": true,
   "default_role": "user",
@@ -149,7 +152,7 @@ La firma del token no se verifica, como permite OIDC cuando el token se obtiene 
 
 | Mensaje o código | Causa |
 |---|---|
-| `AADSTS50011` | La Redirect URI no coincide con la registrada (revisa `redirect_uri`, el esquema y la barra final). |
+| `AADSTS50011` | La Redirect URI no coincide con la registrada. StorageWeb la calcula siempre (`/auth/entra/callback` en `network.public_url` o, sin ella, en la dirección con la que se entró): configura la dirección pública y pulsa *Reparar permisos*, que la añade a la aplicación. |
 | `AADSTS7000215` / `invalid_client` | `client_secret` incorrecto o caducado. |
 | `AADSTS50105` | *Assignment required* activo y el usuario no tiene asignada la aplicación. |
 | «Tu cuenta no tiene permiso…» | El usuario no está en `allowed_groups`. |

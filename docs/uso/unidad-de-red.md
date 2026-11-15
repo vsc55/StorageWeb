@@ -73,6 +73,7 @@ En las carpetas de solo lectura, y con un token de solo lectura, solo se puede v
 
 - **Bloqueos simulados:** Windows, macOS y Office piden «bloquear» un archivo antes de editarlo. StorageWeb dice que sí, pero no impide que otra persona lo edite a la vez: el último en guardar gana.
 - Por WebDAV, cada archivo puede tener como mucho `server.max_upload_mb` (y `storage.max_file_size_mb`, si está puesto). La web no tiene el primer límite porque sube por partes.
+- **Cuotas:** el Explorador de Windows muestra el espacio usado y libre de la unidad según la cuota de tu carpeta (o, sin cuota, el disco del servidor). Lo que no quepa se rechaza con `507 Insufficient Storage` y el motivo; Windows lo muestra como «no hay espacio suficiente».
 - Todo queda en la [auditoría](../referencia/auditoria.md) como desde la web (detalle `webdav`).
 
 ## Para el administrador

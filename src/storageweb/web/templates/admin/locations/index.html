@@ -33,7 +33,7 @@
   {% set loc = row.loc %}
   <a class="folder-row" id="loc-{{ loc.name }}" href="{{ url_for('locations.edit', name=loc.name) }}">
     <span class="folder-main">
-      <strong>{{ loc.label }} <span class="muted small">{{ loc.name }}</span></strong>
+      <strong>{{ loc.label }} <span class="muted small">{{ loc.name }}</span>{% if loc.origin in ('file', 'env') %} {{ origin_badge(loc.origin) }}{% endif %}</strong>
       <span class="small muted"><code>{{ row.where }}</code></span>
     </span>
     <span class="folder-who">

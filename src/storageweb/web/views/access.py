@@ -78,14 +78,20 @@ def _form_share(original: dict | None) -> dict:
     return share_core.with_entries(base, items)
 
 
-def _lock_context() -> dict:
-    """Si las carpetas están fijadas en config.json o en el entorno, se ven pero no se editan."""
-    return {"shares_origin": runtime().origins(get_db()).get("storage.shares"),
-            "locked_message": runtime().lock_notice("storage.shares")}
+def entity_lock(kind: str, item: dict | None) -> str:
+    """Si la carpeta (o ubicación) está fijada en config.json o en el entorno: el mensaje; se ve pero no se edita.
+    Las de la web (tabla ``shares``) se editan."""
+    if not item or item.get("origin") not in ("file", "env"):
+        return ""
+    return runtime()._entity_lock_message(kind, item["name"], item["origin"])
 
 
-def _refuse_if_locked():
-    notice = runtime().lock_notice("storage.shares")
+def _lock_context(share: dict | None = None) -> dict:
+    return {"shares_origin": None, "locked_message": entity_lock("shares", share)}
+
+
+def _refuse_if_locked(share: dict | None):
+    notice = entity_lock("shares", share)
     if notice:
         flash(notice, "error")
         return redirect(url_for("access.folders"))
@@ -107,17 +113,19 @@ def _render_folder(share: dict, original: str | None, status: int = 200, error: 
     directory = _directory()
     title = (share.get("label") or share["name"]) if original else _("New shared folder")
     return render_template("admin/access/folder.html", share=share, original=original, title=title,
+                           cfg_quota_enforce=settings()["storage"]["quota_enforce"],
                            entries=_describe(share, directory), directory=directory, error=error,
                            exists=location_core.local_exists(share.get("location", ""), share.get("path", "")),
                            where=location_core.where(settings(), share.get("location", ""), share.get("path", "")),
                            locations=settings()["storage"]["locations"], usage=_share_usage(original),
-                           **_lock_context(), LEVEL_LABELS=share_core.LEVEL_LABELS,
+                           **_lock_context(share_core.find(_shares(), original) if original else None),
+                           LEVEL_LABELS=share_core.LEVEL_LABELS,
                            ENTRY_KIND_LABELS=share_core.KIND_LABELS), status
 
 
 def _store(original: str | None):
     """Guarda la carpeta del formulario. Devuelve la respuesta (redirección o el formulario con el error)."""
-    refused = _refuse_if_locked()
+    refused = _refuse_if_locked(share_core.find(_shares(), original) if original else None)
     if refused:
         return refused
     try:
@@ -188,7 +196,7 @@ def folder_delete(name: str):
     share = share_core.find(_shares(), name)
     if share is None:
         abort(404)
-    refused = _refuse_if_locked()
+    refused = _refuse_if_locked(share)
     if refused:
         return refused
     _draft, error = save_partial(lambda: {"storage": {"shares": share_core.remove(_shares(), name)}}, strict=True)

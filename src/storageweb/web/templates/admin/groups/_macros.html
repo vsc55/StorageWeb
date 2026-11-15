@@ -36,6 +36,13 @@
     <input type="text" name="description" value="{{ form.description or '' }}" maxlength="500"{% if from_directory %} readonly class="from-provider"{% endif %}>
     {% if from_directory %}<small class="muted">{{ _("The name and the description come from %(source)s and are updated automatically: change them there.", source=GROUP_SOURCE_LABELS[group['source']]) }}</small>{% endif %}
   </label>
+  {% if group and not group['builtin'] %}
+  <label>{{ _("Personal folder quota of the members (MB)") }}
+    <input type="number" name="home_quota_mb" min="0" value="{{ form.home_quota_mb if form.home_quota_mb is not none else '' }}"
+           placeholder="{{ _('none') }}"{% if quota_lock %} disabled title="{{ quota_lock }}"{% endif %}>
+    <small class="muted">{{ _("Empty = none; 0 = no quota. If someone is in several groups, the largest one applies; the quota of the user wins.") }}</small>
+  </label>
+  {% endif %}
   <fieldset class="span2 source-cards">
     <legend>{{ _("Where the members come from") }}</legend>
     <label class="source-card"><input type="radio" name="source" value="local" {% if form.source == 'local' %}checked{% endif %}>
@@ -59,11 +66,11 @@
 {# Miembros con su origen; los sincronizados no se pueden quitar. #}
 {% macro member_list(group, members, next) -%}
 <div class="members-head">
-  <form method="post" action="{{ url_for('groups.member_add', group_id=group['id']) }}" class="inline">
+  <form method="post" action="{{ url_for('groups.member_add', group_uid=group['uid']) }}" class="inline">
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
     <input type="hidden" name="next" value="{{ next }}">
-    <label class="sr-only" for="add-member-{{ group['id'] }}">{{ _("Add user") }}</label>
-    <input type="text" id="add-member-{{ group['id'] }}" name="username" required placeholder="{{ _('User name…') }}">
+    <label class="sr-only" for="add-member-{{ group['uid'] }}">{{ _("Add user") }}</label>
+    <input type="text" id="add-member-{{ group['uid'] }}" name="username" required placeholder="{{ _('User name…') }}">
     <button class="btn" type="submit">{{ _("Add") }}</button>
   </form>
 </div>
@@ -73,14 +80,14 @@
   <tbody>
   {% for m in members %}
     <tr{% if not m['enabled'] %} class="row-disabled"{% endif %}>
-      <td class="name"><a href="{{ url_for('admin.user_edit', user_id=m['id']) }}">{{ m['username'] }}</a></td>
+      <td class="name"><a href="{{ url_for('admin.user_edit', user_uid=m['uid']) }}">{{ m['username'] }}</a></td>
       <td>{{ m['display_name'] or '' }}</td>
       <td>{% if m['origin'] == 'role' %}<span class="badge badge-admin">{{ _("Administrator role") }}</span>
           {% elif m['origin'] == 'sync' %}<span class="membership membership-sync"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-sync"></use></svg>{{ _("Synchronized") }}</span>
           {% else %}<span class="badge">{{ _("Manual") }}</span>{% endif %}</td>
       <td class="actions">
         {% if m['origin'] in ('manual', 'role') and not (m['origin'] == 'role' and m['id'] == current_user['id']) %}
-        <form method="post" action="{{ url_for('groups.member_remove', group_id=group['id'], user_id=m['id']) }}" class="inline{% if m['origin'] == 'role' %} js-confirm{% endif %}"
+        <form method="post" action="{{ url_for('groups.member_remove', group_uid=group['uid'], user_uid=m['uid']) }}" class="inline{% if m['origin'] == 'role' %} js-confirm{% endif %}"
               {% if m['origin'] == 'role' %}data-confirm="{{ _('Remove the administrator role from «%(name)s»?', name=m['username']) }}"{% endif %}>
           <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
           <input type="hidden" name="next" value="{{ next }}">

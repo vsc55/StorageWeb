@@ -12,8 +12,11 @@ Al principio el esquema se creaba con `CREATE TABLE IF NOT EXISTS` y los cambios
 - **Ficheros numerados:** `db/migrations/NNN_descripcion.sql`, consecutivos y que **nunca se modifican** una vez publicados.
 - **Versión en la base de datos:** `PRAGMA user_version` guarda la última migración aplicada.
 - **Aplicación:** `migrate()` aplica las pendientes en orden, cada una en una transacción (`BEGIN … PRAGMA user_version = N; COMMIT`). Se ejecuta al arrancar y con `storageweb init-db`.
-- **Adopción:** la `001` usa `IF NOT EXISTS` para adoptar bases de datos creadas antes de este sistema.
-- **Tests:** comprueban la numeración consecutiva, la idempotencia, el rollback de una migración fallida y la adopción.
+- **Tests:** comprueban la numeración consecutiva, la idempotencia y el rollback de una migración fallida.
+
+## Historia
+
+Antes de la primera instalación en producción (noviembre de 2026), las doce migraciones que había se fundieron en una sola `001_initial.sql` con el esquema completo y comentado: no había ninguna base de datos que actualizar, y así el esquema se lee de un vistazo. Desde entonces solo se añaden migraciones nuevas, y la regla de no tocar una ya aplicada vale desde ese momento.
 
 ## Alternativas consideradas
 

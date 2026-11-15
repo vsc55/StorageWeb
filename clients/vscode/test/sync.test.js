@@ -131,6 +131,18 @@ test("push al guardar: sube con If-Match y, si el servidor cambió, pide sincron
   assert.equal(remote.text("a.txt"), undefined);
 });
 
+test("sin cuota en el servidor (507): se para y se dice por qué", async () => {
+  const { local, remote, engine } = setup();
+  local.set("a.txt", "a");
+  local.set("b.txt", "b");
+  local.set("c.txt", "c");
+  remote.put = async () => { throw new DavError(507, "PUT", false, "No hay cuota suficiente en «Mi carpeta»"); };
+  const summary = await engine.run();
+  assert.equal(summary.uploaded, 0);
+  assert.equal(summary.errors.length, 1);                      // no lo intenta con todos
+  assert.equal(summary.noSpace, "No hay cuota suficiente en «Mi carpeta»");
+});
+
 test("plan: tabla de decisiones", () => {
   const L = (size, mtime) => ({ size, mtime }), R = (etag) => ({ etag }), S = (size, mtime, etag) => ({ size, mtime, etag });
   const p = plan(

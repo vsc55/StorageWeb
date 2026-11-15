@@ -51,7 +51,7 @@
       <p class="muted small">{{ _("Its members lose the access it gives. Users and files are not touched.") }}
         {% if shares %}{{ _("Shared folders that use it: %(shares)s.", shares=shares|map(attribute='label')|join(', ')) }}{% endif %}</p>
     </div>
-    <form method="post" action="{{ url_for('groups.delete', group_id=group['id']) }}" class="inline js-confirm"
+    <form method="post" action="{{ url_for('groups.delete', group_uid=group['uid']) }}" class="inline js-confirm"
           data-confirm="{{ _('Delete the group «%(name)s»?', name=(group|group_label)) }}">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
       <button class="btn btn-danger" type="submit">{{ _("Delete group") }}</button>

@@ -36,7 +36,7 @@ Cada valor sale de la capa con más prioridad que lo fije, campo a campo: **pred
 
 | Clave | Tipo | Por defecto | Web | Variable | Descripción |
 |---|---|---|---|---|---|
-| `network.public_url` | texto | `""` | Sí | `STORAGEWEB_NETWORK__PUBLIC_URL`<br>`STORAGEWEB_PUBLIC_URL` | Nombre público (FQDN) por el que entran los usuarios: `files.empresa.es`, con puerto o subruta si hace falta (`files.empresa.es/archivos`). Se asume HTTPS; escribe `http://` delante solo para pruebas en local. Se usa para las URLs externas: la de vuelta de Entra ID (si `auth.entra.redirect_uri` está vacía) y la de salida. Vacío = el host de cada petición. Se puede cambiar desde la web. |
+| `network.public_url` | texto | `""` | Sí | `STORAGEWEB_NETWORK__PUBLIC_URL`<br>`STORAGEWEB_PUBLIC_URL` | Nombre público (FQDN) por el que entran los usuarios: `files.empresa.es`, con puerto o subruta si hace falta (`files.empresa.es/archivos`). Se asume HTTPS; escribe `http://` delante solo para pruebas en local. Se usa para las URLs externas: la de vuelta de Entra ID (`/auth/entra/callback`, que nunca se guarda: se calcula siempre de aquí) y la de salida. Vacío = la dirección con la que entra el navegador (su host y puerto). Se puede cambiar desde la web. |
 
 ## Sesión (`session`)
 
@@ -55,8 +55,10 @@ Cada valor sale de la capa con más prioridad que lo fije, campo a campo: **pred
 | `storage.show_hidden` | booleano | `false` | Sí | `STORAGEWEB_STORAGE__SHOW_HIDDEN` | Mostrar en la web los archivos y carpetas que empiezan por punto. La unidad de red (WebDAV) los muestra siempre. |
 | `storage.hidden` | lista | `[]` | Sí | `STORAGEWEB_STORAGE__HIDDEN` | Archivos y carpetas **ocultos para todos**: no se listan ni se pueden abrir ni crear, ni en la web ni por WebDAV ni por la API (la extensión de VS Code tampoco los sincroniza). Patrones como los de `.gitignore`, sobre la ruta dentro de cada carpeta: `Thumbs.db`, `*.tmp` (en cualquier sitio), `.git/` (solo carpetas), `/privado` (desde la raíz). Los archivos siguen en el disco. Es para no mostrar cosas (basura del sistema, carpetas técnicas), no un control de acceso: para eso, los permisos de las carpetas. La lista no se envía a los clientes. |
 | `storage.max_file_size_mb` | entero | `0` | Sí | `STORAGEWEB_STORAGE__MAX_FILE_SIZE_MB` | Tamaño máximo por archivo en MB; `0` = sin límite. |
-| `storage.home_quota_mb` | entero | `0` | Sí | `STORAGEWEB_STORAGE__HOME_QUOTA_MB` | Cuota por defecto de las **carpetas personales**, en MB; `0` = sin cuota. Solo avisa (a partir del 90 % y al superarla), no impide subir. Cada usuario puede tener otra en su ficha. |
-| `storage.shares` | lista | `[]` | Sí | `STORAGEWEB_STORAGE__SHARES` | Lista de carpetas compartidas (ver los campos de cada elemento abajo). |
+| `storage.home_quota_mb` | entero | `0` | Sí | `STORAGEWEB_STORAGE__HOME_QUOTA_MB` | Cuota por defecto de las **carpetas personales**, en MB; `0` = sin cuota. Cada usuario puede tener otra en su ficha, y cada grupo una para sus miembros (`storage.group_quotas`). |
+| `storage.group_quotas` | objeto | `{}` | Sí | `STORAGEWEB_STORAGE__GROUP_QUOTAS` | Cuota de la carpeta personal de los miembros de cada grupo, en MB: `{"rrhh": 5120}`. Si alguien está en varios, la mayor (`0` = sin cuota gana). La del propio usuario manda sobre la de sus grupos. Se edita en la ficha de cada grupo (se guarda en el grupo); la de un grupo puesta aquí en config.json no se puede cambiar desde la web. |
+| `storage.quota_enforce` | booleano | `true` | Sí | `STORAGEWEB_STORAGE__QUOTA_ENFORCE` | Si las cuotas **impiden escribir**: lo que no quepa no se puede subir, copiar ni mover (web, API y unidad de red responden 507). `false` = solo avisan (a partir del 90 % y al superarla). |
+| `storage.shares` | lista | `[]` | Sí | `STORAGEWEB_STORAGE__SHARES` | Lista de carpetas compartidas (ver los campos de cada elemento abajo). Las de config.json o del entorno se ven en la web de solo lectura, junto a las creadas desde la web (que se guardan en su propia tabla); si un nombre está en los dos sitios, manda config.json. |
 | `storage.shares[].name` | | | Sí | | Identificador en la URL (`/f/<name>/`): letras, números, `_` y `-`. `home` está reservado. |
 | `storage.shares[].label` | | | Sí | | Nombre visible. Por defecto, `name`. |
 | `storage.shares[].location` | | | Sí | | Ubicación de `storage.locations` donde está la carpeta (S3, SMB). Vacía = el disco del servidor (también lo montado en él: NFS, SMB/CIFS…). |
@@ -67,7 +69,7 @@ Cada valor sale de la capa con más prioridad que lo fije, campo a campo: **pred
 | `storage.shares[].read_only_users` | | | Sí | | Usuarios de `users` que solo pueden leer; `"*"` = todos los que entran por `["*"]`. Quien entra también por un grupo con escritura puede escribir. |
 | `storage.shares[].groups` | | | Sí | | Grupos con acceso: identificador de un grupo de *Personas → Grupos*, grupo del sistema, u Object ID/App Role de Entra ID. |
 | `storage.shares[].read_only_groups` | | | Sí | | Grupos de `groups` que solo pueden leer (los edita la matriz de accesos). Quien entra también por otro grupo o por `users` con escritura puede escribir. |
-| `storage.locations` | lista | `[]` | Sí | `STORAGEWEB_STORAGE__LOCATIONS` | Almacenamientos externos con nombre, que eligen las carpetas (ver *Tipos de ubicación*, abajo). |
+| `storage.locations` | lista | `[]` | Sí | `STORAGEWEB_STORAGE__LOCATIONS` | Almacenamientos externos con nombre, que eligen las carpetas (ver *Tipos de ubicación*, abajo). Los de config.json o del entorno se ven en la web de solo lectura, junto a los creados desde la web (que se guardan en su propia tabla). |
 | `storage.locations[].name` | | | Sí | | Identificador: letras, números, `_` y `-`. |
 | `storage.locations[].label` | | | Sí | | Nombre visible. Por defecto, `name`. |
 | `storage.locations[].type` | | | Sí | | Tipo de almacenamiento; sus opciones, en la tabla de su tipo (abajo). |
@@ -98,7 +100,6 @@ Cada valor sale de la capa con más prioridad que lo fije, campo a campo: **pred
 | `auth.entra.tenant_id` | texto | `""` | Sí | `STORAGEWEB_AUTH__ENTRA__TENANT_ID` | Directory (tenant) ID. También admite `organizations` o `common` (multi-tenant). |
 | `auth.entra.client_id` | texto | `""` | Sí | `STORAGEWEB_AUTH__ENTRA__CLIENT_ID` | Application (client) ID del registro de aplicación. |
 | `auth.entra.client_secret` | texto | `""` | Sí | `STORAGEWEB_AUTH__ENTRA__CLIENT_SECRET` | Secreto del registro de aplicación. Nunca se muestra en la web. |
-| `auth.entra.redirect_uri` | texto | `""` | Sí | `STORAGEWEB_AUTH__ENTRA__REDIRECT_URI` | URL de vuelta registrada en Entra ID, p. ej. `https://files.midominio.com/auth/entra/callback`. Vacía = se calcula a partir de la petición. |
 | `auth.entra.scopes` | lista | `["User.Read"]` | Sí | `STORAGEWEB_AUTH__ENTRA__SCOPES` | Scopes adicionales a `openid profile email`. |
 | `auth.entra.button_label` | texto | `""` | Sí | `STORAGEWEB_AUTH__ENTRA__BUTTON_LABEL` | Texto del botón de inicio de sesión. Vacío = texto por defecto en el idioma del usuario. |
 | `auth.entra.username_claim` | texto | `"preferred_username"` | Sí | `STORAGEWEB_AUTH__ENTRA__USERNAME_CLAIM` | Claim del id_token que se usa como nombre de usuario. |
@@ -139,6 +140,14 @@ Cada valor sale de la capa con más prioridad que lo fije, campo a campo: **pred
 | `maintenance.audit_retention_days` | entero | `0` | Sí | `STORAGEWEB_MAINTENANCE__AUDIT_RETENTION_DAYS` | Días que se conserva la auditoría; `0` = siempre. La limpieza se hace una vez al día. |
 | `maintenance.backup_interval_hours` | entero | `0` | Sí | `STORAGEWEB_MAINTENANCE__BACKUP_INTERVAL_HOURS` | Cada cuántas horas hace el servicio una copia de seguridad en `<data_dir>/backups`; `0` = nunca (puedes usar el timer de systemd). |
 | `maintenance.backup_keep` | entero | `7` | Sí | `STORAGEWEB_MAINTENANCE__BACKUP_KEEP` | Copias que se conservan en `<data_dir>/backups`; las más antiguas se borran. |
+
+## metrics
+
+| Clave | Tipo | Por defecto | Web | Variable | Descripción |
+|---|---|---|---|---|---|
+| `metrics.enabled` | booleano | `false` | Sí | `STORAGEWEB_METRICS__ENABLED` | Publicar métricas para Prometheus en `/metrics` (peticiones, subidas y descargas, inicios de sesión, IPs bloqueadas, espacio de las carpetas, ubicaciones remotas…). |
+| `metrics.token` | texto | `""` | Sí | `STORAGEWEB_METRICS__TOKEN` | Token que tiene que enviar Prometheus (`Authorization: Bearer <token>`, `bearer_token` en su configuración); al menos 16 caracteres. Nunca se muestra en la web. |
+| `metrics.allowed_networks` | lista | `[]` | Sí | `STORAGEWEB_METRICS__ALLOWED_NETWORKS` | IPs o redes (CIDR) desde las que se puede leer `/metrics` sin token. Sin token ni redes, solo desde el propio servidor. |
 
 ## Marca (`branding`)
 

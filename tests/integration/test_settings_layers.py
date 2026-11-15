@@ -44,9 +44,10 @@ def test_locked_fields_are_shown_disabled(locked_app):
     assert "STORAGEWEB_AUTH__ENTRA__CLIENT_ID" in html            # el título dice qué variable lo fija
     assert '<input data-field="auth.entra.tenant_id" type="text" name="entra_tenant_id"' in html  # lo demás, editable
     html = client.get("/admin/settings/system").get_data(as_text=True)
-    assert "<code>STORAGEWEB_AUTH__ENTRA__CLIENT_ID</code>" in html and "Carpetas compartidas</a>" in html
+    assert "<code>STORAGEWEB_AUTH__ENTRA__CLIENT_ID</code>" in html
+    assert "Carpetas compartidas</a>" not in html          # las carpetas no son ajustes: se bloquea cada una
     html = client.get("/admin/").get_data(as_text=True)
-    assert "3 ajustes están bloqueados" in html
+    assert "2 ajustes están bloqueados" in html
 
 
 def test_saving_a_section_ignores_locked_fields(locked_app):
@@ -59,9 +60,8 @@ def test_saving_a_section_ignores_locked_fields(locked_app):
         assert settings()["app_name"] == "Del fichero" and settings()["branding"]["primary_color"] == "#112233"
         assert "app_name" not in runtime().overrides(get_db())
     with locked_app.app_context():
-        assert runtime().origins(get_db()) == {"app_name": "file", "storage.shares": "file",
-                                               "auth.entra.client_id": "env", "default_locale": "web",
-                                               "branding.primary_color": "web"}
+        assert runtime().origins(get_db()) == {"app_name": "file", "auth.entra.client_id": "env",
+                                               "default_locale": "web", "branding.primary_color": "web"}
 
 
 def test_locked_field_cannot_be_reset(locked_app):
@@ -73,16 +73,24 @@ def test_locked_field_cannot_be_reset(locked_app):
     assert "Del fichero" in html
 
 
-def test_locked_shares_are_read_only(locked_app):
+def test_shares_from_config_are_read_only_and_others_can_be_added(locked_app, tmp_path):
+    """Las carpetas de config.json se ven, de solo lectura, junto a las de la web (tabla shares), que se editan."""
     client, token = _admin(locked_app)
     html = client.get("/admin/access/folders").get_data(as_text=True)
-    assert "«Carpetas compartidas» está fijado en config.json" in html and "Nueva carpeta compartida</a>" not in html
+    assert "Nueva carpeta compartida</a>" in html and "config.json</span>" in html
     html = client.get("/admin/access/folders/fija").get_data(as_text=True)
-    assert '<fieldset class="plain-fieldset" disabled>' in html
+    assert '<fieldset class="plain-fieldset" disabled>' in html and "está definida en config.json" in html
     resp = client.post("/admin/access/folders/fija/delete", data={"_csrf": token}, follow_redirects=True)
     assert "no se puede cambiar desde la web" in resp.get_data(as_text=True)
+    form = {"_csrf": token, "name": "web", "label": "De la web", "location": "", "path": str(tmp_path / "web"),
+            "entry_kind": ["all"], "entry_ref": ["*"], "entry_level": ["write"]}
+    client.post("/admin/access/folders/new", data=form)
     with locked_app.test_request_context():
-        assert [s["name"] for s in settings()["storage"]["shares"]] == ["fija"]
+        shares = settings()["storage"]["shares"]
+        assert [(s["name"], s["origin"]) for s in shares] == [("fija", "file"), ("web", "web")]
+        assert [r["name"] for r in get_db().execute("SELECT name FROM shares")] == ["web"]
+    resp = client.post("/admin/access/folders/new", data={**form, "name": "fija"}, follow_redirects=True)
+    assert resp.status_code == 400 and "fija" in resp.get_data(as_text=True)          # el nombre ya es de config.json
 
 
 def test_entra_flows_refuse_locked_fields(locked_app):
@@ -116,8 +124,8 @@ def test_profiles_share_a_database(write_config, tmp_path):
         assert settings()["app_name"] == "Oficina"
     with apps["default"].test_request_context():
         assert settings()["app_name"] == "StorageWeb"
-        rows = {r["key"] for r in get_db().execute("SELECT key FROM settings")}
-        assert "runtime:oficina" in rows
+        rows = {(r["profile"], r["path"]) for r in get_db().execute("SELECT profile, path FROM settings_values")}
+        assert ("oficina", "app_name") in rows and ("default", "app_name") not in rows
 
 
 def test_invalid_profile_name(write_config):

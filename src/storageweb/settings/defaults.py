@@ -8,12 +8,12 @@ PERMISSIONS = ("upload", "download", "mkdir", "rename", "delete")
 # El resto (server, data_dir, database, secret_key, session) solo se configura en config.json
 # porque afectan al arranque.
 RUNTIME_SECTIONS = ("app_name", "default_locale", "branding", "network", "storage", "permissions", "auth", "security",
-                    "maintenance")
+                    "maintenance", "metrics")
 
 # Campos secretos: nunca se muestran en la web; si se guardan vacíos se conserva el valor anterior.
 # Los de cada método de inicio de sesión los añade su proveedor (settings/auth_methods.py).
-SECRET_FIELDS: list[tuple[str, ...]] = []
-SECRET_PATHS: set[str] = set()
+SECRET_FIELDS: list[tuple[str, ...]] = [("metrics", "token")]
+SECRET_PATHS: set[str] = {"metrics.token"}
 
 
 def is_secret(path: str) -> bool:
@@ -23,7 +23,7 @@ def is_secret(path: str) -> bool:
 # Diccionarios que se tratan como un único valor al combinar ajustes web y config.json (no campo a
 # campo): vaciarlos en la web debe dejarlos vacíos, no heredar las claves del fichero.
 # (Los de los métodos de inicio de sesión, como auth.entra.role_mappings, los añade su proveedor.)
-LEAF_PATHS: list[tuple[str, ...]] = []
+LEAF_PATHS: list[tuple[str, ...]] = [("storage", "group_quotas")]
 
 DEFAULTS: dict = {
     "app_name": "StorageWeb",
@@ -70,9 +70,14 @@ DEFAULTS: dict = {
         # Tamaño máximo por archivo en MB (0 = sin límite). Las subidas se hacen por partes,
         # así que no dependen de server.max_upload_mb (que limita cada petición).
         "max_file_size_mb": 0,
-        # Cuota por defecto de las carpetas personales en MB (0 = sin cuota). Solo avisa; cada usuario puede
-        # tener la suya (users.quota_mb) y cada carpeta compartida, «quota_mb»
+        # Cuota por defecto de las carpetas personales en MB (0 = sin cuota). Cada usuario puede tener la suya
+        # (users.quota_mb), cada grupo la de sus miembros (group_quotas) y cada carpeta compartida, «quota_mb»
         "home_quota_mb": 0,
+        # Cuota de la carpeta personal de los miembros de cada grupo: {"rrhh": 5120}. Si alguien está en varios,
+        # la mayor (0 = sin cuota gana); la del propio usuario manda sobre todas
+        "group_quotas": {},
+        # True: lo que no quepa en la cuota no se puede subir, copiar ni mover (HTTP 507). False: solo avisa
+        "quota_enforce": True,
         # [{"name", "label", "path", "read_only", "users": ["*"], "read_only_users": [],
         #   "groups": [], "read_only_groups": []}]
         "shares": [],
@@ -112,6 +117,13 @@ DEFAULTS: dict = {
         # 0 = sin copias automáticas desde el servicio (se puede usar el timer de systemd)
         "backup_interval_hours": 0,
         "backup_keep": 7,
+    },
+    # Métricas para Prometheus en /metrics: con el token (Authorization: Bearer …) o desde las redes permitidas;
+    # sin ninguno de los dos, solo desde el propio servidor
+    "metrics": {
+        "enabled": False,
+        "token": "",
+        "allowed_networks": [],
     },
     "branding": {
         # Color principal (#rrggbb); vacío = el de serie

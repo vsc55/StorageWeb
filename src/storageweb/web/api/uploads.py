@@ -13,6 +13,8 @@ from pathlib import Path
 
 from flask import Blueprint, abort, g, request
 
+from ... import metrics
+
 from ...core import backends, storage
 from ...core import uploads as core
 from ...core import quota, tokens
@@ -94,6 +96,10 @@ def init():
     except ValueError as exc:
         abort(400, description=str(exc))
     size = core.validate_size(data.get("size"), settings()["storage"]["max_file_size_mb"])
+    try:
+        quota.check(root, settings(), size)  # al empezar: no se sube lo que no va a caber
+    except quota.QuotaExceeded as exc:
+        raise core.UploadError(exc.message, 507) from exc
     core.check_space(root["backend"], dir_rel, size)
     _cleanup_stale()
 
@@ -128,7 +134,8 @@ def put_chunk(upload_id: str):
 def complete(upload_id: str):
     row, root, dir_rel, part = _load(upload_id)
     final = core.finalize(part, root["backend"], dir_rel, row["filename"], row["size"])
-    quota.invalidate(root)
+    quota.record(root, row["size"])
+    metrics.inc("storageweb_upload_bytes_total", row["size"], via="api" if g.get("api_token") else "web")
     repo.delete(get_db(), upload_id)
     audit.log(get_db(), "upload", f"{root['name']}:/{final}",
               username=g.user["username"], ip=client_ip(), detail=str(row["size"]))

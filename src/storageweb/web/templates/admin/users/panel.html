@@ -20,7 +20,7 @@
     <ul>
       {% for u in users %}
       <li><a class="md-item md-user{% if current and u['id'] == current['id'] %} active{% endif %}{% if not u['enabled'] %} is-off{% endif %}"
-             href="{{ url_for('admin.users_panel', u=u['id'], tab=tab, q=filters.q or None, status=filters.status if filters.status != 'all' else None, source=filters.source or None, role=filters.role or None) }}"
+             href="{{ url_for('admin.users_panel', u=u['uid'], tab=tab, q=filters.q or None, status=filters.status if filters.status != 'all' else None, source=filters.source or None, role=filters.role or None) }}"
              {% if current and u['id'] == current['id'] %}aria-current="true"{% endif %}>
         {{ avatar(u) }}
         <span class="md-item-text"><strong>{{ u['display_name'] or u['username'] }}</strong>
@@ -35,7 +35,7 @@
 
   <section class="md-detail">
     {% if current %}
-    {% set here = url_for('admin.users_panel', u=current['id'], tab=tab) %}
+    {% set here = url_for('admin.users_panel', u=current['uid'], tab=tab) %}
     <div class="user-head">
       {{ avatar(current, 'xl') }}
       <div class="user-head-text">
@@ -43,7 +43,7 @@
         <div class="inline small muted"><span>{{ current['username'] }}</span> {{ badges(current) }} {{ status(current) }}</div>
       </div>
       {% if current['id'] != current_user['id'] %}
-      <form method="post" action="{{ url_for('admin.user_status', user_id=current['id']) }}" class="inline{% if current['enabled'] %} js-confirm{% endif %}"
+      <form method="post" action="{{ url_for('admin.user_status', user_uid=current['uid']) }}" class="inline{% if current['enabled'] %} js-confirm{% endif %}"
             {% if current['enabled'] %}data-confirm="{{ _('Disable «%(name)s»? They will not be able to sign in, not even with %(source)s.', name=current['username'], source=SOURCE_LABELS[current['source']]) }}"{% endif %}>
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
         <input type="hidden" name="enabled" value="{{ '0' if current['enabled'] else '1' }}">
@@ -55,12 +55,12 @@
 
     <nav class="tabs" aria-label="{{ _('Sections of the user') }}">
       {% for key, label in [('profile', _('Profile')), ('groups', _('Groups (%(count)s)', count=memberships|length)), ('access', _('Effective access')), ('activity', _('Activity'))] %}
-      <a class="tab{% if tab == key %} active{% endif %}" href="{{ url_for('admin.users_panel', u=current['id'], tab=key) }}"{% if tab == key %} aria-current="page"{% endif %}>{{ label }}</a>
+      <a class="tab{% if tab == key %} active{% endif %}" href="{{ url_for('admin.users_panel', u=current['uid'], tab=key) }}"{% if tab == key %} aria-current="page"{% endif %}>{{ label }}</a>
       {% endfor %}
     </nav>
 
     {% if tab == 'profile' %}
-      <form method="post" action="{{ url_for('admin.user_edit', user_id=current['id']) }}" class="form-grid">
+      <form method="post" action="{{ url_for('admin.user_edit', user_uid=current['uid']) }}" class="form-grid">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
         <input type="hidden" name="next" value="{{ here }}">
         {% set from_provider = auth_method(current['source']) and auth_method(current['source']).profile_from_provider %}
@@ -82,7 +82,7 @@
   {% endif %}
         <div class="span2 form-actions">
           <button class="btn btn-primary" type="submit">{{ _("Save changes") }}</button>
-          <a class="btn btn-ghost" href="{{ url_for('admin.user_edit', user_id=current['id']) }}">{{ _("Full record") }}</a>
+          <a class="btn btn-ghost" href="{{ url_for('admin.user_edit', user_uid=current['uid']) }}">{{ _("Full record") }}</a>
         </div>
       </form>
     {% elif tab == 'groups' %}

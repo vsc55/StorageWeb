@@ -13,6 +13,7 @@ from ...i18n import _, _l
 from ..context import get_db, runtime, settings
 from ..guards import admin_required, audit_event
 from .. import search
+from .access import entity_lock
 from .settings.common import save_partial
 
 bp = Blueprint("locations", __name__, url_prefix="/admin/storage")
@@ -24,12 +25,12 @@ def _locations() -> list[dict]:
     return settings()["storage"]["locations"]
 
 
-def _lock_context() -> dict:
-    return {"locations_origin": runtime().origins(get_db()).get(PATH), "locked_message": runtime().lock_notice(PATH)}
+def _lock_context(loc: dict | None = None) -> dict:
+    return {"locations_origin": None, "locked_message": entity_lock("locations", loc)}
 
 
-def _refuse_if_locked():
-    notice = runtime().lock_notice(PATH)
+def _refuse_if_locked(loc: dict | None):
+    notice = entity_lock("locations", loc)
     if notice:
         flash(notice, "error")
         return redirect(url_for("locations.index"))
@@ -43,7 +44,7 @@ def _render(loc: dict, original: str | None, status: int = 200, error: str | Non
     has_secret = {name: bool(stored and stored.get(name)) for name in schema.secrets}
     return render_template("admin/locations/edit.html", loc=loc, schema=schema, original=original, title=title,
                            error=error, used_by=core.users_of(settings(), original) if original else [],
-                           has_secret=has_secret, **_lock_context()), status
+                           has_secret=has_secret, **_lock_context(stored)), status
 
 
 @bp.route("/")
@@ -56,10 +57,10 @@ def index():
 
 
 def _store(original: str | None):
-    refused = _refuse_if_locked()
+    stored = core.find(_locations(), original) if original else None
+    refused = _refuse_if_locked(stored)
     if refused:
         return refused
-    stored = core.find(_locations(), original) if original else None
     try:
         loc = core.from_form(request.form, stored)
     except core.LocationError:
@@ -126,7 +127,7 @@ def delete(name: str):
     loc = core.find(_locations(), name)
     if loc is None:
         abort(404)
-    refused = _refuse_if_locked()
+    refused = _refuse_if_locked(loc)
     if refused:
         return refused
     try:

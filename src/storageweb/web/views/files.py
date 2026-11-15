@@ -12,6 +12,7 @@ from flask import (Blueprint, Response, abort, current_app, flash, g, jsonify, r
                    stream_with_context, url_for)
 
 from ... import patterns
+from ... import metrics
 from ...core import backends, storage, tokens
 from ...core import files as files_core
 from ...core import quota
@@ -153,6 +154,7 @@ def upload(root, sub):
     backend = r["backend"]
 
     saved, errors = [], []
+    cfg = settings()
     for item in request.files.getlist("files"):
         if not item or not item.filename:
             continue
@@ -166,17 +168,22 @@ def upload(root, sub):
         try:
             item.save(tmp)
             size = tmp.stat().st_size
+            quota.check(r, cfg, size)
             final = backend.unique_rel(rel, name)
             backend.store(tmp, final)
+        except quota.QuotaExceeded as exc:
+            errors.append(f"{name}: {exc.message}")
+            tmp.unlink(missing_ok=True)
+            continue
         except (OSError, backends.BackendError) as exc:
             current_app.logger.exception("Error saving %s", name)
             errors.append(f"{name}: {_reason(exc) or _('write error')}")
             tmp.unlink(missing_ok=True)
             continue
         saved.append(backends.name_of(final))
+        quota.record(r, size)
+        metrics.inc("storageweb_upload_bytes_total", size, via="web")
         _audit("upload", r, final, detail=str(size))
-    if saved:
-        quota.invalidate(r)
 
     if _wants_json():
         return jsonify(saved=saved, errors=errors), (200 if saved or not errors else 400)
@@ -299,17 +306,28 @@ def transfer():
     _transfer_perms(src, dst, move)
     cfg = settings()
     done, errors = [], []
+    same = src["name"] == dst["name"]
     for raw in request.form.getlist("items"):
         try:
             rel = backends.clean_rel(raw)
+            size = 0 if move and same else quota.size_of(src["backend"], rel)
+            quota.check(dst, cfg, size)  # mover dentro de la misma carpeta no ocupa más
             new_rel = files_core.transfer(cfg, src, rel, dst, dst_dir, move=move)
+        except quota.QuotaExceeded as exc:
+            errors.append(f"{backends.name_of(raw)}: {exc.message}")
+            continue
         except (files_core.FilesError, ValueError, PathError) as exc:
             errors.append(str(exc) if not isinstance(exc, PathError) else _("Invalid path: %(path)s", path=raw))
             continue
+        except backends.BackendError as exc:
+            errors.append(f"{backends.name_of(raw)}: {exc}")
+            continue
         done.append(backends.name_of(new_rel))
+        if size:
+            quota.record(dst, size)
+            if move:
+                quota.record(src, -size)
         _audit("rename" if move else "upload", src, rel, detail=f"{action}:{dst['name']}:/{new_rel}")
-    if done:
-        quota.invalidate(src, dst)
     if _wants_json():
         return jsonify(done=done, errors=errors), (200 if done or not errors else 400)
     if done:
