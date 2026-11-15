@@ -71,3 +71,35 @@ def test_dockerfile_and_entrypoint():
     assert "USER storageweb" in dockerfile and "HEALTHCHECK" in dockerfile and "/healthz" in dockerfile
     entry = (PKG / "docker" / "entrypoint.sh").read_text(encoding="utf-8")
     assert "--password-stdin" in entry and 'exec storageweb "$@"' in entry
+
+
+@pytest.mark.parametrize("proxy", ["nginx", "apache"])
+def test_proxy_templates_are_shipped_everywhere(proxy):
+    """Las plantillas de proxy (nginx y Apache) van en los paquetes, en el ebuild de Gentoo y en install.sh."""
+    assert (PKG / proxy / "storageweb.conf").is_file()
+    shipped = f"packaging/{proxy}/storageweb.conf"
+    assert shipped in (PKG / "nfpm.yaml").read_text(encoding="utf-8")
+    assert shipped in (PKG / "gentoo" / "www-apps" / "storageweb" / "storageweb.ebuild.in").read_text(encoding="utf-8")
+    assert f'"$PKG/{proxy}/storageweb.conf"' in (PKG / "install.sh").read_text(encoding="utf-8")
+
+
+def test_apache_template_essentials():
+    """Lo que no puede faltar para subidas grandes, WebDAV y las URLs que genera la aplicación."""
+    conf = (PKG / "apache" / "storageweb.conf").read_text(encoding="utf-8")
+    for directive in ("LimitRequestBody", "ProxyPreserveHost On", "ProxyPass        / http://127.0.0.1:8080/ nocanon",
+                      "AllowEncodedSlashes NoDecode", 'RequestHeader set X-Forwarded-Proto "https"',
+                      "RequestReadTimeout", "ProxyTimeout 300",
+                      "RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [R=301,L]"):
+        assert directive in conf, directive
+    assert not any(line.strip().startswith("SetEnv proxy-sendchunked") for line in conf.splitlines())
+    for directive in ("RequestHeader unset X-Forwarded-Prefix", "SSLProtocol -all +TLSv1.2 +TLSv1.3",
+                      "ServerSignature Off", "ErrorLog", "CustomLog"):
+        assert directive in conf, directive
+
+
+def test_nginx_template_essentials():
+    conf = (PKG / "nginx" / "storageweb.conf").read_text(encoding="utf-8")
+    for directive in ('proxy_set_header X-Forwarded-Prefix "";', "ssl_protocols TLSv1.2 TLSv1.3;", "server_tokens off;",
+                      "access_log", "error_log", "client_max_body_size", "proxy_request_buffering off",
+                      "proxy_buffering off", "proxy_max_temp_file_size 0"):
+        assert directive in conf, directive

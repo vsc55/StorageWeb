@@ -33,6 +33,14 @@
 .popover-body { position: absolute; right: 0; top: calc(100% + 6px); z-index: 10; width: 280px; background: var(--bg);
                 border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column;
                 gap: 10px; box-shadow: 0 10px 30px rgba(16, 24, 40, .15); }
+/* Sin JavaScript el menú se alinea con el borde derecho del botón; common.js le pone popover-start (hacia la
+   derecha) cuando cabe en la pantalla */
+.popover-body.popover-start { left: 0; right: auto; }
+/* Menú «Nuevo…» con una entrada por tipo (p. ej. Almacenamiento externo) */
+.popover-body.add-menu-list { gap: 0; padding: 6px; width: min(280px, calc(100vw - 32px)); max-height: 70vh;
+                              overflow-y: auto; }
+.add-menu-list .menu-item { padding: 7px 10px; }
+.add-menu-text { display: flex; flex-direction: column; gap: 0; min-width: 0; line-height: 1.3; }
 .selection-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 16px;
                  background: var(--primary-soft); color: var(--primary-ink); border-bottom: 1px solid var(--line); }
 .selection-bar strong { margin-right: 6px; }
@@ -98,3 +106,45 @@
   .files .col-date { display: none; }
   .filter input { min-width: 0; width: 120px; }
 }
+
+/* Buscar: el formulario del filtro no añade caja propia (Intro → buscar en todas las carpetas) */
+.filter-form { display: contents; }
+
+/* Arrastrar filas a una carpeta (mover; con Ctrl, copiar) */
+.file-row[draggable="true"] { cursor: default; }
+.file-row.drop-target td, .tree-item.drop-target { background: var(--primary-soft); box-shadow: inset 0 0 0 2px var(--primary); }
+
+/* Elegir la carpeta de destino de mover o copiar */
+.pick-dialog { width: min(520px, calc(100vw - 32px)); }
+.pick-title { margin: 0; font-size: 17px; }
+.pick-path { display: flex; flex-direction: column; gap: 8px; }
+.pick-path select { width: 100%; }
+.pick-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 13px; min-height: 22px; }
+.pick-crumbs button { background: none; border: 0; padding: 2px 4px; border-radius: 6px; color: var(--primary); cursor: pointer; }
+.pick-crumbs button:hover { background: var(--bg-hover); }
+.pick-crumbs .sep { color: var(--muted); }
+.pick-list { list-style: none; margin: 0; padding: 4px; max-height: 300px; min-height: 120px; overflow-y: auto;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); }
+.pick-list button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border: 0; border-radius: 6px;
+  background: none; color: var(--fg); text-align: left; cursor: pointer; font: inherit; }
+.pick-list button:hover, .pick-list button:focus-visible { background: var(--bg-hover); }
+.pick-list .muted { padding: 8px; }
+
+/* Página de búsqueda */
+.search-form { display: flex; gap: 8px; align-items: center; margin: 4px 0 8px; flex-wrap: wrap; }
+.search-form .filter { flex: 1 1 320px; max-width: 640px; }
+.search-form .filter input { width: 100%; }
+
+/* Espacio del almacenamiento (panel de detalle) */
+.space-info { width: 100%; max-width: 240px; margin: 14px auto 0; display: flex; flex-direction: column; gap: 6px; }
+.space-info p { margin: 0; }
+.space-bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.space-bar > span { display: block; height: 100%; width: 0; background: var(--primary); border-radius: 3px; }
+.space-bar.space-warn > span { background: #f79009; }
+.space-bar.space-danger > span { background: var(--danger); }
+
+/* Cuota: aviso encima de la lista cuando está casi llena o superada (solo avisa) */
+.quota-notice { margin: 8px 16px 0; padding: 8px 12px; border-radius: var(--radius); font-size: 13px;
+  background: var(--surface-head); border-left: 4px solid #f79009; }
+.quota-notice.quota-over { border-left-color: var(--danger); background: var(--err-bg); }
+.quota-info + .space-info { margin-top: 10px; }

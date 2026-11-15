@@ -34,6 +34,7 @@ def _error(exc: Exception) -> BackendError:
 
 
 class AzureBlobBackend(RemoteBackend):
+    unlimited_space = True  # almacenamiento de objetos: sin tamaño fijo
     kind = "azure"
     schema = LocationSchema(
         kind="azure",

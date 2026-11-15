@@ -112,3 +112,33 @@ def test_diagnostics_all_consistent(make_app):
                 base_url="https://files.example.com", headers=PROXY)
     html = client.get("/admin/settings/network", base_url="https://files.example.com", headers=PROXY).get_data(as_text=True)
     assert "coinciden" in html and 'class="fail"' not in html
+
+
+def test_apache_example_with_the_configured_values(make_app):
+    """La página de red genera también el ejemplo de Apache con el nombre, la subruta y el tamaño máximo."""
+    app = make_app({"network": {"public_url": "www.example.com/archivos"}, "server": {"max_upload_mb": 100}})
+    add_user(app, "root", role="admin")
+    client = app.test_client()
+    login(client, "root")
+    html = client.get("/admin/settings/network").get_data(as_text=True)
+    assert "Ejemplo para Apache 2.4 con estos valores" in html
+    assert "ServerName www.example.com" in html
+    assert "ProxyPass        /archivos/ http://" in html and "nocanon" in html
+    assert 'RequestHeader set X-Forwarded-Prefix "/archivos"' in html
+    assert "LimitRequestBody " in html and "&lt;VirtualHost *:443&gt;" in html
+    assert "RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [R=301,L]" in html
+
+
+
+def test_proxy_examples_never_pass_a_client_prefix(make_app):
+    """Sin subruta, los ejemplos quitan la X-Forwarded-Prefix que pudiera mandar el cliente; con subruta, la ponen."""
+    app = make_app({"network": {"public_url": "files.example.com"}})
+    add_user(app, "root", role="admin")
+    client = app.test_client()
+    login(client, "root")
+    html = client.get("/admin/settings/network").get_data(as_text=True)
+    assert 'proxy_set_header X-Forwarded-Prefix "";' in html                  # nginx
+    assert "RequestHeader unset X-Forwarded-Prefix" in html                    # Apache
+    assert "header_up -X-Forwarded-Prefix" in html                             # Caddy
+    assert "ssl_protocols TLSv1.2 TLSv1.3;" in html and "SSLProtocol -all +TLSv1.2 +TLSv1.3" in html
+    assert "server_tokens off;" in html and "ServerSignature Off" in html

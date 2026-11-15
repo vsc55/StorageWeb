@@ -132,6 +132,7 @@ body:has(.save-bar:not(.is-idle)) .toasts { bottom: 84px; }
 /* utilidades */
 .icon-xs { width: 11px; height: 11px; }
 input:disabled, select:disabled, textarea:disabled { opacity: .65; cursor: not-allowed; }
+input.from-provider { background: var(--surface-head); color: var(--muted); cursor: default; }  /* lo pone el proveedor */
 
 /* --- modal propio (SW.confirm / SW.prompt / SW.alert en common.js) --- */
 .sw-modal { width: min(440px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--line); border-radius: 14px;

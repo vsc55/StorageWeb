@@ -32,6 +32,7 @@ def _error(exc: Exception) -> BackendError:
 
 
 class S3Backend(RemoteBackend):
+    unlimited_space = True  # almacenamiento de objetos: sin tamaño fijo
     kind = "s3"
     schema = LocationSchema(
         kind="s3",

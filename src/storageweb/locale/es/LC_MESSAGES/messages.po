@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: StorageWeb VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-15 01:11+0100\n"
+"POT-Creation-Date: 2026-11-15 20:05+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -202,7 +202,7 @@ msgstr "no"
 msgid "Sign-in"
 msgstr "Inicio de sesión"
 
-#: storageweb/cli/config.py storageweb/web/templates/browse.html
+#: storageweb/cli/config.py storageweb/web/templates/browse.html storageweb/web/templates/search.html
 msgid "Location"
 msgstr "Ubicación"
 
@@ -530,6 +530,10 @@ msgstr "No puedes quitarte a ti mismo el rol de administrador."
 msgid "You cannot disable your own account."
 msgstr "No puedes deshabilitar tu propia cuenta."
 
+#: storageweb/core/accounts.py
+msgid "The quota must be a whole number of MB (0 = no quota; empty = the default one)."
+msgstr "La cuota tiene que ser un número entero de MB (0 = sin cuota; vacío = la de por defecto)."
+
 #: storageweb/core/accounts.py storageweb/web/views/profile.py
 msgid "Only local users have a password that can be changed."
 msgstr "Solo se puede cambiar la contraseña de usuarios locales."
@@ -642,6 +646,44 @@ msgstr "Alcance o caducidad no válidos."
 #: storageweb/core/connect.py
 msgid "Too many pending authorizations. Try again in a few minutes."
 msgstr "Demasiadas autorizaciones pendientes. Inténtalo dentro de unos minutos."
+
+#: storageweb/core/files.py
+msgid "A whole folder of StorageWeb cannot be moved or copied."
+msgstr "No se puede mover ni copiar una carpeta de StorageWeb entera."
+
+#: storageweb/core/files.py
+#, python-format
+msgid "«%(name)s» no longer exists."
+msgstr "«%(name)s» ya no existe."
+
+#: storageweb/core/files.py
+#, python-format
+msgid "«%(name)s» is already in that folder."
+msgstr "«%(name)s» ya está en esa carpeta."
+
+#: storageweb/core/files.py
+#, python-format
+msgid "«%(name)s» cannot be moved or copied into itself."
+msgstr "«%(name)s» no se puede mover ni copiar dentro de sí misma."
+
+#: storageweb/core/files.py
+msgid "The destination folder does not exist."
+msgstr "La carpeta de destino no existe."
+
+#: storageweb/core/files.py
+#, python-format
+msgid "«%(name)s» already exists in the destination folder."
+msgstr "«%(name)s» ya existe en la carpeta de destino."
+
+#: storageweb/core/files.py
+#, python-format
+msgid "Could not move «%(name)s»: %(error)s"
+msgstr "No se ha podido mover «%(name)s»: %(error)s"
+
+#: storageweb/core/files.py
+#, python-format
+msgid "Could not copy «%(name)s»: %(error)s"
+msgstr "No se ha podido copiar «%(name)s»: %(error)s"
 
 #: storageweb/core/groups.py storageweb/providers/local/method.py
 msgid "Local"
@@ -928,7 +970,7 @@ msgstr "La carpeta compartida «%(label)s» no existe en el servidor"
 msgid "Review the folder"
 msgstr "Revisar la carpeta"
 
-#: storageweb/core/storage.py
+#: storageweb/core/storage.py storageweb/web/views/files.py
 #, python-format
 msgid "Invalid path: %(path)s"
 msgstr "Ruta no válida: %(path)s"
@@ -1349,6 +1391,14 @@ msgid "to show group names instead of Object IDs"
 msgstr "para mostrar el nombre de los grupos en lugar del Object ID"
 
 #: storageweb/providers/entra/check.py
+msgid ""
+"to disable accounts removed or disabled in Entra ID, refresh groups between sign-ins and read the"
+" groups of users in more than 200"
+msgstr ""
+"para desactivar las cuentas borradas o desactivadas en Entra ID, actualizar los grupos entre "
+"inicios de sesión y leer los grupos de quien está en más de 200"
+
+#: storageweb/providers/entra/check.py
 #, python-format
 msgid "Sign-in permissions (%(scopes)s): they are checked when someone signs in with Microsoft."
 msgstr ""
@@ -1476,6 +1526,34 @@ msgstr "El secreto de cliente no es válido (copia el valor, no el id.)."
 msgid "The token endpoint answered: %(error)s"
 msgstr "El endpoint de token respondió: %(error)s"
 
+#: storageweb/providers/entra/check.py
+#, python-format
+msgid ""
+"The ID token includes the session (sid): signing out of Microsoft also closes StorageWeb (last "
+"sign-in: %(when)s)."
+msgstr ""
+"El id_token incluye la sesión (sid): cerrar sesión en Microsoft también cierra StorageWeb (último"
+" inicio de sesión: %(when)s)."
+
+#: storageweb/providers/entra/check.py
+#, python-format
+msgid ""
+"The ID token does not include the session (sid) claim: signing out of Microsoft will not close "
+"StorageWeb (last sign-in: %(when)s)."
+msgstr ""
+"El id_token no incluye el claim de la sesión (sid): cerrar sesión en Microsoft no cerrará "
+"StorageWeb (último inicio de sesión: %(when)s)."
+
+#: storageweb/providers/entra/method.py storageweb/settings/checks.py storageweb/settings/loader.py
+#, python-format
+msgid "%(field)s must be an integer"
+msgstr "%(field)s debe ser un número entero"
+
+#: storageweb/providers/entra/method.py storageweb/settings/loader.py
+#, python-format
+msgid "%(field)s cannot be negative"
+msgstr "%(field)s no puede ser negativo"
+
 #: storageweb/providers/entra/method.py
 #, python-format
 msgid "Entra ID is enabled but these are missing: %(fields)s"
@@ -1523,6 +1601,11 @@ msgid "Recalculate the role on every sign-in according to the mapping"
 msgstr "Recalcular el rol en cada inicio de sesión según el mapeo"
 
 #: storageweb/providers/entra/method.py storageweb/web/templates/admin/settings/auth/entra.html
+#: storageweb/web/views/settings/entra.py
+msgid "Check accounts against Entra ID every (minutes)"
+msgstr "Revisar las cuentas contra Entra ID cada (minutos)"
+
+#: storageweb/providers/entra/method.py storageweb/web/templates/admin/settings/auth/entra.html
 msgid "Sign in directly with Microsoft (skip the sign-in page)"
 msgstr "Entrar directamente con Microsoft (sin pasar por la página de inicio de sesión)"
 
@@ -1545,6 +1628,14 @@ msgstr "Tu cuenta no pertenece a la organización permitida."
 #: storageweb/providers/entra/method.py
 msgid "The Microsoft account did not return a valid identifier."
 msgstr "La cuenta de Microsoft no devolvió un identificador válido."
+
+#: storageweb/providers/entra/method.py
+msgid ""
+"Your groups could not be read from Microsoft, so access cannot be checked. Contact the "
+"administrator."
+msgstr ""
+"No se pudieron leer tus grupos de Microsoft, así que no se puede comprobar el acceso. Contacta "
+"con el administrador."
 
 #: storageweb/providers/entra/method.py
 msgid "Your account is not allowed to access this application."
@@ -1648,8 +1739,8 @@ msgstr ""
 
 #: storageweb/providers/entra/register.py
 #, python-format
-msgid "Reading group names (Group.Read.All) could not be granted: %(error)s"
-msgstr "No se pudo conceder la lectura de grupos (Group.Read.All): %(error)s"
+msgid "%(perm)s could not be granted: %(error)s"
+msgstr "No se pudo conceder %(perm)s: %(error)s"
 
 #: storageweb/providers/entra/register.py
 #, python-format
@@ -1676,6 +1767,23 @@ msgid "Redirect URI"
 msgstr "Redirect URI"
 
 #: storageweb/providers/entra/register.py
+#, python-format
+msgid "Front-channel logout URL set: %(uri)s"
+msgstr "URL de cierre de sesión de canal frontal puesta: %(uri)s"
+
+#: storageweb/providers/entra/register.py
+msgid "Front-channel logout URL"
+msgstr "URL de cierre de sesión de canal frontal"
+
+#: storageweb/providers/entra/register.py
+msgid "Optional claims added to the ID token (email, sid)"
+msgstr "Claims opcionales añadidos al id_token (email, sid)"
+
+#: storageweb/providers/entra/register.py
+msgid "Optional claims"
+msgstr "Claims opcionales"
+
+#: storageweb/providers/entra/register.py
 msgid "Missing Microsoft Graph permissions added to the application"
 msgstr "Añadidos a la aplicación los permisos de Microsoft Graph que faltaban"
 
@@ -1700,8 +1808,9 @@ msgid "Admin consent"
 msgstr "Consentimiento de administrador"
 
 #: storageweb/providers/entra/register.py
-msgid "Reading group names (Group.Read.All) granted"
-msgstr "Concedida la lectura de nombres de grupos (Group.Read.All)"
+#, python-format
+msgid "Application permission %(perm)s granted"
+msgstr "Permiso de aplicación %(perm)s concedido"
 
 #: storageweb/providers/entra/register.py
 msgid "New client secret created"
@@ -1768,11 +1877,6 @@ msgstr "Usar el home del sistema (/home/usuario)"
 #, python-format
 msgid "%(field)s must be a list"
 msgstr "%(field)s debe ser una lista"
-
-#: storageweb/settings/checks.py storageweb/settings/loader.py
-#, python-format
-msgid "%(field)s must be an integer"
-msgstr "%(field)s debe ser un número entero"
 
 #: storageweb/settings/checks.py storageweb/settings/loader.py
 #, python-format
@@ -1850,6 +1954,11 @@ msgstr "Mostrar archivos ocultos"
 #: storageweb/settings/fields.py storageweb/web/templates/admin/settings/storage.html
 msgid "Hidden for everyone"
 msgstr "Ocultos para todos"
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/storage.html
+#: storageweb/web/views/settings/forms.py
+msgid "Quota of personal folders (MB)"
+msgstr "Cuota de las carpetas personales (MB)"
 
 #: storageweb/settings/fields.py storageweb/web/templates/admin/settings/storage.html
 msgid "Maximum size per file (MB)"
@@ -1991,11 +2100,6 @@ msgstr "Nombre de ubicación de almacenamiento no válido %(name)s (letras, díg
 #, python-format
 msgid "Storage location %(name)s: the type must be one of: %(values)s"
 msgstr "Ubicación de almacenamiento %(name)s: el tipo debe ser uno de: %(values)s"
-
-#: storageweb/settings/loader.py
-#, python-format
-msgid "%(field)s cannot be negative"
-msgstr "%(field)s no puede ser negativo"
 
 #: storageweb/settings/loader.py
 #, python-format
@@ -2163,6 +2267,62 @@ msgstr "¿Seguro?"
 #, python-format
 msgid "Added: %(name)s"
 msgstr "Añadido: %(name)s"
+
+#: storageweb/web/js_messages.py
+msgid "You cannot write in this folder."
+msgstr "No puedes escribir en esta carpeta."
+
+#: storageweb/web/js_messages.py
+msgid "A folder cannot go inside itself."
+msgstr "Una carpeta no puede ir dentro de sí misma."
+
+#: storageweb/web/js_messages.py
+msgid "They are already in this folder: choose another one."
+msgstr "Ya están en esta carpeta: elige otra."
+
+#: storageweb/web/js_messages.py
+msgid "Loading…"
+msgstr "Cargando…"
+
+#: storageweb/web/js_messages.py
+msgid "No subfolders."
+msgstr "Sin subcarpetas."
+
+#: storageweb/web/js_messages.py
+msgid "Could not read this folder."
+msgstr "No se ha podido leer esta carpeta."
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "Move «%(name)s» to…"
+msgstr "Mover «%(name)s» a…"
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "Move %(num)s items to…"
+msgstr "Mover %(num)s elementos a…"
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "Copy «%(name)s» to…"
+msgstr "Copiar «%(name)s» a…"
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "Copy %(num)s items to…"
+msgstr "Copiar %(num)s elementos a…"
+
+#: storageweb/web/js_messages.py
+msgid "Move here"
+msgstr "Mover aquí"
+
+#: storageweb/web/js_messages.py
+msgid "Copy here"
+msgstr "Copiar aquí"
+
+#: storageweb/web/js_messages.py storageweb/web/templates/browse.html
+msgid "read-only"
+msgstr "lectura"
 
 #: storageweb/web/js_messages.py
 msgid "New name:"
@@ -2500,6 +2660,59 @@ msgstr "Subida no encontrada"
 msgid "The offset parameter is missing"
 msgstr "Falta el parámetro offset"
 
+#: storageweb/web/templates/_space.html
+#, python-format
+msgid "Quota: %(used)s of %(limit)s"
+msgstr "Cuota: %(used)s de %(limit)s"
+
+#: storageweb/web/templates/_space.html
+#, python-format
+msgid "Quota used: %(percent)s%%"
+msgstr "Cuota usada: %(percent)s%%"
+
+#: storageweb/web/templates/_space.html
+#, python-format
+msgid "Quota exceeded (%(percent)s%%): free some space."
+msgstr "Cuota superada (%(percent)s%%): libera espacio."
+
+#: storageweb/web/templates/_space.html
+#, python-format
+msgid "%(percent)s%% of the quota used: almost full."
+msgstr "%(percent)s%% de la cuota usada: casi llena."
+
+#: storageweb/web/templates/_space.html
+#, python-format
+msgid "%(percent)s%% of the quota used"
+msgstr "%(percent)s%% de la cuota usada"
+
+#: storageweb/web/templates/_space.html
+msgid "Storage without a fixed size (object storage)."
+msgstr "Almacenamiento sin tamaño fijo (de objetos)."
+
+#: storageweb/web/templates/_space.html
+#, python-format
+msgid "%(free)s free"
+msgstr "%(free)s libres"
+
+#: storageweb/web/templates/_space.html
+#, python-format
+msgid "of %(total)s"
+msgstr "de %(total)s"
+
+#: storageweb/web/templates/_space.html
+#, python-format
+msgid "Space used: %(percent)s%%"
+msgstr "Espacio usado: %(percent)s%%"
+
+#: storageweb/web/templates/_space.html
+#, python-format
+msgid "%(percent)s%% used"
+msgstr "%(percent)s%% usado"
+
+#: storageweb/web/templates/_space.html
+msgid "Almost full"
+msgstr "Casi lleno"
+
 #: storageweb/web/templates/base.html storageweb/web/templates/profile.html
 msgid "Theme"
 msgstr "Tema"
@@ -2548,6 +2761,7 @@ msgstr "Buscar en la administración"
 
 #: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/search.html
 #: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/base.html
+#: storageweb/web/templates/search.html
 msgid "Search"
 msgstr "Buscar"
 
@@ -2580,10 +2794,6 @@ msgid "Locations"
 msgstr "Ubicaciones"
 
 #: storageweb/web/templates/browse.html
-msgid "read-only"
-msgstr "lectura"
-
-#: storageweb/web/templates/browse.html
 msgid "Contents"
 msgstr "Contenido"
 
@@ -2593,8 +2803,16 @@ msgid "Path"
 msgstr "Ruta"
 
 #: storageweb/web/templates/browse.html
-msgid "Filter in this folder"
-msgstr "Filtrar en esta carpeta"
+msgid "Filter in this folder; Enter searches all your folders"
+msgstr "Filtrar en esta carpeta; Intro busca en todas tus carpetas"
+
+#: storageweb/web/templates/browse.html
+msgid "Filter or search…"
+msgstr "Filtrar o buscar…"
+
+#: storageweb/web/templates/browse.html
+msgid "Filters this folder as you type. Press Enter to search by name in all your folders."
+msgstr "Filtra esta carpeta mientras escribes. Pulsa Intro para buscar por nombre en todas tus carpetas."
 
 #: storageweb/web/templates/browse.html
 msgid "New folder"
@@ -2613,6 +2831,24 @@ msgid "Send"
 msgstr "Enviar"
 
 #: storageweb/web/templates/browse.html
+#, python-format
+msgid "This folder is over its quota: %(used)s of %(limit)s. Free some space."
+msgstr "Esta carpeta ha superado su cuota: %(used)s de %(limit)s. Libera espacio."
+
+#: storageweb/web/templates/browse.html
+#, python-format
+msgid "This folder has used %(percent)s%% of its quota (%(used)s of %(limit)s)."
+msgstr "Esta carpeta ha usado el %(percent)s%% de su cuota (%(used)s de %(limit)s)."
+
+#: storageweb/web/templates/browse.html
+msgid "Move to…"
+msgstr "Mover a…"
+
+#: storageweb/web/templates/browse.html
+msgid "Copy to…"
+msgstr "Copiar a…"
+
+#: storageweb/web/templates/browse.html
 msgid "Clear selection"
 msgstr "Quitar selección"
 
@@ -2624,15 +2860,16 @@ msgstr "Seleccionar todo"
 #: storageweb/web/templates/admin/groups/_macros.html
 #: storageweb/web/templates/admin/locations/edit.html
 #: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/browse.html
-#: storageweb/web/templates/profile.html
+#: storageweb/web/templates/profile.html storageweb/web/templates/search.html
 msgid "Name"
 msgstr "Nombre"
 
 #: storageweb/web/templates/admin/settings/backups.html storageweb/web/templates/browse.html
+#: storageweb/web/templates/search.html
 msgid "Size"
 msgstr "Tamaño"
 
-#: storageweb/web/templates/browse.html
+#: storageweb/web/templates/browse.html storageweb/web/templates/search.html
 msgid "Modified"
 msgstr "Modificado"
 
@@ -2653,6 +2890,10 @@ msgstr "Archivo"
 #, python-format
 msgid "Select %(name)s"
 msgstr "Seleccionar %(name)s"
+
+#: storageweb/web/templates/browse.html
+msgid "Download as ZIP"
+msgstr "Descargar como ZIP"
 
 #: storageweb/web/templates/browse.html
 #, python-format
@@ -2708,6 +2949,10 @@ msgstr "Tipo"
 #: storageweb/web/templates/admin/overview.html storageweb/web/templates/browse.html
 msgid "Open"
 msgstr "Abrir"
+
+#: storageweb/web/templates/browse.html
+msgid "Folder of StorageWeb"
+msgstr "Carpeta de StorageWeb"
 
 #: storageweb/web/templates/connect.html
 #, python-format
@@ -2976,6 +3221,10 @@ msgid "Create token"
 msgstr "Crear token"
 
 #: storageweb/web/templates/profile.html
+msgid "Space of my folder"
+msgstr "Espacio de mi carpeta"
+
+#: storageweb/web/templates/profile.html
 msgid "Network drive"
 msgstr "Unidad de red"
 
@@ -3007,6 +3256,54 @@ msgid ""
 msgstr ""
 "Windows: Explorador de archivos → Este equipo → Conectar a unidad de red → pega la dirección. "
 "macOS: Finder → Ir → Conectarse al servidor."
+
+#: storageweb/web/templates/search.html
+msgid "Search files"
+msgstr "Buscar archivos"
+
+#: storageweb/web/templates/search.html
+msgid "Name contains"
+msgstr "El nombre contiene"
+
+#: storageweb/web/templates/search.html
+msgid "Part of the name (several words: all of them)"
+msgstr "Parte del nombre (varias palabras: todas)"
+
+#: storageweb/web/templates/search.html
+#, python-format
+msgid "In %(where)s and its subfolders."
+msgstr "En %(where)s y sus subcarpetas."
+
+#: storageweb/web/templates/search.html
+msgid "Search in all my folders"
+msgstr "Buscar en todas mis carpetas"
+
+#: storageweb/web/templates/search.html
+msgid "In all your folders. Upper and lower case and accents do not matter."
+msgstr "En todas tus carpetas. Da igual mayúsculas, minúsculas y tildes."
+
+#: storageweb/web/templates/search.html
+#, python-format
+msgid "%(num)d result"
+msgid_plural "%(num)d results"
+msgstr[0] "%(num)d resultado"
+msgstr[1] "%(num)d resultados"
+
+#: storageweb/web/templates/search.html
+#, python-format
+msgid "Only the first %(num)d are shown: refine the search."
+msgstr "Solo se muestran los %(num)d primeros: afina la búsqueda."
+
+#: storageweb/web/templates/search.html
+msgid "The search stopped early (too many folders or too slow): refine it or search in one folder."
+msgstr ""
+"La búsqueda se ha parado antes de terminar (demasiadas carpetas o demasiado lenta): afínala o "
+"busca en una carpeta."
+
+#: storageweb/web/templates/search.html
+#, python-format
+msgid "Nothing found with «%(query)s»."
+msgstr "No se ha encontrado nada con «%(query)s»."
 
 #: storageweb/web/templates/admin/_layout.html
 msgid "Needs attention"
@@ -3340,6 +3637,13 @@ msgstr "Para Entra ID usa el UPN, p. ej. juan@contoso.com"
 msgid "Created %(when)s."
 msgstr "Creado el %(when)s."
 
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
+#, python-format
+msgid "The name and the email come from %(source)s and are updated on each sign-in: change them there."
+msgstr ""
+"El nombre y el email vienen de %(source)s y se actualizan en cada inicio de sesión: cámbialos "
+"allí."
+
 #: storageweb/web/templates/admin/user_form.html
 #, python-format
 msgid "The name is updated from %(source)s on each sign-in."
@@ -3353,6 +3657,15 @@ msgstr "Rol y acceso"
 msgid "Account enabled"
 msgstr "Cuenta activa"
 
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
+#, python-format
+msgid ""
+"Disabled automatically because %(source)s removed or disabled the account, or it is no longer in "
+"the allowed groups. It is enabled again on its own when %(source)s lets it in."
+msgstr ""
+"Desactivada automáticamente porque %(source)s ha borrado o desactivado la cuenta, o ya no está en"
+" los grupos permitidos. Se activa sola cuando %(source)s la vuelva a dejar entrar."
+
 #: storageweb/web/templates/admin/user_form.html
 msgid "comma separated; unknown ones are created as local groups"
 msgstr "separados por comas; los que no existan se crean como grupos locales"
@@ -3364,6 +3677,36 @@ msgstr "Carpeta personal"
 #: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
 msgid "empty = default template"
 msgstr "vacío = plantilla por defecto"
+
+#: storageweb/web/templates/admin/access/folder.html storageweb/web/templates/admin/user_form.html
+msgid "Quota (MB)"
+msgstr "Cuota (MB)"
+
+#: storageweb/web/templates/admin/user_form.html
+#, python-format
+msgid "default: %(mb)s"
+msgstr "por defecto: %(mb)s"
+
+#: storageweb/web/templates/admin/user_form.html
+msgid "default: no quota"
+msgstr "por defecto: sin cuota"
+
+#: storageweb/web/templates/admin/user_form.html
+msgid "Empty = the default one; 0 = no quota. It only warns."
+msgstr "Vacío = la de por defecto; 0 = sin cuota. Solo avisa."
+
+#: storageweb/web/templates/admin/access/folder.html storageweb/web/templates/admin/user_form.html
+msgid "In use"
+msgstr "En uso"
+
+#: storageweb/web/templates/admin/access/folder.html storageweb/web/templates/admin/user_form.html
+#, python-format
+msgid "%(percent)s%% of the quota"
+msgstr "%(percent)s%% de la cuota"
+
+#: storageweb/web/templates/admin/access/folder.html storageweb/web/templates/admin/user_form.html
+msgid "Quota exceeded"
+msgstr "Cuota superada"
 
 #: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
 msgid "Leave empty to keep it"
@@ -3611,6 +3954,11 @@ msgid "Only downloading is allowed, administrators included, whatever the permis
 msgstr "Solo se permite descargar, también a los administradores, tenga el permiso que tenga cada entrada."
 
 #: storageweb/web/templates/admin/access/folder.html
+#, python-format
+msgid "0 = no quota. It only warns (from 90%% and when exceeded); it does not stop uploads."
+msgstr "0 = sin cuota. Solo avisa (a partir del 90%% y al superarla); no impide subir."
+
+#: storageweb/web/templates/admin/access/folder.html
 msgid "Who enters"
 msgstr "Quién entra"
 
@@ -3757,6 +4105,13 @@ msgid "Description"
 msgstr "Descripción"
 
 #: storageweb/web/templates/admin/groups/_macros.html
+#, python-format
+msgid ""
+"The name and the description come from %(source)s and are updated automatically: change them "
+"there."
+msgstr "El nombre y la descripción vienen de %(source)s y se actualizan solos: cámbialos allí."
+
+#: storageweb/web/templates/admin/groups/_macros.html
 msgid "Where the members come from"
 msgstr "De dónde vienen los miembros"
 
@@ -3860,6 +4215,28 @@ msgid ""
 msgstr ""
 "Llegan al iniciar sesión o los usan las carpetas compartidas, pero no tienen nombre. Dalos de "
 "alta para gestionarlos aquí."
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid ""
+"The name, the description and a suggested identifier come from the directory of their provider "
+"(Entra ID)."
+msgstr ""
+"El nombre, la descripción y un identificador propuesto salen del directorio de su proveedor "
+"(Entra ID)."
+
+#: storageweb/web/templates/admin/groups/_macros.html
+#, python-format
+msgid "Register %(num)s group with the data from its provider?"
+msgid_plural "Register %(num)s groups with the data from their provider?"
+msgstr[0] "¿Dar de alta %(num)s grupo con los datos de su proveedor?"
+msgstr[1] "¿Dar de alta %(num)s grupos con los datos de su proveedor?"
+
+#: storageweb/web/templates/admin/groups/_macros.html
+#, python-format
+msgid "Register it"
+msgid_plural "Register all (%(num)s)"
+msgstr[0] "Darlo de alta"
+msgstr[1] "Dar de alta todos (%(num)s)"
 
 #: storageweb/web/templates/admin/groups/_macros.html
 #: storageweb/web/templates/admin/settings/auth/_generic.html
@@ -4104,9 +4481,12 @@ msgstr ""
 "montarlo en el servidor."
 
 #: storageweb/web/templates/admin/locations/index.html
-#, python-format
-msgid "New %(type)s location"
-msgstr "Nueva ubicación %(type)s"
+msgid "New location"
+msgstr "Nueva ubicación"
+
+#: storageweb/web/templates/admin/locations/index.html
+msgid "Type of storage"
+msgstr "Tipo de almacenamiento"
 
 #: storageweb/web/templates/admin/locations/index.html
 msgid "There are no storage locations: every folder is on the disk of the server."
@@ -4816,6 +5196,20 @@ msgid "Example for nginx with these values"
 msgstr "Ejemplo para nginx con estos valores"
 
 #: storageweb/web/templates/admin/settings/network.html
+msgid "Example for Apache 2.4 with these values"
+msgstr "Ejemplo para Apache 2.4 con estos valores"
+
+#: storageweb/web/templates/admin/settings/network.html
+msgid ""
+"Modules: proxy, proxy_http, ssl, headers, http2, reqtimeout and rewrite (Debian: a2enmod). "
+"Template with explanations: /usr/share/storageweb/apache-storageweb.conf (in the repository, "
+"packaging/apache/storageweb.conf)."
+msgstr ""
+"Módulos: proxy, proxy_http, ssl, headers, http2, reqtimeout y rewrite (Debian: a2enmod). "
+"Plantilla con explicaciones: /usr/share/storageweb/apache-storageweb.conf (en el repositorio, "
+"packaging/apache/storageweb.conf)."
+
+#: storageweb/web/templates/admin/settings/network.html
 msgid "Example for Caddy (automatic certificate)"
 msgstr "Ejemplo para Caddy (certificado automático)"
 
@@ -4999,6 +5393,15 @@ msgstr "Debe contener {username}, que se sustituye por el nombre de usuario."
 #: storageweb/web/templates/admin/settings/storage.html
 msgid "0 = no limit; uploads are sent in parts"
 msgstr "0 = sin límite; las subidas van por partes"
+
+#: storageweb/web/templates/admin/settings/storage.html
+#, python-format
+msgid ""
+"0 = no quota. It only warns (from 90%% and when exceeded); it does not stop uploads. Each user "
+"can have another one in their profile."
+msgstr ""
+"0 = sin cuota. Solo avisa (a partir del 90%% y al superarla); no impide subir. Cada usuario puede"
+" tener otra en su ficha."
 
 #: storageweb/web/templates/admin/settings/storage.html
 msgid ""
@@ -5219,6 +5622,18 @@ msgstr "Quitar mapeo"
 #: storageweb/web/templates/admin/settings/auth/entra.html
 msgid "+ Add mapping"
 msgstr "+ Añadir mapeo"
+
+#: storageweb/web/templates/admin/settings/auth/entra.html
+msgid ""
+"Accounts that can get in without going through Microsoft (open session, API tokens, network "
+"drive, VS Code) are checked: removed or disabled ones, or ones outside the allowed groups, are "
+"disabled (and enabled again when they come back), and their groups and role are refreshed. Needs "
+"the User.Read.All application permission. 0 = only on sign-in."
+msgstr ""
+"Se revisan las cuentas que pueden entrar sin pasar por Microsoft (sesión abierta, tokens de API, "
+"unidad de red, VS Code): las borradas, desactivadas o fuera de los grupos permitidos se "
+"desactivan (y se activan solas al volver), y se actualizan sus grupos y su rol. Necesita el "
+"permiso de aplicación User.Read.All. 0 = solo al iniciar sesión."
 
 #: storageweb/web/templates/admin/settings/auth/entra.html
 msgid "Advanced"
@@ -5447,10 +5862,35 @@ msgstr "«%(name)s» eliminado."
 msgid "Could not delete: %(error)s"
 msgstr "No se pudo eliminar: %(error)s"
 
+#: storageweb/web/views/files.py
+#, python-format
+msgid "%(num)d item moved."
+msgid_plural "%(num)d items moved."
+msgstr[0] "%(num)d elemento movido."
+msgstr[1] "%(num)d elementos movidos."
+
+#: storageweb/web/views/files.py
+#, python-format
+msgid "%(num)d item copied."
+msgid_plural "%(num)d items copied."
+msgstr[0] "%(num)d elemento copiado."
+msgstr[1] "%(num)d elementos copiados."
+
 #: storageweb/web/views/groups.py
 #, python-format
 msgid "Group «%(name)s» created."
 msgstr "Grupo «%(name)s» creado."
+
+#: storageweb/web/views/groups.py
+#, python-format
+msgid "Group registered: %(names)s."
+msgid_plural "%(num)s groups registered: %(names)s."
+msgstr[0] "Grupo dado de alta: %(names)s."
+msgstr[1] "%(num)s grupos dados de alta: %(names)s."
+
+#: storageweb/web/views/groups.py
+msgid "There were no groups to register."
+msgstr "No había grupos que dar de alta."
 
 #: storageweb/web/views/admin/users.py storageweb/web/views/groups.py
 msgid "Changes saved."

@@ -44,14 +44,16 @@
       </select>
     </label>
   {% endif %}
+  {% set from_provider = user and auth_method(user['source']) and auth_method(user['source']).profile_from_provider %}
   <label>{{ _("Display name") }}
-    <input type="text" name="display_name" value="{{ form.display_name or '' }}" maxlength="200">
+    <input type="text" name="display_name" value="{{ form.display_name or '' }}" maxlength="200"{% if from_provider %} readonly class="from-provider"{% endif %}>
   </label>
   <label>{{ _("Email") }}
-    <input type="email" name="email" value="{{ form.email or '' }}" maxlength="200">
+    <input type="email" name="email" value="{{ form.email or '' }}" maxlength="200"{% if from_provider %} readonly class="from-provider"{% endif %}>
   </label>
   {% if user %}<p class="muted small span2">{{ _("Created %(when)s.", when=user['created_at']|datetime) }}
-    {% if auth_method(user['source']) and auth_method(user['source']).sso %}{{ _("The name is updated from %(source)s on each sign-in.", source=SOURCE_LABELS[user['source']]) }}{% endif %}</p>{% endif %}
+    {% if from_provider %}{{ _("The name and the email come from %(source)s and are updated on each sign-in: change them there.", source=SOURCE_LABELS[user['source']]) }}
+    {% elif auth_method(user['source']) and auth_method(user['source']).sso %}{{ _("The name is updated from %(source)s on each sign-in.", source=SOURCE_LABELS[user['source']]) }}{% endif %}</p>{% endif %}
 
   <h2 class="card-title span2">{{ _("Role and access") }}</h2>
   <label>{{ _("Role") }}
@@ -60,6 +62,9 @@
     </select>
   </label>
   <label class="check"><input type="checkbox" name="enabled" {% if form.enabled %}checked{% endif %}> {{ _("Account enabled") }}</label>
+  {% if user and not user['enabled'] and user['disabled_reason'] == 'directory' %}
+  <p class="muted small span2">{{ _("Disabled automatically because %(source)s removed or disabled the account, or it is no longer in the allowed groups. It is enabled again on its own when %(source)s lets it in.", source=SOURCE_LABELS[user['source']]) }}</p>
+  {% endif %}
   {% if not user %}
   <label class="span2">{{ _("Groups") }} <small class="muted">({{ _("comma separated; unknown ones are created as local groups") }})</small>
     <input type="text" name="groups" value="{{ (form.groups or []) | join(', ') }}">
@@ -70,6 +75,17 @@
   <label class="span2">{{ _("Path") }} <small class="muted">({{ _("empty = default template") }})</small>
     <input type="text" name="home_path" value="{{ form.home_path or '' }}" placeholder="/srv/storageweb/homes/{{ _('user') }}" class="mono">
   </label>
+  {% if user %}
+  <label>{{ _("Quota (MB)") }}
+    <input type="number" name="quota_mb" min="0" value="{{ '' if form.quota_mb is none else form.quota_mb }}"
+           placeholder="{{ _('default: %(mb)s', mb=default_quota_mb) if default_quota_mb else _('default: no quota') }}">
+    <small class="muted">{{ _("Empty = the default one; 0 = no quota. It only warns.") }}</small></label>
+  <div class="field">
+    <span class="label">{{ _("In use") }}</span>
+    <span>{{ ('≥ ' if not home_usage.complete else '') ~ home_usage.used }}{% if home_quota %} · {{ _("%(percent)s%% of the quota", percent=home_quota.percent) }}{% endif %}</span>
+    {% if home_quota and home_quota.level == 'over' %}<span class="text-danger small">{{ _("Quota exceeded") }}</span>{% endif %}
+  </div>
+  {% endif %}
 
   <h2 class="card-title span2">{{ _("Sign-in") }}</h2>
   {% if not user or (auth_method(user['source']) and auth_method(user['source']).stores_password) %}

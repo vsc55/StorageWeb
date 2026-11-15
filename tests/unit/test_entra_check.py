@@ -26,7 +26,7 @@ def fake(monkeypatch):
     class Fake:
         metadata = (200, {}, "{}")
         authorize = (302, {"Location": REDIRECT + "?error=login_required"}, "")
-        token = {"access_token": _jwt(roles=["Group.Read.All"])}
+        token = {"access_token": _jwt(roles=["Group.Read.All", "User.Read.All"])}
         urls: list = []
 
     f = Fake()
@@ -40,6 +40,8 @@ def fake(monkeypatch):
     monkeypatch.setattr(oauth2, "_http_post", lambda url, data, timeout: f.token)
     f.groups = (True, "")
     monkeypatch.setattr(entra_directory, "can_read_groups", lambda token: f.groups)
+    f.users = (True, "")
+    monkeypatch.setattr(entra_directory, "can_read_users", lambda token: f.users)
     return f
 
 
@@ -50,7 +52,7 @@ def _by_key(results):
 def test_everything_ok(fake):
     results = entra_check.check(ECFG, REDIRECT)
     assert _by_key(results) == {"metadata": True, "client": True, "redirect": True, "secret": True, "groups": True,
-                                "signin_scopes": None}  # nadie ha entrado todavía: informativo
+                                "users": True, "signin_scopes": None}  # nadie ha entrado todavía: informativo
     assert entra_check.summary(results) is True
     assert "prompt=none" in fake.urls[1] and "redirect_uri=https%3A%2F%2Ffiles" in fake.urls[1]
 

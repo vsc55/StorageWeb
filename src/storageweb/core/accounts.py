@@ -8,7 +8,9 @@ Todas las funciones reciben la conexión SQLite como primer argumento.
 """
 from __future__ import annotations
 
+import logging
 import re
+from collections.abc import Callable
 from sqlite3 import Connection
 
 from .. import providers
@@ -20,8 +22,13 @@ from ..providers import AuthDenied, AuthMethod, Identity
 from ..providers.local import burn_time, hash_password
 from ..settings.defaults import ROLES
 from . import groups as group_core
+from . import maintenance
+from . import shares as share_core
+from . import storage
 from .alerts import alert, source
 from .permissions import ADMIN, USER
+
+_log = logging.getLogger(__name__)
 
 USERNAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@+-]{0,127}$")
 
@@ -55,6 +62,12 @@ def stores_password(source: str) -> bool:
     """Si las cuentas de ese origen tienen la contraseña en StorageWeb (se puede cambiar aquí)."""
     m = providers.get(source)
     return bool(m and m.stores_password)
+
+
+def profile_from_provider(source: str) -> bool:
+    """Si el nombre y el email de las cuentas de ese origen los pone el proveedor (Entra ID): no se editan aquí."""
+    m = providers.get(source)
+    return bool(m and m.profile_from_provider)
 
 
 def default_source() -> str:
@@ -135,18 +148,53 @@ def last_signin_scopes(conn: Connection, method: str) -> dict | None:
     return settings_repo.get(conn, signin_key(method))
 
 
-def record_signin_scopes(conn: Connection, method: str, scopes: list[str], source: str = "signin") -> None:
-    settings_repo.put(conn, signin_key(method), {"at": now_iso(), "scopes": sorted(scopes), "source": source})
+def record_signin_scopes(conn: Connection, method: str, scopes: list[str], source: str = "signin",
+                         claims: list[str] | None = None) -> None:
+    """``claims``: los opcionales que traía el token (``sid``), para que la comprobación diga si faltan."""
+    doc = {"at": now_iso(), "scopes": sorted(scopes), "source": source}
+    if claims is not None:
+        doc["claims"] = sorted(claims)
+    settings_repo.put(conn, signin_key(method), doc)
 
 
-def login_sso(conn: Connection, cfg: dict, key: str, identity: Identity, ip: str | None = None):
+Renamed = Callable[[str, str], None]  # (nombre anterior, nombre nuevo): lo que fuera de core depende del nombre
+
+
+def rename_account(conn: Connection, cfg: dict, user, username: str, *, ip: str | None = None,
+                   on_rename: Renamed | None = None):
+    """Cambia el nombre de una cuenta de un proveedor (la relación es origen + identificador externo, así que el
+    nombre puede cambiar: p. ej. el UPN en Entra ID). La carpeta personal se mueve o se conserva
+    (:func:`storage.home_after_rename`); ``on_rename`` actualiza lo demás que use el nombre (carpetas
+    compartidas). Si el nombre nuevo ya es de otra cuenta, no se cambia."""
+    old = user["username"]
+    other = users.get_by_username(conn, username)
+    if other is not None and other["id"] != user["id"]:
+        _log.warning("Account %s cannot be renamed to %s: the name is taken", old, username)
+        audit.log(conn, "user_rename_failed", username=old, ip=ip, detail=f"{old} -> {username}: taken")
+        return user
+    fields, home = storage.home_after_rename(user, username, cfg)
+    users.rename(conn, user["id"], username)
+    if fields:
+        users.update(conn, user["id"], **fields)
+    audit.log(conn, "user_renamed", username=username, ip=ip,
+              detail=f"{old} -> {username}" + (f"; home {home}" if home else ""))
+    if on_rename is not None:
+        on_rename(old, username)
+    return users.get_by_id(conn, user["id"])
+
+
+def login_sso(conn: Connection, cfg: dict, key: str, identity: Identity, ip: str | None = None,
+              on_rename: Renamed | None = None):
     """Usuario de un método SSO a partir de la identidad que devuelve su proveedor (creándolo si procede).
 
-    Opciones comunes de los métodos SSO (en ``auth.<método>``): ``auto_provision``, ``default_role``,
-    ``role_mappings`` y ``sync_role_on_login``.
+    La cuenta se busca por origen + identificador externo: si el proveedor trae otro nombre (UPN cambiado), se
+    renombra (:func:`rename_account`). Una cuenta que desactivó el directorio se reactiva al entrar (el proveedor
+    la ha dejado entrar). Opciones comunes de los métodos SSO (en ``auth.<método>``): ``auto_provision``,
+    ``default_role``, ``role_mappings`` y ``sync_role_on_login``.
     """
     section = cfg["auth"][key]
-    username, groups = identity.username, identity.groups
+    username = identity.username
+    groups = identity.groups or []
     user = users.get_by_external(conn, key, identity.external_id)
     if user is None:
         existing = users.get_by_username(conn, username)
@@ -169,31 +217,136 @@ def login_sso(conn: Connection, cfg: dict, key: str, identity: Identity, ip: str
             user = users.get_by_id(conn, uid)
             audit.log(conn, "user_provisioned", username=username, ip=ip, detail=f"{key}:{user['role']}")
 
+    if not user["enabled"] and user["disabled_reason"] == users.DIRECTORY:
+        users.update(conn, user["id"], enabled=True, disabled_reason=None)
+        audit.log(conn, "user_enabled", username=user["username"], ip=ip, detail=f"{key}:signin")
+        user = users.get_by_id(conn, user["id"])
     if not user["enabled"]:
         raise AccountError(_("Your account is disabled."), "disabled")
+    if username != user["username"]:
+        user = rename_account(conn, cfg, user, username, ip=ip, on_rename=on_rename)
+    if identity.groups is None:  # no se pudieron leer: se conservan los de antes
+        groups = sorted(group_core.split(user["external_groups"]))
 
     fields = {}
     if identity.display_name:
         fields["display_name"] = identity.display_name
+    if identity.email and profile_from_provider(key):
+        fields["email"] = identity.email
     role = resolve_role(section, groups, user["role"])
     if role != user["role"]:
         fields["role"] = role
         audit.log(conn, "role_changed", username=username, ip=ip, detail=f"{user['role']}->{role} ({key})")
     users.touch_login(conn, user["id"], **fields)
     if identity.granted_scopes is not None:
-        record_signin_scopes(conn, key, identity.granted_scopes)
-    group_core.sync_external(conn, user["id"], key, groups)
+        record_signin_scopes(conn, key, identity.granted_scopes, claims=["sid"] if identity.session_id else [])
+    if identity.groups is not None:
+        group_core.sync_external(conn, user["id"], key, groups)
+        refresh_group_details(conn, cfg, key, groups)
     return users.get_by_id(conn, user["id"])
 
 
-def complete_sso(conn: Connection, cfg: dict, key: str, flow: dict, args: dict, ip: str | None = None):
-    """Valida la vuelta del proveedor y entra. :class:`AccountError` si la persona no puede entrar."""
+def refresh_group_details(conn: Connection, cfg: dict, key: str, refs) -> list[str]:
+    """Nombre y descripción de los grupos ya dados de alta, desde el directorio del método (si tiene)."""
+    m = providers.get(key)
+    found = m.directory(m.section(cfg)) if m is not None else None
+    if found is None or not found.configured():
+        return []
+    registered = {g["external_id"] for g in group_core.repo.list_all(conn, source=key) if g["external_id"]}
+    wanted = sorted(registered.intersection(refs)) if refs is not None else sorted(registered)
+    if not wanted:
+        return []
+    try:
+        details = found.details(wanted)
+    except Exception:  # noqa: BLE001 (leer el directorio nunca impide entrar)
+        _log.exception("Group details could not be read from %s", key)
+        return []
+    return group_core.refresh_details(conn, key, details)
+
+
+def complete_sso(conn: Connection, cfg: dict, key: str, flow: dict, args: dict, ip: str | None = None,
+                 on_rename: Renamed | None = None) -> tuple:
+    """Valida la vuelta del proveedor y entra: (usuario, identidad). :class:`AccountError` si no puede entrar."""
     m = providers.get(key)
     try:
         identity = m.complete(m.section(cfg), flow, args)
     except AuthDenied as exc:
         raise AccountError(exc.message, exc.code) from exc
-    return login_sso(conn, cfg, key, identity, ip=ip)
+    return login_sso(conn, cfg, key, identity, ip=ip, on_rename=on_rename), identity
+
+
+# --------------------------------------------------------------------------- revisión contra el directorio
+
+def _sync_hours(cfg: dict) -> float:
+    minutes = [m.sync_minutes(cfg["auth"][m.key]) for m in providers.methods() if m.key in cfg.get("auth", {})]
+    minutes = [x for x in minutes if x > 0]
+    return min(minutes) / 60 if minutes else 0
+
+
+def _disable_by_directory(conn: Connection, user, key: str, why: str) -> None:
+    users.update(conn, user["id"], enabled=False, disabled_reason=users.DIRECTORY)
+    closed = sessions.delete_for_user(conn, user["id"])
+    _log.warning("Account %s disabled: %s in %s", user["username"], why, key)
+    audit.log(conn, "user_disabled", user["username"], username="system", detail=f"{key}:{why}; sessions={closed}")
+
+
+def sync_directory(conn: Connection, cfg: dict, only: str | None = None) -> dict:
+    """Revisa contra su directorio las cuentas que pueden entrar sin pasar por el proveedor (sesión abierta,
+    tokens de API, unidad de red, extensión de VS Code) y las que desactivó el directorio:
+
+    * borrada, desactivada o fuera de los grupos permitidos → se desactiva (``disabled_reason = directory``) y se
+      cierran sus sesiones; sus tokens dejan de valer mientras tanto;
+    * desactivada por el directorio y otra vez válida → se reactiva;
+    * grupos y rol, como en un inicio de sesión (sin tocar los App Roles, que solo llegan en el token);
+    * nombre y descripción de los grupos dados de alta.
+
+    Si el directorio no responde, no se toca nada. Devuelve un resumen por método.
+    """
+    summary = {}
+    for m in providers.methods():
+        section = cfg.get("auth", {}).get(m.key)
+        if section is None or (only and m.key != only) or not m.sync_minutes(section):
+            continue
+        done = {"checked": 0, "disabled": 0, "enabled": 0, "updated": 0, "unknown": 0, "groups": 0}
+        for user in users.directory_candidates(conn, m.key):
+            found = m.lookup_user(section, user)
+            done["checked"] += 1
+            if found is None:
+                done["unknown"] += 1
+                continue
+            why = ("deleted" if not found.exists else "disabled" if not found.enabled
+                   else "not_allowed" if not found.allowed else "")
+            if why:
+                if user["enabled"]:
+                    _disable_by_directory(conn, user, m.key, why)
+                    done["disabled"] += 1
+                continue
+            if not user["enabled"]:
+                users.update(conn, user["id"], enabled=True, disabled_reason=None)
+                audit.log(conn, "user_enabled", user["username"], username="system", detail=f"{m.key}:directory")
+                done["enabled"] += 1
+            if found.groups is None:
+                continue
+            before = group_core.split(user["external_groups"])
+            role = resolve_role(section, found.groups, user["role"])
+            if set(found.groups) != before or role != user["role"]:
+                group_core.sync_external(conn, user["id"], m.key, found.groups)
+                if role != user["role"]:
+                    users.update(conn, user["id"], role=role)
+                    audit.log(conn, "role_changed", user["username"], username="system",
+                              detail=f"{user['role']}->{role} ({m.key}:directory)")
+                done["updated"] += 1
+        done["groups"] = len(refresh_group_details(conn, cfg, m.key, None))
+        summary[m.key] = done
+        if done["disabled"] or done["enabled"] or done["updated"] or done["groups"]:
+            audit.log(conn, "directory_synced", None, username="system",
+                      detail=f"{m.key}: " + ", ".join(f"{k}={v}" for k, v in done.items()))
+    return summary
+
+
+@maintenance.task("directory_sync", every=_sync_hours, order=15)
+def _sync_directory(conn: Connection, cfg: dict) -> None:
+    sync_directory(conn, cfg)
 
 
 # --------------------------------------------------------------------------- gestión (admin)
@@ -245,10 +398,14 @@ def _set_groups(conn: Connection, user_id: int, groups: list[str]) -> None:
         raise AccountError(exc.message) from exc
 
 
+KEEP = object()  # parámetro que no se cambia
+
+
 def update_account(conn: Connection, user, actor, *, role: str, enabled: bool, display_name: str | None,
                    email: str | None, home_path: str | None, groups: list[str] | None = None,
-                   password: str | None = None) -> None:
-    """Edita la cuenta. ``groups`` (si se pasa) son sus grupos manuales; los sincronizados no cambian."""
+                   password: str | None = None, quota_mb=KEEP) -> None:
+    """Edita la cuenta. ``groups`` (si se pasa) son sus grupos manuales; los sincronizados no cambian. El nombre y
+    el email de las cuentas cuyo proveedor los pone (Entra ID) no se tocan."""
     _check_role(role)
     if user["id"] == actor["id"]:
         if role != ADMIN:
@@ -256,8 +413,15 @@ def update_account(conn: Connection, user, actor, *, role: str, enabled: bool, d
         if not enabled:
             raise AccountError(_("You cannot disable your own account."))
     _guard_last_admin(conn, user, role, enabled)
-    fields = {"role": role, "enabled": enabled, "display_name": display_name or None,
-              "email": email or None, "home_path": home_path or None}
+    fields = {"role": role, "enabled": enabled, "home_path": home_path or None}
+    if bool(enabled) != bool(user["enabled"]):
+        fields["disabled_reason"] = None  # lo decide un admin: el directorio ya no la reactiva sola
+    if not profile_from_provider(user["source"]):
+        fields.update(display_name=display_name or None, email=email or None)
+    if quota_mb is not KEEP:  # None = la de por defecto; 0 = sin cuota
+        if quota_mb is not None and (not isinstance(quota_mb, int) or quota_mb < 0):
+            raise AccountError(_("The quota must be a whole number of MB (0 = no quota; empty = the default one)."))
+        fields["quota_mb"] = quota_mb
     if password:
         m = providers.get(user["source"])
         if m is None or not m.stores_password:
@@ -292,7 +456,7 @@ def set_enabled(conn: Connection, user, actor, enabled: bool) -> None:
     if user["id"] == actor["id"] and not enabled:
         raise AccountError(_("You cannot disable your own account."))
     _guard_last_admin(conn, user, user["role"], enabled)
-    users.update(conn, user["id"], enabled=enabled)
+    users.update(conn, user["id"], enabled=enabled, disabled_reason=None)
     if not enabled:
         sessions.delete_for_user(conn, user["id"])
 

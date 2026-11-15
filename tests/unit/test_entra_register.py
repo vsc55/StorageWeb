@@ -166,28 +166,36 @@ def test_repair_fixes_only_what_is_missing(graph):
     answers[("GET", "/oauth2PermissionGrants?")] = (200, {"value": []})
     answers[("POST", "/servicePrincipals/sp-1/appRoleAssignments")] = (201, {})
     answers[("POST", "/applications/obj-1/addPassword")] = (200, {"secretText": "nuevo", "endDateTime": "2028-01-01"})
-    result = er.repair_app(_token(tid="t"), "c1", redirect_uri="https://files/auth/entra/callback", new_secret=True)
+    result = er.repair_app(_token(tid="t"), "c1", redirect_uri="https://files/auth/entra/callback", new_secret=True,
+                           logout_url="https://files/auth/entra/frontchannel-logout")
     assert result["warnings"] == []
     assert result["client_secret"]  # el secreto nuevo (el Graph simulado responde con uno fijo)
     patches = [b for m, p, b in calls if m == "PATCH" and p == "/applications/obj-1"]
     assert {"web": {"redirectUris": ["https://old/cb", "https://files/auth/entra/callback"]}} in patches
     access = next(b for b in patches if "requiredResourceAccess" in b)["requiredResourceAccess"][0]["resourceAccess"]
-    assert {(a["id"], a["type"]) for a in access} >= {(i, "Scope") for i in er.SIGN_IN_SCOPES.values()} | {(er.GROUP_READ_ALL, "Role")}
+    assert {(a["id"], a["type"]) for a in access} >= {(i, "Scope") for i in er.SIGN_IN_SCOPES.values()} | {
+        (er.GROUP_READ_ALL, "Role"), (er.USER_READ_ALL, "Role")}
+    assert {"web": {"logoutUrl": "https://files/auth/entra/frontchannel-logout"}} in patches
+    claims = next(b for b in patches if "optionalClaims" in b)["optionalClaims"]["idToken"]
+    assert {c["name"] for c in claims} == {"email", "sid"}
     grant = next(b for m, p, b in calls if m == "POST" and p == "/oauth2PermissionGrants")
     assert grant["consentType"] == "AllPrincipals" and grant["clientId"] == "sp-1"
-    assert len(result["fixed"]) == 5  # redirect, permisos, consentimiento, grupos, secreto
+    # redirect, cierre de sesión, claims, permisos, consentimiento, Group.Read.All, User.Read.All, secreto
+    assert len(result["fixed"]) == 8
 
 
 def test_repair_leaves_a_correct_app_alone(graph):
     calls, answers = graph
-    full = [{"id": i, "type": "Scope"} for i in er.SIGN_IN_SCOPES.values()] + [{"id": er.GROUP_READ_ALL, "type": "Role"}]
-    app = {"id": "obj-1", "appId": "c1", "web": {"redirectUris": ["https://files/cb"]},
-           "requiredResourceAccess": [{"resourceAppId": er.GRAPH_APP_ID, "resourceAccess": full}]}
+    full = [{"id": i, "type": "Scope"} for i in er.SIGN_IN_SCOPES.values()] + [
+        {"id": er.GROUP_READ_ALL, "type": "Role"}, {"id": er.USER_READ_ALL, "type": "Role"}]
+    app = {"id": "obj-1", "appId": "c1", "web": {"redirectUris": ["https://files/cb"], "logoutUrl": "https://files/fc"},
+           "requiredResourceAccess": [{"resourceAppId": er.GRAPH_APP_ID, "resourceAccess": full}],
+           "optionalClaims": {"idToken": [{"name": "email"}, {"name": "sid"}, {"name": "groups"}]}}
     answers[("GET", "/applications?")] = (200, {"value": [app]})
     answers[("GET", "/oauth2PermissionGrants?")] = (200, {"value": [
         {"id": "g1", "consentType": "AllPrincipals", "scope": "openid profile email User.Read"}]})
     answers[("POST", "/servicePrincipals/")] = (400, {"error": {"message": "Permission already exists"}})
-    result = er.repair_app(_token(tid="t"), "c1", redirect_uri="https://files/cb")
+    result = er.repair_app(_token(tid="t"), "c1", redirect_uri="https://files/cb", logout_url="https://files/fc")
     assert result["fixed"] == [] and result["warnings"] == []
     assert result["signin_consent"] == list(er.SIGN_IN_SCOPES)  # ya estaba: se confirma
     assert not [c for c in calls if c[0] in ("PATCH", "POST") and c[1].startswith("/applications")]

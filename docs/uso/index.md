@@ -37,12 +37,12 @@ Tus preferencias se guardan en tu cuenta. En la página de inicio de sesión tam
 
 - **Barra de la izquierda:** *Archivos* y, si eres administrador, el *Resumen* y las zonas *Personas*, *Acceso*, *Seguridad* y *Sistema* (Ctrl+K busca en todas). Abajo, tus iniciales abren el menú de tu cuenta.
 - **Ubicaciones:** *Mi carpeta*, solo tuya, y las carpetas compartidas que te haya asignado el administrador. Las marcadas *(lectura)* solo permiten descargar. Bajo la ubicación abierta se ven la ruta actual y sus subcarpetas.
-- **Lista:** pulsa el nombre de una carpeta para entrar en ella, o el de un archivo para descargarlo. Pulsa los títulos *Nombre*, *Tamaño* o *Modificado* para ordenar; la segunda pulsación invierte el orden. El cuadro *Filtrar en esta carpeta* oculta lo que no coincide.
-- **Detalle (derecha):** al pulsar una fila (fuera del nombre) se selecciona y se muestran su tipo, tamaño, fecha y acciones. En pantallas estrechas el detalle aparece debajo de la lista, y en el móvil los paneles se apilan.
+- **Lista:** pulsa el nombre de una carpeta para entrar en ella, o el de un archivo para descargarlo. Pulsa los títulos *Nombre*, *Tamaño* o *Modificado* para ordenar; la segunda pulsación invierte el orden. El cuadro *Filtrar o buscar…* oculta lo que no coincide mientras escribes; con **Intro** busca en todas tus carpetas (ver *Buscar archivos*).
+- **Detalle (derecha):** sin nada seleccionado, muestra la carpeta, su **cuota** si tiene (cuánto lleva usado y qué porcentaje; a partir del 90 % y al superarla aparece además un aviso encima de la lista, pero se puede seguir subiendo) y el **espacio libre** de su almacenamiento, con una barra del espacio usado (naranja a partir del 80 %, roja del 95 %). En S3 y Azure no hay un tamaño fijo y lo dice; en otros almacenamientos remotos no se muestra. Al pulsar una fila (fuera del nombre) se selecciona y se muestran su tipo, tamaño, fecha y acciones. En pantallas estrechas el detalle aparece debajo de la lista, y en el móvil los paneles se apilan.
 
 ## Seleccionar varios
 
-Marca las casillas de la izquierda, o la de la cabecera para seleccionar todo lo visible. Aparece una barra con **Descargar** (un solo archivo), **Renombrar** (un elemento) y **Eliminar** (uno o varios). Pulsa **Esc** o *Quitar selección* para deseleccionar.
+Marca las casillas de la izquierda, o la de la cabecera para seleccionar todo lo visible. Aparece una barra con **Descargar** (uno o varios; varios o una carpeta, en un ZIP), **Mover a…**, **Copiar a…**, **Renombrar** (un elemento) y **Eliminar** (uno o varios). Pulsa **Esc** o *Quitar selección* para deseleccionar.
 
 ## Subir archivos
 
@@ -55,10 +55,26 @@ Marca las casillas de la izquierda, o la de la cabecera para seleccionar todo lo
 ## Descargar, crear carpetas, renombrar y eliminar
 
 - **Descargar:** pulsa el nombre del archivo, o selecciónalo y usa **Descargar**. Las descargas grandes se pueden reanudar con el navegador o con un gestor de descargas.
+- **Descargar varios o una carpeta entera:** van en un solo **ZIP**, que se genera mientras se descarga (sin esperas ni límite de tamaño). En cada carpeta, el botón de descargar la baja como ZIP. Lo oculto no va dentro, igual que no se ve en la lista.
 - **Nueva carpeta:** el botón de la barra superior abre un pequeño formulario.
 - **Renombrar y Eliminar:** desde la barra de selección o el panel de detalle. Eliminar una carpeta borra todo su contenido y no se puede deshacer.
 
 Si no ves alguna de estas opciones, tu rol no tiene ese permiso o la carpeta es de solo lectura.
+
+## Mover y copiar
+
+- **Con la selección:** *Mover a…* o *Copiar a…* y elige la carpeta de destino: cualquiera de las tuyas, también otra compartida.
+- **Arrastrando:** suelta los elementos sobre una carpeta de la lista o del árbol de la izquierda para **moverlos**; si mantienes `Ctrl` al soltarlos, se **copian**.
+
+Nunca se sobrescribe nada: si en el destino ya hay algo con el mismo nombre, ese elemento no se mueve y se avisa. Mover dentro de la misma carpeta de StorageWeb necesita el permiso de renombrar; copiar, o mover a otra carpeta de StorageWeb, el de descargar en el origen y el de subir en el destino (mover, además, el de eliminar en el origen).
+
+## Buscar archivos
+
+Escribe en *Filtrar o buscar…*: mientras escribes, filtra la carpeta en la que estás. Pulsa **Intro** para buscar por nombre **en todas tus carpetas**. Da igual mayúsculas, minúsculas y tildes («ano» encuentra «Año 2026»), y con varias palabras busca los nombres que las contienen todas. Los resultados enlazan al archivo y a la carpeta donde está.
+
+Para no tardar demasiado, la búsqueda se para a los 200 resultados o si recorre demasiadas carpetas (sobre todo en almacenamiento remoto: S3, SMB…); entonces lo avisa y conviene afinar las palabras. Con un token de API, `GET /search?q=…` devuelve los resultados en JSON.
+
+En *Mi perfil*, la tarjeta *Espacio de mi carpeta* muestra lo mismo para tu carpeta personal.
 
 ## Sesiones y tokens de API
 

@@ -136,7 +136,7 @@ def test_new_method_in_config_and_accounts(extra_methods, tmp_path, db_conn):
 
     # SSO: identidad del proveedor → cuenta nueva; AuthDenied → AccountError
     cfg["auth"]["demo"]["enabled"] = True
-    eva = accounts.complete_sso(db_conn, cfg, "demo", {}, {"who": "eva"})
+    eva, _identity = accounts.complete_sso(db_conn, cfg, "demo", {}, {"who": "eva"})
     assert eva["source"] == "demo" and eva["external_id"] == "id-eva"
     with pytest.raises(accounts.AccountError, match="No puedes"):
         accounts.complete_sso(db_conn, cfg, "demo", {}, {"who": "intruso"})
@@ -173,6 +173,7 @@ def test_new_method_in_the_web(extra_methods, make_app):
     assert 'type="password" name="llave_api_key"' in html
     token = get_csrf(admin, "/admin/settings/auth")
     form = {"_csrf": token, "local_enabled": "on", "entra_provider": "oauth2", "entra_timeout_seconds": "15",
+            "entra_directory_sync_minutes": "60",
             "llave_enabled": "on", "llave_realm": "casa", "llave_groups": "a, b", "llave_timeout": "9",
             "llave_api_key": "NUEVA", "demo_enabled": "on"}
     admin.post("/admin/settings/auth", data=form)

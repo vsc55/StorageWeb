@@ -17,7 +17,7 @@ from ... import providers
 from ...core import accounts
 from ...db.repositories import users
 from ...db.repositories import groups as repo
-from ...i18n import _, _l
+from ...i18n import _, _l, ngettext
 from ...settings import ConfigError, runtime_view
 from ..context import get_db, invalidate_settings, runtime, settings
 from ..forms import back
@@ -74,6 +74,16 @@ def directory_lookup(ids, only: str | None = None) -> dict[str, tuple[str, str]]
     return found
 
 
+def directory_details(ids, only: str | None = None) -> dict[str, dict]:
+    """``{id: {"name", "description"}}`` de los grupos externos que conoce el directorio de su proveedor."""
+    ids = list(ids)
+    found: dict[str, dict] = {}
+    for _method, directory in _directories(only):
+        found.update({ref: info for ref, info in directory.details([i for i in ids if i not in found]).items()
+                      if ref not in found})
+    return found
+
+
 def directory_names(ids, only: str | None = None) -> dict[str, str]:
     """Nombres legibles de grupos externos (Object IDs de Entra ID…); vacío si no se pueden leer."""
     return {ref: name for ref, (_key, name) in directory_lookup(ids, only).items()}
@@ -84,7 +94,10 @@ def directory_names(ids, only: str | None = None) -> dict[str, str]:
 def directory_search(method: str):
     """Buscador de grupos por nombre en el directorio de un método, para el formulario de alta (JSON)."""
     for _m, directory in _directories(method):
-        return jsonify(groups=directory.search(request.args.get("q", "")), available=directory.configured())
+        found = directory.search(request.args.get("q", ""))
+        for item in found:  # identificador que se propondría al darlo de alta
+            item["suggested_name"] = group_core.suggest_name(get_db(), item.get("name"), item.get("id"))
+        return jsonify(groups=found, available=directory.configured())
     abort(404)
 
 
@@ -144,14 +157,16 @@ def list_view():
 @bp.route("/new", methods=["GET", "POST"])
 @admin_required
 def new():
-    form = {"name": request.args.get("name", ""), "label": request.args.get("label", ""), "description": "",
+    form = {"name": request.args.get("name", ""), "label": request.args.get("label", ""),
+            "description": request.args.get("description", ""),
             "source": request.args.get("source", group_core.LOCAL), "external_id": request.args.get("external_id", "")}
     if form["source"] not in group_core.group_sources():
         form["source"] = group_core.LOCAL
+    if request.method == "GET":
+        _fill_from_directory(form)
     if request.method == "POST":
         form = {**_form_data(), "name": request.form.get("name", "").strip()}
-        if form["source"] != group_core.LOCAL and form["external_id"] and not form["label"]:
-            form["label"] = directory_names([form["external_id"]], form["source"]).get(form["external_id"].lower(), "")
+        _fill_from_directory(form)
         try:
             gid = group_core.create_group(get_db(), **form)
         except group_core.GroupError as exc:
@@ -161,19 +176,81 @@ def new():
             _audit("group_created", group["name"], f"{group['source']}:{group['external_id'] or ''}")
             flash(_("Group «%(name)s» created.", name=group_core.label(group)), "info")
             return back(url_for("groups.edit", group_id=gid))
-    return render_template("admin/groups/form.html", group=None, form=form, next=request.args.get("next", ""))
+    return render_template("admin/groups/form.html", group=None, form=form, next=request.args.get("next", ""),
+                           from_directory=False)
+
+
+def _fill_from_directory(form: dict) -> None:
+    """Grupo externo: lo que falte (nombre, descripción, identificador) sale del directorio de su proveedor
+    (Entra ID: nombre y descripción del grupo); el identificador se propone a partir del nombre."""
+    if form["source"] == group_core.LOCAL or not form["external_id"]:
+        return
+    if not form["label"] or not form["description"]:
+        info = directory_details([form["external_id"]], form["source"]).get(form["external_id"].lower(), {})
+        form["label"] = form["label"] or info.get("name", "")
+        if not form["description"] and request.method == "GET":  # al guardar, vacía puede ser a propósito
+            form["description"] = info.get("description", "")
+    if not form["name"]:
+        form["name"] = group_core.suggest_name(get_db(), form["label"], form["external_id"])
+
+
+@bp.route("/register-detected", methods=["POST"])
+@admin_required
+def register_detected():
+    """Da de alta de una vez los grupos sin dar de alta que llegan de un proveedor, con el nombre y la
+    descripción de su directorio (Entra ID) y un identificador sacado del nombre."""
+    pending = [d for d in group_core.detected(get_db(), _shares()) if d["source"]]
+    wanted = set(request.form.getlist("id"))
+    if wanted:
+        pending = [d for d in pending if d["id"] in wanted]
+    infos = {}
+    for source in {d["source"] for d in pending}:
+        infos.update(directory_details([d["id"] for d in pending if d["source"] == source], source))
+    created, errors = [], []
+    for d in pending:
+        try:
+            gid = group_core.register_external(get_db(), source=d["source"], external_id=d["id"],
+                                               info=infos.get(d["id"]))
+        except group_core.GroupError as exc:
+            errors.append(f"{d['id']}: {exc.message}")
+            continue
+        group = repo.get_by_id(get_db(), gid)
+        _audit("group_created", group["name"], f"{group['source']}:{group['external_id'] or ''}")
+        created.append(group_core.label(group))
+    if created:
+        flash(ngettext("Group registered: %(names)s.", "%(num)s groups registered: %(names)s.", len(created),
+                       names=", ".join(created)), "info")
+    for error in errors:
+        flash(error, "error")
+    if not created and not errors:
+        flash(_("There were no groups to register."), "info")
+    return back(url_for("groups.index"))
+
+
+def _sync_from_directory(group):
+    """Grupo de un proveedor que su directorio conoce: se le ponen su nombre y descripción de allí. Devuelve
+    (grupo al día, si vienen del directorio)."""
+    if group["builtin"] or not group["external_id"] or group["source"] == group_core.LOCAL:
+        return group, False
+    info = directory_details([group["external_id"]], group["source"])
+    if not info:
+        return group, False
+    group_core.refresh_details(get_db(), group["source"], info)
+    return repo.get_by_id(get_db(), group["id"]), True
 
 
 @bp.route("/<int:group_id>", methods=["GET", "POST"])
 @admin_required
 def edit(group_id: int):
-    group = _get_group(group_id)
+    group, from_directory = _sync_from_directory(_get_group(group_id))
     form = dict(group)
     if request.method == "POST" and group["builtin"]:
         flash(_("This group comes with StorageWeb and cannot be changed."), "error")
         return back(url_for("groups.edit", group_id=group_id))
     if request.method == "POST":
         data = _form_data()
+        if from_directory and data["source"] == group["source"] and data["external_id"].lower() == group["external_id"]:
+            data.update(label=group["label"], description=group["description"])  # los pone el directorio
         try:
             group_core.update_group(get_db(), group, **data)
         except group_core.GroupError as exc:
@@ -183,7 +260,7 @@ def edit(group_id: int):
             _audit("group_updated", group["name"], f"{data['source']}:{data['external_id']}")
             flash(_("Changes saved."), "info")
             return back(url_for("groups.edit", group_id=group_id))
-    return render_template("admin/groups/form.html", group=group, form=form,
+    return render_template("admin/groups/form.html", group=group, form=form, from_directory=from_directory,
                            members=group_core.members(get_db(), group),
                            shares=group_core.shares_of(group, _shares()), next="")
 
@@ -253,9 +330,10 @@ def panel_view():
                 break
     tab = request.args.get("tab", "members")
     tab = tab if tab in TABS else "members"
-    ctx = {}
+    ctx = {"from_directory": False}
     if current is not None:
-        ctx = {"members": group_core.members(get_db(), current),
+        current, from_directory = _sync_from_directory(current)
+        ctx = {"from_directory": from_directory, "members": group_core.members(get_db(), current),
                "shares": group_core.shares_of(current, _shares()),
                "form": dict(current)}
     return render_template("admin/groups/panel.html", groups=rows, current=current, tab=tab, search=search,

@@ -7,7 +7,8 @@ from typing import Iterable
 from ..connection import now_iso
 
 _UPDATABLE = {"display_name", "email", "groups", "home_path", "enabled", "role", "password_hash",
-              "external_id", "last_login", "locale", "theme", "external_groups"}
+              "external_id", "last_login", "locale", "theme", "external_groups", "quota_mb", "disabled_reason"}
+DIRECTORY = "directory"  # disabled_reason: lo desactivó el proveedor (se reactiva solo)
 
 
 def _join_groups(groups: Iterable[str] | None) -> str:
@@ -29,6 +30,23 @@ def get_by_username(conn: Connection, username: str):
 def get_by_external(conn: Connection, source: str, external_id: str):
     return conn.execute("SELECT * FROM users WHERE source = ? AND external_id = ?",
                         (source, external_id)).fetchone()
+
+
+def rename(conn: Connection, user_id: int, username: str) -> None:
+    conn.execute("UPDATE users SET username = ? WHERE id = ?", (username, user_id))
+    conn.commit()
+
+
+def directory_candidates(conn: Connection, source: str) -> list:
+    """Cuentas de un origen que hay que revisar contra su directorio: las que pueden entrar ahora mismo sin pasar
+    por el proveedor (sesión abierta o token de API vigente) y las que desactivó el propio directorio."""
+    return conn.execute(
+        """SELECT * FROM users u WHERE u.source = ? AND u.external_id IS NOT NULL AND (
+               u.disabled_reason = ? OR (u.enabled = 1 AND (
+                   EXISTS (SELECT 1 FROM sessions s WHERE s.user_id = u.id) OR
+                   EXISTS (SELECT 1 FROM api_tokens t WHERE t.user_id = u.id AND
+                           (t.expires_at IS NULL OR t.expires_at > ?)))))
+           ORDER BY u.username""", (source, DIRECTORY, now_iso())).fetchall()
 
 
 def list_all(conn: Connection, search: str = "", *, status: str | None = None, source: str | None = None,

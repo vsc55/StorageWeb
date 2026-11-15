@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import copy
 import re
+import unicodedata
 from sqlite3 import Connection
 from typing import Iterable
 
@@ -261,6 +262,53 @@ def detected(conn: Connection, shares: list[dict]) -> list[dict]:
             item = found.setdefault(ref, {"id": ref, "source": None, "users": 0, "shares": []})
             item["shares"].append(share["label"])
     return sorted(found.values(), key=lambda d: (-d["users"], d["id"]))
+
+
+def refresh_details(conn: Connection, source: str, details: dict[str, dict]) -> list[str]:
+    """Pone a los grupos ya dados de alta de ``source`` el nombre y la descripción de su directorio (``details``:
+    ``{id externo: {"name", "description"}}``). Devuelve los identificadores de los que han cambiado."""
+    changed = []
+    for group in repo.list_all(conn, source=source):
+        info = details.get(group["external_id"] or "")
+        if not info or group["builtin"]:
+            continue
+        label = (info.get("name") or "").strip()[:200] or group["label"]
+        description = (info.get("description") or "").strip()[:500]
+        if (label, description) != (group["label"], group["description"] or ""):
+            repo.update(conn, group["id"], label=label, description=description)
+            changed.append(group["name"])
+    return changed
+
+
+def suggest_name(conn: Connection, *candidates: str | None) -> str:
+    """Identificador libre a partir del primer texto que sirva: «Permitir Instalación» → ``permitir-instalacion``
+    (sin tildes, en minúsculas, lo demás como guiones); si ya existe, ``-2``, ``-3``…"""
+    base = ""
+    for text in candidates:
+        plain = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode().lower()
+        base = re.sub(r"-{2,}", "-", re.sub(r"[^a-z0-9._@+-]+", "-", plain)).strip("-._@+")[:120].rstrip("-._@+")
+        if base:
+            break
+    base = base or "group"
+    name, n = base, 1
+    while repo.get_by_name(conn, name) is not None:
+        n += 1
+        name = f"{base}-{n}"
+    return name
+
+
+def register_external(conn: Connection, *, source: str, external_id: str, info: dict | None = None) -> int:
+    """Da de alta un grupo que llega del proveedor con lo que diga su directorio (``info``: ``name`` y
+    ``description``); sin directorio, con el identificador externo como nombre. Si ya estaba dado de alta, le
+    actualiza esos datos y devuelve su id."""
+    info = info or {}
+    existing = repo.get_by_external(conn, source, external_id.lower())
+    if existing is not None:
+        refresh_details(conn, source, {existing["external_id"]: info} if info else {})
+        return existing["id"]
+    label = (info.get("name") or "").strip() or external_id
+    return create_group(conn, name=suggest_name(conn, info.get("name"), external_id), label=label[:200],
+                        description=(info.get("description") or "")[:500], source=source, external_id=external_id)
 
 
 # --------------------------------------------------------------------------- carpetas compartidas

@@ -8,11 +8,12 @@ from flask import abort, flash, g, redirect, render_template, request, session, 
 from ....core import accounts
 from ....core import groups as group_core
 from ....core.permissions import ADMIN, PERMISSION_LABELS, permissions_for
-from ....core.storage import explain_access
+from ....core import quota
+from ....core.storage import available_roots, explain_access
 from ....db.repositories import api_tokens, audit, users
 from ....db.repositories import groups as group_repo
 from ....db.repositories import sessions as session_repo
-from ....i18n import _, _l, ngettext
+from ....i18n import _, _l, format_size, ngettext
 from ....settings import PERMISSIONS, ROLES
 from ...context import get_db, settings
 from ...forms import back, split_list
@@ -138,7 +139,11 @@ def _user_detail(user) -> dict:
         if grp["external_id"]:
             labels[grp["external_id"]] = group_core.label(grp)
     perms = permissions_for(user, cfg)
+    home = available_roots(user, cfg)[0]
+    used, complete = quota.usage(home)
     return {**_user_groups_context(user),
+            "home_usage": {"used": format_size(used), "complete": complete}, "home_quota": quota.status(home),
+            "default_quota_mb": cfg["storage"].get("home_quota_mb", 0),
             "user_sessions": session_repo.list_all(get_db(), user["id"]),
             "user_tokens": api_tokens.list_for_user(get_db(), user["id"]),
             "access": explain_access(user, cfg, labels) if user["enabled"] else [],
@@ -198,7 +203,19 @@ def _user_form_data() -> dict:
         "home_path": f.get("home_path", "").strip(),
         "enabled": f.get("enabled") == "on",
         "password": f.get("password", ""),
+        **_quota_field(f),
     }
+
+
+def _quota_field(f) -> dict:
+    """La cuota del formulario, solo si viene (vacía = la de por defecto; un valor no válido lo rechaza
+    ``accounts.update_account``)."""
+    if "quota_mb" not in f:
+        return {}
+    raw = f.get("quota_mb", "").strip()
+    if not raw:
+        return {"quota_mb": None}
+    return {"quota_mb": int(raw) if raw.isdigit() else -1}
 
 
 @bp.route("/users/new", methods=["GET", "POST"])
@@ -209,6 +226,7 @@ def user_new():
         form = {**_user_form_data(), "username": request.form.get("username", "").strip(),
                 "source": request.form.get("source", accounts.default_source()), "groups": split_list(request.form.get("groups", ""))}
         try:
+            form.pop("quota_mb", None)
             uid = accounts.create_account(get_db(), 
                 username=form["username"], source=form["source"], role=form["role"],
                 password=form["password"], display_name=form["display_name"], email=form["email"],

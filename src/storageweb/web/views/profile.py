@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from flask import Blueprint, abort, flash, g, redirect, render_template, request, session, url_for
 
-from ...core import tokens
+from ...core import quota, storage, tokens
 from ...core.accounts import source_labels, stores_password
 from ...db.repositories import api_tokens, audit, users
 from ...db.repositories import sessions as session_repo
@@ -73,8 +73,10 @@ def profile():
         flash(_("Profile saved."), "info")
         return redirect(url_for("profile.profile"))
 
+    home = storage.available_roots(user, settings())[0]
     return render_template(
         "profile.html", user=user, editable=editable, SOURCE_LABELS=source_labels(),
+        home_quota=quota.status(home), home_space=storage.space_of(home),
         locales=[(code, locale_display_name(code)) for code in LOCALES],
         themes=[(code, THEME_LABELS[code]) for code in THEMES],
         user_locale=normalize_locale(user["locale"]) or "",

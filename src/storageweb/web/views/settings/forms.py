@@ -58,6 +58,7 @@ def _storage() -> dict:
         "home_template": request.form.get("home_template", "").strip(),
         "create_home": checked("create_home"), "create_shares": checked("create_shares"), "show_hidden": checked("show_hidden"),
         "max_file_size_mb": form_int("max_file_size_mb", "storage.max_file_size_mb", _("Maximum size per file")),
+        "home_quota_mb": form_int("home_quota_mb", "storage.home_quota_mb", _("Quota of personal folders (MB)")),
         "hidden": [line.strip() for line in request.form.get("hidden", "").splitlines() if line.strip()],
     }}
 

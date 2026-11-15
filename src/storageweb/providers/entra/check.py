@@ -46,8 +46,13 @@ def _uses_microsoft(ecfg: dict) -> bool:
     return not any(ecfg.get(k) for k in ("authorize_url", "token_url", "issuer"))
 
 
-# Permisos de aplicación (sin usuario) que usa StorageWeb y para qué
-APP_PERMISSIONS = {"Group.Read.All": _l("to show group names instead of Object IDs")}
+# Permisos de aplicación (sin usuario) que usa StorageWeb, para qué y la clave de su resultado
+APP_PERMISSIONS = {
+    "Group.Read.All": _l("to show group names instead of Object IDs"),
+    "User.Read.All": _l("to disable accounts removed or disabled in Entra ID, refresh groups between sign-ins and "
+                        "read the groups of users in more than 200"),
+}
+PERMISSION_KEYS = {"Group.Read.All": "groups", "User.Read.All": "users"}
 
 
 def _app_roles(access_token: str) -> set[str]:
@@ -145,17 +150,19 @@ def check(ecfg: dict, redirect_uri: str, secret_is_new: bool = False, last_signi
     description = str(token.get("error_description", ""))
     if token.get("access_token"):
         results.append(_result("secret", True, _("The client secret is valid.")))
-        from .directory import can_read_groups  # noqa: PLC0415 (evita un import circular)
+        from .directory import can_read_groups, can_read_users  # noqa: PLC0415 (evita un import circular)
         roles = _app_roles(token["access_token"])
+        works = {"Group.Read.All": can_read_groups, "User.Read.All": can_read_users}
         # 4. permisos de aplicación: cada uno que usa StorageWeb, y si funciona de verdad
         for perm, purpose in APP_PERMISSIONS.items():
+            key = PERMISSION_KEYS.get(perm, perm)
             if perm not in roles:
-                results.append({**_result("groups" if perm == "Group.Read.All" else perm, False,
+                results.append({**_result(key, False,
                                           _("Application permission %(perm)s is not granted with admin consent "
                                             "(%(purpose)s).", perm=perm, purpose=purpose)), "fixable": True})
                 continue
-            ok, detail = can_read_groups(token["access_token"]) if perm == "Group.Read.All" else (True, "")
-            results.append({**_result("groups" if perm == "Group.Read.All" else perm, ok,
+            ok, detail = works[perm](token["access_token"]) if perm in works else (True, "")
+            results.append({**_result(key, ok,
                                       _("Application permission %(perm)s granted (%(purpose)s).", perm=perm,
                                         purpose=purpose) if ok
                                       else _("Application permission %(perm)s is granted but does not work yet: "
@@ -180,9 +187,26 @@ def check(ecfg: dict, redirect_uri: str, secret_is_new: bool = False, last_signi
     else:
         results.append(_result("secret", False, _("The token endpoint answered: %(error)s",
                                                   error=(description.splitlines() or [token.get("error", "?")])[0])))
-    # 5. permisos de inicio de sesión (delegados), según el último inicio de sesión
+    # 5. permisos de inicio de sesión (delegados) y claims del id_token, según el último inicio de sesión
     results.append(_signin_scopes(ecfg, last_signin))
+    claims = _signin_claims(last_signin)
+    if claims is not None:
+        results.append(claims)
     return results
+
+
+def _signin_claims(last_signin: dict | None) -> dict | None:
+    """Si el id_token del último inicio de sesión traía ``sid`` (sin él, cerrar sesión en Microsoft no cierra la de
+    StorageWeb). ``None`` si aún no se sabe."""
+    if not last_signin or last_signin.get("source") != "signin" or not isinstance(last_signin.get("claims"), list):
+        return None
+    when = format_datetime(last_signin.get("at") or "")
+    if "sid" in last_signin["claims"]:
+        return _result("claims", True, _("The ID token includes the session (sid): signing out of Microsoft also "
+                                         "closes StorageWeb (last sign-in: %(when)s).", when=when))
+    return {**_result("claims", False, _("The ID token does not include the session (sid) claim: signing out of "
+                                         "Microsoft will not close StorageWeb (last sign-in: %(when)s).", when=when)),
+            "fixable": True}
 
 
 def repairs(results: list[dict]) -> dict | None:

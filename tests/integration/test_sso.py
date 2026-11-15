@@ -8,7 +8,7 @@ import pytest
 from storageweb.db.repositories import users
 from storageweb.providers.entra import msal, oauth2
 from storageweb.web.context import get_db
-from tests.helpers import add_user, get_csrf
+from tests.helpers import add_user, get_csrf, login
 from tests.sso_helpers import CLIENT_ID, TENANT, entra_cfg, finish_login, start_login
 
 # --------------------------------------------------------------------------- flujo completo
@@ -325,3 +325,38 @@ def test_login_records_granted_scopes(entra_app, token_endpoint):
     with app.app_context():
         last = accounts.last_signin_scopes(get_db(), "entra")
     assert last["scopes"] == ["User.Read", "email", "openid", "profile"] and last["at"]
+
+
+def test_entra_name_and_email_come_from_entra(entra_app, token_endpoint):
+    """El nombre y el email de un usuario de Entra ID los pone Entra ID en cada inicio de sesión: la ficha los
+    muestra de solo lectura y guardarla no los cambia."""
+    app = entra_app()
+    client = app.test_client()
+    token_endpoint.claims_extra = {"email": "juan@contoso.com"}
+    _, q = start_login(client, token_endpoint)
+    finish_login(client, q["state"])
+    add_user(app, "root", role="admin")
+    admin = app.test_client()
+    login(admin, "root")
+    with app.app_context():
+        juan = users.get_by_external(get_db(), "entra", "oid-juan")
+    token = get_csrf(admin, f"/admin/users/{juan['id']}")
+    html = admin.get(f"/admin/users/{juan['id']}").get_data(as_text=True)
+    assert 'name="display_name" value="Juan Pérez" maxlength="200" readonly' in html
+    assert 'name="email" value="juan@contoso.com" maxlength="200" readonly' in html
+    assert "vienen de Entra ID" in html
+    admin.post(f"/admin/users/{juan['id']}", data={"_csrf": token, "display_name": "Otro", "email": "x@y.z",
+                                                   "role": "user", "home_path": "", "enabled": "on"})
+    with app.app_context():
+        juan = users.get_by_id(get_db(), juan["id"])
+    assert juan["display_name"] == "Juan Pérez" and juan["email"] == "juan@contoso.com"
+    html = admin.get(f"/admin/users/panel?u={juan['id']}").get_data(as_text=True)
+    assert 'value="Juan Pérez" maxlength="200" readonly' in html
+    # Al volver a entrar se actualizan desde Entra ID (también el email)
+    client.post("/logout", data={"_csrf": get_csrf(client, "/f/home/")})
+    token_endpoint.claims_extra = {"email": "juan.perez@contoso.com", "name": "Juan Pérez García"}
+    _, q = start_login(client, token_endpoint)
+    finish_login(client, q["state"])
+    with app.app_context():
+        juan = users.get_by_id(get_db(), juan["id"])
+    assert juan["display_name"] == "Juan Pérez García" and juan["email"] == "juan.perez@contoso.com"

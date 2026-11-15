@@ -19,15 +19,18 @@ Cada acción relevante se guarda en la tabla `audit_log`. Se puede consultar en 
 | `login_failed` | Contraseña incorrecta, error del proveedor SSO o credenciales de la unidad de red no válidas | `entra:<código>` en SSO; en WebDAV, `webdav:bad_token`, `webdav:bad_password` o `webdav:password_not_allowed` (se usó la contraseña de la cuenta sin estar admitida) |
 | `login_blocked` | Intento durante un bloqueo por intentos fallidos | |
 | `login_denied` | Cuenta de Entra rechazada (tenant, grupo, conflicto, no dada de alta, desactivada) | `entra:<motivo>` |
-| `logout` | Cierre de sesión | |
+| `logout` | Cierre de sesión | `entra:frontchannel` si la cerró Microsoft (cierre de sesión de canal frontal) |
 | `user_provisioned` | Usuario de Entra creado automáticamente | `entra:<rol>` |
 | `user_linked` | Usuario de Entra dado de alta antes, vinculado en su primer login | |
-| `role_changed` | Rol recalculado en el login a partir de `role_mappings` | `anterior->nuevo (entra)` |
+| `role_changed` | Rol recalculado en el login o en la revisión periódica a partir de `role_mappings` | `anterior->nuevo (entra)` o `(entra:directory)` |
+| `user_renamed` | Cuenta de Entra renombrada al entrar porque cambió su UPN | `anterior -> nuevo`, y `home moved` (carpeta personal renombrada) o `home kept` (se conserva la antigua como ruta propia) |
+| `user_rename_failed` | No se pudo renombrar: el nombre nuevo ya es de otra cuenta, o las carpetas compartidas que la nombran están fijadas en `config.json` | Motivo |
+| `directory_synced` | Revisión periódica de las cuentas contra Entra ID que cambió algo | Recuento: revisadas, desactivadas, reactivadas, actualizadas, sin respuesta, grupos |
 | `user_created` | Alta de usuario desde la web | `origen:rol` |
 | `user_updated` | Edición de usuario desde la web | Rol, estado y cambio de contraseña |
 | `user_deleted` | Baja de usuario desde la web | |
-| `user_disabled` | Cuenta desactivada desde la web (botón *Desactivar*) | Origen de la cuenta |
-| `user_enabled` | Cuenta activada de nuevo desde la web | Origen de la cuenta |
+| `user_disabled` | Cuenta desactivada desde la web (botón *Desactivar*) o por la revisión contra Entra ID (*usuario* = `system`) | Origen de la cuenta, o `entra:deleted` / `entra:disabled` / `entra:not_allowed` y las sesiones cerradas |
+| `user_enabled` | Cuenta activada de nuevo desde la web, o sola cuando Entra ID la vuelve a dejar entrar | Origen de la cuenta, o `entra:directory` / `entra:signin` |
 | `group_created` | Alta de grupo | `origen:grupo externo` |
 | `group_updated` | Edición de grupo | `origen:grupo externo` |
 | `group_deleted` | Baja de grupo | |

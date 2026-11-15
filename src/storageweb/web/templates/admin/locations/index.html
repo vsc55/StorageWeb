@@ -9,11 +9,15 @@
     <p class="muted small">{{ _("External storage (%(types)s) where shared or personal folders can live, without mounting it on the server.", types=schemas|map(attribute='short_label')|join(", ")) }}</p>
   </div>
   {% if not locked_message %}
-  <div class="inline">
-    {% for schema in schemas %}
-    <a class="btn{% if loop.first %} btn-primary{% endif %}" href="{{ url_for('locations.new', type=schema.kind) }}" title="{{ schema.label }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New %(type)s location", type=schema.short_label) }}</a>
-    {% endfor %}
-  </div>
+  {# Un solo botón con un menú de tipos: crece con los tipos que haya sin llenar la cabecera de botones #}
+  <details class="popover add-menu">
+    <summary class="btn btn-primary"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New location") }}<svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-down"></use></svg></summary>
+    <nav class="popover-body add-menu-list" aria-label="{{ _('Type of storage') }}">
+      {% for schema in schemas %}
+      <a class="menu-item" href="{{ url_for('locations.new', type=schema.kind) }}"><span class="add-menu-text"><strong>{{ schema.short_label }}</strong><span class="muted small">{{ schema.label }}</span></span></a>
+      {% endfor %}
+    </nav>
+  </details>
   {% endif %}
 </div>
 {{ locked_notice(locked_message) }}

@@ -104,6 +104,8 @@ def _form(method) -> dict:
         "default_role": f.get("entra_default_role", "user"),
         "role_mappings": _role_mappings(),
         "sync_role_on_login": checked("entra_sync_role_on_login"),
+        "directory_sync_minutes": form_int("entra_directory_sync_minutes", "auth.entra.directory_sync_minutes",
+                                           _("Check accounts against Entra ID every (minutes)")),
         "single_logout": checked("entra_single_logout"),
         "auto_login": checked("entra_auto_login"),
         "authorize_url": f.get("entra_authorize_url", "").strip(),
@@ -246,6 +248,11 @@ def _register_target() -> tuple[str, bool]:
     return uri, parts.scheme == "https" or parts.hostname in LOOPBACK
 
 
+def frontchannel_logout_url() -> str:
+    """URL de cierre de sesión de canal frontal que se registra en Entra ID (Autenticación → Web)."""
+    return external_url("auth.sso_frontchannel_logout", method="entra")
+
+
 @bp.route("/entra/register", methods=["GET", "POST"])
 @admin_required
 def entra_register_page():
@@ -257,7 +264,7 @@ def entra_register_page():
                   "error")
             return redirect(url_for("settings.entra_register_page"))
         options = {"name": request.form.get("app_name", "").strip() or settings()["app_name"],
-                   "redirect_uri": redirect_uri, "logout_url": external_url("auth.login"),
+                   "redirect_uri": redirect_uri, "logout_url": frontchannel_logout_url(),
                    "app_roles": checked("app_roles"), "group_claims": checked("group_claims"),
                    "require_assignment": checked("require_assignment"), "group_read": checked("group_read")}
         return _start_flow("register", options)
@@ -321,6 +328,7 @@ def entra_repair():
     needs = entra_check.repairs(check["results"]) if check else None
     ecfg = settings()["auth"]["entra"]
     return _start_flow("repair", {"client_id": _existing_client_id(), "redirect_uri": redirect_uri(ecfg),
+                                  "logout_url": frontchannel_logout_url(),
                                   "new_secret": bool(needs and needs["new_secret"]),
                                   "back": "wizard" if request.form.get("back") == "wizard" else "auth"})
 
@@ -399,7 +407,8 @@ def entra_register_poll():
     if kind == "repair":
         try:
             result = entra_register.repair_app(token, options["client_id"], redirect_uri=options["redirect_uri"],
-                                               new_secret=options["new_secret"])
+                                               new_secret=options["new_secret"],
+                                               logout_url=options.get("logout_url", ""))
         except entra_register.RegisterError as exc:
             audit_event("entra_app_register_failed", options["client_id"], f"repair:{exc}"[:200])
             return answer("error", _("The application could not be repaired: %(error)s", error=exc))

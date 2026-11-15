@@ -24,6 +24,10 @@
       <input{{ lock('storage.max_file_size_mb') }} type="number" name="max_file_size_mb" value="{{ st.max_file_size_mb }}" min="0">
       <small class="muted">{{ _("0 = no limit; uploads are sent in parts") }}</small>
       {{ field_error('storage.max_file_size_mb') }}</label>
+    <label class="{{ err_class('storage.home_quota_mb') }}"><span class="label-row">{{ _("Quota of personal folders (MB)") }} {{ origin('storage.home_quota_mb') }}</span>
+      <input{{ lock('storage.home_quota_mb') }} type="number" name="home_quota_mb" value="{{ st.home_quota_mb }}" min="0">
+      <small class="muted">{{ _("0 = no quota. It only warns (from 90%% and when exceeded); it does not stop uploads. Each user can have another one in their profile.") }}</small>
+      {{ field_error('storage.home_quota_mb') }}</label>
     <label class="span2 {{ err_class('storage.hidden') }}"><span class="label-row">{{ _("Hidden for everyone") }} {{ origin('storage.hidden') }}</span>
       <textarea{{ lock('storage.hidden') }} name="hidden" rows="5" class="mono" spellcheck="false" placeholder="Thumbs.db&#10;desktop.ini&#10;.DS_Store&#10;*.tmp&#10;.git/">{{ st.hidden|join('\n') }}</textarea>
       <small class="muted">{{ _("One pattern per line, like .gitignore: «Thumbs.db» or «*.tmp» anywhere, «.git/» only folders, «/private» from the root of each folder. They are not listed and cannot be opened or created (web, network drive and API); the files stay on disk.") }}</small>

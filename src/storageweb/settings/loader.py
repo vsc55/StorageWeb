@@ -209,6 +209,7 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     except patterns.PatternError as exc:
         raise ConfigError(str(exc), "storage.hidden") from exc
     storage["max_file_size_mb"] = _non_negative_int(storage["max_file_size_mb"], "storage.max_file_size_mb")
+    storage["home_quota_mb"] = _non_negative_int(storage.get("home_quota_mb", 0), "storage.home_quota_mb")
 
     seen = {"home"}
     shares = []
@@ -233,6 +234,7 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
             # En el disco: ruta absoluta (las relativas, respecto al config.json). En una ubicación: ruta dentro de ella
             "path": _inside_location(raw_path, "storage.shares") if location else str(_resolve(base_dir, raw_path)),
             "read_only": bool(share.get("read_only", False)),
+            "quota_mb": _non_negative_int(share.get("quota_mb", 0) or 0, "storage.shares"),
             "users": [u.lower() for u in _str_list(share.get("users", ["*"]), f"{name}.users")],
             "read_only_users": [u.lower() for u in _str_list(share.get("read_only_users", []),
                                                              f"{name}.read_only_users")],

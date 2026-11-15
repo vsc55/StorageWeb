@@ -6,7 +6,7 @@
   - Linux (Ubuntu 22.04+, Debian 12+, RHEL/Rocky/Alma 9+, Fedora o Gentoo) para producción;
   - Windows y macOS también funcionan, sin el servicio del sistema.
 - **Python 3.9 o superior:** los paquetes usan el del sistema.
-- **Proxy con HTTPS:** necesario en producción ([nginx](https.md)) y obligatorio para Entra ID.
+- **Proxy con HTTPS:** necesario en producción ([nginx o Apache](https.md)) y obligatorio para Entra ID.
 - **Disco:** el que necesiten los archivos de los usuarios. La base de datos ocupa muy poco.
 
 ## Elegir el método
@@ -50,14 +50,14 @@ sudo storageweb-admin check-config
 systemctl status storageweb
 ```
 
-Siguientes pasos: [HTTPS con nginx](https.md), [configuración](configuracion.md) y [copias de seguridad](copias-seguridad.md).
+Siguientes pasos: [HTTPS con nginx o Apache](https.md), [configuración](configuracion.md) y [copias de seguridad](copias-seguridad.md).
 
 ## Desde el código fuente
 
 En Ubuntu, desde una copia del repositorio o del `.tar.gz` de la release:
 
 ```bash
-sudo ./packaging/install.sh --nginx        # --pam para permitir usuarios del sistema
+sudo ./packaging/install.sh --nginx        # o --apache; --pam para permitir usuarios del sistema
 sudo storageweb-admin user-add admin --role admin
 ```
 
@@ -91,7 +91,7 @@ En un `config.json` para pruebas en `http://localhost`, pon `"session": {"cookie
 | Archivos | `/srv/storageweb/{homes,shared,public}` |
 | Servicios | `storageweb.service`, `storageweb-backup.timer` (desactivado) |
 | CLI | `/usr/bin/storageweb-admin` |
-| Ejemplos | `/usr/share/storageweb/` (`config.example.json`, plantilla de nginx) |
+| Ejemplos | `/usr/share/storageweb/` (`config.example.json`, plantillas de nginx y Apache) |
 
 La lista completa está en [Rutas y variables de entorno](../referencia/rutas.md).
 

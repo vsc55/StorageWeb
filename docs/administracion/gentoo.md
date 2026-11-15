@@ -49,7 +49,7 @@ sudo storageweb-admin user-add admin --role admin
     sudo systemctl enable --now storageweb-backup.timer    # copias diarias (opcional)
     ```
 
-Rutas: `/etc/storageweb/config.json`, `/var/lib/storageweb` (datos) y `/srv/storageweb` (archivos). La plantilla de nginx está en `/usr/share/storageweb/nginx-storageweb.conf`.
+Rutas: `/etc/storageweb/config.json`, `/var/lib/storageweb` (datos) y `/srv/storageweb` (archivos). Las plantillas de nginx y Apache están en `/usr/share/storageweb/nginx-storageweb.conf` y `/usr/share/storageweb/apache-storageweb.conf` (ver [HTTPS con nginx o Apache](https.md)).
 
 ## Versiones
 

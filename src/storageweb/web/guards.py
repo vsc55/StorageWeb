@@ -62,17 +62,18 @@ def clear_session() -> None:
     session.update(keep)
 
 
-def start_session(user) -> None:
+def start_session(user, provider_sid: str | None = None) -> None:
+    """``provider_sid``: la sesión del proveedor SSO (claim ``sid``), para su cierre de sesión de canal frontal."""
     clear_session()
     session.permanent = True
     session["uid"] = user["id"]
     session["src"] = user["source"]
-    session["sid"] = _new_session(user["id"])
+    session["sid"] = _new_session(user["id"], provider_sid)
 
 
-def _new_session(user_id: int) -> str:
+def _new_session(user_id: int, provider_sid: str | None = None) -> str:
     sid = secrets.token_urlsafe(24)
-    session_repo.create(get_db(), sid, user_id, client_ip(), request.headers.get("User-Agent"))
+    session_repo.create(get_db(), sid, user_id, client_ip(), request.headers.get("User-Agent"), provider_sid)
     return sid
 
 
@@ -241,10 +242,18 @@ def safe_next(target: str | None) -> str:
     return target
 
 
+# Páginas que el proveedor SSO carga en un marco invisible (cierre de sesión de canal frontal)
+FRAMED_BY_PROVIDER = {"auth.sso_frontchannel_logout"}
+
+
 def set_security_headers(response):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
-    response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "same-origin")
+    if request.endpoint in FRAMED_BY_PROVIDER:
+        response.headers.setdefault("Content-Security-Policy",
+                                    "default-src 'none'; frame-ancestors https://login.microsoftonline.com")
+        return response
+    response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault(
         "Content-Security-Policy",
         "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "

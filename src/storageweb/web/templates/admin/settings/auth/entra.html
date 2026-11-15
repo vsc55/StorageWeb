@@ -127,6 +127,10 @@
           </div>
           <label class="check span2"><input{{ lock('auth.entra.sync_role_on_login') }} type="checkbox" name="entra_sync_role_on_login" {% if en.sync_role_on_login %}checked{% endif %}>
             {{ _("Recalculate the role on every sign-in according to the mapping") }} {{ origin('auth.entra.sync_role_on_login') }}</label>
+          <label class="span2 {{ err_class('auth.entra.directory_sync_minutes') }}"><span class="label-row">{{ _("Check accounts against Entra ID every (minutes)") }} {{ origin('auth.entra.directory_sync_minutes') }}</span>
+            <input{{ lock('auth.entra.directory_sync_minutes') }} type="number" name="entra_directory_sync_minutes" value="{{ en.directory_sync_minutes }}" min="0" max="10080">
+            <small class="muted">{{ _("Accounts that can get in without going through Microsoft (open session, API tokens, network drive, VS Code) are checked: removed or disabled ones, or ones outside the allowed groups, are disabled (and enabled again when they come back), and their groups and role are refreshed. Needs the User.Read.All application permission. 0 = only on sign-in.") }}</small>
+            {{ field_error('auth.entra.directory_sync_minutes') }}</label>
         </div>
       </fieldset>
 

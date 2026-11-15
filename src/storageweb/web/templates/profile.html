@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_space.html" import quota_meter, space_meter with context %}
 {% block title %}{{ _("My profile") }} · {{ app_name }}{% endblock %}
 {% block content %}
 <div class="page">
@@ -11,9 +12,9 @@
       <div class="field"><span class="label">{{ _("User") }}</span><strong>{{ user['username'] }}</strong></div>
       <div class="field"><span class="label">{{ _("Role") }}</span><span><span class="badge badge-{{ user['role'] }}">{{ ROLE_LABELS[user['role']] }}</span></span></div>
       <label>{{ _("Display name") }}
-        <input type="text" name="display_name" value="{{ user['display_name'] or '' }}" maxlength="200" {% if not editable %}readonly{% endif %}></label>
+        <input type="text" name="display_name" value="{{ user['display_name'] or '' }}" maxlength="200" {% if not editable %}readonly class="from-provider"{% endif %}></label>
       <label>{{ _("Email") }}
-        <input type="email" name="email" value="{{ user['email'] or '' }}" maxlength="200" {% if not editable %}readonly{% endif %}></label>
+        <input type="email" name="email" value="{{ user['email'] or '' }}" maxlength="200" {% if not editable %}readonly class="from-provider"{% endif %}></label>
       {% if not editable %}
       <p class="span2 muted small">{{ _("Your name and email come from your sign-in provider and are updated there.") }}</p>
       {% endif %}
@@ -128,6 +129,14 @@
     {% endif %}
 
     {% if webdav and (tokens_enabled or webdav_passwords) %}
+    {% if home_quota or home_space %}
+    <section class="card stack" id="space" aria-labelledby="space-title">
+      <h2 class="card-title" id="space-title">{{ _("Space of my folder") }}</h2>
+      {{ quota_meter(home_quota) }}
+      {{ space_meter(home_space) }}
+    </section>
+    {% endif %}
+
     <section class="card stack" id="webdav" aria-labelledby="webdav-title">
       <h2 class="card-title" id="webdav-title">{{ _("Network drive") }}</h2>
       <p class="muted small">{{ _("Your folders as a drive in the file explorer (Windows, macOS, Linux) or with rclone, Cyberduck or WinSCP.") }}</p>

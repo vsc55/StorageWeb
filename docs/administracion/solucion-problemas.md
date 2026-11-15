@@ -38,7 +38,7 @@
 : El usuario `storageweb` (uid 10001 en Docker) no tiene permisos sobre la ruta. Corrige el propietario o las ACL. Con systemd, comprueba además que la ruta está en `ReadWritePaths` y no la oculta `ProtectHome` (`systemctl edit storageweb`).
 
 **`413 Request Entity Too Large` al subir.**
-: Lo devuelve nginx: `client_max_body_size` es menor que el tamaño de la petición. Debe ser al menos 33 MB para las subidas por partes, y al menos `server.max_upload_mb` para la subida sin JavaScript.
+: Lo devuelve el proxy: en nginx, `client_max_body_size`; en Apache, `LimitRequestBody` (desde la 2.4.54 limita a 1 GB por defecto). Debe ser al menos 33 MB para las subidas por partes, y al menos `server.max_upload_mb` para la subida sin JavaScript y la unidad de red.
 
 **«El archivo supera el máximo permitido».**
 : `storage.max_file_size_mb`.
@@ -48,6 +48,9 @@
 
 **Las descargas grandes se cortan en torno a 1 GB.**
 : Faltan `proxy_buffering off` y `proxy_max_temp_file_size 0` en nginx.
+
+**Con Apache, las subidas lentas fallan a los 20 s (408 o conexión cortada).**
+: `mod_reqtimeout` corta un cuerpo de petición que llega despacio. Pon `RequestReadTimeout header=20-40,MinRate=500 body=300,MinRate=1` (está en la plantilla).
 
 **Quedan ficheros `.sw-upload-*.part`.**
 : Son subidas interrumpidas. Se borran solos a las 24 horas de inactividad, cuando alguien inicia otra subida. Se pueden borrar a mano con el servicio en marcha.

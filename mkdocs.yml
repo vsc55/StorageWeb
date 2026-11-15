@@ -56,7 +56,7 @@ nav:
       - Instalación: administracion/instalacion.md
       - Docker: administracion/docker.md
       - Gentoo: administracion/gentoo.md
-      - HTTPS con nginx: administracion/https.md
+      - HTTPS con nginx o Apache: administracion/https.md
       - Configuración: administracion/configuracion.md
       - Microsoft Entra ID: administracion/entra-id.md
       - Usuarios, roles y permisos: administracion/usuarios-y-permisos.md

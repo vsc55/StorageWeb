@@ -184,7 +184,7 @@ def test_grant_groups_and_group_names(entra_admin, monkeypatch):
     with app.app_context():
         gc.sync_external(get_db(), uid, "entra", [gid])
     html = client.get("/admin/groups/list").get_data(as_text=True)
-    assert "<strong>Sistemas</strong>" in html and "label=Sistemas" in html
+    assert "<strong>Sistemas</strong>" in html and f"external_id={gid}" in html
     assert client.get("/admin/groups/directory/entra/search?q=Sis").get_json()["groups"][0]["name"] == "Sistemas"
     html = client.get(f"/admin/users/{uid}").get_data(as_text=True)
     assert "<strong>Sistemas</strong>" in html
@@ -250,8 +250,8 @@ def test_repair_flow_fixes_and_saves_a_new_secret(entra_admin, monkeypatch):
     client.post("/admin/settings/entra/test", data={"_csrf": token})
     calls = []
 
-    def repair(tok, client_id, *, redirect_uri, new_secret):
-        calls.append((client_id, redirect_uri, new_secret))
+    def repair(tok, client_id, *, redirect_uri, new_secret, logout_url):
+        calls.append((client_id, redirect_uri, new_secret, logout_url))
         return {"fixed": ["Redirect URI añadida", "Secreto nuevo"], "warnings": [],
                 "signin_consent": ["openid", "profile", "email", "User.Read"],
                 "client_secret": "nuevo-secreto", "secret_expires": "2028-11-15T00:00:00+00:00"}
@@ -263,7 +263,8 @@ def test_repair_flow_fixes_and_saves_a_new_secret(entra_admin, monkeypatch):
                        headers={"Accept": "application/json"})
     data = resp.get_json()
     assert data["status"] == "complete" and "Reparado" in data["message"]
-    assert calls == [("c1", "http://localhost/auth/entra/callback", True)]
+    assert calls == [("c1", "http://localhost/auth/entra/callback", True,
+                      "http://localhost/auth/entra/frontchannel-logout")]
     with app.app_context():
         assert settings()["auth"]["entra"]["client_secret"] == "nuevo-secreto"
         from storageweb.core import accounts

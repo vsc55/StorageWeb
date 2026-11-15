@@ -84,6 +84,18 @@ def test_grant_group_read_adds_permission_once(graph):
     er.grant_group_read("tok", "c1")                                 # «ya existe» no es error
     patch = next(b for m, p, b in calls if m == "PATCH")
     graph_access = patch["requiredResourceAccess"][0]["resourceAccess"]
-    assert {"id": er.GROUP_READ_ALL, "type": "Role"} in graph_access and len(graph_access) == 2
-    assign = next(b for m, p, b in calls if p.endswith("/appRoleAssignments"))
-    assert assign == {"principalId": "sp-app", "resourceId": "sp-graph", "appRoleId": er.GROUP_READ_ALL}
+    assert {"id": er.GROUP_READ_ALL, "type": "Role"} in graph_access and len(graph_access) == 3
+    assert {"id": er.USER_READ_ALL, "type": "Role"} in graph_access
+    assigned = [b["appRoleId"] for m, p, b in calls if p.endswith("/appRoleAssignments")]
+    assert assigned == [er.GROUP_READ_ALL, er.USER_READ_ALL]
+
+
+def test_info_for_brings_the_description(graph):
+    calls, answers, _tokens = graph
+    answers[("POST", "/directoryObjects/getByIds")] = (200, {"value": [
+        {"id": G1, "displayName": "Sistemas", "description": " Equipo de IT "}]})
+    assert ed.info_for(ECFG, [G1]) == {G1: {"name": "Sistemas", "description": "Equipo de IT"}}
+    assert ed.names_for(ECFG, [G1]) == {G1: "Sistemas"} and len(calls) == 1      # misma caché
+    answers[("GET", "/groups?")] = (200, {"value": [{"id": G2, "displayName": "Ventas", "description": None}]})
+    assert ed.search_groups(ECFG, "Ven") == [{"id": G2, "name": "Ventas", "description": ""}]
+    assert "$select=id,displayName,description" in calls[-1][1]

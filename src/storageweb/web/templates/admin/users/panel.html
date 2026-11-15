@@ -63,8 +63,10 @@
       <form method="post" action="{{ url_for('admin.user_edit', user_id=current['id']) }}" class="form-grid">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
         <input type="hidden" name="next" value="{{ here }}">
-        <label>{{ _("Display name") }}<input type="text" name="display_name" value="{{ form.display_name or '' }}" maxlength="200"></label>
-        <label>{{ _("Email") }}<input type="email" name="email" value="{{ form.email or '' }}" maxlength="200"></label>
+        {% set from_provider = auth_method(current['source']) and auth_method(current['source']).profile_from_provider %}
+        <label>{{ _("Display name") }}<input type="text" name="display_name" value="{{ form.display_name or '' }}" maxlength="200"{% if from_provider %} readonly class="from-provider"{% endif %}></label>
+        <label>{{ _("Email") }}<input type="email" name="email" value="{{ form.email or '' }}" maxlength="200"{% if from_provider %} readonly class="from-provider"{% endif %}></label>
+        {% if from_provider %}<p class="muted small span2">{{ _("The name and the email come from %(source)s and are updated on each sign-in: change them there.", source=SOURCE_LABELS[current['source']]) }}</p>{% endif %}
         <label>{{ _("Role") }}
           <select name="role">{% for r in ROLES %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></label>
         <label>{{ _("Personal folder") }} <small class="muted">({{ _("empty = default template") }})</small>
@@ -75,6 +77,9 @@
         <p class="muted small">{{ _("Signs in with %(source)s: the password is managed there.", source=SOURCE_LABELS[current['source']]) }}</p>
         {% endif %}
         <label class="check"><input type="checkbox" name="enabled" {% if form.enabled %}checked{% endif %}> {{ _("Account enabled") }}</label>
+  {% if current and not current['enabled'] and current['disabled_reason'] == 'directory' %}
+  <p class="muted small span2">{{ _("Disabled automatically because %(source)s removed or disabled the account, or it is no longer in the allowed groups. It is enabled again on its own when %(source)s lets it in.", source=SOURCE_LABELS[current['source']]) }}</p>
+  {% endif %}
         <div class="span2 form-actions">
           <button class="btn btn-primary" type="submit">{{ _("Save changes") }}</button>
           <a class="btn btn-ghost" href="{{ url_for('admin.user_edit', user_id=current['id']) }}">{{ _("Full record") }}</a>

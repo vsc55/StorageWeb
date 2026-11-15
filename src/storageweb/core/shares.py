@@ -64,6 +64,21 @@ def with_entries(share: dict, items: list[dict]) -> dict:
     return {**share, "users": users, "read_only_users": ro_users, "groups": groups, "read_only_groups": ro_groups}
 
 
+def rename_user(shares: list[dict], old: str, new: str) -> list[dict] | None:
+    """Las carpetas con el nombre de usuario cambiado en sus listas (``users`` y ``read_only_users``); ``None`` si
+    ninguna lo nombraba."""
+    old, new = old.lower(), new.lower()
+    changed = False
+    result = copy.deepcopy(shares)
+    for share in result:
+        for key in ("users", "read_only_users"):
+            values = share.get(key) or []
+            if any(v.lower() == old for v in values):
+                share[key] = [new if v.lower() == old else v for v in values]
+                changed = True
+    return result if changed else None
+
+
 def find(shares: list[dict], name: str) -> dict | None:
     return next((s for s in shares if s["name"] == name), None)
 

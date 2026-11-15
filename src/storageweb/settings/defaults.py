@@ -70,6 +70,9 @@ DEFAULTS: dict = {
         # Tamaño máximo por archivo en MB (0 = sin límite). Las subidas se hacen por partes,
         # así que no dependen de server.max_upload_mb (que limita cada petición).
         "max_file_size_mb": 0,
+        # Cuota por defecto de las carpetas personales en MB (0 = sin cuota). Solo avisa; cada usuario puede
+        # tener la suya (users.quota_mb) y cada carpeta compartida, «quota_mb»
+        "home_quota_mb": 0,
         # [{"name", "label", "path", "read_only", "users": ["*"], "read_only_users": [],
         #   "groups": [], "read_only_groups": []}]
         "shares": [],
@@ -124,5 +127,5 @@ DEFAULTS: dict = {
 # La documentación de cada campo (y su etiqueta, página y sinónimos) está en settings/fields.py
 
 # Campos de cada elemento de storage.shares (lista; no aparecen en DEFAULTS)
-SHARE_FIELDS = ("name", "label", "location", "path", "read_only", "users", "read_only_users", "groups",
+SHARE_FIELDS = ("name", "label", "location", "path", "read_only", "quota_mb", "users", "read_only_users", "groups",
                 "read_only_groups")

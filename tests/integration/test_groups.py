@@ -251,3 +251,72 @@ def test_builtin_admins_group_pages(app, admin):
         assert users.get_by_id(get_db(), ana)["role"] == "user"
     html = client.get(f"/admin/groups/panel?g={admins['id']}&tab=link").get_data(as_text=True)
     assert "no se puede editar" in html and 'name="external_id"' not in html
+
+
+# --------------------------------------------------------------------------- alta desde el directorio (Entra ID)
+
+G_SALES, G_IT = "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"
+DIRECTORY = {G_SALES: {"name": "Ventas España", "description": "Equipo comercial"},
+             G_IT: {"name": "Permitir Instalación", "description": ""}}
+
+
+@pytest.fixture
+def directory(monkeypatch):
+    from storageweb.providers.entra import directory as entra_directory
+    monkeypatch.setattr(entra_directory, "info_for",
+                        lambda ecfg, ids: {i: DIRECTORY[i] for i in ids if i in DIRECTORY})
+    monkeypatch.setattr(entra_directory, "names_for",
+                        lambda ecfg, ids: {i: DIRECTORY[i]["name"] for i in ids if i in DIRECTORY})
+
+
+def test_suggest_name(app):
+    with app.app_context():
+        assert gc.suggest_name(get_db(), "Permitir Instalación") == "permitir-instalacion"
+        assert gc.suggest_name(get_db(), "Test - jpastor") == "test-jpastor"
+        assert gc.suggest_name(get_db(), "Grp_o365") == "grp_o365"
+        assert gc.suggest_name(get_db(), "", "  ", "StorageWeb.Admin") == "storageweb.admin"
+        assert gc.suggest_name(get_db(), "¿¡!?") == "group"
+        gc.create_group(get_db(), name="ventas", label="Ventas")
+        assert gc.suggest_name(get_db(), "Ventas") == "ventas-2"
+
+
+def test_register_form_is_filled_from_the_directory(app, admin, directory):
+    client, token = admin
+    eva = add_user(app, "eva@x.com", password=None, source="entra", external_id="o-eva")
+    with app.app_context():
+        gc.sync_external(get_db(), eva, "entra", [G_SALES])
+    html = client.get("/admin/groups/list").get_data(as_text=True)
+    assert f"/admin/groups/new?source=entra&amp;external_id={G_SALES}" in html and "<strong>Ventas España</strong>" in html
+    html = client.get(f"/admin/groups/new?source=entra&external_id={G_SALES}").get_data(as_text=True)
+    assert 'name="name" value="ventas-espana"' in html and 'value="Ventas España"' in html
+    assert 'value="Equipo comercial"' in html
+    # Sin identificador en el envío se propone igual
+    client.post("/admin/groups/new", data={"_csrf": token, "name": "", "label": "", "description": "",
+                                           "source": "entra", "external_id": G_SALES})
+    with app.app_context():
+        group = repo.get_by_external(get_db(), "entra", G_SALES)
+    assert group["name"] == "ventas-espana" and group["label"] == "Ventas España"
+
+
+def test_register_all_detected(app, admin, directory):
+    client, token = admin
+    eva = add_user(app, "eva@x.com", password=None, source="entra", external_id="o-eva")
+    with app.app_context():
+        gc.create_group(get_db(), name="permitir-instalacion", label="Otro")   # el nombre ya está cogido
+        gc.sync_external(get_db(), eva, "entra", [G_SALES, G_IT, "storageweb.admin"])
+    html = client.get("/admin/groups/list").get_data(as_text=True)
+    assert "Dar de alta todos (3)" in html
+    resp = client.post("/admin/groups/register-detected", data={"_csrf": token, "next": "/admin/groups/list"})
+    assert resp.status_code == 302 and resp.headers["Location"].endswith("/admin/groups/list")
+    with app.app_context():
+        sales = repo.get_by_external(get_db(), "entra", G_SALES)
+        it = repo.get_by_external(get_db(), "entra", G_IT)
+        role = repo.get_by_external(get_db(), "entra", "storageweb.admin")
+        groups_of_eva = users.get_by_id(get_db(), eva)["groups"]
+    assert (sales["name"], sales["label"], sales["description"]) == ("ventas-espana", "Ventas España", "Equipo comercial")
+    assert (it["name"], it["label"]) == ("permitir-instalacion-2", "Permitir Instalación")
+    assert (role["name"], role["label"]) == ("storageweb.admin", "storageweb.admin")   # App Role: sin directorio
+    assert "ventas-espana" in groups_of_eva                                             # miembro sincronizado ya
+    html = client.get("/admin/groups/list").get_data(as_text=True)
+    assert "Grupos sin dar de alta" not in html
+    assert _actions(app).count("group_created") >= 3

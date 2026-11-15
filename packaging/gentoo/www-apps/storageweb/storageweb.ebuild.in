@@ -67,6 +67,7 @@ python_install_all() {
 	insinto /usr/share/storageweb
 	doins config/config.example.json
 	newins packaging/nginx/storageweb.conf nginx-storageweb.conf
+	newins packaging/apache/storageweb.conf apache-storageweb.conf
 
 	local d
 	for d in /var/lib/storageweb /var/log/storageweb /srv/storageweb \
@@ -85,7 +86,8 @@ pkg_postinst() {
 	elog "Arranque:"
 	elog "  OpenRC:  rc-update add storageweb default && rc-service storageweb start"
 	elog "  systemd: systemctl enable --now storageweb"
-	elog "Plantilla de nginx (HTTPS, necesario para Entra ID): /usr/share/storageweb/nginx-storageweb.conf"
+	elog "Plantillas de proxy HTTPS (necesario para Entra ID): /usr/share/storageweb/nginx-storageweb.conf"
+	elog "  y /usr/share/storageweb/apache-storageweb.conf"
 	if use pam; then
 		elog ""
 		elog "Con auth.pam el servicio necesita leer /etc/shadow (pam_unix). Revisa la"

@@ -46,9 +46,13 @@ Los permisos del rol `user` se cambian en *Acceso → Permisos del rol*. El serv
 
 El grupo **Administradores** (`admins`) viene de serie y no se puede editar ni eliminar. Sus miembros son los usuarios con rol `admin`: añadir a alguien le da el rol y quitarlo se lo retira, con las mismas protecciones que el rol (no puedes quitártelo a ti mismo y siempre queda un admin activo). Las carpetas compartidas pueden usarlo con el identificador `admins`. Si el rol viene de Entra ID (`role_mappings`) o de PAM (`admin_groups`), se recalcula en el siguiente inicio de sesión.
 
+El **nombre y el email** de los usuarios de Entra ID los pone Entra ID y se actualizan en cada inicio de sesión: en su ficha se ven pero no se pueden editar (se cambian en Entra ID). Si cambia su UPN, la cuenta se renombra al entrar; y las cuentas borradas o desactivadas en Entra ID se desactivan solas (ver [Cuentas al día con Entra ID](entra-id.md#cuentas-al-dia-con-entra-id)).
+
 Un admin también puede añadir a mano a un usuario a un grupo de Entra ID o del sistema. Las pertenencias manuales **se conservan** al volver a iniciar sesión; las sincronizadas se cambian en el proveedor. En la ficha del usuario, los grupos sincronizados se ven con un candado.
 
 Los grupos que llegan del proveedor o que usan las carpetas pero no están dados de alta aparecen como **grupos sin dar de alta**, con un botón para darlos de alta. Siguen funcionando igual mientras tanto: las carpetas pueden referenciar directamente un Object ID.
+
+Con la lectura del directorio de Entra ID (permiso `Group.Read.All`, ver [Entra ID](entra-id.md)), al darlo de alta el formulario llega relleno con el **nombre** y la **descripción** del grupo en Entra ID y un **identificador** sacado del nombre («Permitir Instalación» → `permitir-instalacion`; si ya existe, `-2`…), que puedes cambiar antes de guardar. **Dar de alta todos** los da de alta de una vez con esos datos; los App Roles, que no están en el directorio, usan su nombre como identificador. Al elegir un grupo con el buscador del alta se rellenan igual.
 
 Hay dos vistas para elegir, con el selector *Lista · Paneles* (se recuerda la última):
 

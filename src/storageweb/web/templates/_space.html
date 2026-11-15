@@ -1,0 +1,36 @@
+{# Barras de cuota y de espacio libre (core/quota.status, core/storage.space_of). La anchura la pone common.js
+   (data-percent): un style="" lo prohíbe la CSP. #}
+
+{% macro quota_meter(q) -%}
+{% if q %}
+<div class="space-info quota-info">
+  <p class="small"><strong>{{ _("Quota: %(used)s of %(limit)s", used=(('≥ ' if not q.complete else '') ~ q.used_text), limit=q.limit_text) }}</strong></p>
+  <div class="space-bar space-{{ 'danger' if q.level == 'over' else ('warn' if q.level == 'warn' else 'ok') }}" role="meter"
+       aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ [q.percent, 100]|min }}"
+       aria-label="{{ _('Quota used: %(percent)s%%', percent=q.percent) }}" title="{{ _('Quota used: %(percent)s%%', percent=q.percent) }}">
+    <span data-percent="{{ [q.percent, 100]|min }}"></span>
+  </div>
+  <p class="small {{ 'text-danger' if q.level == 'over' else 'muted' }}">
+    {% if q.level == 'over' %}{{ _("Quota exceeded (%(percent)s%%): free some space.", percent=q.percent) }}
+    {% elif q.level == 'warn' %}{{ _("%(percent)s%% of the quota used: almost full.", percent=q.percent) }}
+    {% else %}{{ _("%(percent)s%% of the quota used", percent=q.percent) }}{% endif %}</p>
+</div>
+{% endif %}
+{%- endmacro %}
+
+{% macro space_meter(space) -%}
+{% if space %}
+<div class="space-info">
+  {% if space.unlimited %}
+  <p class="small muted">{{ _("Storage without a fixed size (object storage).") }}</p>
+  {% else %}
+  <p class="small"><strong>{{ _("%(free)s free", free=space.free_text) }}</strong> <span class="muted">{{ _("of %(total)s", total=space.total_text) }}</span></p>
+  <div class="space-bar space-{{ space.level }}" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ space.percent }}"
+       aria-label="{{ _('Space used: %(percent)s%%', percent=space.percent) }}" title="{{ _('Space used: %(percent)s%%', percent=space.percent) }}">
+    <span data-percent="{{ space.percent }}"></span>
+  </div>
+  <p class="small muted">{{ _("%(percent)s%% used", percent=space.percent) }}{% if space.level == 'danger' %} · <span class="text-danger">{{ _("Almost full") }}</span>{% endif %}</p>
+  {% endif %}
+</div>
+{% endif %}
+{%- endmacro %}

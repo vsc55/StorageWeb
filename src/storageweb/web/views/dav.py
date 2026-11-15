@@ -29,7 +29,7 @@ from xml.sax.saxutils import escape
 from flask import Blueprint, Response, abort, g, request
 
 from ... import patterns
-from ...core import backends, storage, tokens
+from ...core import backends, quota, storage, tokens
 from ...core.permissions import effective_for_root, permissions_for
 from ...core.security import UPLOAD_TMP_PREFIX, PathError, safe_filename
 from ...core.uploads import UploadError, check_space
@@ -324,6 +324,7 @@ def _put(root: dict, rel: str) -> Response:
         tmp.unlink(missing_ok=True)
     _audit("upload", root, rel, f"webdav:{received}")
     stored = _stat(root, rel)
+    quota.invalidate(root)
     return _empty(204 if entry is not None else 201, {"ETag": f'"{etag(stored)}"'} if stored else None)
 
 
@@ -360,6 +361,7 @@ def _delete(root: dict, rel: str) -> Response:
         root["backend"].delete(rel)
     except (backends.BackendError, OSError):
         abort(502)
+    quota.invalidate(root)
     _audit("delete", root, rel)
     return _empty(204)
 
@@ -422,6 +424,7 @@ def _copy_move(root: dict, rel: str, move: bool) -> Response:
         abort(409)
     except (backends.BackendError, OSError):
         abort(502)
+    quota.invalidate(root, dst_root)
     target = f"{dst_root['name']}:/{dst_rel}"
     _audit("rename" if move else "upload", root, rel, f"webdav:{'move' if move else 'copy'}:{target}")
     return _empty(204 if existing is not None else 201)

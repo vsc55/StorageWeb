@@ -11,11 +11,13 @@ from flask import (Blueprint, abort, current_app, flash, g, redirect, render_tem
 
 from ... import providers
 from ...core import accounts, ipban
-from ...db.repositories import audit, users
+from ...core import shares as share_core
+from ...db.repositories import audit, sessions as session_repo, users
 from ...i18n import _
 from ...i18n import normalize as normalize_locale
 from ...providers import SSOError
-from ..context import external_url, get_db, settings, throttle
+from ...settings import ConfigError, runtime_view
+from ..context import external_url, get_db, invalidate_settings, runtime, settings, throttle
 from ..guards import client_ip, end_session, safe_next, start_session
 
 bp = Blueprint("auth", __name__)
@@ -136,7 +138,8 @@ def sso_callback(method: str):
         flash(_("The sign-in session expired. Try again."), "error")
         return redirect(url_for("auth.login", manual=1))
     try:
-        user = accounts.complete_sso(get_db(), cfg, m.key, pending["flow"], request.args.to_dict(), ip=ip)
+        user, identity = accounts.complete_sso(get_db(), cfg, m.key, pending["flow"], request.args.to_dict(), ip=ip,
+                                               on_rename=_rename_in_shares)
     except SSOError as exc:
         current_app.logger.warning("SSO error: %s", exc)
         audit.log(get_db(), "login_failed", ip=ip, detail=f"{m.key}:{exc.code}")
@@ -147,6 +150,40 @@ def sso_callback(method: str):
         flash(exc.message, "error")
         return redirect(url_for("auth.login", manual=1))
 
-    start_session(user)
+    start_session(user, identity.session_id)
     audit.log(get_db(), "login", username=user["username"], ip=ip, detail=m.key)
     return redirect(safe_next(pending.get("next", "")))
+
+
+def _rename_in_shares(old: str, new: str) -> None:
+    """Una cuenta cambió de nombre al entrar (UPN nuevo): las carpetas compartidas que la nombraban pasan al
+    nombre nuevo. Si esa lista está fijada en config.json no se puede: queda en la auditoría para hacerlo a mano."""
+    current = runtime_view(settings())
+    renamed = share_core.rename_user(current["storage"]["shares"], old, new)
+    if renamed is None:
+        return
+    current["storage"]["shares"] = renamed
+    try:
+        runtime().save(get_db(), current, "system", strict=True)
+    except ConfigError as exc:
+        current_app.logger.warning("Shared folders still name %s: %s", old, exc)
+        audit.log(get_db(), "user_rename_failed", username=new, detail=f"shares: {exc}"[:200])
+        return
+    invalidate_settings()
+
+
+@bp.route("/auth/<method>/frontchannel-logout")
+def sso_frontchannel_logout(method: str):
+    """Cierre de sesión de canal frontal: el proveedor (Entra ID) carga esta dirección en un marco invisible cuando
+    la persona cierra sesión en él, con su sesión (``sid``). Se cierran las sesiones de StorageWeb iniciadas con
+    ella. No usa la cookie (en un marco de otro sitio no llega); el ``sid`` lo genera el proveedor y no se adivina."""
+    m = _sso_method(method)
+    provider_sid = m.frontchannel_session(m.section(settings()), request.args.to_dict())
+    if provider_sid is None:
+        abort(404)
+    if provider_sid:
+        for user in session_repo.delete_by_provider_sid(get_db(), m.key, provider_sid[:200]):
+            audit.log(get_db(), "logout", username=user["username"], ip=client_ip(), detail=f"{m.key}:frontchannel")
+    response = current_app.response_class("", mimetype="text/plain")
+    response.headers["Cache-Control"] = "no-store"
+    return response

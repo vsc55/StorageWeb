@@ -25,7 +25,7 @@ overrides:
       - python3-venv
       - adduser | passwd
     recommends:
-      - nginx
+      - nginx | apache2
   rpm:
     depends:
       - python3 >= 3.9
@@ -67,6 +67,11 @@ contents:
 
   - src: config/config.example.json
     dst: /usr/share/storageweb/config.example.json
+    file_info:
+      mode: 0644
+
+  - src: packaging/apache/storageweb.conf
+    dst: /usr/share/storageweb/apache-storageweb.conf
     file_info:
       mode: 0644
 

@@ -102,6 +102,12 @@ FIELDS: dict[str, Field] = {
         label=_l("Hidden for everyone"),
         page="storage",
         words="ocultar ocultos patrones ignorar gitignore excluir hidden"),
+    "storage.home_quota_mb": Field(
+        doc="Cuota por defecto de las **carpetas personales**, en MB; `0` = sin cuota. Solo avisa (a partir del 90 % "
+            "y al superarla), no impide subir. Cada usuario puede tener otra en su ficha.",
+        label=_l("Quota of personal folders (MB)"),
+        page="storage",
+        words="cuota espacio limite quota personal"),
     "storage.max_file_size_mb": Field(
         doc="Tamaño máximo por archivo en MB; `0` = sin límite.",
         label=_l("Maximum size per file (MB)"),
@@ -138,6 +144,8 @@ FIELDS: dict[str, Field] = {
         doc=("En el disco: ruta en el servidor (relativa = respecto a la carpeta del `config.json`). En una "
              "ubicación: ruta dentro de ella (vacía = su raíz)."),
         page="folders"),
+    "storage.shares[].quota_mb": Field(
+        doc="Cuota de la carpeta compartida en MB; `0` o ausente = sin cuota. Solo avisa.", page="folders"),
     "storage.shares[].read_only": Field(
         doc="Solo lectura: únicamente se permite descargar, también a los administradores.",
         page="folders"),

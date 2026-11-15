@@ -1,6 +1,8 @@
 """Método de inicio de sesión «entra»: Microsoft Entra ID (SSO OAuth2/OIDC)."""
 from __future__ import annotations
 
+import logging
+import re
 from datetime import datetime, timezone
 
 from ...i18n import _, _l, format_datetime, ngettext
@@ -9,13 +11,15 @@ from ...settings.auth_methods import AuthConfig
 from ...settings.defaults import ROLES
 from ...settings.errors import ConfigError
 from ...settings.fields import Field
-from ..base import AuthDenied, AuthMethod, GroupDirectory, Identity, LoginButton, Notice
+from ..base import AuthDenied, AuthMethod, DirectoryUser, GroupDirectory, Identity, LoginButton, Notice
 from . import directory
 from .common import MULTI_TENANT
 from .oauth2 import GRANTED_KEY
 from .sso import SSO_PROVIDERS, get_sso_provider
 
 SECRET_WARN_DAYS = 30
+GUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+_log = logging.getLogger(__name__)
 
 
 def _validate(section: dict, cfg: dict) -> None:
@@ -27,6 +31,14 @@ def _validate(section: dict, cfg: dict) -> None:
     section["timeout_seconds"] = checks.positive_int(section["timeout_seconds"], "auth.entra.timeout_seconds")
     section["secret_expires"] = checks.iso_datetime(section.get("secret_expires"), "auth.entra.secret_expires")
     section["auto_login"] = bool(section.get("auto_login"))
+    try:
+        section["directory_sync_minutes"] = int(section.get("directory_sync_minutes", 0) or 0)
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(_("%(field)s must be an integer", field="auth.entra.directory_sync_minutes"),
+                          "auth.entra.directory_sync_minutes") from exc
+    if section["directory_sync_minutes"] < 0:
+        raise ConfigError(_("%(field)s cannot be negative", field="auth.entra.directory_sync_minutes"),
+                          "auth.entra.directory_sync_minutes")
     if section["enabled"]:
         required = ["client_id", "client_secret"]
         custom_endpoints = all(section.get(k) for k in ("authorize_url", "token_url", "issuer"))
@@ -66,6 +78,8 @@ CONFIG = AuthConfig(
         "role_mappings": {},
         # True: con role_mappings definidos, el rol se recalcula en cada login
         "sync_role_on_login": True,
+        # Cada cuántos minutos se revisan contra Entra ID las cuentas con sesión o token (0 = nunca)
+        "directory_sync_minutes": 60,
         "single_logout": False,
         # True: /login va directamente a Microsoft (en equipos unidos a Entra ID, sin escribir nada).
         # /login?manual=1 sigue mostrando la página para entrar con usuario y contraseña
@@ -123,6 +137,14 @@ CONFIG = AuthConfig(
         "sync_role_on_login": Field(doc="Con `role_mappings` definidos, recalcular el rol en cada inicio de sesión.",
                                     label=_l("Recalculate the role on every sign-in according to the mapping"),
                                     page="auth"),
+        "directory_sync_minutes": Field(
+            doc=("Cada cuántos minutos se revisan contra Entra ID las cuentas que pueden entrar sin pasar por "
+                 "Microsoft (sesión abierta, tokens de API, unidad de red, extensión de VS Code): se desactivan las "
+                 "borradas, desactivadas o fuera de los grupos permitidos (y se reactivan solas al volver), y se "
+                 "actualizan sus grupos y su rol. Necesita el permiso de aplicación `User.Read.All`. `0` = solo al "
+                 "iniciar sesión. La revisión corre cada 10 minutos como mucho."),
+            label=_l("Check accounts against Entra ID every (minutes)"), page="auth",
+            words="entra sincronizar revisar cuentas desactivadas borradas grupos tokens directorio sync"),
         "auto_login": Field(
             doc=("Ir directamente a Microsoft sin mostrar la página de inicio de sesión. En equipos unidos a Entra ID "
                  "(Intune) se entra sin escribir nada. `/login?manual=1` sigue mostrando la página (usuarios locales, "
@@ -163,6 +185,9 @@ class EntraDirectory(GroupDirectory):
     def names_for(self, ids) -> dict[str, str]:
         return directory.names_for(self.section, ids)
 
+    def details(self, ids) -> dict[str, dict]:
+        return directory.info_for(self.section, ids)
+
     def search(self, text: str) -> list[dict]:
         return directory.search_groups(self.section, text)
 
@@ -183,8 +208,17 @@ def granted_scopes(value) -> list[str] | None:
     return sorted({str(s).rsplit("/", 1)[-1] for s in items if s})
 
 
+def groups_overage(claims: dict) -> bool:
+    """Más grupos de los que caben en el token (200): Entra ID no manda ``groups`` y deja una referencia."""
+    names = claims.get("_claim_names")
+    return bool((isinstance(names, dict) and "groups" in names) or claims.get("hasgroups"))
+
+
 def identity_from_claims(section: dict, claims: dict) -> Identity:
-    """Claims del id_token ya validados → :class:`Identity`. :class:`AuthDenied` si no puede entrar."""
+    """Claims del id_token ya validados → :class:`Identity`. :class:`AuthDenied` si no puede entrar.
+
+    Si la persona está en tantos grupos que no caben en el token, se leen de Microsoft Graph; si tampoco se
+    puede, sus grupos quedan como «no se sabe» (``None``) y se conservan los que tenía."""
     tenant = (section.get("tenant_id") or "").lower()
     if tenant and tenant not in MULTI_TENANT and str(claims.get("tid", "")).lower() != tenant:
         raise AuthDenied(_("Your account does not belong to the allowed organization."), "tenant")
@@ -193,14 +227,24 @@ def identity_from_claims(section: dict, claims: dict) -> Identity:
     if not oid or not raw_username:
         raise AuthDenied(_("The Microsoft account did not return a valid identifier."), "claims")
     username = raw_username.split("@")[0] if section["strip_domain"] else raw_username
-    groups = sorted({str(x).lower() for x in claims.get("groups") or []} |
-                    {str(x).lower() for x in claims.get("roles") or []})
+    roles = {str(x).lower() for x in claims.get("roles") or []}
+    found: set[str] | None = {str(x).lower() for x in claims.get("groups") or []}
+    if groups_overage(claims):
+        fetched = directory.member_groups(section, oid)
+        if fetched is None:
+            _log.warning("Too many groups for the token and they could not be read from Graph (User.Read.All)")
+        found = set(fetched) if fetched is not None else None
+    groups = sorted(found | roles) if found is not None else None
     allowed = {x.lower() for x in section["allowed_groups"]}
-    if allowed and not allowed.intersection(groups):
+    if allowed and groups is None and not allowed & roles:
+        raise AuthDenied(_("Your groups could not be read from Microsoft, so access cannot be checked. Contact the "
+                           "administrator."), "groups_unknown")
+    if allowed and groups is not None and not allowed.intersection(groups):
         raise AuthDenied(_("Your account is not allowed to access this application."), "group")
     return Identity(username=username, external_id=oid, display_name=claims.get("name"),
                     email=claims.get("email") or raw_username, groups=groups,
-                    granted_scopes=granted_scopes(claims.get(GRANTED_KEY)))
+                    granted_scopes=granted_scopes(claims.get(GRANTED_KEY)),
+                    session_id=str(claims["sid"]) if claims.get("sid") else None)
 
 
 class EntraMethod(AuthMethod):
@@ -210,6 +254,7 @@ class EntraMethod(AuthMethod):
     icon = "globe"
     order = 30
     sso = True
+    profile_from_provider = True
     external_groups = True
     lowercase_usernames = True
     group_hint = _l("Synchronized on each sign-in from a group or App Role.")
@@ -254,3 +299,29 @@ class EntraMethod(AuthMethod):
 
     def directory(self, section: dict) -> GroupDirectory:
         return EntraDirectory(section)
+
+    def sync_minutes(self, section: dict) -> int:
+        if not section.get("enabled") or not directory.configured(section):
+            return 0
+        return int(section.get("directory_sync_minutes") or 0)
+
+    def lookup_user(self, section: dict, user) -> DirectoryUser | None:
+        state = directory.user_state(section, user["external_id"] or "")
+        if state is None:
+            return None
+        if not state["exists"]:
+            return DirectoryUser(exists=False)
+        if not state["enabled"]:
+            return DirectoryUser(exists=True, enabled=False)
+        groups = None
+        if state["groups"] is not None:
+            # Los App Roles no se pueden leer sin más permisos: se conservan los del último inicio de sesión
+            app_roles = {g for g in (user["external_groups"] or "").split(",") if g and not GUID_RE.match(g)}
+            groups = sorted(set(state["groups"]) | app_roles)
+        allowed = {x.lower() for x in section["allowed_groups"]}
+        return DirectoryUser(exists=True, enabled=True, groups=groups,
+                             allowed=not allowed or groups is None or bool(allowed.intersection(groups)))
+
+    def frontchannel_session(self, section: dict, args: dict) -> str | None:
+        # Entra ID llama a la «URL de cierre de sesión de canal frontal» con ?sid=…&iss=… (el claim sid del token)
+        return str(args.get("sid") or "")

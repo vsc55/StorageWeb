@@ -15,8 +15,9 @@
 </nav>
 {%- endmacro %}
 
-{# Campos del grupo. ``group`` es None al crear. #}
-{% macro group_fields(form, group) -%}
+{# Campos del grupo. ``group`` es None al crear. ``from_directory``: nombre y descripción vienen del directorio del
+   proveedor (Entra ID) y se actualizan solos: no se editan. #}
+{% macro group_fields(form, group, from_directory=False) -%}
   {% if group %}
     <div class="field"><span class="label">{{ _("Identifier") }}</span><code>{{ group['name'] }}</code>
       <small class="muted">{{ _("Shared folders use it. It cannot be changed.") }}</small></div>
@@ -29,10 +30,11 @@
   {% endif %}
   <label>{{ _("Display name") }}
     <input type="text" name="label" value="{{ form.label or '' }}" maxlength="200" {% if group %}required{% endif %}
-           placeholder="{{ _('e.g. Human Resources') }}">
+           placeholder="{{ _('e.g. Human Resources') }}"{% if from_directory %} readonly class="from-provider"{% endif %}>
   </label>
   <label class="span2">{{ _("Description") }}
-    <input type="text" name="description" value="{{ form.description or '' }}" maxlength="500">
+    <input type="text" name="description" value="{{ form.description or '' }}" maxlength="500"{% if from_directory %} readonly class="from-provider"{% endif %}>
+    {% if from_directory %}<small class="muted">{{ _("The name and the description come from %(source)s and are updated automatically: change them there.", source=GROUP_SOURCE_LABELS[group['source']]) }}</small>{% endif %}
   </label>
   <fieldset class="span2 source-cards">
     <legend>{{ _("Where the members come from") }}</legend>
@@ -111,9 +113,21 @@
 {% macro detected_box(detected, names=None) -%}
 {% if detected %}
 <section class="detected" aria-labelledby="detected-title">
-  <div>
-    <h2 id="detected-title" class="card-title">{{ _("Groups not registered (%(count)s)", count=detected|length) }}</h2>
-    <p class="muted small">{{ _("They arrive at sign-in or shared folders use them, but they have no name. Register them to manage them here.") }}</p>
+  <div class="detected-head">
+    <div>
+      <h2 id="detected-title" class="card-title">{{ _("Groups not registered (%(count)s)", count=detected|length) }}</h2>
+      <p class="muted small">{{ _("They arrive at sign-in or shared folders use them, but they have no name. Register them to manage them here.") }}
+        {% if names %}{{ _("The name, the description and a suggested identifier come from the directory of their provider (Entra ID).") }}{% endif %}</p>
+    </div>
+    {% set from_provider = detected|selectattr('source')|list %}
+    {% if from_provider %}
+    <form method="post" action="{{ url_for('groups.register_detected') }}" class="inline js-confirm"
+          data-confirm="{{ ngettext('Register %(num)s group with the data from its provider?', 'Register %(num)s groups with the data from their provider?', from_provider|length) }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="{{ request.full_path }}">
+      <button class="btn btn-small" type="submit">{{ ngettext("Register it", "Register all (%(num)s)", from_provider|length) }}</button>
+    </form>
+    {% endif %}
   </div>
   <div class="chips">
     {% for d in detected %}
@@ -123,7 +137,8 @@
         {%- if d.source %}{{ GROUP_SOURCE_LABELS[d.source] }} · {{ ngettext("%(num)s user", "%(num)s users", d.users) }}{% endif -%}
         {%- if d.shares %}{% if d.source %} · {% endif %}{{ _("used in %(shares)s", shares=d.shares|join(', ')) }}{% endif -%}
       </span>
-      <a class="btn btn-small" href="{{ url_for('groups.new', source=d.source or 'local', external_id=d.id if d.source else '', name='' if d.source else d.id, label=(names or {}).get(d.id, '')) }}">{{ _("Register") }}</a>
+      {# Los de un proveedor rellenan nombre, descripción e identificador desde su directorio al abrir el alta #}
+      <a class="btn btn-small" href="{{ url_for('groups.new', source=d.source, external_id=d.id) if d.source else url_for('groups.new', name=d.id) }}">{{ _("Register") }}</a>
     </span>
     {% endfor %}
   </div>

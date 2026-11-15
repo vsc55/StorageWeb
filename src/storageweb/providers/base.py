@@ -62,12 +62,24 @@ class Identity:
     external_id: str | None = None
     display_name: str | None = None
     email: str | None = None
-    groups: list[str] = field(default_factory=list)
+    # None = no se sabe (p. ej. demasiados grupos para el token y no se pudieron leer): se conservan los de antes
+    groups: list[str] | None = field(default_factory=list)
     role: str | None = None
     home: str | None = None
+    # Sesión en el proveedor (claim «sid»): su cierre de sesión de canal frontal cierra la de StorageWeb
+    session_id: str | None = None
     # Permisos (scopes) que el proveedor dice haber concedido en este inicio de sesión; None si no lo dice.
     # Se guarda el último por método para que la comprobación de la conexión pueda decir si faltan.
     granted_scopes: list[str] | None = None
+
+
+@dataclass(frozen=True)
+class DirectoryUser:
+    """Estado de una cuenta en el directorio del proveedor (revisión periódica, sin que la persona entre)."""
+    exists: bool
+    enabled: bool = True
+    allowed: bool = True          # cumple los grupos permitidos del método
+    groups: list[str] | None = None  # grupos actuales; None = no se sabe (se conservan)
 
 
 @dataclass(frozen=True)
@@ -97,8 +109,12 @@ class GroupDirectory:
     def names_for(self, ids) -> dict[str, str]:
         return {}
 
+    def details(self, ids) -> dict[str, dict]:
+        """``{id: {"name", "description"}}`` para rellenar el alta de un grupo; por defecto, solo el nombre."""
+        return {ref: {"name": name, "description": ""} for ref, name in self.names_for(ids).items()}
+
     def search(self, text: str) -> list[dict]:
-        """``[{"id", "name"}]``."""
+        """``[{"id", "name"}]`` (y ``description`` si se sabe)."""
         return []
 
 
@@ -116,6 +132,7 @@ class AuthMethod:
     password: bool = False        # entra con el formulario de usuario y contraseña
     sso: bool = False             # entra por redirección al proveedor (begin/complete)
     stores_password: bool = False # la contraseña se guarda en StorageWeb (se puede cambiar aquí)
+    profile_from_provider: bool = False  # nombre y email llegan del proveedor en cada inicio de sesión: no se editan
     provisions: bool = False      # (contraseña) crea la cuenta en el primer inicio de sesión correcto
     external_groups: bool = False # trae grupos del proveedor (pertenencias sincronizadas)
     lowercase_usernames: bool = False
@@ -166,4 +183,18 @@ class AuthMethod:
         return []
 
     def directory(self, section: dict) -> GroupDirectory | None:
+        return None
+
+    # --- revisión periódica de las cuentas contra el directorio (``core.accounts.sync_directory``)
+    def sync_minutes(self, section: dict) -> int:
+        """Cada cuántos minutos revisar las cuentas de este método contra su directorio (0 = nunca)."""
+        return 0
+
+    def lookup_user(self, section: dict, user) -> DirectoryUser | None:
+        """Estado actual de la cuenta en el directorio; ``None`` si no se puede saber (no se toca nada)."""
+        return None
+
+    # --- cierre de sesión iniciado por el proveedor (canal frontal)
+    def frontchannel_session(self, section: dict, args: dict) -> str | None:
+        """La sesión del proveedor que se cierra (de los parámetros de la petición); ``None`` = no lo admite."""
         return None

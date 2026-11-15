@@ -189,7 +189,9 @@ def test_admin_sftp_location_form(make_app, tmp_path, monkeypatch):
     token = get_csrf(client, "/admin/storage/")
     page = client.get("/admin/storage/new?type=sftp").get_data(as_text=True)
     assert 'name="private_key"' in page and "<textarea" in page and 'name="host_key"' in page
-    assert "Nueva ubicación SFTP" in client.get("/admin/storage/").get_data(as_text=True)
+    index = client.get("/admin/storage/").get_data(as_text=True)
+    assert "Nueva ubicación" in index and 'href="/admin/storage/new?type=sftp"' in index and "<strong>SFTP</strong>" in index
+    assert index.count('class="menu-item"') >= 6                       # un solo botón con un menú de tipos
     form = {"_csrf": token, "type": "sftp", "name": "srv", "label": "Servidor", "host": "files.example",
             "port": "22", "path": "/srv/datos", "host_key": "", "username": "ana", "password": "",
             "private_key": "-----BEGIN OPENSSH PRIVATE KEY-----\nCLAVE\n-----END OPENSSH PRIVATE KEY-----"}

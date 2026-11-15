@@ -9,10 +9,11 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, u
 
 from ...core import groups as group_core
 from ...core import locations as location_core
+from ...core import quota, storage
 from ...core import shares as share_core
 from ...db.repositories import users
 from ...db.repositories import groups as group_repo
-from ...i18n import _, _l
+from ...i18n import _, _l, format_size
 from ..context import get_db, runtime, settings
 from ..guards import admin_required, audit_event
 from .. import search
@@ -72,7 +73,8 @@ def _form_share(original: dict | None) -> dict:
     base = {"name": f.get("name", original["name"] if original else "").strip(),
             "label": f.get("label", "").strip(), "location": f.get("location", "").strip(),
             "path": f.get("path", "").strip(),
-            "read_only": f.get("read_only") == "on"}
+            "read_only": f.get("read_only") == "on",
+            "quota_mb": f.get("quota_mb", "").strip() or 0}  # lo valida el cargador de ajustes
     return share_core.with_entries(base, items)
 
 
@@ -90,6 +92,17 @@ def _refuse_if_locked():
     return None
 
 
+def _share_usage(name: str | None) -> dict | None:
+    """Uso y cuota de una carpeta compartida ya guardada (para la ficha)."""
+    saved = share_core.find(settings()["storage"]["shares"], name) if name else None
+    if saved is None:
+        return None
+    root = storage.make_root(settings(), saved["name"], saved["label"], saved.get("location", ""), saved["path"],
+                             quota_mb=saved.get("quota_mb", 0))
+    used, complete = quota.usage(root)
+    return {"used": format_size(used), "complete": complete, "quota": quota.status(root)}
+
+
 def _render_folder(share: dict, original: str | None, status: int = 200, error: str | None = None):
     directory = _directory()
     title = (share.get("label") or share["name"]) if original else _("New shared folder")
@@ -97,7 +110,7 @@ def _render_folder(share: dict, original: str | None, status: int = 200, error: 
                            entries=_describe(share, directory), directory=directory, error=error,
                            exists=location_core.local_exists(share.get("location", ""), share.get("path", "")),
                            where=location_core.where(settings(), share.get("location", ""), share.get("path", "")),
-                           locations=settings()["storage"]["locations"],
+                           locations=settings()["storage"]["locations"], usage=_share_usage(original),
                            **_lock_context(), LEVEL_LABELS=share_core.LEVEL_LABELS,
                            ENTRY_KIND_LABELS=share_core.KIND_LABELS), status
 

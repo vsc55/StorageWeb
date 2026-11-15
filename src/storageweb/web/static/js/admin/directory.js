@@ -1,7 +1,8 @@
 // Buscar grupos por nombre en el directorio de un método de inicio de sesión (Entra ID u otro con directorio)
 // y rellenar su identificador (Object ID…). Sirve en:
 // - el alta de grupo: input[data-directory-input]; la URL de búsqueda es la del origen elegido
-//   (input[name=source]:checked[data-directory-search]) y el nombre rellena la etiqueta si está vacía;
+//   (input[name=source]:checked[data-directory-search]) y el grupo elegido rellena lo que esté vacío: nombre,
+//   descripción e identificador (el que propone el servidor a partir del nombre);
 // - los ajustes (asociaciones de roles, grupos permitidos…): input[data-group-search="<url>"]. Con
 //   data-group-append="<campo>", el grupo elegido se añade a ese campo (lista separada por comas) y la casilla
 //   se vacía. Funciona también en las filas que se añaden después (escucha en todo el documento).
@@ -11,7 +12,7 @@
   if (!window.fetch) return;
   var t = window.SW && window.SW.t ? window.SW.t : function (s) { return s; };
   var GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  var known = {};   // id (en minúsculas) → nombre, de las búsquedas hechas
+  var known = {};   // id (en minúsculas) → grupo ({name, description, suggested_name}) de las búsquedas hechas
   var timer = null;
 
   function isLookup(el) {
@@ -31,10 +32,16 @@
   }
 
   // El valor es un grupo encontrado: rellenar nombre o añadirlo a la lista. true si lo era.
+  function fill(field, value) {
+    var el = document.querySelector("input[name=" + field + "]");
+    if (el && !el.value && value) el.value = value;
+  }
+
   function picked(input) {
     var id = input.value.trim().toLowerCase();
-    var name = known[id];
-    if (!name) return false;
+    var group = known[id];
+    if (!group) return false;
+    var name = group.name;
     var slot = nameSlot(input);
     var appendTo = input.getAttribute("data-group-append");
     if (appendTo && input.form) {
@@ -50,8 +57,9 @@
       return true;
     }
     if (input.hasAttribute("data-directory-input")) {
-      var label = document.querySelector("input[name=label]");
-      if (label && !label.value) label.value = name;
+      fill("label", name);
+      fill("description", group.description);
+      fill("name", group.suggested_name);
     }
     if (slot) slot.textContent = name;
     return true;
@@ -76,7 +84,7 @@
         if (!list) return;
         list.innerHTML = "";
         (data.groups || []).forEach(function (g) {
-          known[String(g.id).toLowerCase()] = g.name;
+          known[String(g.id).toLowerCase()] = g;
           var opt = document.createElement("option");
           opt.value = g.id;
           opt.label = g.name;

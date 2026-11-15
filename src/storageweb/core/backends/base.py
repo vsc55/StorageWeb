@@ -282,6 +282,14 @@ class Backend:
         """Espacio libre en el destino, si se sabe (en los remotos solo cuenta la zona local)."""
         return None
 
+    # Para mostrarlo: el almacenamiento de objetos (S3, Azure) no tiene un tamaño fijo
+    unlimited_space = False
+
+    def space(self, dir_rel: str = "") -> dict | None:
+        """Espacio del almacenamiento para mostrarlo: ``{"total", "free"}`` en bytes, ``{"unlimited": True}``
+        o ``None`` si no se sabe (por defecto, en los remotos)."""
+        return {"unlimited": True} if self.unlimited_space else None
+
     def staging_free(self) -> int | None:
         try:
             return shutil.disk_usage(self.staging_dir("")).free

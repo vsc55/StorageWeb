@@ -4,8 +4,10 @@ El administrador inicia sesión con el **flujo de código de dispositivo** (abre
 ``microsoft.com/devicelogin`` en cualquier navegador y escribe un código) contra un cliente público
 de Microsoft. Con ese token delegado se llama a Microsoft Graph para:
 
-1. crear la aplicación (``/applications``): Redirect URI, permisos ``openid profile email
-   User.Read``, App Roles ``StorageWeb.Admin`` y ``StorageWeb.User`` y, si se pide, el claim de grupos;
+1. crear la aplicación (``/applications``): Redirect URI, URL de cierre de sesión de canal frontal, permisos
+   ``openid profile email User.Read`` (y, si se pide, ``Group.Read.All`` y ``User.Read.All`` de aplicación),
+   claims opcionales ``email`` y ``sid``, App Roles ``StorageWeb.Admin`` y ``StorageWeb.User`` y, si se pide,
+   el claim de grupos;
 2. crearle un secreto (``addPassword``);
 3. crear su *service principal* y, si se pide, exigir asignación;
 4. dar el consentimiento de administrador a los permisos (``oauth2PermissionGrants``);
@@ -48,8 +50,28 @@ SIGN_IN_SCOPES = {
     "User.Read": "e1fe6dd8-ba31-4d61-89e7-88639da4683d",
 }
 ADMIN_ROLE, USER_ROLE = "StorageWeb.Admin", "StorageWeb.User"
-# Permiso de aplicación de Graph para leer los nombres de los grupos (id fijo en todos los tenants)
+# Permisos de aplicación de Graph (ids fijos en todos los tenants): nombres de los grupos, y estado y grupos de
+# cada cuenta (revisión periódica de las cuentas y usuarios con más de 200 grupos)
 GROUP_READ_ALL = "5b567255-7703-4780-807c-7be8301ae99b"
+USER_READ_ALL = "df021288-bdef-4463-88db-98f22de89214"
+DIRECTORY_ROLES = {"Group.Read.All": GROUP_READ_ALL, "User.Read.All": USER_READ_ALL}
+# Claims opcionales del id_token: el email de las cuentas de la organización (sin él solo llega el de los
+# invitados) y la sesión (sid), para el cierre de sesión de canal frontal
+ID_TOKEN_CLAIMS = ("email", "sid")
+
+
+def _optional_claims(current: dict | None, groups: bool = False) -> dict | None:
+    """``optionalClaims`` con los que necesita StorageWeb añadidos a los que ya hubiera; ``None`` si no falta
+    ninguno."""
+    claims = {k: list(v or []) for k, v in (current or {}).items() if k in ("idToken", "accessToken", "saml2Token")}
+    id_token = claims.setdefault("idToken", [])
+    have = {c.get("name") for c in id_token}
+    wanted = [*ID_TOKEN_CLAIMS, *(["groups"] if groups else [])]
+    missing = [name for name in wanted if name not in have]
+    if not missing:
+        return None
+    id_token += [{"name": name, "essential": False} for name in missing]
+    return claims
 SECRET_MONTHS = 24
 TIMEOUT = 20
 
@@ -165,12 +187,13 @@ def register_app(access_token: str, *, name: str, redirect_uri: str, app_roles: 
                 "implicitGrantSettings": {"enableIdTokenIssuance": False, "enableAccessTokenIssuance": False}},
         "requiredResourceAccess": [{"resourceAppId": GRAPH_APP_ID,
                                     "resourceAccess": [{"id": i, "type": "Scope"} for i in SIGN_IN_SCOPES.values()]
-                                    + ([{"id": GROUP_READ_ALL, "type": "Role"}] if group_read else [])}],
+                                    + ([{"id": i, "type": "Role"} for i in DIRECTORY_ROLES.values()]
+                                       if group_read else [])}],
         "appRoles": roles,
+        "optionalClaims": _optional_claims(None, groups=group_claims),
     }
     if group_claims:
         app_body["groupMembershipClaims"] = "SecurityGroup"
-        app_body["optionalClaims"] = {"idToken": [{"name": "groups", "essential": False}]}
 
     app = _graph("POST", "/applications", access_token, app_body)
     object_id, client_id = app["id"], app["appId"]
@@ -222,10 +245,11 @@ def _finish_registration(access_token: str, app_body: dict, roles: list, tenant_
             warnings.append(_("Admin consent could not be granted (%(error)s): grant it in the portal, "
                               "API permissions → Grant admin consent.", error=exc))
         if group_read and graph_sp:
-            try:
-                _grant_role(access_token, sp_id, graph_sp, GROUP_READ_ALL)
-            except RegisterError as exc:
-                warnings.append(_("Reading group names (Group.Read.All) could not be granted: %(error)s", error=exc))
+            for perm, role_id in DIRECTORY_ROLES.items():
+                try:
+                    _grant_role(access_token, sp_id, graph_sp, role_id)
+                except RegisterError as exc:
+                    warnings.append(_("%(perm)s could not be granted: %(error)s", perm=perm, error=exc))
         if app_roles and admin_oid:
             admin_role = next(r["id"] for r in roles if r["value"] == ADMIN_ROLE)
             try:
@@ -262,7 +286,7 @@ def _grant_role(access_token: str, sp_id: str, resource_sp: str, role_id: str) -
 
 def _application(access_token: str, client_id: str) -> dict:
     found = _graph("GET", f"/applications?$filter=appId eq '{client_id}'&$select=id,appId,displayName,"
-                          "requiredResourceAccess,web", access_token).get("value") or []
+                          "requiredResourceAccess,web,optionalClaims", access_token).get("value") or []
     if not found:
         raise RegisterError(_("The application %(client)s does not exist in the tenant of the account that "
                               "signed in.", client=client_id))
@@ -282,13 +306,14 @@ def rotate_secret(access_token: str, client_id: str) -> dict:
 
 
 def repair_app(access_token: str, client_id: str, *, redirect_uri: str = "", new_secret: bool = False,
-               group_read: bool = True) -> dict:
+               group_read: bool = True, logout_url: str = "") -> dict:
     """Revisa la aplicación existente y arregla lo que falte, sin tocar lo que ya está bien:
 
-    - la Redirect URI de StorageWeb, si no está;
-    - los permisos de Graph (inicio de sesión y, con ``group_read``, ``Group.Read.All``);
+    - la Redirect URI de StorageWeb, si no está, y la URL de cierre de sesión de canal frontal (``logout_url``);
+    - los claims opcionales del id_token (``email`` y ``sid``);
+    - los permisos de Graph (inicio de sesión y, con ``group_read``, ``Group.Read.All`` y ``User.Read.All``);
     - la aplicación empresarial (service principal), si no existe;
-    - el consentimiento de administrador de los permisos de inicio de sesión y de ``Group.Read.All``;
+    - el consentimiento de administrador de los permisos de inicio de sesión y de los de aplicación;
     - con ``new_secret``, un secreto nuevo (el anterior sigue valiendo hasta que caduque).
 
     Cada arreglo es independiente: si uno falla, se apunta en ``warnings`` y se sigue con los demás.
@@ -313,6 +338,21 @@ def repair_app(access_token: str, client_id: str, *, redirect_uri: str = "", new
             fixed.append(_("Redirect URI added: %(uri)s", uri=redirect_uri))
     step(_("Redirect URI"), redirect)
 
+    def logout() -> None:
+        if logout_url and (app.get("web") or {}).get("logoutUrl") != logout_url:
+            _graph("PATCH", f"/applications/{app['id']}", access_token, {"web": {"logoutUrl": logout_url}})
+            fixed.append(_("Front-channel logout URL set: %(uri)s", uri=logout_url))
+    step(_("Front-channel logout URL"), logout)
+
+    def optional_claims() -> None:
+        current = app.get("optionalClaims") or {}
+        has_groups = any(c.get("name") == "groups" for c in current.get("idToken") or [])
+        wanted = _optional_claims(current, groups=has_groups)
+        if wanted is not None:
+            _graph("PATCH", f"/applications/{app['id']}", access_token, {"optionalClaims": wanted})
+            fixed.append(_("Optional claims added to the ID token (email, sid)"))
+    step(_("Optional claims"), optional_claims)
+
     def permissions() -> None:
         access = app.get("requiredResourceAccess") or []
         graph = next((r for r in access if r.get("resourceAppId") == GRAPH_APP_ID), None)
@@ -320,7 +360,8 @@ def repair_app(access_token: str, client_id: str, *, redirect_uri: str = "", new
             graph = {"resourceAppId": GRAPH_APP_ID, "resourceAccess": []}
             access.append(graph)
         have = {(a.get("id"), a.get("type")) for a in graph["resourceAccess"]}
-        wanted = [(i, "Scope") for i in SIGN_IN_SCOPES.values()] + ([(GROUP_READ_ALL, "Role")] if group_read else [])
+        wanted = [(i, "Scope") for i in SIGN_IN_SCOPES.values()] + (
+            [(i, "Role") for i in DIRECTORY_ROLES.values()] if group_read else [])
         missing = [w for w in wanted if w not in have]
         if missing:
             graph["resourceAccess"] += [{"id": i, "type": kind} for i, kind in missing]
@@ -362,10 +403,11 @@ def repair_app(access_token: str, client_id: str, *, redirect_uri: str = "", new
         step(_("Admin consent"), consent)
 
         if group_read and graph_sp["id"]:
-            def groups() -> None:
-                if _grant_role(access_token, sp["id"], graph_sp["id"], GROUP_READ_ALL):
-                    fixed.append(_("Reading group names (Group.Read.All) granted"))
-            step("Group.Read.All", groups)
+            for perm, role_id in DIRECTORY_ROLES.items():
+                def grant(perm=perm, role_id=role_id) -> None:
+                    if _grant_role(access_token, sp["id"], graph_sp["id"], role_id):
+                        fixed.append(_("Application permission %(perm)s granted", perm=perm))
+                step(perm, grant)
 
     if new_secret:
         def secret() -> None:
@@ -376,16 +418,21 @@ def repair_app(access_token: str, client_id: str, *, redirect_uri: str = "", new
 
 
 def grant_group_read(access_token: str, client_id: str) -> None:
-    """Añade Group.Read.All (permiso de aplicación) a una aplicación existente y le da el consentimiento."""
+    """Añade los permisos de aplicación de lectura del directorio (``Group.Read.All`` y ``User.Read.All``) a una
+    aplicación existente y les da el consentimiento."""
     app = _application(access_token, client_id)
     access = app.get("requiredResourceAccess") or []
     graph = next((r for r in access if r.get("resourceAppId") == GRAPH_APP_ID), None)
     if graph is None:
         graph = {"resourceAppId": GRAPH_APP_ID, "resourceAccess": []}
         access.append(graph)
-    if not any(a.get("id") == GROUP_READ_ALL for a in graph["resourceAccess"]):
-        graph["resourceAccess"].append({"id": GROUP_READ_ALL, "type": "Role"})
+    have = {a.get("id") for a in graph["resourceAccess"]}
+    missing = [i for i in DIRECTORY_ROLES.values() if i not in have]
+    if missing:
+        graph["resourceAccess"] += [{"id": i, "type": "Role"} for i in missing]
         _graph("PATCH", f"/applications/{app['id']}", access_token, {"requiredResourceAccess": access})
     sps = _graph("GET", f"/servicePrincipals?$filter=appId eq '{client_id}'&$select=id", access_token).get("value")
     sp_id = sps[0]["id"] if sps else _graph("POST", "/servicePrincipals", access_token, {"appId": client_id})["id"]
-    _grant_role(access_token, sp_id, _graph_sp_id(access_token), GROUP_READ_ALL)
+    graph_sp = _graph_sp_id(access_token)
+    for role_id in DIRECTORY_ROLES.values():
+        _grant_role(access_token, sp_id, graph_sp, role_id)

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Search") }}{% if query %}: {{ query }}{% endif %} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page search-page">
+  <div class="page-head"><h1>{{ _("Search files") }}</h1></div>
+
+  <form method="get" action="{{ url_for('files.search') }}" class="search-form" role="search">
+    {% if scope %}<input type="hidden" name="root" value="{{ scope.root.name }}"><input type="hidden" name="path" value="{{ scope.path }}">{% endif %}
+    <label class="filter">
+      <span class="sr-only">{{ _("Name contains") }}</span>
+      <svg class="icon icon-sm muted-icon" aria-hidden="true"><use href="#i-search"></use></svg>
+      <input type="search" name="q" value="{{ query }}" placeholder="{{ _('Part of the name (several words: all of them)') }}" autofocus>
+    </label>
+    <button class="btn btn-primary" type="submit">{{ _("Search") }}</button>
+  </form>
+  <p class="muted small">
+    {% if scope %}{{ _("In %(where)s and its subfolders.", where=scope.root.label ~ ((' / ' ~ scope.path) if scope.path else '')) }}
+      <a href="{{ url_for('files.search', q=query) }}">{{ _("Search in all my folders") }}</a>
+    {% else %}{{ _("In all your folders. Upper and lower case and accents do not matter.") }}{% endif %}
+  </p>
+
+  {% if query %}
+  {% if result.items %}
+  <p class="small">{{ ngettext("%(num)d result", "%(num)d results", result.items|length) }}{% if result.truncated %} ·
+    <strong>{{ _("Only the first %(num)d are shown: refine the search.", num=limit) if result.items|length >= limit else _("The search stopped early (too many folders or too slow): refine it or search in one folder.") }}</strong>{% endif %}</p>
+  <table class="files small">
+    <thead><tr><th>{{ _("Name") }}</th><th>{{ _("Location") }}</th><th class="num">{{ _("Size") }}</th><th class="col-date">{{ _("Modified") }}</th></tr></thead>
+    <tbody>
+      {% for i in result.items %}
+      {% set r = i.root %}
+      {% set folder_url = url_for('files.browse', root=r.name, sub=i.folder) %}
+      <tr>
+        <td class="name"><span class="name-cell">
+          <svg class="icon {{ 'folder-icon' if i.is_dir else 'file-icon' }}" aria-hidden="true"><use href="#i-{{ 'folder' if i.is_dir else 'file' }}"></use></svg>
+          {% if i.is_dir %}<a href="{{ url_for('files.browse', root=r.name, sub=i.rel) }}">{{ i.name }}</a>
+          {% elif 'download' in perms[r.name] %}<a href="{{ url_for('files.download', root=r.name, sub=i.rel) }}">{{ i.name }}</a>
+          {% else %}<span>{{ i.name }}</span>{% endif %}</span></td>
+        <td><a href="{{ folder_url }}" class="muted">{{ r.label }}{% if i.folder %} / {{ i.folder }}{% endif %}</a></td>
+        <td class="num">{{ i.size }}</td>
+        <td class="col-date">{{ i.mtime }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted empty">{{ _("Nothing found with «%(query)s».", query=query) }}{% if result.truncated %} {{ _("The search stopped early (too many folders or too slow): refine it or search in one folder.") }}{% endif %}</p>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

@@ -30,6 +30,37 @@ def home_path_for(user, cfg: dict) -> str:
     return tmpl.replace("{username}", safe_username_for_path(user["username"]))
 
 
+def home_after_rename(user, new_username: str, cfg: dict) -> tuple[dict, str]:
+    """Qué pasa con la carpeta personal cuando cambia el nombre de la cuenta (p. ej. el UPN en Entra ID).
+
+    Devuelve (campos para la cuenta, «moved» | «kept» | ""). Con ruta propia no cambia nada. Con la plantilla, si
+    la carpeta antigua existe: en el disco del servidor se renombra a la nueva si esta no existe; si no se puede
+    (o está en una ubicación remota), la cuenta se queda con la antigua como ruta propia, para no perder nada."""
+    if user["home_path"]:
+        return {}, ""
+    old = home_path_for(user, cfg)
+    new = home_path_for({**dict(user), "username": new_username}, cfg)
+    if old == new:
+        return {}, ""
+    location = cfg["storage"].get("home_location", "")
+    try:
+        exists = make_root(cfg, "home", "", location, old)["backend"].root_exists()
+    except Exception:  # noqa: BLE001 (en la duda, se conserva la carpeta antigua)
+        exists = True
+    if not exists:
+        return {}, ""
+    if not location:
+        src, dst = Path(old), Path(new)
+        if not dst.exists():
+            try:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                src.rename(dst)
+                return {}, "moved"
+            except OSError:
+                pass
+    return {"home_path": old}, "kept"
+
+
 def make_root(cfg: dict, name: str, label: str, location: str, path: str, **extra) -> dict:
     """Raíz con su backend. ``path`` (Path) solo existe si está en el disco del servidor."""
     loc = backends.find_location(cfg, location) if location else None
@@ -43,13 +74,22 @@ def make_root(cfg: dict, name: str, label: str, location: str, path: str, **extr
         except PathError:
             backend = backends.UnavailableBackend(_("Invalid path: %(path)s", path=path), staging)
     return {**extra, "name": name, "label": label, "location": location, "backend": backend,
-            "path": None if location else Path(path)}
+            "path": None if location else Path(path), "where": f"{location}:{path}"}
+
+
+def home_quota_mb(user, cfg: dict) -> int:
+    """Cuota de la carpeta personal: la del usuario si tiene (0 = sin cuota) o la de por defecto."""
+    try:
+        value = user["quota_mb"]
+    except (KeyError, IndexError):
+        value = None
+    return int(cfg["storage"].get("home_quota_mb", 0) or 0) if value is None else int(value)
 
 
 def available_roots(user, cfg: dict) -> list[dict]:
     """Raíces accesibles: su home + las carpetas compartidas permitidas por usuario o grupo."""
     roots = [make_root(cfg, "home", _("My folder"), cfg["storage"].get("home_location", ""), home_path_for(user, cfg),
-                       read_only=False)]
+                       read_only=False, quota_mb=home_quota_mb(user, cfg))]
     uname = user["username"].lower()
     ugroups = groups_of(user)
     if user["role"] == ADMIN:
@@ -219,6 +259,30 @@ def folder_tree(root: dict, rel: str, show_hidden: bool, hidden: Callable[[str, 
 
     level("", 1)
     return rows
+
+
+SPACE_WARN, SPACE_DANGER = 80, 95  # % de uso a partir del que se avisa (naranja) o alarma (rojo)
+
+
+def space_of(root: dict, rel: str = "") -> dict | None:
+    """El espacio del almacenamiento de una carpeta, listo para mostrar: ``{"unlimited": True}`` o
+    ``{"total", "free", "used", "percent", "level", "free_text", "total_text"}``; ``None`` si no se sabe."""
+    try:
+        space = root["backend"].space(rel)
+    except Exception:  # noqa: BLE001 (mostrar el espacio nunca debe romper la página)
+        return None
+    if not space:
+        return None
+    if space.get("unlimited"):
+        return {"unlimited": True}
+    total, free = space.get("total") or 0, space.get("free")
+    if not total or free is None:
+        return None
+    used = max(total - free, 0)
+    percent = min(100, round(used * 100 / total))
+    return {"total": total, "free": free, "used": used, "percent": percent,
+            "level": "danger" if percent >= SPACE_DANGER else "warn" if percent >= SPACE_WARN else "ok",
+            "free_text": format_size(free), "total_text": format_size(total)}
 
 
 def breadcrumbs(rel: str) -> list[dict]:

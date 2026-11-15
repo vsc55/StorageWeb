@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_space.html" import quota_meter, space_meter with context %}
 {% block title %}{{ root.label }}{% if rel %} / {{ rel }}{% endif %} · {{ app_name }}{% endblock %}
 
 {% macro sort_th(key, label, cls="") -%}
@@ -28,6 +29,7 @@
       {% set is_current = r.name == root.name %}
       <li>
         <a class="tree-item{% if is_current and not rel %} active{% endif %}" href="{{ url_for('files.browse', root=r.name, sub='') }}"
+           data-drop-root="{{ r.name }}" data-drop-path=""
            {% if is_current and not rel %}aria-current="page"{% endif %}>
           <svg class="icon icon-xs muted-icon" aria-hidden="true"><use href="#i-chevron-{{ 'down' if is_current else 'right' }}"></use></svg>
           <svg class="icon icon-sm" aria-hidden="true"><use href="#i-{{ 'home' if r.name == 'home' else ('lock' if r.read_only else 'share') }}"></use></svg>
@@ -39,7 +41,8 @@
         <ul class="tree-list">
           {% for n in tree %}
           <li><a class="tree-item level-{{ [n.level, 6]|min }}{% if n.current %} active{% elif n.open %} on-path{% endif %}"
-                 href="{{ url_for('files.browse', root=root.name, sub=n.rel) }}" {% if n.current %}aria-current="page"{% endif %}>
+                 href="{{ url_for('files.browse', root=root.name, sub=n.rel) }}" {% if n.current %}aria-current="page"{% endif %}
+                 data-drop-root="{{ root.name }}" data-drop-path="{{ n.rel }}">
             <svg class="icon icon-sm folder-icon" aria-hidden="true"><use href="#i-folder"></use></svg><span class="tree-name">{{ n.name }}</span></a></li>
           {% endfor %}
         </ul>
@@ -61,11 +64,14 @@
         {% endfor %}
       </nav>
       <div class="toolbar-spacer"></div>
-      <label class="filter">
-        <span class="sr-only">{{ _("Filter in this folder") }}</span>
-        <svg class="icon icon-sm muted-icon" aria-hidden="true"><use href="#i-search"></use></svg>
-        <input id="filter-input" type="search" placeholder="{{ _('Filter in this folder') }}" autocomplete="off">
-      </label>
+      <form class="filter-form" method="get" action="{{ url_for('files.search') }}" role="search">
+        <label class="filter">
+          <span class="sr-only">{{ _("Filter in this folder; Enter searches all your folders") }}</span>
+          <svg class="icon icon-sm muted-icon" aria-hidden="true"><use href="#i-search"></use></svg>
+          <input id="filter-input" type="search" name="q" placeholder="{{ _('Filter or search…') }}"
+                 autocomplete="off" title="{{ _('Filters this folder as you type. Press Enter to search by name in all your folders.') }}">
+        </label>
+      </form>
       {% if can_mkdir %}
       <details class="popover">
         <summary class="btn"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New folder") }}</summary>
@@ -91,9 +97,17 @@
       {% endif %}
     </div>
 
+    {% if quota_status and quota_status.level != 'ok' %}
+    <p class="quota-notice quota-{{ quota_status.level }}" role="status">
+      {% if quota_status.level == 'over' %}{{ _("This folder is over its quota: %(used)s of %(limit)s. Free some space.", used=quota_status.used_text, limit=quota_status.limit_text) }}
+      {% else %}{{ _("This folder has used %(percent)s%% of its quota (%(used)s of %(limit)s).", percent=quota_status.percent, used=quota_status.used_text, limit=quota_status.limit_text) }}{% endif %}
+    </p>
+    {% endif %}
     <div id="selection-bar" class="selection-bar" hidden>
       <strong id="selection-count"></strong>
       {% if can_download %}<button type="button" class="btn btn-ghost" data-action="download"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Download") }}</button>{% endif %}
+      {% if can_rename or (can_download and can_delete) %}<button type="button" class="btn btn-ghost" data-action="move"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-folder"></use></svg>{{ _("Move to…") }}</button>{% endif %}
+      {% if can_download %}<button type="button" class="btn btn-ghost" data-action="copy"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-folder"></use></svg>{{ _("Copy to…") }}</button>{% endif %}
       {% if can_rename %}<button type="button" class="btn btn-ghost" data-action="rename"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-rename"></use></svg>{{ _("Rename") }}</button>{% endif %}
       {% if can_delete %}<button type="button" class="btn btn-ghost btn-danger" data-action="delete"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-delete"></use></svg>{{ _("Delete") }}</button>{% endif %}
       <button type="button" class="btn btn-ghost" data-action="clear">{{ _("Clear selection") }}</button>
@@ -108,7 +122,8 @@
     {% endif %}
 
     <div class="table-scroll">
-      <table class="files" id="file-table" data-location="{{ location_label }}">
+      <table class="files" id="file-table" data-location="{{ location_label }}" data-root="{{ root.name }}" data-path="{{ rel }}"
+             data-zip="{{ url_for('files.zip_selection') }}">
         <thead>
           <tr>
             <th class="col-check" scope="col"><input type="checkbox" id="select-all" aria-label="{{ _('Select all') }}"></th>
@@ -126,6 +141,8 @@
           {% for e in entries %}
           {% set href = url_for('files.browse', root=root.name, sub=e.rel) if e.is_dir else (url_for('files.download', root=root.name, sub=e.rel) if can_download else '') %}
           <tr class="file-row" data-name="{{ e.name }}" data-dir="{{ '1' if e.is_dir else '0' }}" data-href="{{ href }}"
+              data-rel="{{ e.rel }}" data-zip="{{ url_for('files.zip_folder', root=root.name, sub=e.rel) if can_download else '' }}"
+              {% if can_download or can_rename %}draggable="true"{% endif %}
               data-kind="{{ _('Folder') if e.is_dir else (_('%(ext)s file', ext=e.ext) if e.ext else _('File')) }}"
               data-size="{{ e.size or '—' }}" data-mtime="{{ e.mtime }}">
             <td class="col-check"><input type="checkbox" class="row-check" aria-label="{{ _('Select %(name)s', name=e.name) }}"></td>
@@ -141,6 +158,8 @@
             <td class="row-actions">
               {% if not e.is_dir and can_download %}
               <a class="btn btn-icon" href="{{ href }}" title="{{ _('Download') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg><span class="sr-only">{{ _("Download") }}</span></a>
+              {% elif can_download %}
+              <a class="btn btn-icon" href="{{ url_for('files.zip_folder', root=root.name, sub=e.rel) }}" title="{{ _('Download as ZIP') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg><span class="sr-only">{{ _("Download as ZIP") }}</span></a>
               {% endif %}
               {% if can_rename %}
               <form method="post" action="{{ url_for('files.rename', root=root.name, sub=e.rel) }}" class="inline js-rename" data-name="{{ e.name }}">
@@ -178,6 +197,8 @@
       <svg class="icon icon-xl folder-icon" aria-hidden="true"><use href="#i-folder"></use></svg>
       <h2>{{ location_label }}</h2>
       <p class="muted">{{ ngettext("%(num)d item", "%(num)d items", entries|length) }}</p>
+      {{ quota_meter(quota_status) }}
+      {{ space_meter(space) }}
       <p class="muted small">{{ _("Select a file or folder to see its details.") }}</p>
     </div>
     <div id="details-multi" class="details-empty" hidden>
@@ -196,11 +217,41 @@
       <div class="details-actions">
         <a class="btn btn-primary btn-block" id="details-open" href="#"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-open"></use></svg>{{ _("Open") }}</a>
         {% if can_download %}<a class="btn btn-primary btn-block" id="details-download" href="#"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Download") }}</a>{% endif %}
+        {% if can_rename or (can_download and can_delete) %}<button type="button" class="btn btn-block" data-action="move"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-folder"></use></svg>{{ _("Move to…") }}</button>{% endif %}
+        {% if can_download %}<button type="button" class="btn btn-block" data-action="copy"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-folder"></use></svg>{{ _("Copy to…") }}</button>{% endif %}
         {% if can_rename %}<button type="button" class="btn btn-block" data-action="rename"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-rename"></use></svg>{{ _("Rename") }}</button>{% endif %}
         {% if can_delete %}<button type="button" class="btn btn-block btn-danger" data-action="delete"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-delete"></use></svg>{{ _("Delete") }}</button>{% endif %}
       </div>
     </div>
   </aside>
 </div>
+
+{# Mover / copiar: elegir la carpeta de destino (static/js/app.js) #}
+<dialog id="pick-dest" class="sw-modal pick-dialog" aria-labelledby="pick-title"
+        data-roots="{{ url_for('files.roots_json') }}" data-browse="{{ url_for('files.browse', root='ROOTNAME', sub='') }}">
+  <form method="dialog">
+    <h2 id="pick-title" class="pick-title"></h2>
+    <div class="pick-path">
+      <select id="pick-root" aria-label="{{ _('Folder of StorageWeb') }}"></select>
+      <nav id="pick-crumbs" class="pick-crumbs" aria-label="{{ _('Path') }}"></nav>
+    </div>
+    <ul id="pick-list" class="pick-list" aria-label="{{ _('Folders') }}"></ul>
+    <p id="pick-note" class="muted small" hidden></p>
+    <div class="sw-modal-actions">
+      <button type="button" class="btn" id="pick-cancel">{{ _("Cancel") }}</button>
+      <button type="button" class="btn btn-primary" id="pick-ok"></button>
+    </div>
+  </form>
+</dialog>
+<form id="transfer-form" method="post" action="{{ url_for('files.transfer') }}" hidden>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="action"><input type="hidden" name="root" value="{{ root.name }}">
+  <input type="hidden" name="dest_root"><input type="hidden" name="dest_path">
+  <input type="hidden" name="next" value="{{ request.full_path }}">
+</form>
+<form id="zip-form" method="post" action="{{ url_for('files.zip_selection') }}" hidden>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="root" value="{{ root.name }}">
+</form>
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='js/app.js') }}"></script>{% endblock %}

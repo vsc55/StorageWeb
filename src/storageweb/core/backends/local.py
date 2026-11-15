@@ -82,6 +82,13 @@ class LocalBackend(Backend):
         except OSError:
             return None
 
+    def space(self, dir_rel: str = "") -> dict | None:
+        try:
+            usage = shutil.disk_usage(self._path(dir_rel))
+        except OSError:
+            return None
+        return {"total": usage.total, "free": usage.free}
+
     def root_exists(self) -> bool:
         return self.base.exists()
 

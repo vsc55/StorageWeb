@@ -128,6 +128,39 @@
     schedule();
   });
 
+  // Barras de porcentaje (espacio usado…): la anchura no puede ir en un style="" (CSP), se pone aquí
+  document.querySelectorAll("[data-percent]").forEach(function (bar) {
+    var p = Math.max(0, Math.min(100, parseFloat(bar.getAttribute("data-percent")) || 0));
+    bar.style.width = p + "%";
+  });
+
+  // Menús emergentes (<details class="popover">): se abren hacia el lado donde caben (sin salirse de la pantalla
+  // ni crear barras de desplazamiento) y se cierran al pulsar fuera o con Esc
+  document.addEventListener("toggle", function (e) {
+    var d = e.target;
+    if (!(d instanceof HTMLDetailsElement) || !d.classList.contains("popover") || !d.open) return;
+    var body = d.querySelector(".popover-body");
+    if (!body) return;
+    body.classList.add("popover-start");                  // primero, hacia la derecha desde el botón
+    if (body.getBoundingClientRect().right > document.documentElement.clientWidth - 8) {
+      body.classList.remove("popover-start");             // no cabe: hacia la izquierda
+      if (body.getBoundingClientRect().left < 8) body.classList.add("popover-start");
+    }
+  }, true);                                                // «toggle» no sube: se escucha en la captura
+  document.addEventListener("click", function (e) {
+    document.querySelectorAll("details.popover[open]").forEach(function (d) {
+      if (!d.contains(e.target)) d.removeAttribute("open");
+    });
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    document.querySelectorAll("details.popover[open]").forEach(function (d) {
+      d.removeAttribute("open");
+      var summary = d.querySelector("summary");
+      if (summary && d.contains(document.activeElement)) summary.focus();
+    });
+  });
+
   // Desplegables que envían su formulario al cambiar (p. ej. registros por página)
   document.querySelectorAll("select.js-autosubmit").forEach(function (s) {
     s.addEventListener("change", function () { if (s.form) s.form.submit(); });

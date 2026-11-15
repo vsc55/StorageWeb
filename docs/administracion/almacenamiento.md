@@ -217,6 +217,17 @@ Se aplican a la ruta dentro de cada carpeta de StorageWeb (la personal o cada co
 
 `storage.show_hidden` es otra cosa: solo decide si **la web** muestra los archivos que empiezan por punto. La unidad de red los muestra siempre.
 
+## Cuotas
+
+Las cuotas **solo avisan**: no impiden subir. Se ven en el explorador (barra en el panel de la carpeta y un aviso encima de la lista a partir del 90 % y al superarla), en *Mi perfil* y en la administración.
+
+- **Carpetas personales:** cuota por defecto en *Acceso → Carpetas personales* (`storage.home_quota_mb`, en MB; `0` = sin cuota). Cada usuario puede tener otra en su ficha (*Personas → Usuarios*): vacío = la de por defecto, `0` = sin cuota. La ficha muestra también cuánto ocupa su carpeta.
+- **Carpetas compartidas:** cuota de cada una en su ficha (*Acceso → Carpetas compartidas*; `storage.shares[].quota_mb`). La ficha muestra cuánto ocupa.
+
+El uso se calcula sumando todo lo que hay en la carpeta (también lo oculto) y se guarda **10 minutos** en memoria, porque en almacenamiento remoto recorrerla es caro. Lo que se sube, borra, mueve o copia desde la web o por WebDAV lo actualiza al momento; lo que cambie por fuera de StorageWeb (directamente en el disco o en el bucket) tarda hasta esos 10 minutos en reflejarse. Si una carpeta es tan grande que no da tiempo a recorrerla (10 segundos o 500.000 elementos), se muestra como «≥» lo contado.
+
+El **espacio libre** del almacenamiento se muestra junto a la cuota cuando se sabe: en el disco del servidor (total y libre); S3 y Azure no tienen un tamaño fijo y se indican así; en SMB, SFTP, FTP y WebDAV remotos no se muestra.
+
 ## Limitaciones
 
 - Los archivos no se mueven al cambiar una carpeta de sitio: cópialos antes (por ejemplo con `rclone copy` o `aws s3 sync`).

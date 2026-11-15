@@ -15,7 +15,7 @@ from flask import Blueprint, abort, g, request
 
 from ...core import backends, storage
 from ...core import uploads as core
-from ...core import tokens
+from ...core import quota, tokens
 from ...core.permissions import effective_for_root, permissions_for
 from ...core.security import PathError, safe_filename
 from ...db.repositories import audit
@@ -128,6 +128,7 @@ def put_chunk(upload_id: str):
 def complete(upload_id: str):
     row, root, dir_rel, part = _load(upload_id)
     final = core.finalize(part, root["backend"], dir_rel, row["filename"], row["size"])
+    quota.invalidate(root)
     repo.delete(get_db(), upload_id)
     audit.log(get_db(), "upload", f"{root['name']}:/{final}",
               username=g.user["username"], ip=client_ip(), detail=str(row["size"]))

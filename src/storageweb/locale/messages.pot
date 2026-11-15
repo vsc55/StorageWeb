@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: StorageWeb VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-15 01:11+0100\n"
+"POT-Creation-Date: 2026-11-15 20:05+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -200,7 +200,7 @@ msgstr ""
 msgid "Sign-in"
 msgstr ""
 
-#: storageweb/cli/config.py storageweb/web/templates/browse.html
+#: storageweb/cli/config.py storageweb/web/templates/browse.html storageweb/web/templates/search.html
 msgid "Location"
 msgstr ""
 
@@ -524,6 +524,10 @@ msgstr ""
 msgid "You cannot disable your own account."
 msgstr ""
 
+#: storageweb/core/accounts.py
+msgid "The quota must be a whole number of MB (0 = no quota; empty = the default one)."
+msgstr ""
+
 #: storageweb/core/accounts.py storageweb/web/views/profile.py
 msgid "Only local users have a password that can be changed."
 msgstr ""
@@ -635,6 +639,44 @@ msgstr ""
 
 #: storageweb/core/connect.py
 msgid "Too many pending authorizations. Try again in a few minutes."
+msgstr ""
+
+#: storageweb/core/files.py
+msgid "A whole folder of StorageWeb cannot be moved or copied."
+msgstr ""
+
+#: storageweb/core/files.py
+#, python-format
+msgid "«%(name)s» no longer exists."
+msgstr ""
+
+#: storageweb/core/files.py
+#, python-format
+msgid "«%(name)s» is already in that folder."
+msgstr ""
+
+#: storageweb/core/files.py
+#, python-format
+msgid "«%(name)s» cannot be moved or copied into itself."
+msgstr ""
+
+#: storageweb/core/files.py
+msgid "The destination folder does not exist."
+msgstr ""
+
+#: storageweb/core/files.py
+#, python-format
+msgid "«%(name)s» already exists in the destination folder."
+msgstr ""
+
+#: storageweb/core/files.py
+#, python-format
+msgid "Could not move «%(name)s»: %(error)s"
+msgstr ""
+
+#: storageweb/core/files.py
+#, python-format
+msgid "Could not copy «%(name)s»: %(error)s"
 msgstr ""
 
 #: storageweb/core/groups.py storageweb/providers/local/method.py
@@ -908,7 +950,7 @@ msgstr ""
 msgid "Review the folder"
 msgstr ""
 
-#: storageweb/core/storage.py
+#: storageweb/core/storage.py storageweb/web/views/files.py
 #, python-format
 msgid "Invalid path: %(path)s"
 msgstr ""
@@ -1321,6 +1363,12 @@ msgid "to show group names instead of Object IDs"
 msgstr ""
 
 #: storageweb/providers/entra/check.py
+msgid ""
+"to disable accounts removed or disabled in Entra ID, refresh groups between sign-ins and read the"
+" groups of users in more than 200"
+msgstr ""
+
+#: storageweb/providers/entra/check.py
 #, python-format
 msgid "Sign-in permissions (%(scopes)s): they are checked when someone signs in with Microsoft."
 msgstr ""
@@ -1436,6 +1484,30 @@ msgstr ""
 msgid "The token endpoint answered: %(error)s"
 msgstr ""
 
+#: storageweb/providers/entra/check.py
+#, python-format
+msgid ""
+"The ID token includes the session (sid): signing out of Microsoft also closes StorageWeb (last "
+"sign-in: %(when)s)."
+msgstr ""
+
+#: storageweb/providers/entra/check.py
+#, python-format
+msgid ""
+"The ID token does not include the session (sid) claim: signing out of Microsoft will not close "
+"StorageWeb (last sign-in: %(when)s)."
+msgstr ""
+
+#: storageweb/providers/entra/method.py storageweb/settings/checks.py storageweb/settings/loader.py
+#, python-format
+msgid "%(field)s must be an integer"
+msgstr ""
+
+#: storageweb/providers/entra/method.py storageweb/settings/loader.py
+#, python-format
+msgid "%(field)s cannot be negative"
+msgstr ""
+
 #: storageweb/providers/entra/method.py
 #, python-format
 msgid "Entra ID is enabled but these are missing: %(fields)s"
@@ -1483,6 +1555,11 @@ msgid "Recalculate the role on every sign-in according to the mapping"
 msgstr ""
 
 #: storageweb/providers/entra/method.py storageweb/web/templates/admin/settings/auth/entra.html
+#: storageweb/web/views/settings/entra.py
+msgid "Check accounts against Entra ID every (minutes)"
+msgstr ""
+
+#: storageweb/providers/entra/method.py storageweb/web/templates/admin/settings/auth/entra.html
 msgid "Sign in directly with Microsoft (skip the sign-in page)"
 msgstr ""
 
@@ -1504,6 +1581,12 @@ msgstr ""
 
 #: storageweb/providers/entra/method.py
 msgid "The Microsoft account did not return a valid identifier."
+msgstr ""
+
+#: storageweb/providers/entra/method.py
+msgid ""
+"Your groups could not be read from Microsoft, so access cannot be checked. Contact the "
+"administrator."
 msgstr ""
 
 #: storageweb/providers/entra/method.py
@@ -1602,7 +1685,7 @@ msgstr ""
 
 #: storageweb/providers/entra/register.py
 #, python-format
-msgid "Reading group names (Group.Read.All) could not be granted: %(error)s"
+msgid "%(perm)s could not be granted: %(error)s"
 msgstr ""
 
 #: storageweb/providers/entra/register.py
@@ -1630,6 +1713,23 @@ msgid "Redirect URI"
 msgstr ""
 
 #: storageweb/providers/entra/register.py
+#, python-format
+msgid "Front-channel logout URL set: %(uri)s"
+msgstr ""
+
+#: storageweb/providers/entra/register.py
+msgid "Front-channel logout URL"
+msgstr ""
+
+#: storageweb/providers/entra/register.py
+msgid "Optional claims added to the ID token (email, sid)"
+msgstr ""
+
+#: storageweb/providers/entra/register.py
+msgid "Optional claims"
+msgstr ""
+
+#: storageweb/providers/entra/register.py
 msgid "Missing Microsoft Graph permissions added to the application"
 msgstr ""
 
@@ -1654,7 +1754,8 @@ msgid "Admin consent"
 msgstr ""
 
 #: storageweb/providers/entra/register.py
-msgid "Reading group names (Group.Read.All) granted"
+#, python-format
+msgid "Application permission %(perm)s granted"
 msgstr ""
 
 #: storageweb/providers/entra/register.py
@@ -1721,11 +1822,6 @@ msgstr ""
 #: storageweb/settings/checks.py storageweb/settings/loader.py
 #, python-format
 msgid "%(field)s must be a list"
-msgstr ""
-
-#: storageweb/settings/checks.py storageweb/settings/loader.py
-#, python-format
-msgid "%(field)s must be an integer"
 msgstr ""
 
 #: storageweb/settings/checks.py storageweb/settings/loader.py
@@ -1803,6 +1899,11 @@ msgstr ""
 
 #: storageweb/settings/fields.py storageweb/web/templates/admin/settings/storage.html
 msgid "Hidden for everyone"
+msgstr ""
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/storage.html
+#: storageweb/web/views/settings/forms.py
+msgid "Quota of personal folders (MB)"
 msgstr ""
 
 #: storageweb/settings/fields.py storageweb/web/templates/admin/settings/storage.html
@@ -1940,11 +2041,6 @@ msgstr ""
 #: storageweb/settings/loader.py
 #, python-format
 msgid "Storage location %(name)s: the type must be one of: %(values)s"
-msgstr ""
-
-#: storageweb/settings/loader.py
-#, python-format
-msgid "%(field)s cannot be negative"
 msgstr ""
 
 #: storageweb/settings/loader.py
@@ -2112,6 +2208,62 @@ msgstr ""
 #: storageweb/web/js_messages.py
 #, python-format
 msgid "Added: %(name)s"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "You cannot write in this folder."
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "A folder cannot go inside itself."
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "They are already in this folder: choose another one."
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "Loading…"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "No subfolders."
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "Could not read this folder."
+msgstr ""
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "Move «%(name)s» to…"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "Move %(num)s items to…"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "Copy «%(name)s» to…"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "Copy %(num)s items to…"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "Move here"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "Copy here"
+msgstr ""
+
+#: storageweb/web/js_messages.py storageweb/web/templates/browse.html
+msgid "read-only"
 msgstr ""
 
 #: storageweb/web/js_messages.py
@@ -2450,6 +2602,59 @@ msgstr ""
 msgid "The offset parameter is missing"
 msgstr ""
 
+#: storageweb/web/templates/_space.html
+#, python-format
+msgid "Quota: %(used)s of %(limit)s"
+msgstr ""
+
+#: storageweb/web/templates/_space.html
+#, python-format
+msgid "Quota used: %(percent)s%%"
+msgstr ""
+
+#: storageweb/web/templates/_space.html
+#, python-format
+msgid "Quota exceeded (%(percent)s%%): free some space."
+msgstr ""
+
+#: storageweb/web/templates/_space.html
+#, python-format
+msgid "%(percent)s%% of the quota used: almost full."
+msgstr ""
+
+#: storageweb/web/templates/_space.html
+#, python-format
+msgid "%(percent)s%% of the quota used"
+msgstr ""
+
+#: storageweb/web/templates/_space.html
+msgid "Storage without a fixed size (object storage)."
+msgstr ""
+
+#: storageweb/web/templates/_space.html
+#, python-format
+msgid "%(free)s free"
+msgstr ""
+
+#: storageweb/web/templates/_space.html
+#, python-format
+msgid "of %(total)s"
+msgstr ""
+
+#: storageweb/web/templates/_space.html
+#, python-format
+msgid "Space used: %(percent)s%%"
+msgstr ""
+
+#: storageweb/web/templates/_space.html
+#, python-format
+msgid "%(percent)s%% used"
+msgstr ""
+
+#: storageweb/web/templates/_space.html
+msgid "Almost full"
+msgstr ""
+
 #: storageweb/web/templates/base.html storageweb/web/templates/profile.html
 msgid "Theme"
 msgstr ""
@@ -2498,6 +2703,7 @@ msgstr ""
 
 #: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/search.html
 #: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/base.html
+#: storageweb/web/templates/search.html
 msgid "Search"
 msgstr ""
 
@@ -2530,10 +2736,6 @@ msgid "Locations"
 msgstr ""
 
 #: storageweb/web/templates/browse.html
-msgid "read-only"
-msgstr ""
-
-#: storageweb/web/templates/browse.html
 msgid "Contents"
 msgstr ""
 
@@ -2543,7 +2745,15 @@ msgid "Path"
 msgstr ""
 
 #: storageweb/web/templates/browse.html
-msgid "Filter in this folder"
+msgid "Filter in this folder; Enter searches all your folders"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "Filter or search…"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "Filters this folder as you type. Press Enter to search by name in all your folders."
 msgstr ""
 
 #: storageweb/web/templates/browse.html
@@ -2563,6 +2773,24 @@ msgid "Send"
 msgstr ""
 
 #: storageweb/web/templates/browse.html
+#, python-format
+msgid "This folder is over its quota: %(used)s of %(limit)s. Free some space."
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+#, python-format
+msgid "This folder has used %(percent)s%% of its quota (%(used)s of %(limit)s)."
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "Move to…"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "Copy to…"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
 msgid "Clear selection"
 msgstr ""
 
@@ -2574,15 +2802,16 @@ msgstr ""
 #: storageweb/web/templates/admin/groups/_macros.html
 #: storageweb/web/templates/admin/locations/edit.html
 #: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/browse.html
-#: storageweb/web/templates/profile.html
+#: storageweb/web/templates/profile.html storageweb/web/templates/search.html
 msgid "Name"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/backups.html storageweb/web/templates/browse.html
+#: storageweb/web/templates/search.html
 msgid "Size"
 msgstr ""
 
-#: storageweb/web/templates/browse.html
+#: storageweb/web/templates/browse.html storageweb/web/templates/search.html
 msgid "Modified"
 msgstr ""
 
@@ -2602,6 +2831,10 @@ msgstr ""
 #: storageweb/web/templates/admin/users.html storageweb/web/templates/browse.html
 #, python-format
 msgid "Select %(name)s"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "Download as ZIP"
 msgstr ""
 
 #: storageweb/web/templates/browse.html
@@ -2657,6 +2890,10 @@ msgstr ""
 
 #: storageweb/web/templates/admin/overview.html storageweb/web/templates/browse.html
 msgid "Open"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
+msgid "Folder of StorageWeb"
 msgstr ""
 
 #: storageweb/web/templates/connect.html
@@ -2917,6 +3154,10 @@ msgid "Create token"
 msgstr ""
 
 #: storageweb/web/templates/profile.html
+msgid "Space of my folder"
+msgstr ""
+
+#: storageweb/web/templates/profile.html
 msgid "Network drive"
 msgstr ""
 
@@ -2943,6 +3184,52 @@ msgstr ""
 msgid ""
 "Windows: File Explorer → This PC → Map network drive → paste the address. macOS: Finder → Go → "
 "Connect to Server."
+msgstr ""
+
+#: storageweb/web/templates/search.html
+msgid "Search files"
+msgstr ""
+
+#: storageweb/web/templates/search.html
+msgid "Name contains"
+msgstr ""
+
+#: storageweb/web/templates/search.html
+msgid "Part of the name (several words: all of them)"
+msgstr ""
+
+#: storageweb/web/templates/search.html
+#, python-format
+msgid "In %(where)s and its subfolders."
+msgstr ""
+
+#: storageweb/web/templates/search.html
+msgid "Search in all my folders"
+msgstr ""
+
+#: storageweb/web/templates/search.html
+msgid "In all your folders. Upper and lower case and accents do not matter."
+msgstr ""
+
+#: storageweb/web/templates/search.html
+#, python-format
+msgid "%(num)d result"
+msgid_plural "%(num)d results"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/templates/search.html
+#, python-format
+msgid "Only the first %(num)d are shown: refine the search."
+msgstr ""
+
+#: storageweb/web/templates/search.html
+msgid "The search stopped early (too many folders or too slow): refine it or search in one folder."
+msgstr ""
+
+#: storageweb/web/templates/search.html
+#, python-format
+msgid "Nothing found with «%(query)s»."
 msgstr ""
 
 #: storageweb/web/templates/admin/_layout.html
@@ -3277,6 +3564,11 @@ msgstr ""
 msgid "Created %(when)s."
 msgstr ""
 
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
+#, python-format
+msgid "The name and the email come from %(source)s and are updated on each sign-in: change them there."
+msgstr ""
+
 #: storageweb/web/templates/admin/user_form.html
 #, python-format
 msgid "The name is updated from %(source)s on each sign-in."
@@ -3290,6 +3582,13 @@ msgstr ""
 msgid "Account enabled"
 msgstr ""
 
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
+#, python-format
+msgid ""
+"Disabled automatically because %(source)s removed or disabled the account, or it is no longer in "
+"the allowed groups. It is enabled again on its own when %(source)s lets it in."
+msgstr ""
+
 #: storageweb/web/templates/admin/user_form.html
 msgid "comma separated; unknown ones are created as local groups"
 msgstr ""
@@ -3300,6 +3599,36 @@ msgstr ""
 
 #: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
 msgid "empty = default template"
+msgstr ""
+
+#: storageweb/web/templates/admin/access/folder.html storageweb/web/templates/admin/user_form.html
+msgid "Quota (MB)"
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html
+#, python-format
+msgid "default: %(mb)s"
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html
+msgid "default: no quota"
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html
+msgid "Empty = the default one; 0 = no quota. It only warns."
+msgstr ""
+
+#: storageweb/web/templates/admin/access/folder.html storageweb/web/templates/admin/user_form.html
+msgid "In use"
+msgstr ""
+
+#: storageweb/web/templates/admin/access/folder.html storageweb/web/templates/admin/user_form.html
+#, python-format
+msgid "%(percent)s%% of the quota"
+msgstr ""
+
+#: storageweb/web/templates/admin/access/folder.html storageweb/web/templates/admin/user_form.html
+msgid "Quota exceeded"
 msgstr ""
 
 #: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
@@ -3540,6 +3869,11 @@ msgid "Only downloading is allowed, administrators included, whatever the permis
 msgstr ""
 
 #: storageweb/web/templates/admin/access/folder.html
+#, python-format
+msgid "0 = no quota. It only warns (from 90%% and when exceeded); it does not stop uploads."
+msgstr ""
+
+#: storageweb/web/templates/admin/access/folder.html
 msgid "Who enters"
 msgstr ""
 
@@ -3681,6 +4015,13 @@ msgid "Description"
 msgstr ""
 
 #: storageweb/web/templates/admin/groups/_macros.html
+#, python-format
+msgid ""
+"The name and the description come from %(source)s and are updated automatically: change them "
+"there."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
 msgid "Where the members come from"
 msgstr ""
 
@@ -3777,6 +4118,26 @@ msgid ""
 "They arrive at sign-in or shared folders use them, but they have no name. Register them to manage"
 " them here."
 msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid ""
+"The name, the description and a suggested identifier come from the directory of their provider "
+"(Entra ID)."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+#, python-format
+msgid "Register %(num)s group with the data from its provider?"
+msgid_plural "Register %(num)s groups with the data from their provider?"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+#, python-format
+msgid "Register it"
+msgid_plural "Register all (%(num)s)"
+msgstr[0] ""
+msgstr[1] ""
 
 #: storageweb/web/templates/admin/groups/_macros.html
 #: storageweb/web/templates/admin/settings/auth/_generic.html
@@ -4015,8 +4376,11 @@ msgid ""
 msgstr ""
 
 #: storageweb/web/templates/admin/locations/index.html
-#, python-format
-msgid "New %(type)s location"
+msgid "New location"
+msgstr ""
+
+#: storageweb/web/templates/admin/locations/index.html
+msgid "Type of storage"
 msgstr ""
 
 #: storageweb/web/templates/admin/locations/index.html
@@ -4674,6 +5038,17 @@ msgid "Example for nginx with these values"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/network.html
+msgid "Example for Apache 2.4 with these values"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/network.html
+msgid ""
+"Modules: proxy, proxy_http, ssl, headers, http2, reqtimeout and rewrite (Debian: a2enmod). "
+"Template with explanations: /usr/share/storageweb/apache-storageweb.conf (in the repository, "
+"packaging/apache/storageweb.conf)."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/network.html
 msgid "Example for Caddy (automatic certificate)"
 msgstr ""
 
@@ -4840,6 +5215,13 @@ msgstr ""
 
 #: storageweb/web/templates/admin/settings/storage.html
 msgid "0 = no limit; uploads are sent in parts"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/storage.html
+#, python-format
+msgid ""
+"0 = no quota. It only warns (from 90%% and when exceeded); it does not stop uploads. Each user "
+"can have another one in their profile."
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/storage.html
@@ -5050,6 +5432,14 @@ msgstr ""
 
 #: storageweb/web/templates/admin/settings/auth/entra.html
 msgid "+ Add mapping"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/auth/entra.html
+msgid ""
+"Accounts that can get in without going through Microsoft (open session, API tokens, network "
+"drive, VS Code) are checked: removed or disabled ones, or ones outside the allowed groups, are "
+"disabled (and enabled again when they come back), and their groups and role are refreshed. Needs "
+"the User.Read.All application permission. 0 = only on sign-in."
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/auth/entra.html
@@ -5277,9 +5667,34 @@ msgstr ""
 msgid "Could not delete: %(error)s"
 msgstr ""
 
+#: storageweb/web/views/files.py
+#, python-format
+msgid "%(num)d item moved."
+msgid_plural "%(num)d items moved."
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/views/files.py
+#, python-format
+msgid "%(num)d item copied."
+msgid_plural "%(num)d items copied."
+msgstr[0] ""
+msgstr[1] ""
+
 #: storageweb/web/views/groups.py
 #, python-format
 msgid "Group «%(name)s» created."
+msgstr ""
+
+#: storageweb/web/views/groups.py
+#, python-format
+msgid "Group registered: %(names)s."
+msgid_plural "%(num)s groups registered: %(names)s."
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/views/groups.py
+msgid "There were no groups to register."
 msgstr ""
 
 #: storageweb/web/views/admin/users.py storageweb/web/views/groups.py

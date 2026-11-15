@@ -26,7 +26,7 @@ src/storageweb/   settings · db · providers (local/ · pam/ · entra/) · core
 tests/            unit/ (sin Flask) · integration/ (app completa) · helpers.py · sso_helpers.py
 docs/             esta documentación (MkDocs)
 tools/            gen_docs.py
-packaging/        install.sh · build.sh · nfpm · systemd · nginx · docker · gentoo
+packaging/        install.sh · build.sh · nfpm · systemd · nginx · apache · docker · gentoo
 ```
 
 Las capas y el porqué de esta organización están en [Arquitectura](../arquitectura/index.md).

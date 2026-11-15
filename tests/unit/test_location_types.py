@@ -107,7 +107,7 @@ def test_new_type_in_the_admin(memoria, make_app):
     client = app.test_client()
     login(client, "root")
     index = client.get("/admin/storage/").get_data(as_text=True)
-    assert "Nueva ubicación MEM" in index
+    assert 'href="/admin/storage/new?type=memoria"><span class="add-menu-text"><strong>MEM</strong>' in index
     page = client.get("/admin/storage/new?type=memoria").get_data(as_text=True)
     assert 'name="almacen"' in page and 'name="cuota"' in page and 'type="password" name="token"' in page
     assert "Almacén" in page

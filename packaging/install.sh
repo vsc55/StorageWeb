@@ -2,7 +2,7 @@
 # Instalación de StorageWeb en Ubuntu (22.04 / 24.04 / 26.04) desde el código fuente.
 # (Alternativa recomendada: el .deb de la release de GitHub: sudo apt install ./storageweb_X.Y.Z_amd64.deb)
 #
-# Uso:  sudo ./packaging/install.sh [--pam] [--nginx]
+# Uso:  sudo ./packaging/install.sh [--pam] [--nginx | --apache]
 #
 # Variables opcionales (para cambiar el usuario/rutas del servicio):
 #   APP_USER=storageweb APP_DIR=/opt/storageweb CONF_DIR=/etc/storageweb \
@@ -18,11 +18,13 @@ export STORAGE_DIR="${STORAGE_DIR:-/srv/storageweb}"
 export SHARE_DIR="${SHARE_DIR:-/usr/share/storageweb}"
 WITH_PAM=0
 WITH_NGINX=0
+WITH_APACHE=0
 
 for arg in "$@"; do
   case "$arg" in
     --pam)   WITH_PAM=1 ;;
     --nginx) WITH_NGINX=1 ;;
+    --apache) WITH_APACHE=1 ;;
     -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
     *) echo "Opción desconocida: $arg" >&2; exit 1 ;;
   esac
@@ -44,6 +46,7 @@ log "Instalando dependencias del sistema"
 apt-get update -qq
 PKGS=(python3 python3-venv python3-pip)
 if [[ $WITH_NGINX -eq 1 ]]; then PKGS+=(nginx certbot python3-certbot-nginx); fi
+if [[ $WITH_APACHE -eq 1 ]]; then PKGS+=(apache2 certbot python3-certbot-apache); fi
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${PKGS[@]}"
 
 log "Construyendo los wheels de StorageWeb y sus dependencias"
@@ -57,6 +60,7 @@ log "Copiando configuración y plantillas"
 install -d -m 0755 "$SHARE_DIR"
 install -m 0644 "$ROOT/config/config.example.json" "$SHARE_DIR/config.example.json"
 install -m 0644 "$PKG/nginx/storageweb.conf" "$SHARE_DIR/nginx-storageweb.conf"
+install -m 0644 "$PKG/apache/storageweb.conf" "$SHARE_DIR/apache-storageweb.conf"
 mkdir -p "$CONF_DIR"
 if [[ ! -f "$CONF_DIR/config.json" ]]; then
   log "Creando $CONF_DIR/config.json"
@@ -100,6 +104,14 @@ if [[ $WITH_NGINX -eq 1 && ! -f /etc/nginx/sites-available/storageweb ]]; then
   cp "$PKG/nginx/storageweb.conf" /etc/nginx/sites-available/storageweb
   echo "   Edita /etc/nginx/sites-available/storageweb y luego:"
   echo "   ln -s /etc/nginx/sites-available/storageweb /etc/nginx/sites-enabled/ && certbot --nginx -d <dominio>"
+fi
+
+if [[ $WITH_APACHE -eq 1 && ! -f /etc/apache2/sites-available/storageweb.conf ]]; then
+  log "Copiando plantilla de Apache (edita ServerName y certificados)"
+  cp "$PKG/apache/storageweb.conf" /etc/apache2/sites-available/storageweb.conf
+  a2enmod -q proxy proxy_http ssl headers http2 reqtimeout rewrite
+  echo "   Edita /etc/apache2/sites-available/storageweb.conf y luego:"
+  echo "   a2ensite storageweb && certbot --apache -d <dominio> && systemctl reload apache2"
 fi
 
 systemctl --no-pager --lines=5 status storageweb || true

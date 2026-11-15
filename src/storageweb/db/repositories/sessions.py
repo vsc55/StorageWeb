@@ -6,11 +6,23 @@ from sqlite3 import Connection
 from ..connection import now_iso
 
 
-def create(conn: Connection, session_id: str, user_id: int, ip: str | None, user_agent: str | None) -> None:
+def create(conn: Connection, session_id: str, user_id: int, ip: str | None, user_agent: str | None,
+           provider_sid: str | None = None) -> None:
     now = now_iso()
-    conn.execute("INSERT INTO sessions (id, user_id, created_at, last_seen, ip, user_agent) VALUES (?, ?, ?, ?, ?, ?)",
-                 (session_id, user_id, now, now, ip, (user_agent or "")[:300]))
+    conn.execute("INSERT INTO sessions (id, user_id, created_at, last_seen, ip, user_agent, provider_sid) "
+                 "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                 (session_id, user_id, now, now, ip, (user_agent or "")[:300], provider_sid or None))
     conn.commit()
+
+
+def delete_by_provider_sid(conn: Connection, source: str, provider_sid: str) -> list:
+    """Cierra las sesiones iniciadas con esa sesión del proveedor. Devuelve los usuarios afectados."""
+    rows = conn.execute("""SELECT DISTINCT u.* FROM sessions s JOIN users u ON u.id = s.user_id
+                           WHERE s.provider_sid = ? AND u.source = ?""", (provider_sid, source)).fetchall()
+    conn.execute("DELETE FROM sessions WHERE provider_sid = ? AND user_id IN (SELECT id FROM users WHERE source = ?)",
+                 (provider_sid, source))
+    conn.commit()
+    return rows
 
 
 def get(conn: Connection, session_id: str):

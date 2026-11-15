@@ -38,6 +38,16 @@
     <label class="check span2"><input type="checkbox" name="read_only" {% if share.read_only %}checked{% endif %}>
       <span>{{ _("Read only for everyone") }}
         <small class="muted">{{ _("Only downloading is allowed, administrators included, whatever the permission of each entry.") }}</small></span></label>
+    <label>{{ _("Quota (MB)") }}
+      <input type="number" name="quota_mb" min="0" value="{{ share.quota_mb or 0 }}">
+      <small class="muted">{{ _("0 = no quota. It only warns (from 90%% and when exceeded); it does not stop uploads.") }}</small></label>
+    {% if usage %}
+    <div class="field">
+      <span class="label">{{ _("In use") }}</span>
+      <span>{{ ('≥ ' if not usage.complete else '') ~ usage.used }}{% if usage.quota %} · {{ _("%(percent)s%% of the quota", percent=usage.quota.percent) }}{% endif %}</span>
+      {% if usage.quota and usage.quota.level == 'over' %}<span class="text-danger small">{{ _("Quota exceeded") }}</span>{% endif %}
+    </div>
+    {% endif %}
   </div>
 
   <section class="card" aria-labelledby="who-title">
