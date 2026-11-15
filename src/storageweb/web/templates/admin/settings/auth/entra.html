@@ -6,7 +6,7 @@
     <div class="provider-head">
       <span class="provider-icon provider-entra-icon" aria-hidden="true"><svg class="icon"><use href="#i-globe"></use></svg></span>
       <div class="provider-text">
-        <strong id="p-entra">Microsoft Entra ID</strong> {{ origin('auth.entra.enabled') }}
+        <span class="provider-title"><strong id="p-entra">Microsoft Entra ID</strong> {{ origin('auth.entra.enabled') }}</span>
         <span class="small">
           {% if entra_check %}
             {% if entra_check_ok %}<span class="status status-on">{{ _("Connection checked %(when)s", when=entra_check.at|datetime) }}</span>
@@ -23,23 +23,32 @@
         {% endif %}
       </div>
       <button class="btn btn-small" type="submit" form="entra-test-form" {% if not (en.tenant_id or en.issuer) %}disabled{% endif %}>{{ _("Test connection") }}</button>
-      <a class="btn btn-small{% if not en.client_id %} btn-primary{% endif %}" href="{{ url_for('settings.entra_register_page') }}">{{ _("Register in Entra ID") }}</a>
-      {% if en.client_id %}<button class="btn btn-small{% if secret_days is not none and secret_days <= 30 %} btn-primary{% endif %}" type="submit" form="entra-rotate-form">{{ _("Renew secret") }}</button>{% endif %}
-      <a class="btn btn-small btn-ghost" href="{{ url_for('settings.entra_setup') }}">{{ _("Setup assistant") }}</a>
       <label class="switch"><input{{ lock('auth.entra.enabled') }} type="checkbox" name="entra_enabled" {% if en.enabled %}checked{% endif %}> <span>{{ _("Enabled") }}</span></label>
+    </div>
+    {# Las demás acciones, en una fila aparte: en la cabecera no caben sin partirse #}
+    <div class="provider-tools" role="group" aria-label="{{ _('Entra ID actions') }}">
+      <a class="btn btn-small btn-ghost" href="{{ url_for('settings.entra_setup') }}">{{ _("Setup assistant") }}</a>
+      <a class="btn btn-small{% if not en.client_id %} btn-primary{% endif %}" href="{{ url_for('settings.entra_register_page') }}">{{ _("Register in Entra ID") }}</a>
+      {% if en.client_id %}<button class="btn btn-small{% if secret_days is not none and secret_days <= 30 %} btn-primary{% endif %}" type="submit" form="entra-rotate-form">{{ _("Renew secret") }}</button>
+      <button class="btn btn-small{% if entra_repairable %} btn-primary{% endif %}" type="submit" form="entra-repair-form" title="{{ _('Sign in with Microsoft and StorageWeb checks the application and fixes what is missing (redirect URI, permissions and admin consent). What is already right is not touched.') }}">{{ _("Repair permissions") }}</button>{% endif %}
+      {% if entra_portal %}<a class="btn btn-small" href="{{ entra_portal }}" target="_blank" rel="noopener" title="{{ _('The application in the Entra admin center (opens in a new tab)') }}">{{ _("Open in Entra ID") }} ↗</a>{% endif %}
     </div>
     {{ field_error('auth.entra.enabled') }}
 
     {% if entra_check %}
     <ul class="check-list">
       {% for r in entra_check.results %}
-      <li class="{{ 'ok' if r.ok else ('fail' if r.ok is sameas false else 'unknown') }}">
-        <span aria-hidden="true">{{ '✓' if r.ok else ('✕' if r.ok is sameas false else '–') }}</span><span>{{ r.message }}</span></li>
+      <li class="{{ 'ok' if r.ok else ('fail' if r.ok is sameas false else ('pending' if r.pending else 'unknown')) }}">
+        <span aria-hidden="true">{{ '✓' if r.ok else ('✕' if r.ok is sameas false else ('…' if r.pending else '–')) }}</span><span>{{ r.message }}</span></li>
       {% endfor %}
     </ul>
-    <p class="muted small">{{ _("The test uses the saved settings: save before testing.") }}
-      {% if entra_check.results|selectattr('key', 'equalto', 'groups')|selectattr('ok', 'sameas', false)|list %}
-      <button class="btn btn-small" type="submit" form="entra-groups-form">{{ _("Grant group reading") }}</button>{% endif %}</p>
+    {% if entra_repairable %}
+    <div class="repair-box">
+      <button class="btn btn-primary btn-small" type="submit" form="entra-repair-form">{{ _("Repair automatically") }}</button>
+      <span class="muted small">{{ _("You sign in with Microsoft and StorageWeb fixes what is wrong in the application (redirect URI, permissions and consent%(secret)s).", secret=_(", a new secret") if entra_repairable.new_secret else "") }}</span>
+    </div>
+    {% endif %}
+    <p class="muted small">{{ _("The test uses the saved settings: save before testing.") }}</p>
     {% endif %}
 
     <div class="js-tabs">
@@ -86,27 +95,33 @@
             <select{{ lock('auth.entra.default_role') }} name="entra_default_role">
               {% for r in ROLES %}<option value="{{ r }}" {% if en.default_role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}
             </select></label>
-          <label><span class="label-row">{{ _("Allowed groups / App Roles") }} {{ origin('auth.entra.allowed_groups') }}</span>
-            <input{{ lock('auth.entra.allowed_groups') }} type="text" name="entra_allowed_groups" value="{{ en.allowed_groups | join(', ') }}" placeholder="{{ _('empty = any user of the tenant') }}"></label>
+          <div class="field-stack">
+            <label><span class="label-row">{{ _("Allowed groups / App Roles") }} {{ origin('auth.entra.allowed_groups') }}</span>
+              <input{{ lock('auth.entra.allowed_groups') }} type="text" name="entra_allowed_groups" value="{{ en.allowed_groups | join(', ') }}" placeholder="{{ _('empty = any user of the tenant') }}"></label>
+            {% if en.allowed_groups and group_names %}<small class="muted">{% for g in en.allowed_groups %}{{ group_names.get(g|lower) or g }}{% if not loop.last %} · {% endif %}{% endfor %}</small>{% endif %}
+            {% if group_search %}<input{{ lock('auth.entra.allowed_groups') }} type="text" list="entra-groups" data-group-search="{{ group_search }}" data-group-append="entra_allowed_groups" autocomplete="off" placeholder="{{ _('Add a group by name…') }}" aria-label="{{ _('Add a group by name…') }}"><small class="muted group-name"></small>{% endif %}
+          </div>
           <div class="span2 mapping{{ err_class('auth.entra.role_mappings') }}">
             <span class="label-row">{{ _("Group / App Role → role mapping") }} {{ origin('auth.entra.role_mappings') }}</span>
             <table class="mapping-table" id="mapping-table">
               <tbody>
                 {% for k, v in en.role_mappings.items() %}
-                <tr><td><input{{ lock('auth.entra.role_mappings') }} type="text" name="mapping_group" value="{{ k }}" class="mono" aria-label="{{ _('Group or App Role') }}"></td>
+                <tr><td><input{{ lock('auth.entra.role_mappings') }} type="text" name="mapping_group" value="{{ k }}" class="mono" list="entra-groups" autocomplete="off"{% if group_search %} data-group-search="{{ group_search }}"{% endif %} aria-label="{{ _('Group or App Role') }}"><small class="muted group-name">{{ group_names.get(k|lower, '') }}</small></td>
                     <td><select{{ lock('auth.entra.role_mappings') }} name="mapping_role" aria-label="{{ _('Role') }}">{% for r in ROLES %}<option value="{{ r }}" {% if v == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></td>
                     <td><button type="button" class="btn btn-small btn-ghost js-remove-row" aria-label="{{ _('Remove mapping') }}">×</button></td></tr>
                 {% endfor %}
-                <tr><td><input{{ lock('auth.entra.role_mappings') }} type="text" name="mapping_group" class="mono" placeholder="StorageWeb.Admin" aria-label="{{ _('Group or App Role') }}"></td>
+                <tr><td><input{{ lock('auth.entra.role_mappings') }} type="text" name="mapping_group" class="mono" list="entra-groups" autocomplete="off"{% if group_search %} data-group-search="{{ group_search }}"{% endif %} placeholder="StorageWeb.Admin" aria-label="{{ _('Group or App Role') }}"><small class="muted group-name"></small></td>
                     <td><select{{ lock('auth.entra.role_mappings') }} name="mapping_role" aria-label="{{ _('Role') }}">{% for r in ROLES %}<option value="{{ r }}">{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></td>
                     <td></td></tr>
               </tbody>
             </table>
             <template id="mapping-row-template">
-              <tr><td><input{{ lock('auth.entra.role_mappings') }} type="text" name="mapping_group" class="mono" aria-label="{{ _('Group or App Role') }}"></td>
+              <tr><td><input{{ lock('auth.entra.role_mappings') }} type="text" name="mapping_group" class="mono" list="entra-groups" autocomplete="off"{% if group_search %} data-group-search="{{ group_search }}"{% endif %} aria-label="{{ _('Group or App Role') }}"><small class="muted group-name"></small></td>
                   <td><select{{ lock('auth.entra.role_mappings') }} name="mapping_role" aria-label="{{ _('Role') }}">{% for r in ROLES %}<option value="{{ r }}">{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></td>
                   <td><button type="button" class="btn btn-small btn-ghost js-remove-row" aria-label="{{ _('Remove mapping') }}">×</button></td></tr>
             </template>
+            {% if group_search %}<small class="muted">{{ _("Type part of a group name to find its Object ID.") }}</small>{% endif %}
+            <datalist id="entra-groups"></datalist>
             <button type="button" class="btn btn-small btn-ghost" id="add-mapping"{{ lock('auth.entra.role_mappings') }}>{{ _("+ Add mapping") }}</button>
             {{ field_error('auth.entra.role_mappings') }}
           </div>

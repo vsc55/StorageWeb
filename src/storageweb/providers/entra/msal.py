@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from ..base import BASE_SCOPES, SSOError
 from .common import MS_LOGIN, EntraProvider
+from .oauth2 import GRANTED_KEY
 
 
 def _msal_app(ecfg: dict):
@@ -39,4 +40,4 @@ class MsalProvider(EntraProvider):
         claims = result.get("id_token_claims")
         if not claims:
             raise SSOError("missing_id_token", "MSAL no devolvió id_token_claims")
-        return claims
+        return {**claims, GRANTED_KEY: result.get("scope")}

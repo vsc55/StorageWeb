@@ -65,6 +65,9 @@ class Identity:
     groups: list[str] = field(default_factory=list)
     role: str | None = None
     home: str | None = None
+    # Permisos (scopes) que el proveedor dice haber concedido en este inicio de sesión; None si no lo dice.
+    # Se guarda el último por método para que la comprobación de la conexión pueda decir si faltan.
+    granted_scopes: list[str] | None = None
 
 
 @dataclass(frozen=True)

@@ -29,4 +29,9 @@
     };
     setTimeout(poll, wait);
   }
+  // Asistente, paso 4: un secreto recién creado que Microsoft todavía no acepta se vuelve a comprobar solo
+  var recheck = document.getElementById("entra-recheck");
+  if (recheck) {
+    setTimeout(function () { window.location.reload(); }, (parseInt(recheck.dataset.recheck, 10) || 8) * 1000);
+  }
 })();

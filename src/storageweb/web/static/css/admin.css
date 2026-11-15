@@ -216,6 +216,8 @@ a.chip-detected:hover { text-decoration: none; border-color: var(--primary); }
 .provider-pam { background: var(--badge-admin-bg); color: var(--badge-admin-fg); }
 .provider-entra-icon { background: var(--primary-soft); color: var(--primary-ink); }
 .provider-text { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+/* Nombre del método con su origen (modificado, config.json…) y Restablecer en la misma línea, sin estirarse */
+.provider-title { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .switch { flex-direction: row; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--fg); cursor: pointer; }
 .switch input { width: 18px; height: 18px; }
 .provider-body > summary { color: var(--primary); font-size: 13px; }
@@ -226,6 +228,12 @@ a.chip-detected:hover { text-decoration: none; border-color: var(--primary); }
 .check-list li > span:first-child { font-weight: 700; width: 14px; flex: 0 0 auto; }
 .check-list .ok > span:first-child { color: #12b76a; }
 .check-list .fail > span:first-child { color: var(--danger); }
+.check-list .pending > span:first-child { color: var(--primary); }
+.field-stack { display: flex; flex-direction: column; gap: 6px; }
+.repair-box { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+.provider-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.group-name { display: block; min-height: 1em; margin-top: 2px; }
+.group-name:empty { display: none; }
 .check-list .unknown > span:first-child { color: var(--muted); }
 .tab-panel { border: 0; margin: 0; padding: 0; min-width: 0; }
 .tab-panel > legend { font-weight: 600; font-size: 14px; padding: 0; margin: 10px 0 8px; }

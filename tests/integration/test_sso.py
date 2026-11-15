@@ -306,3 +306,22 @@ def test_auto_login_setting_in_the_admin(entra_app):
     client = app.test_client()
     login(client, "root")
     assert 'name="entra_auto_login"' in client.get("/admin/settings/auth").get_data(as_text=True)
+
+
+def test_login_records_granted_scopes(entra_app, token_endpoint):
+    """Cada inicio de sesión guarda qué permisos concedió Microsoft: la comprobación de la conexión los usa para
+    decir si falta alguno de los de inicio de sesión."""
+    from storageweb.core import accounts
+    from tests.sso_helpers import base_claims, make_jwt
+
+    app = entra_app()
+    client = app.test_client()
+    with app.app_context():
+        assert accounts.last_signin_scopes(get_db(), "entra") is None
+    _, q = start_login(client, token_endpoint)
+    token_endpoint.response = {"id_token": make_jwt(base_claims(token_endpoint.nonce)), "access_token": "at",
+                               "scope": "openid profile email https://graph.microsoft.com/User.Read"}
+    assert finish_login(client, q["state"]).status_code == 302
+    with app.app_context():
+        last = accounts.last_signin_scopes(get_db(), "entra")
+    assert last["scopes"] == ["User.Read", "email", "openid", "profile"] and last["at"]

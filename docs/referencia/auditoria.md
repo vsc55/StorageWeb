@@ -46,6 +46,7 @@ Cada acción relevante se guarda en la tabla `audit_log`. Se puede consultar en 
 | `password_change_failed` | Intento de cambio de contraseña con la contraseña actual incorrecta | |
 | `settings_updated` | Ajustes web guardados | Sección (`general`, `auth`…) o paso del asistente de Entra ID |
 | `entra_app_registered` | Aplicación creada en Entra ID con *Registrar en Entra ID* (*target* = Client ID) | Tenant |
+| `entra_app_repaired` | *Reparar automáticamente* revisó la aplicación de Entra ID y arregló lo que faltaba | Lo arreglado (o `-` si nada) |
 | `entra_app_register_failed` | Falló el registro automático en Entra ID | Motivo |
 | `entra_secret_rotated` | Secreto de Entra ID renovado con *Renovar secreto* (*target* = Client ID) | Nueva caducidad |
 | `entra_groups_granted` | Se concedió `Group.Read.All` a la aplicación (*target* = Client ID) |  |

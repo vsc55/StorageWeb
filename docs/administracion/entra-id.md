@@ -27,7 +27,7 @@ El registro automático guarda la fecha de caducidad del secreto (`auth.entra.se
 
 ## Nombres de los grupos
 
-Para mostrar los grupos de Entra ID con su nombre en lugar del Object ID (en *Grupos*, en la ficha de los usuarios y en el buscador al dar de alta un grupo), la aplicación necesita el permiso de aplicación `Group.Read.All` con consentimiento de administrador. El registro automático lo concede (opción marcada por defecto). Para una aplicación existente, *Probar conexión* avisa si falta y ofrece **Conceder lectura de grupos**. Sin el permiso todo funciona igual, solo que se ven los Object IDs.
+Para mostrar los grupos de Entra ID con su nombre en lugar del Object ID (en *Grupos*, en la ficha de los usuarios, en el buscador al dar de alta un grupo y en los ajustes de Entra ID: la tabla de asociaciones grupo → rol y los grupos permitidos muestran el nombre de cada Object ID, y basta con escribir parte del nombre de un grupo para encontrar su Object ID, también en el asistente), la aplicación necesita el permiso de aplicación `Group.Read.All` con consentimiento de administrador. El registro automático lo concede (opción marcada por defecto). Para una aplicación existente, *Probar conexión* avisa si falta y ofrece **Reparar automáticamente** (abajo). Sin el permiso todo funciona igual, solo que se ven los Object IDs.
 
 ## Implementaciones
 
@@ -56,7 +56,17 @@ Los motivos de esta elección están en el [ADR 0003](../arquitectura/decisiones
 La forma más rápida es el **asistente**: *Seguridad → Inicio de sesión → Asistente*. Te da la Redirect URI para copiar, pide los identificadores y el secreto, el alta de usuarios y el grupo de administradores, comprueba la conexión y activa Entra ID.
 
 !!! tip "Probar conexión"
-    El botón *Probar conexión* comprueba la configuración guardada sin que nadie inicie sesión: que el tenant existe (metadatos OIDC), que la aplicación existe y la Redirect URI está registrada (petición a `/authorize` con `prompt=none`) y que el secreto es válido y no ha caducado (token de aplicación con `client_credentials`). Necesita salida a `login.microsoftonline.com`. Con endpoints propios solo comprueba los metadatos del `issuer`.
+    El botón *Probar conexión* comprueba la configuración guardada sin que nadie inicie sesión: que el tenant existe (metadatos OIDC), que la aplicación existe y la Redirect URI está registrada (petición a `/authorize` con `prompt=none`) y que el secreto es válido y no ha caducado (token de aplicación con `client_credentials`). Después revisa **los permisos de la API, uno a uno**: cada permiso de aplicación que usa StorageWeb (`Group.Read.All`), si está concedido con consentimiento de administrador y si funciona de verdad; si la aplicación tiene **permisos de más** que StorageWeb no usa, lo avisa (mínimo privilegio); y los **permisos de inicio de sesión** (`openid`, `profile`, `email` y los de `auth.entra.scopes`, como `User.Read`), según lo que Microsoft concedió en el último inicio de sesión, que StorageWeb apunta cada vez que alguien entra. Si la aplicación la registró o reparó StorageWeb, ya sabe que les dio el consentimiento y salen en verde desde el principio; si no, hasta el primer inicio de sesión salen como pendientes de comprobar. Necesita salida a `login.microsoftonline.com`. Con endpoints propios solo comprueba los metadatos del `issuer`.
+
+!!! tip "Reparar automáticamente"
+    Si la prueba encuentra algo que StorageWeb puede arreglar (la Redirect URI no está registrada, el secreto no es válido o ha caducado, o la aplicación no puede leer los nombres de los grupos), aparece **Reparar automáticamente**, en la tarjeta de Entra ID y en el paso 4 del asistente. Aunque todo parezca bien, el botón **Reparar permisos** de la cabecera de la tarjeta hace lo mismo cuando quieras (por ejemplo, para confirmar el consentimiento de una aplicación que no registró StorageWeb). Y **Abrir en Entra ID** lleva directamente a la aplicación en el Centro de administración de Entra. Inicias sesión con Microsoft con una cuenta que pueda gestionar aplicaciones (el mismo código de dispositivo que al registrar) y StorageWeb revisa la aplicación y arregla lo que falte, sin tocar lo que ya está bien:
+
+    - añade la Redirect URI de StorageWeb;
+    - añade los permisos de Microsoft Graph que falten (inicio de sesión y `Group.Read.All`) y les da el consentimiento de administrador;
+    - crea la aplicación empresarial (*service principal*) si no existe;
+    - si el secreto falló, crea uno nuevo y lo guarda (el anterior no se borra).
+
+    Al terminar, un aviso resume lo reparado y lo que no se pudo (cada arreglo es independiente), y la prueba se repite sola. Lo que no se puede reparar (un tenant que no existe, una aplicación que no está en el tenant) sigue como error: para eso, *Registrar en Entra ID*. Queda en la auditoría como `entra_app_repaired`.
 
 También se puede configurar a mano en **Seguridad → Inicio de sesión**, o fijarlo en `config.json` o con variables `STORAGEWEB_AUTH__ENTRA__…`. Lo que fijes así queda bloqueado en la web, y el registro y la renovación del secreto no lo pueden cambiar:
 

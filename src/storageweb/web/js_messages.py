@@ -10,6 +10,7 @@ from ..i18n import N_, gettext
 
 JS_MESSAGES = [
     N_("Are you sure?"),
+    N_("Added: %(name)s"),
     N_("New name:"),
     N_("Cancel the upload?"),
     N_("An upload is in progress"),

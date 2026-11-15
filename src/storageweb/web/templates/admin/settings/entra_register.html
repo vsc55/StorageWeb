@@ -4,9 +4,10 @@
 <div class="wizard">
   <a class="small" href="{{ url_for('settings.section', name='auth') }}">← {{ _("Sign-in settings") }}</a>
   {% set kind = flow.kind if flow else 'register' %}
-  <h1>{% if kind == 'rotate' %}{{ _("Renew the client secret") }}{% elif kind == 'grant_groups' %}{{ _("Allow reading group names") }}{% else %}{{ _("Register StorageWeb in Entra ID") }}{% endif %}</h1>
+  <h1>{% if kind == 'rotate' %}{{ _("Renew the client secret") }}{% elif kind == 'grant_groups' %}{{ _("Allow reading group names") }}{% elif kind == 'repair' %}{{ _("Repair the application in Entra ID") }}{% else %}{{ _("Register StorageWeb in Entra ID") }}{% endif %}</h1>
   <p class="muted small">{% if kind == 'rotate' %}{{ _("Sign in with Microsoft and StorageWeb creates a new secret in the application and saves it. The current one keeps working until it expires.") }}
     {% elif kind == 'grant_groups' %}{{ _("Sign in with Microsoft and StorageWeb gives the application the Group.Read.All permission with admin consent, so it can show group names instead of Object IDs.") }}
+    {% elif kind == 'repair' %}{{ _("Sign in with an account that can manage applications (Application Administrator or Global Administrator). StorageWeb checks the application and fixes what is missing: the redirect URI, the Microsoft Graph permissions with admin consent, reading group names and, if it failed, the client secret. What is already right is not touched.") }}
     {% else %}{{ _("You sign in with Microsoft once and StorageWeb creates and configures the application for you. Nothing to copy from the Azure portal.") }}{% endif %}</p>
 
   {% if flow %}

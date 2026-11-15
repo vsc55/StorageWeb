@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: StorageWeb VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-14 22:56+0100\n"
+"POT-Creation-Date: 2026-11-15 01:11+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -1345,6 +1345,38 @@ msgid "Folder inside that address where everything goes (empty = its root)."
 msgstr "Carpeta dentro de esa dirección donde va todo (vacía = su raíz)."
 
 #: storageweb/providers/entra/check.py
+msgid "to show group names instead of Object IDs"
+msgstr "para mostrar el nombre de los grupos en lugar del Object ID"
+
+#: storageweb/providers/entra/check.py
+#, python-format
+msgid "Sign-in permissions (%(scopes)s): they are checked when someone signs in with Microsoft."
+msgstr ""
+"Permisos de inicio de sesión (%(scopes)s): se comprueban cuando alguien inicia sesión con "
+"Microsoft."
+
+#: storageweb/providers/entra/check.py
+#, python-format
+msgid ""
+"Sign-in permissions with admin consent (%(scopes)s), given when StorageWeb registered or repaired"
+" the application (%(when)s)."
+msgstr ""
+"Permisos de inicio de sesión con consentimiento de administrador (%(scopes)s), dado cuando "
+"StorageWeb registró o reparó la aplicación (%(when)s)."
+
+#: storageweb/providers/entra/check.py
+#, python-format
+msgid "Sign-in permissions granted (%(scopes)s), according to the last sign-in (%(when)s)."
+msgstr "Permisos de inicio de sesión concedidos (%(scopes)s), según el último inicio de sesión (%(when)s)."
+
+#: storageweb/providers/entra/check.py
+#, python-format
+msgid "Sign-in permissions missing: %(missing)s (last sign-in: %(when)s). They need admin consent."
+msgstr ""
+"Faltan permisos de inicio de sesión: %(missing)s (último inicio de sesión: %(when)s). Necesitan "
+"el consentimiento de administrador."
+
+#: storageweb/providers/entra/check.py
 #, python-format
 msgid "Could not reach %(url)s: %(error)s"
 msgstr "No se pudo conectar con %(url)s: %(error)s"
@@ -1398,21 +1430,42 @@ msgid "The client secret is valid."
 msgstr "El secreto de cliente es válido."
 
 #: storageweb/providers/entra/check.py
-msgid "The application can read group names (Group.Read.All)."
-msgstr "La aplicación puede leer los nombres de los grupos (Group.Read.All)."
+#, python-format
+msgid "Application permission %(perm)s is not granted with admin consent (%(purpose)s)."
+msgstr ""
+"El permiso de aplicación %(perm)s no está concedido con consentimiento de administrador "
+"(%(purpose)s)."
+
+#: storageweb/providers/entra/check.py
+#, python-format
+msgid "Application permission %(perm)s granted (%(purpose)s)."
+msgstr "Permiso de aplicación %(perm)s concedido (%(purpose)s)."
+
+#: storageweb/providers/entra/check.py
+#, python-format
+msgid "Application permission %(perm)s is granted but does not work yet: %(error)s"
+msgstr "El permiso de aplicación %(perm)s está concedido pero todavía no funciona: %(error)s"
 
 #: storageweb/providers/entra/check.py
 #, python-format
 msgid ""
-"The application cannot read group names: %(error)s. Use «Grant group reading» to see names "
-"instead of Object IDs."
+"The application also has application permissions that StorageWeb does not use: %(perms)s. Remove "
+"them in the Entra admin center if nothing else needs them (least privilege)."
 msgstr ""
-"La aplicación no puede leer los nombres de los grupos: %(error)s. Usa «Conceder lectura de "
-"grupos» para ver nombres en lugar de Object IDs."
+"La aplicación tiene además permisos de aplicación que StorageWeb no usa: %(perms)s. Quítalos en "
+"el Centro de administración de Entra si nada más los necesita (mínimo privilegio)."
 
 #: storageweb/providers/entra/check.py
 msgid "The client secret has expired: create a new one."
 msgstr "El secreto de cliente ha caducado: crea uno nuevo."
+
+#: storageweb/providers/entra/check.py
+msgid ""
+"Microsoft is still activating the new client secret (it can take a minute). It is checked again "
+"automatically."
+msgstr ""
+"Microsoft todavía está activando el secreto de cliente nuevo (puede tardar un minuto). Se vuelve "
+"a comprobar solo."
 
 #: storageweb/providers/entra/check.py
 msgid "The client secret is not valid (copy the value, not the ID)."
@@ -1567,6 +1620,15 @@ msgstr "%(role)s de %(name)s"
 
 #: storageweb/providers/entra/register.py
 #, python-format
+msgid ""
+"The application %(client)s was created in Entra ID, but setting it up failed: %(error)s. Delete "
+"it in the Entra admin center (App registrations) and try again."
+msgstr ""
+"La aplicación %(client)s se creó en Entra ID, pero su configuración falló: %(error)s. Bórrala en "
+"el Centro de administración de Entra (Registros de aplicaciones) y vuelve a intentarlo."
+
+#: storageweb/providers/entra/register.py
+#, python-format
 msgid "The service principal could not be created: %(error)s"
 msgstr "No se pudo crear la aplicación empresarial (service principal): %(error)s"
 
@@ -1598,6 +1660,56 @@ msgstr "No se te pudo asignar el rol %(role)s: %(error)s"
 #, python-format
 msgid "The application %(client)s does not exist in the tenant of the account that signed in."
 msgstr "La aplicación %(client)s no existe en el tenant de la cuenta que inició sesión."
+
+#: storageweb/providers/entra/register.py
+#, python-format
+msgid "%(what)s: %(error)s"
+msgstr "%(what)s: %(error)s"
+
+#: storageweb/providers/entra/register.py
+#, python-format
+msgid "Redirect URI added: %(uri)s"
+msgstr "Redirect URI añadida: %(uri)s"
+
+#: storageweb/providers/entra/register.py
+msgid "Redirect URI"
+msgstr "Redirect URI"
+
+#: storageweb/providers/entra/register.py
+msgid "Missing Microsoft Graph permissions added to the application"
+msgstr "Añadidos a la aplicación los permisos de Microsoft Graph que faltaban"
+
+#: storageweb/providers/entra/register.py
+msgid "Permissions"
+msgstr "Permisos"
+
+#: storageweb/providers/entra/register.py
+msgid "Enterprise application (service principal) created"
+msgstr "Creada la aplicación empresarial (service principal)"
+
+#: storageweb/providers/entra/register.py
+msgid "Enterprise application"
+msgstr "Aplicación empresarial"
+
+#: storageweb/providers/entra/register.py
+msgid "Admin consent granted for signing in"
+msgstr "Concedido el consentimiento de administrador para iniciar sesión"
+
+#: storageweb/providers/entra/register.py
+msgid "Admin consent"
+msgstr "Consentimiento de administrador"
+
+#: storageweb/providers/entra/register.py
+msgid "Reading group names (Group.Read.All) granted"
+msgstr "Concedida la lectura de nombres de grupos (Group.Read.All)"
+
+#: storageweb/providers/entra/register.py
+msgid "New client secret created"
+msgstr "Creado un secreto de cliente nuevo"
+
+#: storageweb/providers/entra/register.py storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Client secret"
+msgstr "Secreto de cliente"
 
 #: storageweb/providers/local/__init__.py
 #, python-format
@@ -2046,6 +2158,11 @@ msgstr "Esta sección es solo para administradores."
 #: storageweb/web/js_messages.py
 msgid "Are you sure?"
 msgstr "¿Seguro?"
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "Added: %(name)s"
+msgstr "Añadido: %(name)s"
 
 #: storageweb/web/js_messages.py
 msgid "New name:"
@@ -4107,6 +4224,10 @@ msgid "Allow reading group names"
 msgstr "Permitir leer los nombres de los grupos"
 
 #: storageweb/web/templates/admin/settings/entra_register.html
+msgid "Repair the application in Entra ID"
+msgstr "Reparar la aplicación en Entra ID"
+
+#: storageweb/web/templates/admin/settings/entra_register.html
 msgid "Register StorageWeb in Entra ID"
 msgstr "Registrar StorageWeb en Entra ID"
 
@@ -4125,6 +4246,18 @@ msgid ""
 msgstr ""
 "Inicia sesión con Microsoft y StorageWeb da a la aplicación el permiso Group.Read.All con "
 "consentimiento de administrador, para mostrar nombres de grupos en lugar de Object IDs."
+
+#: storageweb/web/templates/admin/settings/entra_register.html
+msgid ""
+"Sign in with an account that can manage applications (Application Administrator or Global "
+"Administrator). StorageWeb checks the application and fixes what is missing: the redirect URI, "
+"the Microsoft Graph permissions with admin consent, reading group names and, if it failed, the "
+"client secret. What is already right is not touched."
+msgstr ""
+"Inicia sesión con una cuenta que pueda gestionar aplicaciones (Administrador de aplicaciones o "
+"Administrador global). StorageWeb revisa la aplicación y arregla lo que falte: la Redirect URI, "
+"los permisos de Microsoft Graph con consentimiento de administrador, la lectura de nombres de "
+"grupos y, si falló, el secreto de cliente. Lo que ya está bien no se toca."
 
 #: storageweb/web/templates/admin/settings/entra_register.html
 msgid ""
@@ -4345,10 +4478,6 @@ msgstr "Id. de directorio (tenant)"
 msgid "Application (client) ID"
 msgstr "Id. de aplicación (cliente)"
 
-#: storageweb/web/templates/admin/settings/entra_setup.html
-msgid "Client secret"
-msgstr "Secreto de cliente"
-
 #: storageweb/web/templates/admin/settings/auth/_generic.html
 #: storageweb/web/templates/admin/settings/auth/entra.html
 #: storageweb/web/templates/admin/settings/entra_setup.html
@@ -4397,6 +4526,11 @@ msgstr "Limitar a estos grupos (opcional)"
 msgid "Object ID or App Role"
 msgstr "Object ID o App Role"
 
+#: storageweb/web/templates/admin/settings/auth/entra.html
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Add a group by name…"
+msgstr "Añadir un grupo por nombre…"
+
 #: storageweb/web/templates/admin/settings/entra_setup.html
 msgid "Administrators: group or App Role (optional)"
 msgstr "Administradores: grupo o App Role (opcional)"
@@ -4404,6 +4538,11 @@ msgstr "Administradores: grupo o App Role (opcional)"
 #: storageweb/web/templates/admin/settings/entra_setup.html
 msgid "Its members get the administrator role. More mappings can be added later in the settings."
 msgstr "Sus miembros reciben el rol de administrador. Puedes añadir más mapeos después en los ajustes."
+
+#: storageweb/web/templates/admin/settings/auth/entra.html
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Type part of a group name to find its Object ID."
+msgstr "Escribe parte del nombre de un grupo para encontrar su Object ID."
 
 #: storageweb/web/templates/admin/settings/entra_setup.html
 msgid "4. Check and enable"
@@ -4429,6 +4568,44 @@ msgid ""
 msgstr ""
 "Una aplicación o un secreto nuevos pueden tardar un minuto en funcionar en todas partes: si la "
 "comprobación falla, espera y vuelve a probar."
+
+#: storageweb/web/templates/admin/settings/auth/entra.html
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Repair automatically"
+msgstr "Reparar automáticamente"
+
+#: storageweb/web/templates/admin/settings/auth/entra.html
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Repair permissions"
+msgstr "Reparar permisos"
+
+#: storageweb/web/templates/admin/settings/auth/entra.html
+#: storageweb/web/templates/admin/settings/entra_setup.html
+#, python-format
+msgid ""
+"You sign in with Microsoft and StorageWeb fixes what is wrong in the application (redirect URI, "
+"permissions and consent%(secret)s)."
+msgstr ""
+"Inicias sesión con Microsoft y StorageWeb arregla lo que está mal en la aplicación (Redirect URI,"
+" permisos y consentimiento%(secret)s)."
+
+#: storageweb/web/templates/admin/settings/auth/entra.html
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid ", a new secret"
+msgstr ", un secreto nuevo"
+
+#: storageweb/web/templates/admin/settings/auth/entra.html
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid ""
+"Sign in with Microsoft and StorageWeb checks the application and fixes what is missing (redirect "
+"URI, permissions and admin consent). What is already right is not touched."
+msgstr ""
+"Inicias sesión con Microsoft y StorageWeb revisa la aplicación y arregla lo que falte (Redirect "
+"URI, permisos y consentimiento de administrador). Lo que ya está bien no se toca."
+
+#: storageweb/web/templates/admin/settings/entra_setup.html
+msgid "Checking again in a few seconds…"
+msgstr "Se vuelve a comprobar en unos segundos…"
 
 #: storageweb/web/templates/admin/settings/entra_setup.html
 msgid "Fill in the identifiers first (step 2)."
@@ -4970,20 +5147,28 @@ msgid "Test connection"
 msgstr "Probar conexión"
 
 #: storageweb/web/templates/admin/settings/auth/entra.html
-msgid "Renew secret"
-msgstr "Renovar secreto"
+msgid "Entra ID actions"
+msgstr "Acciones de Entra ID"
 
 #: storageweb/web/templates/admin/settings/auth/entra.html
 msgid "Setup assistant"
 msgstr "Asistente"
 
 #: storageweb/web/templates/admin/settings/auth/entra.html
-msgid "The test uses the saved settings: save before testing."
-msgstr "La prueba usa los ajustes guardados: guarda antes de probar."
+msgid "Renew secret"
+msgstr "Renovar secreto"
 
 #: storageweb/web/templates/admin/settings/auth/entra.html
-msgid "Grant group reading"
-msgstr "Conceder lectura de grupos"
+msgid "The application in the Entra admin center (opens in a new tab)"
+msgstr "La aplicación en el Centro de administración de Entra (se abre en una pestaña nueva)"
+
+#: storageweb/web/templates/admin/settings/auth/entra.html
+msgid "Open in Entra ID"
+msgstr "Abrir en Entra ID"
+
+#: storageweb/web/templates/admin/settings/auth/entra.html
+msgid "The test uses the saved settings: save before testing."
+msgstr "La prueba usa los ajustes guardados: guarda antes de probar."
 
 #: storageweb/web/templates/admin/settings/auth/entra.html
 msgid "Connection"
@@ -5506,6 +5691,25 @@ msgstr "No se pudo renovar el secreto: %(error)s"
 #: storageweb/web/views/settings/entra.py
 msgid "New client secret created and saved. The previous one keeps working until it expires."
 msgstr "Secreto de cliente nuevo creado y guardado. El anterior sigue funcionando hasta que caduque."
+
+#: storageweb/web/views/settings/entra.py
+#, python-format
+msgid "The application could not be repaired: %(error)s"
+msgstr "No se ha podido reparar la aplicación: %(error)s"
+
+#: storageweb/web/views/settings/entra.py
+#, python-format
+msgid "Repaired: %(list)s."
+msgstr "Reparado: %(list)s."
+
+#: storageweb/web/views/settings/entra.py
+msgid "Nothing to repair: the application was already correct."
+msgstr "Nada que reparar: la aplicación ya estaba bien."
+
+#: storageweb/web/views/settings/entra.py
+#, python-format
+msgid "Could not repair: %(list)s."
+msgstr "No se ha podido reparar: %(list)s."
 
 #: storageweb/web/views/settings/entra.py
 #, python-format

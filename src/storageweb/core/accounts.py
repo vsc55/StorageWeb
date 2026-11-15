@@ -12,7 +12,9 @@ import re
 from sqlite3 import Connection
 
 from .. import providers
+from ..db.connection import now_iso
 from ..db.repositories import audit, sessions, users
+from ..db.repositories import settings as settings_repo
 from ..i18n import _
 from ..providers import AuthDenied, AuthMethod, Identity
 from ..providers.local import burn_time, hash_password
@@ -121,6 +123,22 @@ def resolve_role(section: dict, groups: list[str] | set[str], current_role: str 
     return current_role
 
 
+def signin_key(method: str) -> str:
+    """Dónde se guardan los permisos concedidos en el último inicio de sesión de un método SSO."""
+    return f"state:signin_scopes:{method}"
+
+
+def last_signin_scopes(conn: Connection, method: str) -> dict | None:
+    """``{"at": iso, "scopes": [...], "source": "signin" | "consent"}`` de lo último que se sabe de los permisos de
+    inicio de sesión de ese método, o None. ``consent``: los dio StorageWeb al registrar o reparar la aplicación;
+    el siguiente inicio de sesión real lo sustituye por lo que concedió de verdad el proveedor."""
+    return settings_repo.get(conn, signin_key(method))
+
+
+def record_signin_scopes(conn: Connection, method: str, scopes: list[str], source: str = "signin") -> None:
+    settings_repo.put(conn, signin_key(method), {"at": now_iso(), "scopes": sorted(scopes), "source": source})
+
+
 def login_sso(conn: Connection, cfg: dict, key: str, identity: Identity, ip: str | None = None):
     """Usuario de un método SSO a partir de la identidad que devuelve su proveedor (creándolo si procede).
 
@@ -162,6 +180,8 @@ def login_sso(conn: Connection, cfg: dict, key: str, identity: Identity, ip: str
         fields["role"] = role
         audit.log(conn, "role_changed", username=username, ip=ip, detail=f"{user['role']}->{role} ({key})")
     users.touch_login(conn, user["id"], **fields)
+    if identity.granted_scopes is not None:
+        record_signin_scopes(conn, key, identity.granted_scopes)
     group_core.sync_external(conn, user["id"], key, groups)
     return users.get_by_id(conn, user["id"])
 

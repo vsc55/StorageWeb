@@ -3,6 +3,9 @@
       data-confirm="{{ _('Create a new client secret? You will sign in with Microsoft to authorize it; the current one keeps working until it expires.') }}">
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
 </form>
+<form id="entra-repair-form" method="post" action="{{ url_for('settings.entra_repair') }}" hidden>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+</form>
 <form id="entra-groups-form" method="post" action="{{ url_for('settings.entra_grant_groups') }}" hidden>
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
 </form>

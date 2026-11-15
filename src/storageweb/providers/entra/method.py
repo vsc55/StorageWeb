@@ -12,6 +12,7 @@ from ...settings.fields import Field
 from ..base import AuthDenied, AuthMethod, GroupDirectory, Identity, LoginButton, Notice
 from . import directory
 from .common import MULTI_TENANT
+from .oauth2 import GRANTED_KEY
 from .sso import SSO_PROVIDERS, get_sso_provider
 
 SECRET_WARN_DAYS = 30
@@ -173,6 +174,15 @@ def secret_days(section: dict) -> int | None:
     return (datetime.fromisoformat(section["secret_expires"]) - datetime.now(timezone.utc)).days
 
 
+def granted_scopes(value) -> list[str] | None:
+    """El ``scope`` de la respuesta del token («openid profile https://graph.microsoft.com/User.Read»,
+    o una lista) → nombres cortos; None si el proveedor no lo dice."""
+    if value is None or value == "":
+        return None
+    items = value.split() if isinstance(value, str) else list(value)
+    return sorted({str(s).rsplit("/", 1)[-1] for s in items if s})
+
+
 def identity_from_claims(section: dict, claims: dict) -> Identity:
     """Claims del id_token ya validados → :class:`Identity`. :class:`AuthDenied` si no puede entrar."""
     tenant = (section.get("tenant_id") or "").lower()
@@ -189,7 +199,8 @@ def identity_from_claims(section: dict, claims: dict) -> Identity:
     if allowed and not allowed.intersection(groups):
         raise AuthDenied(_("Your account is not allowed to access this application."), "group")
     return Identity(username=username, external_id=oid, display_name=claims.get("name"),
-                    email=claims.get("email") or raw_username, groups=groups)
+                    email=claims.get("email") or raw_username, groups=groups,
+                    granted_scopes=granted_scopes(claims.get(GRANTED_KEY)))
 
 
 class EntraMethod(AuthMethod):

@@ -17,7 +17,7 @@ def admin_client(app):
 def check_ok(monkeypatch):
     calls = []
 
-    def fake(ecfg, redirect_uri):
+    def fake(ecfg, redirect_uri, secret_is_new=False, **_kw):
         calls.append((ecfg["tenant_id"], redirect_uri))
         return [{"key": "metadata", "ok": True, "message": "El tenant existe."},
                 {"key": "redirect", "ok": False, "message": "La Redirect URI no está registrada."}]
@@ -80,3 +80,26 @@ def test_settings_require_admin(logged):
     for url in ("/admin/settings/general", "/admin/settings/entra/setup"):
         assert client.get(url).status_code == 403
     assert client.post("/admin/settings/entra/test", data={"_csrf": token}).status_code == 403
+
+
+def test_new_secret_is_rechecked_automatically(app, admin_client, monkeypatch):
+    """Tras guardar un secreto nuevo, el paso 4 lo comprueba diciendo que es nuevo; si Microsoft todavía no lo
+    acepta, la página lo dice y vuelve a comprobarlo sola (no lo marca como erróneo)."""
+    seen = []
+
+    def fake(ecfg, redirect_uri, secret_is_new=False, **_kw):
+        seen.append(secret_is_new)
+        return [{"key": "metadata", "ok": True, "message": "El tenant existe."},
+                {"key": "secret", "ok": None, "message": "Activándose.", "pending": True}]
+    monkeypatch.setattr(entra_check, "check", fake)
+    client, token = admin_client
+    client.post("/admin/settings/entra/setup", data={
+        "_csrf": token, "step": "2", "entra_tenant_id": "t1", "entra_client_id": "c1",
+        "entra_client_secret": "secreto-nuevo", "entra_redirect_uri": "https://files.example.com/auth/entra/callback"})
+    html = client.get("/admin/settings/entra/setup?step=4").get_data(as_text=True)
+    assert seen[-1] is True
+    assert 'id="entra-recheck"' in html and "js/admin/entra.js" in html and 'class="pending"' in html
+    with client.session_transaction() as sess:  # pasado el margen, ya no se considera nuevo
+        sess["entra_secret_at"] = 0
+    client.get("/admin/settings/entra/setup?step=4")
+    assert seen[-1] is False

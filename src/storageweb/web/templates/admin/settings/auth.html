@@ -17,3 +17,4 @@
 {% include "admin/settings/auth/" ~ m.key ~ "_forms.html" ignore missing %}
 {% endfor %}
 {% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/directory.js') }}"></script>{% endblock %}

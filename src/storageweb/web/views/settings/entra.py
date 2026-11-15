@@ -1,21 +1,23 @@
 """Entra ID: probar la conexión, asistente y registro de la aplicación con código de dispositivo."""
 from __future__ import annotations
 
+import re
 import secrets
 import threading
 import time
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
-from flask import abort, flash, g, jsonify, redirect, render_template, request, session, url_for
+from flask import abort, current_app, flash, g, jsonify, redirect, render_template, request, session, url_for
 
+from ....core import accounts
 from ....core.network import LOOPBACK
 from ....core.permissions import ROLE_LABELS
 from ....i18n import _, _l
 from ....providers.entra import check as entra_check
 from ....providers.entra import register as entra_register
 from ....settings import ROLES
-from ...context import external_url, runtime, settings
+from ...context import external_url, get_db, runtime, settings
 from ...guards import admin_required, audit_event, safe_next
 from ... import search
 from . import bp
@@ -40,7 +42,22 @@ def entra_connection() -> dict:
             "redirect_uri": f.get("entra_redirect_uri", "").strip()}
     if f.get("entra_client_secret", "").strip():  # vacío = conservar el actual
         data["client_secret"] = f["entra_client_secret"].strip()
+        mark_new_secret()
     return data
+
+
+# Un secreto recién creado tarda en valer en todos los servidores de Microsoft (a veces un minuto): durante este
+# tiempo, que lo rechace no se da como error sino como «activándose», y el asistente vuelve a comprobarlo solo.
+SECRET_SETTLE_SECONDS = 180
+
+
+def mark_new_secret() -> None:
+    session["entra_secret_at"] = time.time()
+
+
+def secret_is_new() -> bool:
+    at = session.get("entra_secret_at")
+    return isinstance(at, (int, float)) and 0 <= time.time() - at < SECRET_SETTLE_SECONDS
 
 
 # --------------------------------------------------------------------------- tarjeta de la página «Inicio de sesión»
@@ -98,6 +115,19 @@ def _form(method) -> dict:
     }
 
 
+GUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
+
+
+def group_lookup(*ids) -> dict:
+    """Para los campos de grupos de Entra ID: la URL del buscador por nombre ("" si la aplicación no puede leer el
+    directorio) y los nombres de los Object IDs dados (``{id en minúsculas: nombre}``; los que no se sepan, no)."""
+    from ..groups import _directories, directory_names  # noqa: PLC0415 (vista hermana; evita un import circular)
+    search = next((url_for("groups.directory_search", method=m.key)
+                   for m, d in _directories("entra") if d.configured()), "")
+    wanted = sorted({str(i).lower() for i in ids if i and GUID_RE.match(str(i))})
+    return {"group_search": search, "group_names": directory_names(wanted, only="entra") if wanted else {}}
+
+
 @auth_forms.page_context("entra")
 def _card(cfg: dict) -> dict:
     ecfg = cfg["auth"]["entra"]
@@ -105,7 +135,11 @@ def _card(cfg: dict) -> dict:
     return {"providers": list(SSO_PROVIDERS), "secret_set": bool(settings()["auth"]["entra"].get("client_secret")),
             "secret_days": entra_method.secret_days(ecfg) if ecfg.get("secret_expires") else None,
             "entra_check": check, "entra_check_ok": entra_check.summary(check["results"]) if check else None,
-            "redirect_default": redirect_uri(ecfg)}
+            "entra_repairable": entra_check.repairs(check["results"]) if check else None,
+            "entra_portal": entra_register.portal_url(ecfg["client_id"])
+            if ecfg.get("client_id") and not any(ecfg.get(k) for k in ("authorize_url", "token_url", "issuer")) else "",
+            "redirect_default": redirect_uri(ecfg),
+            **group_lookup(*ecfg.get("role_mappings", {}).keys(), *ecfg.get("allowed_groups", []))}
 
 
 # --------------------------------------------------------------------------- Entra ID: prueba y asistente
@@ -113,7 +147,8 @@ def _card(cfg: dict) -> dict:
 def _run_check() -> dict:
     ecfg = settings()["auth"]["entra"]
     result = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-              "results": entra_check.check(ecfg, redirect_uri(ecfg))}
+              "results": entra_check.check(ecfg, redirect_uri(ecfg), secret_is_new=secret_is_new(),
+                                           last_signin=accounts.last_signin_scopes(get_db(), "entra"))}
     session["entra_check"] = result
     return result
 
@@ -164,12 +199,16 @@ def entra_setup():
     if step == 4 and request.method == "GET" and ecfg.get("tenant_id") and ecfg.get("client_id"):
         check = _run_check()
     registered = session.pop("entra_registered", None) if step == 4 else None
+    pending = bool(check) and any(r.get("pending") for r in check["results"])
+    repairable = entra_check.repairs(check["results"]) if check else None
+    admin_group = next((k for k, v in ecfg["role_mappings"].items() if v == "admin"), "")
+    lookup = group_lookup(admin_group, *ecfg["allowed_groups"]) if step == 3 else {"group_search": "", "group_names": {}}
     return render_template("admin/settings/entra_setup.html", step=step, steps=WIZARD_STEPS, en=ecfg,
-                           registered=registered,
+                           registered=registered, check_pending=pending, repairable=repairable,
                            redirect_uri=redirect_uri(ecfg), error=error, error_field=error.field if error else None,
                            check=check, check_ok=entra_check.summary(check["results"]) if check else None,
                            secret_set=bool(ecfg.get("client_secret")), ROLES=ROLES, ROLE_LABELS=ROLE_LABELS,
-                           admin_group=next((k for k, v in ecfg["role_mappings"].items() if v == "admin"), "")), \
+                           admin_group=admin_group, **lookup), \
         400 if error else 200
 
 
@@ -229,14 +268,16 @@ def entra_register_page():
 
 FLOW_WRITES = {"register": ("auth.entra.tenant_id", "auth.entra.client_id", "auth.entra.client_secret",
                             "auth.entra.secret_expires", "auth.entra.redirect_uri"),
-               "rotate": ("auth.entra.client_secret", "auth.entra.secret_expires")}
+               "rotate": ("auth.entra.client_secret", "auth.entra.secret_expires"),
+               "repair": ("auth.entra.client_secret", "auth.entra.secret_expires")}  # solo si crea secreto
 
 
 def _start_flow(kind: str, options: dict):
-    """Pide un código de dispositivo y aparca el flujo (``register``, ``rotate`` o ``grant_groups``)."""
+    """Pide un código de dispositivo y aparca el flujo (``register``, ``rotate``, ``grant_groups`` o ``repair``)."""
     back = url_for("settings.section", name="auth") if kind != "register" else url_for("settings.entra_register_page")
     # No se empieza si el resultado no se va a poder guardar (campos fijados en config.json o el entorno)
-    for path in FLOW_WRITES.get(kind, ()):
+    writes = () if kind == "repair" and not options.get("new_secret") else FLOW_WRITES.get(kind, ())
+    for path in writes:
         if runtime().lock_of(path):
             flash(runtime().lock_message(path), "error")
             return redirect(back)
@@ -271,6 +312,19 @@ def entra_rotate():
     return _start_flow("rotate", {"client_id": _existing_client_id()})
 
 
+@bp.route("/entra/repair", methods=["POST"])
+@admin_required
+def entra_repair():
+    """«Reparar automáticamente»: tras iniciar sesión con Microsoft, arregla lo que la comprobación encontró mal
+    (Redirect URI, permisos y consentimiento, lectura de grupos y, si hace falta, un secreto nuevo)."""
+    check = session.get("entra_check")
+    needs = entra_check.repairs(check["results"]) if check else None
+    ecfg = settings()["auth"]["entra"]
+    return _start_flow("repair", {"client_id": _existing_client_id(), "redirect_uri": redirect_uri(ecfg),
+                                  "new_secret": bool(needs and needs["new_secret"]),
+                                  "back": "wizard" if request.form.get("back") == "wizard" else "auth"})
+
+
 @bp.route("/entra/grant-groups", methods=["POST"])
 @admin_required
 def entra_grant_groups():
@@ -297,6 +351,8 @@ def entra_register_poll():
 
     def answer(status: str, message: str = "", target: str | None = None, interval: int | None = None):
         if wants_json:
+            if status == "complete" and message:
+                flash(message, "info")  # el JavaScript va a ``target``: el resumen sale allí como aviso
             return jsonify(status=status, message=message, redirect=target, interval=interval)
         if message:
             flash(message, "info" if status in ("pending", "complete") else "error")
@@ -336,9 +392,34 @@ def entra_register_poll():
         if save_error:
             return answer("error", str(save_error))
         session.pop("entra_check", None)
+        mark_new_secret()
         audit_event("entra_secret_rotated", options["client_id"], result["secret_expires"])
         return answer("complete", _("New client secret created and saved. The previous one keeps working until it "
                                     "expires."), url_for("settings.section", name="auth"))
+    if kind == "repair":
+        try:
+            result = entra_register.repair_app(token, options["client_id"], redirect_uri=options["redirect_uri"],
+                                               new_secret=options["new_secret"])
+        except entra_register.RegisterError as exc:
+            audit_event("entra_app_register_failed", options["client_id"], f"repair:{exc}"[:200])
+            return answer("error", _("The application could not be repaired: %(error)s", error=exc))
+        if result.get("client_secret"):
+            _draft, save_error = save_partial(lambda: {"auth": {"entra": {
+                "client_secret": result["client_secret"], "secret_expires": result["secret_expires"]}}}, strict=True)
+            if save_error:
+                return answer("error", str(save_error))
+            mark_new_secret()
+        if result.get("signin_consent"):
+            accounts.record_signin_scopes(get_db(), "entra", result["signin_consent"], source="consent")
+        audit_event("entra_app_repaired", options["client_id"], "; ".join(result["fixed"])[:200] or "-")
+        message = (_("Repaired: %(list)s.", list="; ".join(result["fixed"])) if result["fixed"]
+                   else _("Nothing to repair: the application was already correct."))
+        if result["warnings"]:
+            message += " " + _("Could not repair: %(list)s.", list="; ".join(result["warnings"]))
+        _run_check()  # el resultado, ya con lo arreglado (un secreto nuevo sale como «activándose»)
+        target = url_for("settings.entra_setup", step=4) if options.get("back") == "wizard" \
+            else url_for("settings.section", name="auth")
+        return answer("complete", message, target)
     if kind == "grant_groups":
         try:
             entra_register.grant_group_read(token, options["client_id"])
@@ -355,6 +436,10 @@ def entra_register_poll():
     except entra_register.RegisterError as exc:
         audit_event("entra_app_register_failed", None, str(exc)[:200])
         return answer("error", _("The application could not be registered: %(error)s", error=exc))
+    except Exception as exc:  # noqa: BLE001 — nunca un 500 a mitad del registro: que se vea qué pasó
+        current_app.logger.exception("Entra ID registration failed")
+        audit_event("entra_app_register_failed", None, repr(exc)[:200])
+        return answer("error", _("The application could not be registered: %(error)s", error=exc))
 
     def _entra_fields():
         mappings = dict(settings()["auth"]["entra"]["role_mappings"])
@@ -367,6 +452,9 @@ def entra_register_poll():
     if save_error:
         return answer("error", _("The application was created in Entra ID (%(client)s) but the settings could not "
                                  "be saved: %(error)s", client=result["client_id"], error=save_error))
+    mark_new_secret()
+    if result.get("signin_consent"):
+        accounts.record_signin_scopes(get_db(), "entra", result["signin_consent"], source="consent")
     audit_event("entra_app_registered", result["client_id"], result["tenant_id"])
     session["entra_registered"] = {"client_id": result["client_id"], "portal_url": result["portal_url"],
                                    "secret_expires": result["secret_expires"], "warnings": result["warnings"]}

@@ -192,9 +192,93 @@ def test_grant_groups_and_group_names(entra_admin, monkeypatch):
 
 def test_check_shows_grant_button_when_groups_missing(entra_admin, monkeypatch):
     _app, client, token = entra_admin
-    monkeypatch.setattr(entra_check, "check", lambda ecfg, uri: [
-        {"key": "secret", "ok": True, "message": "ok"}, {"key": "groups", "ok": False, "message": "sin permiso"}])
+    monkeypatch.setattr(entra_check, "check", lambda ecfg, uri, secret_is_new=False, **_kw: [
+        {"key": "secret", "ok": True, "message": "ok"},
+        {"key": "groups", "ok": False, "message": "sin permiso", "fixable": True}])
     client.post("/admin/settings/entra/test", data={"_csrf": token})
     html = client.get("/admin/settings/auth").get_data(as_text=True)
-    assert "Conceder lectura de grupos" in html
+    assert "Reparar automáticamente" in html and 'form="entra-repair-form"' in html
     assert PASSWORD
+
+
+def test_entra_settings_show_group_names_and_search(make_app, monkeypatch):
+    """Ajustes de Entra ID: junto a cada Object ID de las asociaciones y de los grupos permitidos se ve el nombre
+    del grupo, y las casillas llevan el buscador por nombre (también en el paso 3 del asistente)."""
+    gid, other = "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"
+    app = make_app({"auth": {"entra": {"tenant_id": "t1", "client_id": "c1", "client_secret": "s",
+                                       "role_mappings": {gid: "admin", "StorageWeb.User": "user"},
+                                       "allowed_groups": [gid, other]}}})
+    add_user(app, "root", role="admin")
+    client = app.test_client()
+    login(client, "root")
+    asked = []
+
+    def names(ecfg, ids):
+        asked.append(sorted(ids))
+        return {gid: "Sistemas"} if gid in ids else {}
+    monkeypatch.setattr(entra_directory, "names_for", names)
+    html = client.get("/admin/settings/auth").get_data(as_text=True)
+    assert '<small class="muted group-name">Sistemas</small>' in html
+    assert "Sistemas · " + other in html                   # grupos permitidos: nombre o, si no se sabe, el id
+    assert 'data-group-search="/admin/groups/directory/entra/search"' in html
+    assert 'data-group-append="entra_allowed_groups"' in html and "js/admin/directory.js" in html
+    assert asked and asked[-1] == sorted([gid, other])      # solo los Object IDs, no los App Roles
+    html = client.get("/admin/settings/entra/setup?step=3").get_data(as_text=True)
+    assert 'data-group-append="allowed_groups"' in html and "Sistemas" in html
+
+
+def test_entra_settings_without_directory_keep_plain_ids(make_app):
+    app = make_app({"auth": {"entra": {"tenant_id": "", "client_id": "", "client_secret": "",  # sin directorio
+                                       "role_mappings": {"StorageWeb.Admin": "admin"}}}})
+    add_user(app, "root", role="admin")
+    client = app.test_client()
+    login(client, "root")
+    html = client.get("/admin/settings/auth").get_data(as_text=True)
+    assert "data-group-search=" not in html and 'value="storageweb.admin"' in html.lower()
+
+
+
+def test_repair_flow_fixes_and_saves_a_new_secret(entra_admin, monkeypatch):
+    """«Reparar automáticamente»: con el secreto mal, inicia sesión con Microsoft, arregla y guarda el secreto nuevo."""
+    from storageweb.web.context import settings
+
+    app, client, token = entra_admin
+    results = [{"key": "metadata", "ok": True, "message": "ok"},
+               {"key": "redirect", "ok": False, "message": "no registrada", "fixable": True},
+               {"key": "secret", "ok": False, "message": "no válido", "fixable": True}]
+    monkeypatch.setattr(entra_check, "check", lambda ecfg, uri, secret_is_new=False, **_kw: results)
+    client.post("/admin/settings/entra/test", data={"_csrf": token})
+    calls = []
+
+    def repair(tok, client_id, *, redirect_uri, new_secret):
+        calls.append((client_id, redirect_uri, new_secret))
+        return {"fixed": ["Redirect URI añadida", "Secreto nuevo"], "warnings": [],
+                "signin_consent": ["openid", "profile", "email", "User.Read"],
+                "client_secret": "nuevo-secreto", "secret_expires": "2028-11-15T00:00:00+00:00"}
+    monkeypatch.setattr(entra_register, "repair_app", repair)
+    resp = client.post("/admin/settings/entra/repair", data={"_csrf": token})
+    assert resp.status_code == 302 and "/entra/register" in resp.location
+    assert "Reparar la aplicación en Entra ID" in client.get(resp.location).get_data(as_text=True)
+    resp = client.post("/admin/settings/entra/register/poll", data={"_csrf": token},
+                       headers={"Accept": "application/json"})
+    data = resp.get_json()
+    assert data["status"] == "complete" and "Reparado" in data["message"]
+    assert calls == [("c1", "http://localhost/auth/entra/callback", True)]
+    with app.app_context():
+        assert settings()["auth"]["entra"]["client_secret"] == "nuevo-secreto"
+        from storageweb.core import accounts
+        assert accounts.last_signin_scopes(get_db(), "entra")["source"] == "consent"
+    html = client.get(data["redirect"]).get_data(as_text=True)
+    assert "Reparado" in html                                          # el resumen llega como aviso
+    assert "entra_app_repaired" in client.get("/admin/audit").get_data(as_text=True)
+
+
+def test_no_repair_button_when_nothing_can_be_fixed(entra_admin, monkeypatch):
+    _app, client, token = entra_admin
+    monkeypatch.setattr(entra_check, "check", lambda ecfg, uri, secret_is_new=False, **_kw: [
+        {"key": "metadata", "ok": False, "message": "el tenant no existe"}])
+    client.post("/admin/settings/entra/test", data={"_csrf": token})
+    html = client.get("/admin/settings/auth").get_data(as_text=True)
+    assert "Reparar automáticamente" not in html
+    assert "Reparar permisos" in html and 'form="entra-repair-form"' in html  # siempre a mano con una aplicación
+    assert "https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Overview/appId/c1" in html

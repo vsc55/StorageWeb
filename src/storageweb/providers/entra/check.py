@@ -15,7 +15,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from ...i18n import _
+from ...i18n import _, _l, format_datetime
 from . import oauth2
 from .common import MS_LOGIN, endpoints
 
@@ -46,7 +46,41 @@ def _uses_microsoft(ecfg: dict) -> bool:
     return not any(ecfg.get(k) for k in ("authorize_url", "token_url", "issuer"))
 
 
-def check(ecfg: dict, redirect_uri: str) -> list[dict]:
+# Permisos de aplicación (sin usuario) que usa StorageWeb y para qué
+APP_PERMISSIONS = {"Group.Read.All": _l("to show group names instead of Object IDs")}
+
+
+def _app_roles(access_token: str) -> set[str]:
+    """Permisos de aplicación concedidos (con consentimiento de administrador): el claim ``roles`` del token."""
+    try:
+        return set(oauth2.decode_jwt_claims(access_token).get("roles") or [])
+    except Exception:  # noqa: BLE001 (un token raro no debe romper la comprobación)
+        return set()
+
+
+def _signin_scopes(ecfg: dict, last_signin: dict | None) -> dict:
+    """Los permisos de inicio de sesión (delegados) solo se ven cuando alguien entra: se comparan con los que
+    Microsoft concedió en el último inicio de sesión (``core.accounts.last_signin_scopes``)."""
+    wanted = [s for s in oauth2.scopes_for(ecfg) if s != "offline_access"]
+    if not last_signin or not isinstance(last_signin.get("scopes"), list):
+        return {**_result("signin_scopes", None, _("Sign-in permissions (%(scopes)s): they are checked when someone "
+                                                   "signs in with Microsoft.", scopes=", ".join(wanted))), "info": True}
+    granted = {str(s).lower() for s in last_signin["scopes"]}
+    missing = [s for s in wanted if s.lower() not in granted]
+    when = format_datetime(last_signin.get("at") or "")
+    if not missing and last_signin.get("source") == "consent":
+        return _result("signin_scopes", True, _("Sign-in permissions with admin consent (%(scopes)s), given when "
+                                                "StorageWeb registered or repaired the application (%(when)s).",
+                                                scopes=", ".join(wanted), when=when))
+    if not missing:
+        return _result("signin_scopes", True, _("Sign-in permissions granted (%(scopes)s), according to the last "
+                                                "sign-in (%(when)s).", scopes=", ".join(wanted), when=when))
+    return {**_result("signin_scopes", False, _("Sign-in permissions missing: %(missing)s (last sign-in: "
+                                                 "%(when)s). They need admin consent.",
+                                                 missing=", ".join(missing), when=when)), "fixable": True}
+
+
+def check(ecfg: dict, redirect_uri: str, secret_is_new: bool = False, last_signin: dict | None = None) -> list[dict]:
     """Devuelve una lista de resultados ``{key, ok (True/False/None), message}``."""
     timeout = float(ecfg.get("timeout_seconds") or 10)
     eps = endpoints(ecfg)
@@ -89,8 +123,9 @@ def check(ecfg: dict, redirect_uri: str) -> list[dict]:
         results.append(_result("client", False, _("The Client ID does not exist in this tenant.")))
     elif "AADSTS50011" in body:
         results.append(_result("client", True, _("The application exists in the tenant.")))
-        results.append(_result("redirect", False, _("The redirect URI %(uri)s is not registered in the application "
-                                                    "(Authentication → Web).", uri=redirect_uri)))
+        results.append({**_result("redirect", False, _("The redirect URI %(uri)s is not registered in the "
+                                                       "application (Authentication → Web).", uri=redirect_uri)),
+                        "fixable": True})
     else:
         results.append(_result("redirect", None, _("The redirect URI could not be checked (HTTP %(status)s).",
                                                    status=status)))
@@ -111,23 +146,58 @@ def check(ecfg: dict, redirect_uri: str) -> list[dict]:
     if token.get("access_token"):
         results.append(_result("secret", True, _("The client secret is valid.")))
         from .directory import can_read_groups  # noqa: PLC0415 (evita un import circular)
-        ok, detail = can_read_groups(token["access_token"])
-        results.append(_result("groups", ok, _("The application can read group names (Group.Read.All).") if ok
-                               else _("The application cannot read group names: %(error)s. Use «Grant group "
-                                      "reading» to see names instead of Object IDs.", error=detail)))
+        roles = _app_roles(token["access_token"])
+        # 4. permisos de aplicación: cada uno que usa StorageWeb, y si funciona de verdad
+        for perm, purpose in APP_PERMISSIONS.items():
+            if perm not in roles:
+                results.append({**_result("groups" if perm == "Group.Read.All" else perm, False,
+                                          _("Application permission %(perm)s is not granted with admin consent "
+                                            "(%(purpose)s).", perm=perm, purpose=purpose)), "fixable": True})
+                continue
+            ok, detail = can_read_groups(token["access_token"]) if perm == "Group.Read.All" else (True, "")
+            results.append({**_result("groups" if perm == "Group.Read.All" else perm, ok,
+                                      _("Application permission %(perm)s granted (%(purpose)s).", perm=perm,
+                                        purpose=purpose) if ok
+                                      else _("Application permission %(perm)s is granted but does not work yet: "
+                                             "%(error)s", perm=perm, error=detail)), "fixable": not ok})
+        extra = sorted(roles - set(APP_PERMISSIONS))
+        if extra:
+            results.append({**_result("extra_permissions", None, _(
+                "The application also has application permissions that StorageWeb does not use: %(perms)s. Remove "
+                "them in the Entra admin center if nothing else needs them (least privilege).",
+                perms=", ".join(extra))), "info": True})
     elif "AADSTS7000222" in description:
-        results.append(_result("secret", False, _("The client secret has expired: create a new one.")))
+        results.append({**_result("secret", False, _("The client secret has expired: create a new one.")),
+                        "fixable": True})
+    elif "AADSTS7000215" in description and secret_is_new:
+        # Un secreto recién creado tarda en valer en todos los servidores de Microsoft: no es un error todavía
+        results.append({**_result("secret", None, _("Microsoft is still activating the new client secret (it can "
+                                                    "take a minute). It is checked again automatically.")),
+                        "pending": True})
     elif "AADSTS7000215" in description:
-        results.append(_result("secret", False, _("The client secret is not valid (copy the value, not the ID).")))
+        results.append({**_result("secret", False, _("The client secret is not valid (copy the value, not the ID).")),
+                        "fixable": True})
     else:
         results.append(_result("secret", False, _("The token endpoint answered: %(error)s",
                                                   error=(description.splitlines() or [token.get("error", "?")])[0])))
+    # 5. permisos de inicio de sesión (delegados), según el último inicio de sesión
+    results.append(_signin_scopes(ecfg, last_signin))
     return results
 
 
+def repairs(results: list[dict]) -> dict | None:
+    """Lo que «Reparar automáticamente» puede arreglar de los fallos encontrados (``None`` si nada):
+    ``{"new_secret": bool}`` (el resto se revisa y arregla siempre)."""
+    fixable = [r for r in results if r.get("ok") is False and r.get("fixable")]
+    if not fixable:
+        return None
+    return {"new_secret": any(r["key"] == "secret" for r in fixable)}
+
+
 def summary(results: list[dict]) -> bool | None:
-    """True si todo bien, False si algo falla, None si quedó algo sin comprobar."""
+    """True si todo bien, False si algo falla, None si quedó algo sin comprobar (los avisos informativos, como
+    los permisos de más o los de inicio de sesión que aún no se han podido ver, no cuentan)."""
     if any(r["ok"] is False for r in results):
         return False
-    return True if all(r["ok"] for r in results) else None
+    return True if all(r["ok"] for r in results if not r.get("info")) else None
 

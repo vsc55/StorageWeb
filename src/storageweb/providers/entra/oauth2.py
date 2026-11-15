@@ -33,6 +33,9 @@ def _b64url_decode(value: str) -> bytes:
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
 
+GRANTED_KEY = "_storageweb_granted_scopes"
+
+
 def scopes_for(ecfg: dict) -> list[str]:
     out = list(BASE_SCOPES)
     for scope in ecfg.get("scopes", []):
@@ -167,4 +170,5 @@ class OAuth2Provider(EntraProvider):
         id_token = token.get("id_token")
         if not id_token:
             raise SSOError("missing_id_token", "El proveedor no devolvió id_token (¿falta el scope openid?)")
-        return validate_id_token(id_token, self.cfg, flow["nonce"])
+        claims = validate_id_token(id_token, self.cfg, flow["nonce"])
+        return {**claims, GRANTED_KEY: token.get("scope")}  # los permisos concedidos (no es un claim del token)

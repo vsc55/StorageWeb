@@ -68,9 +68,17 @@
       </fieldset>
       <label>{{ _("Default role") }}
         <select name="default_role">{% for r in ROLES %}<option value="{{ r }}" {% if en.default_role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></label>
-      <label>{{ _("Limit to these groups (optional)") }}<input type="text" name="allowed_groups" value="{{ en.allowed_groups | join(', ') }}" placeholder="{{ _('Object ID or App Role') }}"></label>
-      <label class="span2">{{ _("Administrators: group or App Role (optional)") }}<input type="text" name="admin_group" value="{{ admin_group }}" class="mono" placeholder="StorageWeb.Admin">
-        <small class="muted">{{ _("Its members get the administrator role. More mappings can be added later in the settings.") }}</small></label>
+      <div class="field-stack">
+        <label>{{ _("Limit to these groups (optional)") }}<input type="text" name="allowed_groups" value="{{ en.allowed_groups | join(', ') }}" placeholder="{{ _('Object ID or App Role') }}"></label>
+        {% if en.allowed_groups and group_names %}<small class="muted">{% for g in en.allowed_groups %}{{ group_names.get(g|lower) or g }}{% if not loop.last %} · {% endif %}{% endfor %}</small>{% endif %}
+        {% if group_search %}<input type="text" list="entra-groups" data-group-search="{{ group_search }}" data-group-append="allowed_groups" autocomplete="off" placeholder="{{ _('Add a group by name…') }}" aria-label="{{ _('Add a group by name…') }}"><small class="muted group-name"></small>{% endif %}
+      </div>
+      <div class="span2 field-stack">
+        <label>{{ _("Administrators: group or App Role (optional)") }}<input type="text" name="admin_group" value="{{ admin_group }}" class="mono" placeholder="StorageWeb.Admin" list="entra-groups" autocomplete="off"{% if group_search %} data-group-search="{{ group_search }}"{% endif %}></label>
+        <small class="muted group-name">{{ group_names.get(admin_group|lower, '') }}</small>
+        <small class="muted">{{ _("Its members get the administrator role. More mappings can be added later in the settings.") }}{% if group_search %} {{ _("Type part of a group name to find its Object ID.") }}{% endif %}</small>
+      </div>
+      <datalist id="entra-groups"></datalist>
       <div class="span2 form-actions">
         <a class="btn" href="{{ url_for('settings.entra_setup', step=2) }}">{{ _("Previous") }}</a>
         <button class="btn btn-primary" type="submit">{{ _("Save and continue") }}</button>
@@ -90,10 +98,21 @@
     {% if check %}
     <ul class="check-list">
       {% for r in check.results %}
-      <li class="{{ 'ok' if r.ok else ('fail' if r.ok is sameas false else 'unknown') }}">
-        <span aria-hidden="true">{{ '✓' if r.ok else ('✕' if r.ok is sameas false else '–') }}</span><span>{{ r.message }}</span></li>
+      <li class="{{ 'ok' if r.ok else ('fail' if r.ok is sameas false else ('pending' if r.pending else 'unknown')) }}">
+        <span aria-hidden="true">{{ '✓' if r.ok else ('✕' if r.ok is sameas false else ('…' if r.pending else '–')) }}</span><span>{{ r.message }}</span></li>
       {% endfor %}
     </ul>
+    {% if repairable or (check and en.client_id) %}
+    <form method="post" action="{{ url_for('settings.entra_repair') }}" class="repair-box">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="back" value="wizard">
+      <button class="btn btn-small{% if repairable %} btn-primary{% endif %}" type="submit">{{ _("Repair automatically") if repairable else _("Repair permissions") }}</button>
+      <span class="muted small">{% if repairable %}{{ _("You sign in with Microsoft and StorageWeb fixes what is wrong in the application (redirect URI, permissions and consent%(secret)s).", secret=_(", a new secret") if repairable.new_secret else "") }}{% else %}{{ _("Sign in with Microsoft and StorageWeb checks the application and fixes what is missing (redirect URI, permissions and admin consent). What is already right is not touched.") }}{% endif %}</span>
+    </form>
+    {% endif %}
+    {% if check_pending %}
+    <p class="muted small" id="entra-recheck" data-recheck="8" role="status">{{ _("Checking again in a few seconds…") }}</p>
+    {% endif %}
     {% else %}
     <p class="muted">{{ _("Fill in the identifiers first (step 2).") }}</p>
     {% endif %}
@@ -111,3 +130,4 @@
   </div>
 </div>
 {% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/entra.js') }}"></script><script src="{{ url_for('static', filename='js/admin/directory.js') }}"></script>{% endblock %}

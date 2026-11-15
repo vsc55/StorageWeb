@@ -70,7 +70,7 @@ def test_register_flow_end_to_end(admin_client, microsoft):
     # el paso 4 del asistente muestra lo creado y sus avisos (y luego ya no)
     from storageweb.providers.entra import check as entra_check
     entra_check_check = entra_check.check
-    entra_check.check = lambda ecfg, uri: [{"key": "metadata", "ok": True, "message": "ok"}]
+    entra_check.check = lambda ecfg, uri, secret_is_new=False, **_kw: [{"key": "metadata", "ok": True, "message": "ok"}]
     try:
         html = client.get(data["redirect"]).get_data(as_text=True)
         assert "client-1" in html and "Aviso de prueba" in html
