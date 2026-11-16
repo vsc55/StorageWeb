@@ -29,7 +29,8 @@ ARG VERSION=""
 ARG EXTRAS
 LABEL org.opencontainers.image.title="StorageWeb" \
       org.opencontainers.image.description="Servidor web para subir y descargar archivos (usuarios locales y Microsoft Entra ID)" \
-      org.opencontainers.image.version="${VERSION}"
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.licenses="GPL-3.0-or-later"
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

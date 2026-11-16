@@ -148,11 +148,10 @@ jobs:
         run: |
           emerge-webrsync -q
           mkdir -p /var/db/repos /etc/portage/repos.conf /etc/portage/package.accept_keywords \
-                   /etc/portage/package.license /var/cache/distfiles
+                   /var/cache/distfiles
           tar -xzf "dist/storageweb-gentoo-overlay-$V.tar.gz" -C /var/db/repos
           printf '[storageweb]\nlocation = /var/db/repos/storageweb-overlay\n' > /etc/portage/repos.conf/storageweb.conf
           echo 'www-apps/storageweb ~amd64' > /etc/portage/package.accept_keywords/storageweb
-          echo 'www-apps/storageweb all-rights-reserved' > /etc/portage/package.license/storageweb
           cp "dist/storageweb-$V.tar.gz" /var/cache/distfiles/
           emerge --quiet-build --getbinpkg www-apps/storageweb
           storageweb --help

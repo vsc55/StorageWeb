@@ -28,7 +28,7 @@ cd "$ROOT"
 export MAINTAINER="${MAINTAINER:-StorageWeb <storageweb@localhost>}"
 export VENDOR="${VENDOR:-StorageWeb}"
 export HOMEPAGE="${HOMEPAGE:-https://github.com/}"
-export LICENSE="${LICENSE:-Proprietary}"
+export LICENSE="${LICENSE:-GPL-3.0-or-later}"
 
 log() { echo -e "\e[1;34m==>\e[0m $*"; }
 render() {  # render <plantilla> <destino> (valores por defecto del paquete)
@@ -55,7 +55,7 @@ tar -C "$BUILD" --owner=0 --group=0 --numeric-owner -czf "$DIST/storageweb-$VERS
 
 log "Generando overlay de Gentoo"
 python3 "$PKG/gentoo/make_overlay.py" --version "$VERSION" --homepage "$HOMEPAGE" \
-  --license "${GENTOO_LICENSE:-all-rights-reserved}" --tarball "$DIST/storageweb-$VERSION.tar.gz" \
+  --license "${GENTOO_LICENSE:-GPL-3+}" --tarball "$DIST/storageweb-$VERSION.tar.gz" \
   --output "$DIST/storageweb-gentoo-overlay-$VERSION.tar.gz"
 
 log "Construyendo el wheel"

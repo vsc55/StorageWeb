@@ -10,6 +10,10 @@
 - el formato de las copias de seguridad;
 - las rutas de instalación.
 
+Mientras el proyecto esté en la serie **0.x** (desarrollo inicial), un cambio incompatible sube la versión **menor** (`0.1.0` → `0.2.0`) y las correcciones la de parche (`0.2.1`), siempre con su aviso en el `CHANGELOG.md`. La `1.0.0` será la primera versión estable, con el compromiso de arriba.
+
+La extensión de VS Code se empaqueta con la misma versión que la release; en desarrollo lleva la suya en `clients/vscode/package.json`. Si tienes instalada una de desarrollo mayor que la de la release, desinstálala antes de instalar el `.vsix` publicado: VS Code no instala encima una versión menor.
+
 ## Publicar una versión
 
 1. Mueve las entradas de `## [Sin publicar]` del `CHANGELOG.md` a `## [X.Y.Z] - AAAA-MM-DD`.

@@ -14,7 +14,6 @@ sudo tar -xzf storageweb-gentoo-overlay-X.Y.Z.tar.gz -C /var/db/repos
 printf '[storageweb]\nlocation = /var/db/repos/storageweb-overlay\n' \
   | sudo tee /etc/portage/repos.conf/storageweb.conf
 echo 'www-apps/storageweb ~amd64' | sudo tee /etc/portage/package.accept_keywords/storageweb
-echo 'www-apps/storageweb all-rights-reserved' | sudo tee /etc/portage/package.license/storageweb
 sudo emerge -av www-apps/storageweb
 ```
 

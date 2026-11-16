@@ -6,152 +6,64 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 
 ## [Sin publicar]
 
-### Añadido
+## [0.1.0] - 2026-11-16
 
-- **Internacionalización:**
-  - interfaz web y CLI en español e inglés, con selector ES/EN y preferencia guardada por usuario;
-  - negociación por `Accept-Language` y opción `default_locale` (por defecto, `en`);
-  - fechas y tamaños según el idioma;
-  - catálogos gettext comprobados en el CI.
-- Opción `--locale` en `user-set`, y variable `STORAGEWEB_LANG` para la CLI.
-- **Sesiones en el servidor**: *Personas → Sesiones y tokens* muestra quién está conectado y todos los tokens de API, con cerrar una sesión, todas las de un usuario, las seleccionadas, las inactivas desde hace más de un tiempo o todas menos la propia; *Mi perfil* muestra las propias. Desactivar un usuario o cambiar su contraseña cierra sus sesiones. Comando `sessions-close`.
-- **Tokens de API personales** (`Authorization: Bearer sw_…`) con alcance de lectura o de lectura y escritura, caducidad y revocación; el listado de carpetas responde en JSON a los scripts.
-- **Bloqueo de IPs**: automático por infracciones (contraseñas erróneas, CSRF, tokens no válidos), manual por IP o red y lista blanca, en *Seguridad → Reglas de bloqueo* e *IPs bloqueadas*. Comandos de rescate `ip-list`, `ip-unban` e `ip-allow`.
-- *Sistema → Mantenimiento* y *Copias y base de datos*: retención de la auditoría, compactación de la base de datos, **copias de seguridad desde la web** (crear, descargar, borrar) y copia automática periódica.
-- Exportación de la auditoría a **CSV**.
-- **Marca**: logo propio (PNG, JPEG, WebP o SVG) y color principal.
-- **Caducidad del secreto de Entra ID** con aviso a los admins desde 30 días antes y botón **Renovar secreto**.
-- **Nombres de los grupos de Entra ID** en lugar de Object IDs (permiso `Group.Read.All`, concedido al registrar o con *Conceder lectura de grupos*) y buscador por nombre al dar de alta un grupo.
-- **Nombre público (FQDN)** (`network.public_url`, también desde la web; basta con `files.empresa.es`, se asume HTTPS) para las URLs externas detrás de un proxy inverso: la de vuelta de Entra ID y la de salida. Variable `STORAGEWEB_PUBLIC_URL` en Docker.
-- **Proxies encadenados y subrutas**: `server.proxy_hops` y soporte de `X-Forwarded-Prefix` (`STORAGEWEB_PROXY_HOPS` en Docker).
-- Sección **Red y HTTPS** en los ajustes: diagnóstico de cómo llega la petición (esquema, host, subruta, IP real, cabeceras `X-Forwarded-*`) con avisos de los errores típicos, y ejemplos de nginx y Caddy con los valores de la instalación.
-- **Nueva página de ajustes**: una sección por tema con su propia dirección, barra de guardar que solo aparece con cambios y aviso al salir sin guardar, errores junto al campo, etiqueta **web** en los valores que mandan sobre `config.json` con *Restablecer* campo a campo, y comprobación de que las carpetas compartidas existen en el servidor.
-- **Inicio de sesión** como tarjetas con interruptor (local, PAM, Entra ID), mapeo de roles por filas y **Probar conexión con Entra ID** (tenant, aplicación, Redirect URI y secreto, sin iniciar sesión).
-- **Registrar en Entra ID** con un botón: inicio de sesión con código de dispositivo y creación por Microsoft Graph de la aplicación (Redirect URI, permisos de inicio de sesión con consentimiento de administrador, secreto, aplicación empresarial y, opcionalmente, App Roles, claim de grupos y asignación requerida). Los datos se guardan solos y se pasa a comprobar y activar.
-- **Asistente de Entra ID** en cuatro pasos: registro, identificadores, usuarios y roles, comprobación y activación.
-- **Administración de usuarios** con dos vistas para probar (lista con filtros, paginación y acciones en bloque; paneles con pestañas) y una ficha por secciones con el **acceso efectivo** del usuario y su actividad reciente.
-- **Gestión de grupos** (*Personas → Grupos*): grupos locales, de Entra ID (Object ID o App Role) y del sistema, con nombre legible, miembros manuales y sincronizados, grupo de serie **Administradores** (no se puede borrar; sus miembros son los usuarios con rol admin), grupos detectados sin dar de alta, dos vistas para probar (lista y paneles) y la matriz de accesos grupos × carpetas en *Acceso*.
-- Acceso de solo lectura por grupo y por usuario en las carpetas compartidas: `storage.shares[].read_only_groups` y `read_only_users` (también `"*"` para que todos lean). Se puede escribir si alguna de las vías por las que entra el usuario lo permite.
-- **Administración por zonas**: la barra lateral tiene el **Resumen** y las zonas *Personas*, *Acceso*, *Seguridad* y *Sistema*, cada una con su submenú. Cada página indica si es de configuración (se aplica al guardar), de operación (se aplica al momento) o de solo lectura. *Seguridad* separa las reglas de bloqueo de las IPs bloqueadas, y *Sistema* separa el mantenimiento de las copias y la base de datos.
-- **Resumen** de la administración: avisos con su acción (secreto de Entra ID que caduca, carpetas que no existen, copias automáticas que no se hacen, problemas de red), con un contador en la barra lateral; una tarjeta por zona, tareas frecuentes y actividad reciente.
-- **Buscador** (Ctrl+K o `/`): páginas, ajustes (lleva al campo exacto y lo resalta), acciones, usuarios, grupos y carpetas, sin distinguir tildes. Sin JavaScript, página de resultados en `/admin/search`.
-- *Acceso → Carpetas compartidas*: cada carpeta con quién entra (todos, usuarios y grupos) y con qué permiso, ficha para editarla, crearla o quitarla (los archivos se quedan) y auditoría `share_created`, `share_updated` y `share_deleted`.
-- **Almacenamiento externo**: las carpetas compartidas y las personales pueden estar en **S3** (Amazon, MinIO, Wasabi, Backblaze B2, Cloudflare R2, Google Cloud Storage…), en un recurso **SMB** (Windows, Samba, NAS), en un servidor **SFTP**, **WebDAV** (Nextcloud, ownCloud, SharePoint, NAS) o **FTP/FTPS**, o en **Azure Blob Storage**, sin montarlos, además del disco del servidor y los montajes NFS/SMB/rclone. Ubicaciones con nombre (`storage.locations`) en *Sistema → Almacenamiento externo*, con prueba de conexión y secretos ocultos; `storage.shares[].location` y `storage.home_location`. Subidas por partes y descargas con `Range` también en remoto. Extras `storageweb[s3]`, `[smb]`, `[sftp]` y `[azure]`, incluidos en la imagen Docker (FTP y WebDAV no necesitan ninguno). Guía en *Administración → Almacenamiento externo* (ADR 0014).
-- **Unidad de red (WebDAV)** en `/dav/`: las carpetas del usuario (personal y compartidas, en cualquier almacenamiento) como unidad en Windows, macOS y Linux, o con rclone, Cyberduck o WinSCP (`rclone bisync` para sincronizar una carpeta del equipo). Usuario y token de API como contraseña (o la contraseña de la cuenta si se activa `security.webdav_passwords`); mismos permisos que la web y sobrescribir exige además el de borrar. La dirección está en *Mi perfil → Unidad de red*. Guía en *Uso → Unidad de red*.
-- **Extensión de Visual Studio Code** (`clients/vscode`): sincroniza la carpeta del espacio de trabajo con una carpeta de StorageWeb en los dos sentidos (al guardar y periódicamente), con conflictos guardados como copia y comparables, borrados a la papelera y confirmación de borrados masivos. Panel propio en la barra lateral con **varios servidores** para navegar por sus carpetas, abrir y guardar archivos directamente en el servidor (`storageweb://`), subir, descargar, renombrar, borrar, añadir una carpeta del servidor al espacio de trabajo y elegir qué sincronizar. Para entrar, **iniciar sesión en el navegador** (también con Microsoft) o usuario y token. Pausar y reanudar, exclusiones con `.storagewebignore` y el `.gitignore` de la carpeta, y protección contra el bucle de sincronizar una carpeta que contiene la copia del servidor. JavaScript sin dependencias; `python tools/build_vsix.py` genera el `.vsix` (con `--install` lo instala en VS Code; la tarea de VS Code pregunta si hacerlo), que la CI deja como artefacto y la release adjunta con la versión de StorageWeb. Guía en *Uso → Extensión de VS Code*.
-- **Conectar aplicaciones iniciando sesión en el navegador** (`/connect/<aplicación>`, por ahora la extensión de VS Code): el usuario entra en la web (también con Entra ID), acepta y la aplicación recibe un token para ese equipo, sin copiarlo. OAuth con PKCE: código de un solo uso de 5 minutos que solo se canjea con el secreto de la aplicación, vuelta fijada a `vscode://…`, auditoría `app_authorized`.
-- **Entrar directamente con Microsoft** (`auth.entra.auto_login`): `/login` va directo a Entra ID (en equipos unidos a Entra ID, sin escribir nada); `/login?manual=1` sigue mostrando la página.
-- **Identificador público de usuarios y grupos**: las direcciones y los formularios de la administración usan un UUID (`/admin/users/9f1c…`) en lugar del número interno, que ya no sirve en ellas: no se ve cuántos hay ni se pueden recorrer de uno en uno.
-- **Carpetas compartidas, ubicaciones y cuotas de grupo en sus propias tablas** (decisión 0018): `shares` + `share_access`, `locations` + `location_options` (secretos cifrados) y `groups.home_quota_mb`, en lugar de listas JSON dentro de los ajustes. Cambiar una carpeta solo toca sus filas y dos admins que cambian carpetas distintas no se pisan. Las de `config.json` o del entorno se ven de solo lectura junto a las de la web: ya se pueden añadir carpetas y ubicaciones desde la web aunque haya otras en el fichero.
-- La dirección de vuelta de Entra ID ya no se configura ni se guarda: se calcula siempre de `network.public_url` o, sin ella, de la dirección con la que entra el navegador. Desaparece el ajuste `auth.entra.redirect_uri`.
-- **Ajustes web por campo** (decisión 0017): una fila por perfil y campo en `settings_values` en lugar de un documento JSON. Guardar solo escribe lo que cambia, en una transacción: dos admins que guardan cosas distintas a la vez ya no se pisan, y cada ajuste sabe quién y cuándo lo cambió (*Sistema → Información*, que muestra también el perfil activo y los demás de la base de datos).
-- **Secretos cifrados en la base de datos:** el `client_secret` de Entra ID, las contraseñas y claves de las ubicaciones remotas y el token de las métricas se guardan cifrados (AES-256-GCM) con una clave propia (`<data_dir>/secrets.key` o `STORAGEWEB_SECRETS_KEY`). Las copias incluyen la clave y al restaurar se vuelven a cifrar con la del servidor. Comandos `encrypt-secret` (secretos cifrados en `config.json`) y `rotate-secrets-key`. Nueva dependencia directa: `cryptography` (ya la traía `msal`).
-- **Cuotas que bloquean** (`storage.quota_enforce`, activado por defecto): lo que no quepa no se puede subir, copiar ni mover (web, API por partes y unidad de red, que responde `507` con el motivo; la extensión de VS Code para y lo avisa). **Cuota por grupo** para las carpetas personales de sus miembros (`storage.group_quotas`, en la ficha del grupo). La unidad de red publica la cuota (RFC 4331) y el Explorador de Windows muestra el espacio de la unidad.
-- **Métricas para Prometheus** en `/metrics` (`metrics.enabled`, con token o desde redes permitidas): peticiones y tiempos por ruta, eventos de la auditoría, bytes subidos y descargados, rechazos por cuota, cuentas, sesiones, tokens, IPs bloqueadas, espacio de las carpetas compartidas, estado de las ubicaciones remotas, copias y avisos.
-- **Restaurar una copia de seguridad desde la web**, con el servicio en marcha: modo mantenimiento (503), copia previa de lo actual, sustitución con la API de copia de SQLite, migraciones y cierre de todas las sesiones; confirmación escribiendo RESTAURAR. También se puede **subir una copia** de otro servidor.
-- **Cuentas de Entra ID al día:** revisión periódica (`auth.entra.directory_sync_minutes`, 60 min por defecto) de las cuentas con sesión o token de API: las borradas, desactivadas o fuera de los grupos permitidos en Entra ID se desactivan y se reactivan solas cuando Entra ID las vuelve a dejar entrar; se actualizan sus grupos y su rol. Usuarios con más de 200 grupos: se leen de Microsoft Graph. Nuevo permiso de aplicación `User.Read.All` (registro automático y *Reparar permisos*).
-- **Cerrar sesión en Microsoft cierra StorageWeb:** cierre de sesión de canal frontal en `/auth/entra/frontchannel-logout` con el claim `sid`; el registro y la reparación ponen la URL y piden los claims opcionales `email` (el email real de las cuentas de la organización) y `sid`.
-- **Cambio de UPN:** la cuenta se identifica por origen + `oid`; si cambia el UPN se renombra al entrar, con su carpeta personal y las carpetas compartidas que la nombraban.
-- Los grupos de Entra ID dados de alta toman de Entra ID su nombre y descripción (al entrar sus miembros, en la revisión periódica y al abrir su ficha), y en StorageWeb son de solo lectura.
-- **Dar de alta grupos de Entra ID con sus datos:** el alta de un grupo sin dar de alta llega rellena con el nombre y la descripción del grupo en Entra ID y un identificador propuesto a partir del nombre; *Dar de alta todos* los da de alta de una vez; el buscador del alta rellena lo mismo.
-- **Cuotas de espacio** (solo avisan): por defecto para las carpetas personales (`storage.home_quota_mb`), por usuario en su ficha y por carpeta compartida (`storage.shares[].quota_mb`). El explorador muestra cuánto se ha usado y el porcentaje, con aviso a partir del 90 % y al superarla; también *Mi perfil*, las fichas de usuario y de carpeta compartida, y el listado JSON (`quota`). El uso se guarda 10 minutos y se actualiza al escribir desde la web o por WebDAV.
-- El explorador muestra el **espacio libre** del almacenamiento de cada carpeta, con una barra del espacio usado que avisa al pasar del 80 % y del 95 % (disco del servidor; S3 y Azure se muestran como sin tamaño fijo). También en el listado JSON (`space`).
-- **Mover y copiar** en el explorador: *Mover a…* y *Copiar a…* en la selección y en el detalle (con un selector de carpeta de destino, también entre carpetas compartidas) y **arrastrando** a una carpeta de la lista o del árbol (`Ctrl` copia). Nunca sobrescribe; mismos permisos que WebDAV.
-- **Descargar como ZIP** varios elementos o una carpeta entera, generado mientras se descarga (sin archivo temporal y sin límite de tamaño, ZIP64). Lo oculto no se incluye.
-- **Buscar archivos por nombre** en todas tus carpetas (Intro en *Filtrar o buscar…*), sin distinguir mayúsculas ni tildes, con límites de resultados y de tiempo para no colgarse en almacenamientos remotos; también en JSON (`GET /search?q=…`).
-- Hoja de ruta: vista previa, enlaces para compartir, cuotas, antivirus, métricas y restaurar copias desde la web (puntos 18 a 23).
-- Las plantillas de proxy (nginx y Apache) y los ejemplos de *Red y HTTPS* **quitan la cabecera `X-Forwarded-Prefix` que mande el cliente** (la aplicación la usaría en sus enlaces); la de nginx además fija TLS 1.2/1.3, oculta la versión (`server_tokens off`) y usa logs propios.
-- **Plantilla de Apache 2.4** (`packaging/apache/storageweb.conf`), como la de nginx: HTTPS, `LimitRequestBody` (Apache limita a 1 GB por defecto desde la 2.4.54), tiempos para subidas lentas (`mod_reqtimeout`), rutas tal cual (`nocanon`), cabeceras `X-Forwarded-*`, redirección de HTTP a HTTPS con `RewriteRule` (vale para `ServerName` y todos los `ServerAlias`), solo TLS 1.2 y 1.3, sin anunciar la versión y logs propios. La instalan los paquetes (`/usr/share/storageweb/apache-storageweb.conf`), `install.sh --apache` y el ebuild; la página *Red y HTTPS* genera también el ejemplo de Apache con tus valores, y la guía pasa a ser *HTTPS con nginx o Apache*.
-- *Probar conexión* de Entra ID revisa **todos los permisos de la API**: cada permiso de aplicación (concedido y funcionando), los que sobran (aviso de mínimo privilegio) y los de inicio de sesión (`openid`, `profile`, `email`, `User.Read`…), según lo que concedió Microsoft en el último inicio de sesión. Los que falten se pueden arreglar con *Reparar automáticamente*.
-- **Reparar automáticamente** la aplicación de Entra ID: si *Probar conexión* encuentra algo arreglable (Redirect URI sin registrar, secreto inválido o caducado, sin lectura de grupos), un botón inicia sesión con Microsoft y StorageWeb añade la Redirect URI, los permisos de Graph con consentimiento de administrador, la aplicación empresarial y, si hace falta, un secreto nuevo. Sustituye a *Conceder lectura de grupos*; también está siempre a mano como *Reparar permisos* en la cabecera de la tarjeta. Junto a él, *Abrir en Entra ID* lleva a la aplicación en el Centro de administración de Entra. Las acciones de la tarjeta van en una fila propia (la cabecera ya no se parte) y la etiqueta *modificado* de los métodos de inicio de sesión ya no sale estirada. Auditoría `entra_app_repaired`.
-- Ajustes de Entra ID: la tabla de asociaciones grupo → rol, los grupos permitidos y el asistente muestran el **nombre de cada grupo** junto a su Object ID y permiten **buscar los grupos por nombre** (con el permiso `Group.Read.All`; sin él, se escriben los IDs como antes).
-- Asistente de Entra ID: un secreto recién creado (al registrar la aplicación, renovarlo o pegarlo) que Microsoft todavía no acepta aparece como «activándose», no como erróneo, y el paso 4 lo vuelve a comprobar solo durante unos minutos.
-- Corregido: *Registrar en Entra ID* fallaba con Python 3.14 al dar el consentimiento (las consultas de Graph llevaban espacios sin codificar) y la página daba un error 500. Ahora las URLs de Graph se codifican siempre, los fallos de conexión se muestran como aviso y, si algo falla después de crear la aplicación, el mensaje dice cuál quedó creada.
-- **Rotar tokens de API** en *Mi perfil*: secreto nuevo con el mismo nombre, alcance y caducidad (desde hoy) y el anterior deja de valer en el acto (auditoría `api_token_rotated`). Solo el dueño; el administrador sigue pudiendo revocar.
-- El **árbol de carpetas** del explorador funciona como el del Explorador de Windows: en cada nivel del camino se ven todas las carpetas, no solo la abierta (antes, al entrar en una carpeta desaparecían sus hermanas).
-- Los mensajes de las acciones (guardar, subir, borrar…) salen como **avisos emergentes abajo a la derecha**, con botón de cerrar; los de confirmación se van solos y los de error se quedan.
-- *Seguridad → Auditoría* con **paginación** encima y debajo de la tabla (25, 50, 100, 250 o 500 registros por página, con el total y primera/última; los filtros se mantienen): antes solo se veían las 500 últimas. Las tablas de la administración ya no pierden las esquinas redondeadas.
-- **Ocultos para todos** (`storage.hidden`, *Acceso → Carpetas personales*; vale para todas las carpetas): patrones como los de `.gitignore` (`Thumbs.db`, `*.tmp`, `.git/`, `/privado`) de lo que no se lista, no se abre y no se puede crear, en la web, WebDAV y la API. Los archivos siguen en el disco. No es un control de acceso y la lista no se envía a los clientes.
-- La unidad de red (WebDAV) lista siempre los archivos que empiezan por punto, aunque la web los oculte (`storage.show_hidden`): un cliente que sincroniza creía que se habían borrado.
-- WebDAV con **escritura condicional** (`If-Match`, `If-None-Match`) y `ETag` en las subidas: un cliente no pisa lo que cambió otro.
-- Mover y copiar archivos y carpetas en cualquier almacenamiento, también entre carpetas de almacenamientos distintos (`Backend.move`, `copy_between`).
-- **Seguridad de rutas en el almacenamiento externo:** todas las rutas se limpian igual en cada tipo (sin `..`, unidades ni caracteres de control), los nombres raros que devuelva un servidor remoto se ocultan y WebDAV rechaza XML con entidades. Batería de ataques en `tests/integration/test_path_security.py`.
-- **Extensiones que se registran solas** (ADR 0015): los métodos de inicio de sesión (local, PAM, Entra ID), los tipos de almacenamiento, los avisos del Resumen, las tareas de mantenimiento, los comandos de la CLI y los resultados del buscador se declaran en su propio módulo; añadir uno no toca código general (*Desarrollo → Extender StorageWeb*). Las ubicaciones de almacenamiento aparecen en el buscador. Migración 007: el origen de usuarios y grupos ya no está limitado a `local`, `pam` y `entra`.
-- **Activar y desactivar usuarios** de cualquier origen (también Entra ID y PAM) desde la lista y la ficha del usuario, con filtro por estado y auditoría (`user_disabled`, `user_enabled`).
-- Página **Mi perfil**: nombre, email, idioma, tema y cambio de contraseña con verificación de la actual.
-- Imagen Docker multi-arquitectura (amd64, arm64) publicada en GHCR, con un entrypoint que genera la configuración y crea el admin desde variables o *secrets*.
-- Overlay de Gentoo: `www-apps/storageweb` (systemd y OpenRC), `acct-user` y `acct-group`.
-- Comandos `backup`, `backup-list` y `restore`: copia consistente de la base de datos, `config.json` y `secret_key`.
-- Timer de systemd `storageweb-backup.timer`, instalado desactivado.
-- Comando `settings-reset`, vía de rescate para descartar los ajustes web.
-- Comando `user-exists` y opción `--password-stdin` en `user-add` y `user-passwd`.
-- Endpoint `GET /healthz`.
-- Documentación completa en MkDocs, con referencia de configuración, CLI y API generada desde el código y publicada en GitHub Pages.
-
-### Cambiado
-
-- Ajustes ordenados por tema: *General y marca* tiene una tarjeta para la aplicación, el color, el logo y la imagen del inicio de sesión (las subidas, dentro de su tarjeta), y los tokens de API y la unidad de red (WebDAV) salen de *Reglas de bloqueo* a su propia página, *Seguridad → API y unidad de red*.
-- **Nuevo logo de serie**, un cubo a tres tonos en lugar de la carpeta, y **favicon de serie** en el color principal (`/brand/favicon.svg`; antes solo había icono de pestaña con un logo propio).
-- **Nueva pantalla de inicio de sesión**: imagen a la izquierda (en el móvil, una franja arriba) y formulario a la derecha, con tema e idioma arriba; sin la versión, que solo se ve tras iniciar sesión. La imagen es una de las cinco ilustraciones de serie, en el color principal (`branding.login_art`: clásica, sincronización, ondas, mosaico de archivos o capas, o *aleatoria* para una distinta en cada carga), o una propia, que se sube en *Sistema → General y marca* (`branding.login_image`, auditoría `branding_login_image_updated` y `branding_login_image_removed`). Con un método de inicio de sesión único activo (Entra ID), su botón va primero y la cuenta local queda plegada en *Usar una cuenta local*; tras un intento fallido sale desplegada y con el usuario escrito.
-- La rotación de copias (`backup_keep`) solo borra las copias con fecha; las de antes de restaurar y las subidas se quedan hasta que se borren a mano.
-- Extensión de VS Code 0.4.1: muestra el motivo cuando el servidor no tiene cuota y deja de subir.
-- *Almacenamiento externo*: un solo botón **Nueva ubicación** con un menú de tipos, en lugar de un botón por tipo. Los menús emergentes se cierran al pulsar fuera o con Esc.
-- El nombre y el email de los usuarios de Entra ID ya no se editan en su ficha (ni en la vista de paneles): vienen de Entra ID, y ahora también el email se actualiza en cada inicio de sesión.
-- **Nuevo diseño de la interfaz:**
-  - barra lateral de iconos (Archivos, Resumen, Personas, Acceso, Seguridad, Sistema y cuenta);
-  - explorador en tres columnas: árbol de carpetas, lista y panel de detalle;
-  - selección múltiple con barra de acciones y borrado de varios elementos;
-  - filtro y orden por nombre, tamaño o fecha;
-  - iconos SVG y tema **Sistema / Claro / Oscuro**, guardado por usuario;
-  - menú de cuenta con perfil, idioma, tema y salir;
-  - adaptable a móvil;
-  - sin JavaScript, cada fila conserva sus acciones;
-  - en modo oscuro, tablas, tarjetas y paneles tienen su propia superficie y bordes con más contraste.
-- Estructura de paquete estándar (`src/storageweb`) con capas sin Flask. El comando `storageweb` sustituye a `run.py` y `manage.py`.
-- Migraciones de base de datos versionadas (`PRAGMA user_version`).
-- La API JSON devuelve todos sus errores en JSON, incluidos los de CSRF.
-- `auth.entra.button_label` pasa a estar vacío por defecto: así el botón se muestra traducido. Si lo personalizas, se muestra tal cual.
-- Los logs del servidor se escriben en inglés.
-- **Configuración por capas**, campo a campo: valores predeterminados < ajustes web < `config.json` < variables de entorno (antes la web ganaba sobre `config.json`).
-  - Lo que fijan `config.json` o una variable queda **bloqueado** en la web, con su origen a la vista. El Resumen cuenta cuántos ajustes están bloqueados.
-  - *Restablecer* vuelve al **valor predeterminado**. Cada campo modificado lleva la etiqueta **modificado**, el submenú cuenta por página los ajustes que no tienen su valor predeterminado, y *Sistema → Información* los lista con su valor y su origen.
-  - Variables `STORAGEWEB_<RUTA>` (con `__` entre niveles) para cualquier ajuste, leídas en cada arranque. Se mantienen los nombres cortos de Docker.
-  - **Perfiles de ajustes** (`settings_profile`): varias instancias pueden compartir base de datos con ajustes web distintos.
-  - Solo se guarda la diferencia con los valores predeterminados. Auditoría: `settings_updated` indica la sección y hay una acción nueva, `settings_field_reset`.
-- **Código reorganizado** sin cambios de comportamiento:
-  - proveedores en una carpeta cada uno (`providers/local/`, `pam/`, `entra/`);
-  - registro único de los campos de configuración (`settings/fields.py`);
-  - ajustes web, administración y CLI partidos en paquetes por tema;
-  - los avisos del Resumen, el contador de la barra lateral y el banner salen de un único sitio;
-  - CSS y JavaScript repartidos por tema, y cada script solo en las páginas que lo usan.
-- Usuarios y grupos se quedan con dos vistas definitivas, *Lista* y *Paneles*.
-- Las confirmaciones, avisos y peticiones de texto (borrar, renombrar, descartar cambios…) usan un modal propio con el diseño de la aplicación en lugar de las ventanas del navegador. El botón de confirmar lleva el nombre de la acción y, en las destructivas, el foco empieza en *Cancelar*.
-- En los ajustes, los campos cambiados y sin guardar se resaltan, y las pestañas y apartados que los contienen llevan un punto. *Descartar* descarta los cambios pendientes de todas las páginas tras una sola confirmación.
-- El `config.json` de los paquetes y el que genera Docker solo traen lo de arranque y la plantilla de las carpetas personales; lo demás se configura en la web.
-- En la ficha de usuario, los grupos se gestionan como fichas (añadir y quitar) en lugar de un campo de texto. `--groups` de `user-add` y `user-set` asigna grupos manuales y crea como locales los que no existan.
-
-### Notas de actualización
-
-- `run.py` y `manage.py` ya no existen. Usa `storageweb serve` y `storageweb <comando>`, o `storageweb-admin`.
-- **Base de datos nueva.** No había instalaciones en producción, así que el esquema empieza de cero en una sola migración (`001_initial.sql`): no hay camino de actualización desde la base de datos de 1.0.0. Crea una nueva (`storageweb init-db`) y vuelve a dar de alta usuarios y ajustes.
-- **El idioma por defecto es el inglés.** Para mantener la interfaz en español, elígelo en *System → General and branding* o pon `"default_locale": "es"` en `config.json`; en el fichero, quedará bloqueado en la web.
-- **`config.json` gana sobre la web.** Todo campo de `config.json` queda bloqueado en la web. Si tu fichero viene de una versión anterior y lo trae todo, deja solo lo de arranque (`server`, `data_dir`, `database`, `secret_key`, `session`) y lo que quieras fijar: lo demás vuelve a ser editable desde la web.
-- **Docker:** las variables `STORAGEWEB_*` ya no se copian a `config.json`. Se leen en cada arranque y bloquean el ajuste en la web.
-
-### Corregido
-
-- En *Mi perfil*, copiar el token de API recién creado y las confirmaciones (cerrar sesiones, revocar tokens) no funcionaban: la página no cargaba ningún script.
-- En el móvil, la barra superior con todas las zonas se desborda: ahora se desliza en horizontal.
-- Los grupos asignados a mano a un usuario de Entra ID o PAM ya no se pierden en su siguiente inicio de sesión.
-- Extensión de VS Code 0.4.2: un archivo que desaparece mientras se recorre la carpeta (un temporal, el `-shm` de una SQLite abierta) ya no hace fallar la sincronización.
-- **CI:** los tests de la extensión de VS Code se lanzan con la lista de ficheros (desde Node 22, `node --test` no recorre una carpeta); la imagen Docker del CI usa una versión PEP 440 válida (`0.0.0+ci`) y comprueba el inicio de sesión en español pidiéndolo; en Python 3.9 los tests del directorio de Entra ID ya no fallan por una anotación `list | None`, y en Python anterior a 3.12 se extrae el texto «write error», que estaba dentro de un f-string.
-
-## [1.0.0] - 2026-11-11
+Primera versión publicada. Es la serie **0.x**, en desarrollo: entre versiones menores (0.1 → 0.2) puede haber cambios incompatibles en la configuración, la CLI, la API o las copias de seguridad, y se avisarán aquí.
 
 ### Añadido
 
-- Servidor web de archivos (Flask + Waitress): explorador, subida por partes reanudable, descarga con `Range`, carpetas, renombrar y eliminar.
-- Inicio de sesión con usuarios locales, PAM y Microsoft Entra ID (OAuth2/OIDC propio o MSAL).
-- Roles `admin`/`user`, permisos configurables, panel de administración (usuarios, ajustes, auditoría).
-- Carpeta personal y carpetas compartidas por usuario o grupo, también de solo lectura.
-- Paquetes `.deb` y `.rpm` con dependencias incluidas, instalador para Ubuntu y CI/CD en GitHub Actions.
+**Archivos**
+
+- Servidor web de archivos (Flask + Waitress) con explorador en tres columnas (árbol de carpetas, lista y detalle): subir (por partes y reanudable), descargar (con `Range`), crear carpetas, renombrar y borrar, selección múltiple, filtro y orden por nombre, tamaño o fecha.
+- **Mover y copiar**, también arrastrando y entre carpetas de almacenamientos distintos, sin sobrescribir nunca; **descargar como ZIP** varios elementos o una carpeta (generado al vuelo, ZIP64); **buscar por nombre** en todas tus carpetas, sin distinguir mayúsculas ni tildes.
+- Carpeta personal y **carpetas compartidas** por usuario o grupo, con acceso de solo lectura por grupo o por usuario (`*` para todos).
+- **Cuotas** para las carpetas personales (por defecto, por grupo y por usuario) y por carpeta compartida, que bloquean lo que no quepa (`storage.quota_enforce`) o solo avisan, y **espacio libre** del almacenamiento en el explorador.
+- **Ocultos para todos** (`storage.hidden`): patrones como los de `.gitignore` de lo que no se lista, no se abre ni se puede crear.
+- **Almacenamiento externo** sin montarlo: S3 (Amazon, MinIO, Wasabi, R2…), SMB, SFTP, WebDAV, FTP/FTPS y Azure Blob Storage, además del disco del servidor. Ubicaciones con nombre, prueba de conexión y secretos ocultos. Extras `storageweb[s3]`, `[smb]`, `[sftp]` y `[azure]`.
+
+**Acceso desde otros programas**
+
+- **Unidad de red (WebDAV)** en `/dav/` para Windows, macOS, Linux, rclone, Cyberduck o WinSCP, con los mismos permisos que la web, escritura condicional (`If-Match`) y cuota publicada (RFC 4331).
+- **Tokens de API personales** (`Authorization: Bearer sw_…`) de lectura o de lectura y escritura, con caducidad, rotación y revocación; los listados responden en JSON.
+- **Extensión de Visual Studio Code** (`clients/vscode`): sincroniza en los dos sentidos la carpeta del espacio de trabajo con una de StorageWeb, con conflictos guardados como copia, papelera, exclusiones (`.storagewebignore` y `.gitignore`) y protección contra bucles; navegar, abrir y guardar directamente en varios servidores. Sin dependencias; el `.vsix` va en cada release con la misma versión.
+- **Conectar aplicaciones iniciando sesión en el navegador** (`/connect/<aplicación>`, OAuth con PKCE): la aplicación recibe su token sin copiarlo.
+
+**Usuarios e inicio de sesión**
+
+- Usuarios **locales**, del sistema (**PAM**) y de **Microsoft Entra ID** (OAuth2/OIDC propio o MSAL). Los métodos de inicio de sesión se registran solos (ADR 0015).
+- Pantalla de inicio de sesión con imagen al lado: cinco ilustraciones en el color principal, una al azar o una propia. Con Entra ID activo, su botón va primero y la cuenta local queda plegada.
+- **Entra ID** completo desde la web: asistente, registro de la aplicación con un botón, *Probar conexión* (con todos los permisos), *Reparar automáticamente*, aviso y renovación del secreto, nombres de los grupos, entrada directa (`auth.entra.auto_login`), revisión periódica del directorio (cuentas borradas o desactivadas, grupos y rol), usuarios con más de 200 grupos, cierre de sesión de canal frontal y cambio de UPN.
+- Roles `admin` y `user`, permisos del rol, **grupos** locales, de Entra ID y del sistema con miembros manuales y sincronizados, grupo **Administradores** de serie y **matriz de accesos** grupos × carpetas.
+- Activar y desactivar usuarios de cualquier origen; identificador público (UUID) en las direcciones de la administración.
+- **Sesiones en el servidor**: quién está conectado, cerrar sesiones sueltas, por usuario o inactivas. **Mi perfil**: nombre, email, idioma, tema, contraseña, tokens y unidad de red.
+
+**Seguridad**
+
+- Bloqueo tras intentos fallidos y **bloqueo de IPs** automático por infracciones, manual por IP o red, con lista blanca.
+- **Secretos cifrados** en la base de datos (AES-256-GCM) con una clave propia (`secrets.key` o `STORAGEWEB_SECRETS_KEY`); comandos `encrypt-secret` y `rotate-secrets-key`.
+- **Auditoría** de las acciones relevantes, con filtros, paginación y exportación a CSV.
+- CSRF, CSP sin scripts ni estilos en línea, rutas limpiadas igual en todos los almacenamientos y batería de ataques de rutas en los tests.
+
+**Administración**
+
+- Administración por **zonas** (Personas, Acceso, Seguridad, Sistema), **Resumen** con avisos y su acción, y **buscador** (Ctrl+K) que lleva al ajuste exacto.
+- **Configuración por capas**, campo a campo: valores predeterminados < web < `config.json` < variables `STORAGEWEB_*`. Lo fijado en fichero o entorno queda bloqueado en la web; *Restablecer* por campo; **perfiles de ajustes** para varias instancias sobre la misma base de datos; carpetas compartidas, ubicaciones y cuotas de grupo como entidades propias (ADR 0017 y 0018).
+- **Marca**: color principal, logo propio (o el cubo de serie), favicon e imagen del inicio de sesión.
+- **Red y HTTPS**: dirección pública (`network.public_url`), proxies encadenados, subrutas (`X-Forwarded-Prefix`) y diagnóstico de cómo llega la petición, con ejemplos de nginx, Apache y Caddy.
+- **Mantenimiento**: retención de la auditoría, compactación, **copias de seguridad** desde la web (crear, descargar, subir, borrar y automáticas) y **restaurar** con el servicio en marcha.
+- **Métricas para Prometheus** en `/metrics`.
+
+**Interfaz**
+
+- Español e inglés, según la preferencia del usuario o el navegador; tema Sistema, Claro u Oscuro; adaptable al móvil; ventanas de confirmación propias y avisos emergentes. Las acciones básicas funcionan sin JavaScript.
+
+**Instalación**
+
+- Paquetes `.deb` y `.rpm` (amd64 y arm64) con las dependencias incluidas, instalador `install.sh`, imagen **Docker** multi-arquitectura en GHCR, overlay de **Gentoo** y plantillas de **nginx** y **Apache**.
+- CLI `storageweb` (servidor, usuarios, sesiones, IPs, copias y restauración, secretos, ajustes) y timer de systemd para copias.
+- `GET /healthz` y documentación en MkDocs con la referencia de configuración, CLI y API generada desde el código.
+
+### Notas
+
+- Licencia **GPL-3.0 o posterior** (`LICENSE`): quien distribuya StorageWeb, modificado o no, tiene que hacerlo con el código fuente y bajo la misma licencia.
+- La interfaz sale en **inglés** por defecto si el navegador no pide otro idioma: para español, *System → General and branding* o `"default_locale": "es"` en `config.json`.

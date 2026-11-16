@@ -67,7 +67,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--version", required=True)
     ap.add_argument("--homepage", required=True)
-    ap.add_argument("--license", default="all-rights-reserved")
+    ap.add_argument("--license", default="GPL-3+")
     ap.add_argument("--tarball", required=True, type=Path)
     ap.add_argument("--output", required=True, type=Path)
     args = ap.parse_args(argv)

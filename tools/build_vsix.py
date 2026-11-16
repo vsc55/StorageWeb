@@ -27,7 +27,7 @@ EXTENSION = ROOT / "clients" / "vscode"
 INCLUDE = ("package.json", "package.nls.json", "package.nls.*.json", "README.md", "CHANGELOG.md", "src/*.js",
            "l10n/*.json", "media/*.svg")
 CONTENT_TYPES = {".json": "application/json", ".js": "application/javascript", ".md": "text/markdown",
-                 ".svg": "image/svg+xml", ".vsixmanifest": "text/xml"}
+                 ".svg": "image/svg+xml", ".vsixmanifest": "text/xml", ".txt": "text/plain"}
 
 
 def files() -> list[Path]:
@@ -70,6 +70,7 @@ def manifest(pkg: dict, nls: dict) -> str:
   <Assets>
     <Asset Type="Microsoft.VisualStudio.Code.Manifest" Path="extension/package.json" Addressable="true" />
     <Asset Type="Microsoft.VisualStudio.Services.Content.Details" Path="extension/README.md" Addressable="true" />
+    <Asset Type="Microsoft.VisualStudio.Services.Content.License" Path="extension/LICENSE.txt" Addressable="true" />
   </Assets>
 </PackageManifest>
 '''
@@ -93,6 +94,8 @@ def build(out_dir: Path, version: str | None = None) -> Path:
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("[Content_Types].xml", content_types())
         zf.writestr("extension.vsixmanifest", manifest(pkg, nls))
+        # La licencia es la del proyecto (LICENSE en la raíz del repositorio)
+        zf.writestr("extension/LICENSE.txt", (ROOT / "LICENSE").read_text(encoding="utf-8"))
         for path in files():
             if path.suffix not in CONTENT_TYPES:
                 raise SystemExit(f"Tipo de archivo sin Content-Type en el paquete: {path}")

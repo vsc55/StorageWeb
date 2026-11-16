@@ -1,7 +1,7 @@
 """StorageWeb: servidor web para subir y descargar archivos."""
 from __future__ import annotations
 
-__version__ = "1.0.0"
+__version__ = "0.1.0"
 
 # Punto de ensamblado: registra lo que se descubre solo antes de que nada lea la configuración (los
 # valores por defecto y la validación de auth.* y storage.locations dependen de ello):

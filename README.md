@@ -47,3 +47,7 @@ python -m pytest -q
 En VS Code hay tareas para todo esto (*Tasks: Run Task → StorageWeb: …*) y **Ctrl+Shift+B** lanza el servidor de pruebas.
 
 Más: [CONTRIBUTING.md](CONTRIBUTING.md) · [CHANGELOG.md](CHANGELOG.md) · [SECURITY.md](SECURITY.md)
+
+## Licencia
+
+StorageWeb es software libre: puedes usarlo, estudiarlo, modificarlo y redistribuirlo bajo los términos de la [GNU General Public License](LICENSE), versión 3 o (a tu elección) cualquier versión posterior. Si distribuyes StorageWeb, modificado o no, tienes que hacerlo con su código fuente y bajo esta misma licencia. Se ofrece **sin ninguna garantía**; consulta [LICENSE](LICENSE) para los detalles.

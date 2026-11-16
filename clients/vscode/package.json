@@ -3,6 +3,7 @@
   "displayName": "StorageWeb",
   "description": "%description%",
   "version": "0.4.2",
+  "license": "GPL-3.0-or-later",
   "publisher": "storageweb",
   "private": true,
   "engines": {
