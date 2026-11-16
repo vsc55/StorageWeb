@@ -3,6 +3,10 @@ from __future__ import annotations
 
 ROLES = ("admin", "user")
 PERMISSIONS = ("upload", "download", "mkdir", "rename", "delete")
+# Ilustraciones de serie del inicio de sesión (web/static/img/login-<clave>.svg)
+LOGIN_ARTS = ("classic", "sync", "waves", "mosaic", "layers")
+# Valores de branding.login_art: una de ellas o «random» (una distinta en cada carga)
+LOGIN_ART_CHOICES = (*LOGIN_ARTS, "random")
 
 # Secciones que se pueden editar desde la web (se guardan en SQLite y prevalecen sobre config.json).
 # El resto (server, data_dir, database, secret_key, session) solo se configura en config.json
@@ -130,6 +134,10 @@ DEFAULTS: dict = {
         "primary_color": "",
         # Lo pone la subida del logo: logo.png, logo.svg…
         "logo": "",
+        # Ilustración de serie del inicio de sesión (LOGIN_ART_CHOICES); una imagen subida manda sobre ella
+        "login_art": "classic",
+        # Lo pone la subida de la imagen del inicio de sesión: login.jpg, login.webp…; vacío = la ilustración
+        "login_image": "",
     },
 }
 

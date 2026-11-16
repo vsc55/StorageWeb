@@ -211,7 +211,7 @@ def test_profile_and_settings(make_app):
     assert "Unidad de red" in page and "http://localhost/dav/" in page and "Usuario: ana" in page
     admin = app.test_client()
     login(admin, "root")
-    page = admin.get("/admin/settings/security").get_data(as_text=True)
+    page = admin.get("/admin/settings/clients").get_data(as_text=True)     # Seguridad → API y unidad de red
     assert 'name="webdav"' in page and 'name="webdav_passwords"' in page
 
 

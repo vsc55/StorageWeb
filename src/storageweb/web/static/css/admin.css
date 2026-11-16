@@ -284,6 +284,24 @@ a.chip-detected:hover { text-decoration: none; border-color: var(--primary); }
 .rail-brand img, .brand-mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .brand-logo-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 10px 0; }
 .brand-preview { position: static; width: 48px; height: 48px; margin: 0; }
+.art-options { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0; }
+/* Todas del mismo ancho: los nombres largos se parten en dos líneas en vez de separar las miniaturas */
+.art-option { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 92px; color: var(--fg);
+              cursor: pointer; text-align: center; font-size: 12px; line-height: 1.3; }
+.art-option input { position: absolute; opacity: 0; }
+.art-swatch { display: block; flex: 0 0 auto; width: 84px; height: 112px; box-sizing: border-box; border-radius: 10px;
+              border: 2px solid var(--line); }
+.art-random { display: flex; align-items: center; justify-content: center; color: #fff; }
+.art-random .icon { width: 28px; height: 28px; }
+.art-option input:checked + .art-swatch { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.art-option input:focus-visible + .art-swatch { outline: 2px solid var(--primary); outline-offset: 2px; }
+.art-option input:disabled + .art-swatch { opacity: .6; cursor: not-allowed; }
+.art-options.is-overridden { opacity: .55; }   /* con imagen propia, las ilustraciones no se ven */
+.art-custom { display: flex; gap: 14px; align-items: center; margin: 8px 0 4px; }
+.art-custom .art-swatch { border-color: var(--primary); }
+.art-custom-text { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.art-upload { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+.art-upload label { font-weight: 500; }
 .brand-color { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .brand-color input[type="color"] { width: 48px; height: 34px; padding: 2px; }
 .ip-form input[name="network"] { min-width: 200px; }

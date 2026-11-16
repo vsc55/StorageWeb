@@ -56,7 +56,7 @@ La barra lateral tiene *Archivos* y, para los administradores, el **Resumen** y 
 | **Resumen** | Avisos que necesitan atención (secreto de Entra ID a punto de caducar, carpetas que no existen, copias automáticas que no se hacen, problemas de red), una tarjeta por zona, tareas frecuentes y la actividad reciente. El número rojo de la barra lateral cuenta los avisos |
 | **Personas** | Usuarios · Grupos · Sesiones y tokens |
 | **Acceso** | Carpetas compartidas · Matriz de accesos · Permisos del rol · Carpetas personales |
-| **Seguridad** | Inicio de sesión · Reglas de bloqueo · IPs bloqueadas · Auditoría |
+| **Seguridad** | Inicio de sesión · Reglas de bloqueo · API y unidad de red · IPs bloqueadas · Auditoría |
 | **Sistema** | General y marca · Red y HTTPS · Mantenimiento · Copias y base de datos · Información |
 
 Cada página dice de qué tipo es:

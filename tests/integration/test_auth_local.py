@@ -1,4 +1,8 @@
 
+import io
+import re
+
+from storageweb import __version__
 from tests.helpers import PASSWORD, add_user, get_csrf, login
 from storageweb.web.context import get_db
 
@@ -12,6 +16,68 @@ def test_login_page(client):
     html = client.get("/login").get_data(as_text=True)
     assert 'name="username"' in html
     assert "Microsoft" not in html  # Entra desactivado
+    # Solo cuenta local: el formulario a la vista, sin plegar, y la ilustración de serie en el lateral
+    assert 'class="login-local"' not in html and "autofocus" in html
+    assert "/static/img/login-classic.svg" in html and 'class="public-bar"' not in html
+    assert '<use href="#i-logo">' in html and "/brand/favicon.svg?v=" in html   # logo y favicon de serie
+    assert "StorageWeb " + __version__ not in html                             # la versión no se enseña sin sesión
+
+
+def test_default_favicon_follows_the_main_color(make_app):
+    app = make_app({"branding": {"primary_color": "#aa3300"}})
+    resp = app.test_client().get("/brand/favicon.svg")
+    assert resp.mimetype == "image/svg+xml" and 'fill="#aa3300"' in resp.get_data(as_text=True)
+
+
+def test_with_sso_the_local_account_is_folded(make_app):
+    app = make_app({"auth": {"entra": {"enabled": True, "tenant_id": "t", "client_id": "c", "client_secret": "s"}}})
+    add_user(app, "ana")
+    client = app.test_client()
+    html = client.get("/login?manual=1").get_data(as_text=True)
+    assert html.index("/auth/entra/login") < html.index('name="username"')   # Microsoft primero
+    assert '<details class="login-local">' in html and "Usar una cuenta local" in html
+    assert "autofocus" not in html                                            # el campo está plegado
+    # Tras un intento fallido sale desplegado y con el usuario escrito
+    html = login(client, "ana", "mal").get_data(as_text=True)
+    assert '<details class="login-local" open>' in html and 'value="ana"' in html and "autofocus" in html
+
+
+def test_custom_sign_in_image(app, admin):
+    client, token = admin
+    jpeg = b"\xff\xd8\xff" + b"\0" * 64
+    resp = client.post("/admin/settings/branding/login-image",
+                       data={"_csrf": token, "login_image": (io.BytesIO(jpeg), "foto.jpg")},
+                       content_type="multipart/form-data")
+    assert resp.status_code == 302
+    html = app.test_client().get("/login").get_data(as_text=True)
+    assert "/brand/login-image?v=" in html and "/static/img/login-classic.svg" not in html
+    assert app.test_client().get("/brand/login-image").data == jpeg           # sin iniciar sesión
+    with app.app_context():
+        assert get_db().execute("SELECT 1 FROM audit_log WHERE action = 'branding_login_image_updated'").fetchone()
+    client.post("/admin/settings/branding/login-image/delete", data={"_csrf": token})
+    assert app.test_client().get("/brand/login-image").status_code == 404
+    assert "/static/img/login-classic.svg" in app.test_client().get("/login").get_data(as_text=True)
+
+
+def test_choose_sign_in_illustration(app, admin):
+    client, token = admin
+    page = client.get("/admin/settings/general").get_data(as_text=True)
+    assert page.count('name="login_art"') == 6 and 'value="classic" checked' in page
+    data = {"_csrf": token, "app_name": "StorageWeb", "default_locale": "es", "login_art": "waves"}
+    assert client.post("/admin/settings/general", data=data).status_code == 302
+    assert "/static/img/login-waves.svg" in app.test_client().get("/login").get_data(as_text=True)
+    assert app.test_client().get("/static/img/login-waves.svg").status_code == 200
+    html = client.post("/admin/settings/general", data={**data, "login_art": "../x"},
+                       follow_redirects=True).get_data(as_text=True)
+    assert "branding.login_art" in html                                       # valor no válido: no se guarda
+    assert "/static/img/login-waves.svg" in app.test_client().get("/login").get_data(as_text=True)
+    # Aleatoria: una de las cinco en cada carga
+    assert client.post("/admin/settings/general", data={**data, "login_art": "random"}).status_code == 302
+    seen = set()
+    for _ in range(40):
+        html = app.test_client().get("/login").get_data(as_text=True)
+        seen.add(re.search(r"/static/img/login-(\w+)\.svg", html).group(1))
+    assert len(seen) > 1 and seen <= {"classic", "sync", "waves", "mosaic", "layers"}
 
 
 def test_post_without_csrf_rejected(app, client):

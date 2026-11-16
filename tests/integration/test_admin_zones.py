@@ -35,6 +35,10 @@ def test_zone_subnav_and_page_kind(admin):
     assert 'class="zone-link active" href="/admin/groups/"' in html
     html = client.get("/admin/settings/security").get_data(as_text=True)
     assert "Reglas de bloqueo" in html and "IPs bloqueadas" in html and "Configuración · se aplica al guardar" in html
+    # Una página por tema: los tokens y WebDAV no están entre las reglas de bloqueo, sino en la suya
+    assert 'name="api_tokens"' not in html and 'name="webdav"' not in html
+    html = client.get("/admin/settings/clients").get_data(as_text=True)
+    assert 'name="api_tokens"' in html and 'name="webdav_passwords"' in html and 'name="lockout_minutes"' not in html
     html = client.get("/admin/settings/ips").get_data(as_text=True)
     assert "Operación · se aplica al momento" in html
     # Acceso: la matriz de grupos cuenta como página de la zona

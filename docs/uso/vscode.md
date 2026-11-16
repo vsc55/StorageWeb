@@ -54,7 +54,7 @@ En el panel, sección *Servidores*, botón **+** (*Añadir servidor…*). Escrib
 En los dos casos la extensión comprueba que funcionan antes de guardarlo. *Cambiar el token…* pregunta lo mismo; con el navegador tienes que entrar con el mismo usuario del servidor (otra cuenta es otro servidor).
 
 !!! note "Iniciar sesión en el navegador"
-    Necesita que StorageWeb tenga los tokens de API activados (*Seguridad → Reglas de bloqueo*, vienen así) y un servidor con esta versión o posterior; si no, la extensión lo dice y puedes usar usuario y token. No funciona en VS Code en el navegador (vscode.dev) ni en conexiones remotas. El intercambio es seguro aunque otro programa vea la vuelta a VS Code: el código solo vale una vez, durante 5 minutos, y solo con un secreto que la extensión nunca envía al navegador (PKCE).
+    Necesita que StorageWeb tenga los tokens de API activados (*Seguridad → API y unidad de red*, vienen así) y un servidor con esta versión o posterior; si no, la extensión lo dice y puedes usar usuario y token. No funciona en VS Code en el navegador (vscode.dev) ni en conexiones remotas. El intercambio es seguro aunque otro programa vea la vuelta a VS Code: el código solo vale una vez, durante 5 minutos, y solo con un secreto que la extensión nunca envía al navegador (PKCE).
 
 Puedes añadir varios: servidores distintos, o el mismo con otra cuenta. Con clic derecho sobre un servidor: *Editar servidor…* (el nombre que se ve o la dirección), *Cambiar el token…*, *Abrir en el navegador* y *Quitar servidor* (borra su token de este equipo; en el servidor no se borra nada). Si el servidor rechaza el token (lo revocaste o caducó), el panel lo dice y ofrece ponerlo otra vez.
 

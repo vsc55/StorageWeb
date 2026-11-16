@@ -80,8 +80,10 @@ ZONES: tuple[Zone, ...] = (
     Zone("security", _l("Security"), "shield", (
         _settings("auth", _l("Sign-in"), hint=_l("Local users, PAM and Microsoft Entra ID"),
                   also=("settings.entra_*",), words="inicio sesión login entra microsoft pam sso secreto secret"),
-        _settings("security", _l("Blocking rules"), hint=_l("Failed sign-ins, automatic IP blocking and API tokens"),
-                  words="bloqueo intentos fallidos contraseña ip automático tokens lockout"),
+        _settings("security", _l("Blocking rules"), hint=_l("Failed sign-ins and automatic IP blocking"),
+                  words="bloqueo intentos fallidos contraseña ip automático lockout"),
+        _settings("clients", _l("API and network drive"), hint=_l("Personal API tokens and the WebDAV network drive"),
+                  words="tokens api webdav unidad red rclone scripts aplicaciones network drive"),
         _settings("ips", _l("Blocked IPs"), "op", _l("Blocked addresses and the allow list"),
                   words="ip bloqueadas desbloquear ban unban lista permitidas allow"),
         Page("audit", _l("Audit"), "admin.audit_log", kind="info", hint=_l("Who did what and when"),

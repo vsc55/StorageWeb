@@ -38,12 +38,13 @@ def _admin_nav(user) -> dict:
 
 def _brand() -> dict:
     cfg = settings()
-    color, logo = cfg["branding"]["primary_color"], cfg["branding"]["logo"]
-    version = f"{color}{logo}"
-    if logo:
-        path = branding.logo_path(cfg)
-        version += str(int(path.stat().st_mtime)) if path else ""
-    return {"color": color, "logo": bool(logo and branding.logo_path(cfg)), "version": version or "0"}
+    color = cfg["branding"]["primary_color"]
+    found = {kind: branding.image_path(cfg, kind) for kind in branding.IMAGES}
+    # La versión va en las URL (se cachean una hora): cambia con el color y con cada imagen subida
+    version = color + "".join(f"{p.name}{int(p.stat().st_mtime)}" for p in found.values() if p)
+    return {"color": color, "logo": bool(found["logo"]), "login_image": bool(found["login_image"]),
+            "login_art": branding.pick_login_art(cfg["branding"]["login_art"]),
+            "version": version or "0"}
 
 
 def init_templating(app: Flask) -> None:

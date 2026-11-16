@@ -177,7 +177,8 @@ def test_settings_sections_render(admin):
     assert client.get("/admin/settings").location.endswith("/admin/settings/general")
     for section, text in (("general", "Idioma por defecto"), ("storage", "Plantilla de carpeta personal"),
                           ("permissions", "Permisos del rol"), ("auth", "Entra ID"),
-                          ("security", "Minutos de bloqueo"), ("ips", "IPs bloqueadas"),
+                          ("security", "Minutos de bloqueo"), ("clients", "Permitir tokens de API personales"),
+                          ("ips", "IPs bloqueadas"),
                           ("maintenance", "Copias que se conservan"), ("backups", "Copias y base de datos"),
                           ("sessions", "Sesiones y tokens"), ("system", "Arranque")):
         resp = client.get(f"/admin/settings/{section}")
@@ -189,7 +190,7 @@ def test_settings_sections_render(admin):
     assert client.post("/admin/settings/system", data={"_csrf": token}).status_code == 405
 
 
-@pytest.mark.parametrize("section", ["general", "storage", "permissions", "auth", "security", "network",
+@pytest.mark.parametrize("section", ["general", "storage", "permissions", "auth", "security", "clients", "network",
                                      "maintenance"])
 def test_settings_roundtrip_unchanged(app, admin, section):
     from storageweb.settings import runtime_view

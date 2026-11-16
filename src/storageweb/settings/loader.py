@@ -26,7 +26,7 @@ from .errors import ConfigError
 from .layers import _get, _set, merge_overrides
 from . import location_types
 from . import auth_methods
-from .defaults import DEFAULTS, PERMISSIONS, RUNTIME_SECTIONS, SECRET_FIELDS
+from .defaults import DEFAULTS, LOGIN_ART_CHOICES, PERMISSIONS, RUNTIME_SECTIONS, SECRET_FIELDS
 
 SHARE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 PROFILE_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -359,9 +359,14 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     brand["primary_color"] = str(brand.get("primary_color") or "").strip().lower()
     if brand["primary_color"] and not re.match(r"^#[0-9a-f]{6}$", brand["primary_color"]):
         raise ConfigError(_("branding.primary_color must be a color like #2563eb"), "branding.primary_color")
-    brand["logo"] = str(brand.get("logo") or "").strip()
-    if brand["logo"] and not re.match(r"^logo\.(png|jpg|jpeg|webp|svg)$", brand["logo"]):
-        raise ConfigError(_("branding.logo is not valid"), "branding.logo")
+    brand["login_art"] = str(brand.get("login_art") or "").strip() or DEFAULTS["branding"]["login_art"]
+    if brand["login_art"] not in LOGIN_ART_CHOICES:
+        raise ConfigError(_("branding.login_art must be one of: %(values)s", values=", ".join(LOGIN_ART_CHOICES)),
+                          "branding.login_art")
+    for key, stem in (("logo", "logo"), ("login_image", "login")):
+        brand[key] = str(brand.get(key) or "").strip()
+        if brand[key] and not re.match(rf"^{stem}\.(png|jpg|jpeg|webp|svg)$", brand[key]):
+            raise ConfigError(_("branding.%(key)s is not valid", key=key), f"branding.{key}")
     cfg["settings_profile"] = str(cfg["settings_profile"] or "default").strip()
     if not PROFILE_RE.match(cfg["settings_profile"]):
         raise ConfigError(_("settings_profile can only contain letters, digits, _ and -"), "settings_profile")

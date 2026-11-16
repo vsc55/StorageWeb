@@ -66,7 +66,10 @@ def login():
             flash(_("Wrong user name or password."), "error")
 
     buttons = [(m.key, m.login_button(m.section(cfg))) for m in _enabled(cfg, sso=True)]
-    return render_template("login.html", form_enabled=form_enabled, sso_buttons=buttons, next_url=next_url)
+    # Tras un intento fallido con la cuenta local, el formulario sale desplegado y con el usuario escrito
+    tried = request.method == "POST" and form_enabled
+    return render_template("login.html", form_enabled=form_enabled, sso_buttons=buttons, next_url=next_url,
+                           local_open=tried, username=(request.form.get("username") or "").strip() if tried else "")
 
 
 @bp.route("/locale", methods=["POST"])

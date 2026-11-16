@@ -24,7 +24,7 @@ from ...forms import split_list
 from .common import checked, form_int, network_context, save_partial
 
 
-SECTIONS = ("general", "storage", "permissions", "auth", "security", "ips", "sessions", "network", "maintenance",
+SECTIONS = ("general", "storage", "permissions", "auth", "security", "clients", "ips", "sessions", "network", "maintenance",
             "backups", "system")
 SECTION_LABELS = {name: nav.PAGES[name].label for name in SECTIONS}
 SECTION_DESCRIPTIONS = {
@@ -32,7 +32,8 @@ SECTION_DESCRIPTIONS = {
     "storage": _l("Where personal folders live and upload limits."),
     "permissions": _l("What the «User» role can do. Administrators always have every permission."),
     "auth": _l("How users sign in. Several methods can be enabled at the same time."),
-    "security": _l("Protection against password guessing, automatic IP blocking and API tokens."),
+    "security": _l("Protection against password guessing and automatic IP blocking."),
+    "clients": _l("How scripts, apps and network drives reach the files: personal API tokens and WebDAV."),
     "ips": _l("Addresses blocked by hand or automatically, and addresses that are never blocked."),
     "maintenance": _l("How long the audit log is kept, how often backups are made and the metrics for monitoring."),
     "backups": _l("Backups, database size and cleanup tasks."),
@@ -51,7 +52,7 @@ def _general() -> dict:
     color = request.form.get("primary_color", "").strip() if checked("custom_color") else ""
     return {"app_name": request.form.get("app_name", "").strip(),
             "default_locale": request.form.get("default_locale", ""),
-            "branding": {"primary_color": color}}
+            "branding": {"primary_color": color, "login_art": request.form.get("login_art", "").strip()}}
 
 
 def _storage() -> dict:
@@ -82,6 +83,11 @@ def _security() -> dict:
         "ipban_threshold": form_int("ipban_threshold", "security.ipban_threshold", _("Offenses")),
         "ipban_window_minutes": form_int("ipban_window_minutes", "security.ipban_window_minutes", _("Window")),
         "ipban_minutes": form_int("ipban_minutes", "security.ipban_minutes", _("Block duration")),
+    }}
+
+
+def _clients() -> dict:
+    return {"security": {
         "api_tokens": checked("api_tokens"),
         "webdav": checked("webdav"),
         "webdav_passwords": checked("webdav_passwords"),
@@ -102,7 +108,7 @@ def _maintenance() -> dict:
 
 
 PARSERS = {"general": _general, "storage": _storage, "permissions": _permissions,
-           "auth": auth_forms.parse, "security": _security, "network": _network, "maintenance": _maintenance}
+           "auth": auth_forms.parse, "security": _security, "clients": _clients, "network": _network, "maintenance": _maintenance}
 
 
 def _display(draft: dict | None) -> dict:
@@ -125,6 +131,7 @@ def _context(section: str, cfg: dict) -> dict:
         "form_default": lambda path: fields.form_value(path, get_path(runtime().defaults(), path)),
         "profile": runtime().profile,
         "info": info, "locales": [(code, locale_display_name(code)) for code in LOCALES],
+        "login_arts": list(branding.LOGIN_ART_LABELS.items()),
         "permissions": PERMISSIONS, "PERMISSION_LABELS": PERMISSION_LABELS,
         "ROLES": ROLES, "ROLE_LABELS": ROLE_LABELS,
         "metrics_token_set": bool(settings()["metrics"]["token"]),

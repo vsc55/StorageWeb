@@ -87,7 +87,7 @@
 <section class="card section-gap" aria-labelledby="tokens-title">
   <h3 class="card-title" id="tokens-title">{{ _("API tokens") }}</h3>
   <p class="muted small">{{ _("Users create them in their profile. Revoking one stops it at once.") }}
-    <a href="{{ url_for('settings.section', name='security') }}">{{ _("Allow or forbid tokens in Security") }}</a></p>
+    <a href="{{ url_for('settings.section', name='clients') }}">{{ _("Allow or forbid tokens in Security → API and network drive") }}</a></p>
   <div class="table-scroll">
   <table class="files small">
     <thead><tr><th>{{ _("User") }}</th><th>{{ _("Name") }}</th><th>{{ _("Scope") }}</th><th>{{ _("Last used") }}</th><th>{{ _("Expires") }}</th>

@@ -11,7 +11,8 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/files.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
   {% if brand.color %}<link rel="stylesheet" href="{{ url_for('brand.stylesheet', v=brand.version) }}">{% endif %}
-  {% if brand.logo %}<link rel="icon" href="{{ url_for('brand.logo', v=brand.version) }}">{% endif %}
+  {% if brand.logo %}<link rel="icon" href="{{ url_for('brand.logo', v=brand.version) }}">
+  {% else %}<link rel="icon" type="image/svg+xml" href="{{ url_for('brand.favicon', v=brand.version) }}">{% endif %}
   {# Textos del JavaScript (no se ejecuta: permitido por la CSP) #}
   <script type="application/json" id="i18n-messages">{{ js_messages()|tojson }}</script>
 </head>
@@ -53,7 +54,7 @@
 <div class="app">
   <nav class="rail" aria-label="{{ _('Main') }}">
     <a class="rail-brand{% if brand.logo %} has-logo{% endif %}" href="{{ url_for('files.index') }}" title="{{ app_name }}">
-      {% if brand.logo %}<img src="{{ url_for('brand.logo', v=brand.version) }}" alt="">{% else %}<svg class="icon" aria-hidden="true"><use href="#i-folder"></use></svg>{% endif %}
+      {% if brand.logo %}<img src="{{ url_for('brand.logo', v=brand.version) }}" alt="">{% else %}<svg class="icon" aria-hidden="true"><use href="#i-logo"></use></svg>{% endif %}
       <span class="sr-only">{{ app_name }}</span>
     </a>
     <a class="rail-item{% if request.blueprint == 'files' %} active{% endif %}" href="{{ url_for('files.index') }}"
@@ -109,10 +110,13 @@
     </details>
   </nav>
   <div class="app-main">
+{% elif public_layout == "bare" %}
+{# Página pública que dibuja su propia cabecera (el inicio de sesión): pone «{% set public_layout = "bare" %}» #}
+<main class="public-main public-bare">
 {% else %}
 <header class="public-bar">
   <a class="brand" href="{{ url_for('files.index') }}">
-    <span class="brand-mark{% if brand.logo %} has-logo{% endif %}">{% if brand.logo %}<img src="{{ url_for('brand.logo', v=brand.version) }}" alt="">{% else %}<svg class="icon" aria-hidden="true"><use href="#i-folder"></use></svg>{% endif %}</span>{{ app_name }}
+    <span class="brand-mark{% if brand.logo %} has-logo{% endif %}">{% if brand.logo %}<img src="{{ url_for('brand.logo', v=brand.version) }}" alt="">{% else %}<svg class="icon" aria-hidden="true"><use href="#i-logo"></use></svg>{% endif %}</span>{{ app_name }}
   </a>
   <div class="public-tools">
     {{ themebox(false) }}
@@ -148,7 +152,7 @@
 </div>
 {% else %}
 </main>
-<footer class="footer muted">StorageWeb {{ app_version }}</footer>
+{% if public_layout != "bare" %}<footer class="footer muted">StorageWeb {{ app_version }}</footer>{% endif %}
 {% endif %}
 <script src="{{ url_for('static', filename='js/common.js') }}"></script>
 {% if is_admin %}

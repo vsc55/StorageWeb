@@ -219,20 +219,20 @@ FIELDS: dict[str, Field] = {
     "security.api_tokens": Field(
         doc="Permitir tokens de API personales (`Authorization: Bearer sw_…`) para scripts.",
         label=_l("Allow personal API tokens"),
-        page="security",
+        page="clients",
         words="api tokens scripts"),
     "security.webdav": Field(
         doc=("Unidad de red: servidor WebDAV en `/dav/` (Windows, macOS, Linux, rclone…). Se entra con el nombre "
              "de usuario y un token de API como contraseña. Necesita `api_tokens` salvo que se admita la "
              "contraseña de la cuenta."),
         label=_l("Network drive (WebDAV)"),
-        page="security",
+        page="clients",
         words="webdav unidad red network drive dav rclone mapear windows finder"),
     "security.webdav_passwords": Field(
         doc=("Admitir también la contraseña de la cuenta (usuarios locales y PAM) en WebDAV. Desactivado: solo "
              "tokens, que se pueden revocar y limitar a lectura."),
         label=_l("Also accept the account password in WebDAV"),
-        page="security",
+        page="clients",
         words="webdav contraseña password"),
     "maintenance.audit_retention_days": Field(
         doc="Días que se conserva la auditoría; `0` = siempre. La limpieza se hace una vez al día.",
@@ -278,6 +278,20 @@ FIELDS: dict[str, Field] = {
         label=_l("Logo"),
         page="general",
         words="logo imagen marca branding image"),
+    "branding.login_art": Field(
+        doc="Ilustración de serie del lateral del inicio de sesión: `classic`, `sync` (sincronización), `waves` (ondas), "
+            "`mosaic` (mosaico de archivos), `layers` (capas) o `random` (una distinta en cada carga). Toma el color "
+            "principal. Una imagen propia "
+            "(`branding.login_image`) manda sobre ella.",
+        label=_l("Sign-in illustration"),
+        page="general",
+        words="ilustración imagen fondo inicio sesión login marca branding illustration background"),
+    "branding.login_image": Field(
+        doc="Imagen del lateral del inicio de sesión: la rellena la subida desde *Sistema → General y marca* "
+            "(`login.jpg`, `login.webp`…). Vacío = la ilustración de serie elegida (`branding.login_art`).",
+        label=_l("Sign-in image"),
+        page="general",
+        words="imagen fondo inicio sesión login marca branding background image"),
 }
 # Los permisos del rol «user» se llaman como el permiso
 for _perm in PERMISSIONS:

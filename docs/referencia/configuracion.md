@@ -155,6 +155,8 @@ Cada valor sale de la capa con más prioridad que lo fije, campo a campo: **pred
 |---|---|---|---|---|---|
 | `branding.primary_color` | texto | `""` | Sí | `STORAGEWEB_BRANDING__PRIMARY_COLOR` | Color principal de la interfaz (`#rrggbb`). Vacío = el de serie. |
 | `branding.logo` | texto | `""` | Sí | `STORAGEWEB_BRANDING__LOGO` | Logo propio: lo rellena la subida desde *Sistema → General y marca* (`logo.png`, `logo.svg`…). |
+| `branding.login_art` | texto | `"classic"` | Sí | `STORAGEWEB_BRANDING__LOGIN_ART` | Ilustración de serie del lateral del inicio de sesión: `classic`, `sync` (sincronización), `waves` (ondas), `mosaic` (mosaico de archivos), `layers` (capas) o `random` (una distinta en cada carga). Toma el color principal. Una imagen propia (`branding.login_image`) manda sobre ella. |
+| `branding.login_image` | texto | `""` | Sí | `STORAGEWEB_BRANDING__LOGIN_IMAGE` | Imagen del lateral del inicio de sesión: la rellena la subida desde *Sistema → General y marca* (`login.jpg`, `login.webp`…). Vacío = la ilustración de serie elegida (`branding.login_art`). |
 
 ## Tipos de ubicación (`storage.locations[].type`)
 

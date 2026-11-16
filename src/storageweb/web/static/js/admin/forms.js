@@ -254,6 +254,8 @@
     var fields = new Set();
     controlsOf(form).forEach(function (el) {
       var changed = initial.has(el) ? valueOf(el) !== initial.get(el) : valueOf(el) !== "" && el.type !== "checkbox";
+      // En un grupo de opciones solo cuenta (y se resalta) la nueva elegida: la que se desmarca no es otro cambio
+      if (changed && el.type === "radio" && !el.checked) changed = false;
       if (changed) fields.add(fieldOf(el));
     });
     form.querySelectorAll(".is-dirty").forEach(function (el) {

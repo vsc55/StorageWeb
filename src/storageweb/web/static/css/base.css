@@ -88,7 +88,7 @@ textarea { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-
 .btn-icon { width: 32px; height: 32px; min-height: 32px; padding: 0; }
 .btn-block { width: 100%; }
 .btn-sso { width: 100%; }
-.login-card .btn-sso + .btn-sso { margin-top: 8px; }
+.btn-lg { min-height: 44px; padding: 10px 16px; font-size: 15px; font-weight: 600; border-radius: 10px; }
 label.btn { flex-direction: row; font-size: 13px; color: var(--fg); }
 label.btn-primary { color: var(--primary-fg); }
 .inline { display: inline-flex; gap: 6px; margin: 0; align-items: center; }

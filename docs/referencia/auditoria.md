@@ -40,7 +40,8 @@ Cada acción relevante se guarda en la tabla `audit_log`. Se puede consultar en 
 | `share_created` | Carpeta compartida creada en *Acceso → Carpetas compartidas* (*target* = carpeta) | Ruta |
 | `share_updated` | Carpeta compartida guardada (nombre, ruta o quién entra) | `quién=nivel, …` |
 | `share_deleted` | Carpeta compartida quitada (los archivos se quedan en el servidor) | Ruta |
-| `location_created` | Ubicación de almacenamiento creada en *Sistema → Almacenamiento externo* (*target* = ubicación) | Dirección (`s3://…`, `\servidorecurso`) |
+| `location_created` | Ubicación de almacenamiento creada en *Sistema → Almacenamiento externo* (*target* = ubicación) | Dirección (`s3://…`, `\servidor
+ecurso`) |
 | `location_updated` | Ubicación de almacenamiento guardada | Dirección |
 | `location_tested` | Prueba de conexión de una ubicación | `ok` o el error |
 | `location_deleted` | Ubicación quitada (los archivos se quedan donde estaban) | Dirección |
@@ -75,6 +76,8 @@ Cada acción relevante se guarda en la tabla `audit_log`. Se puede consultar en 
 | `backup_failed` | Falló una copia automática | Error |
 | `branding_logo_updated` | Logo propio subido | Fichero |
 | `branding_logo_removed` | Logo propio quitado |  |
+| `branding_login_image_updated` | Imagen propia del inicio de sesión subida | Fichero |
+| `branding_login_image_removed` | Imagen propia del inicio de sesión quitada (vuelve la de serie) |  |
 | `settings_field_reset` | Un ajuste vuelve a su valor predeterminado (*Restablecer*) | Ruta del ajuste |
 | `settings_reset` | Ajustes web descartados (web o `settings-reset`) | |
 | `upload` | Archivo subido | Tamaño en bytes |

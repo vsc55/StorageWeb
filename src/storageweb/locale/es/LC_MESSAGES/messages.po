@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: StorageWeb VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-15 22:58+0100\n"
+"POT-Creation-Date: 2026-11-16 22:17+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -654,13 +654,37 @@ msgid "The backup does not include config.json"
 msgstr "La copia no incluye config.json"
 
 #: storageweb/core/branding.py
-msgid "The logo must be a PNG, JPEG, WebP or SVG image."
-msgstr "El logo debe ser una imagen PNG, JPEG, WebP o SVG."
+msgid "Classic"
+msgstr "Clásica"
+
+#: storageweb/core/branding.py
+msgid "Sync"
+msgstr "Sincronización"
+
+#: storageweb/core/branding.py
+msgid "Waves"
+msgstr "Ondas"
+
+#: storageweb/core/branding.py
+msgid "File mosaic"
+msgstr "Mosaico de archivos"
+
+#: storageweb/core/branding.py
+msgid "Storage layers"
+msgstr "Capas de almacenamiento"
+
+#: storageweb/core/branding.py
+msgid "Random"
+msgstr "Aleatoria"
+
+#: storageweb/core/branding.py
+msgid "The image must be a PNG, JPEG, WebP or SVG file."
+msgstr "La imagen tiene que ser un fichero PNG, JPEG, WebP o SVG."
 
 #: storageweb/core/branding.py
 #, python-format
-msgid "The logo must be at most %(kb)s KB."
-msgstr "El logo puede ocupar como mucho %(kb)s KB."
+msgid "The image must be at most %(kb)s KB."
+msgstr "La imagen no puede pasar de %(kb)s KB."
 
 #: storageweb/core/branding.py
 #, python-format
@@ -2078,15 +2102,15 @@ msgstr "En (minutos)"
 msgid "Block for (minutes)"
 msgstr "Bloquear durante (minutos)"
 
-#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/security.html
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/clients.html
 msgid "Allow personal API tokens"
 msgstr "Permitir tokens de API personales"
 
-#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/security.html
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/clients.html
 msgid "Network drive (WebDAV)"
 msgstr "Unidad de red (WebDAV)"
 
-#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/security.html
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/clients.html
 msgid "Also accept the account password in WebDAV"
 msgstr "Admitir también la contraseña de la cuenta en WebDAV"
 
@@ -2122,6 +2146,14 @@ msgstr "Usar mi propio color principal"
 #: storageweb/settings/fields.py storageweb/web/templates/admin/settings/general.html
 msgid "Logo"
 msgstr "Logo"
+
+#: storageweb/settings/fields.py
+msgid "Sign-in illustration"
+msgstr "Ilustración del inicio de sesión"
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/general.html
+msgid "Sign-in image"
+msgstr "Imagen del inicio de sesión"
 
 #: storageweb/settings/fields.py
 msgid "empty"
@@ -2236,8 +2268,14 @@ msgid "branding.primary_color must be a color like #2563eb"
 msgstr "branding.primary_color debe ser un color como #2563eb"
 
 #: storageweb/settings/loader.py
-msgid "branding.logo is not valid"
-msgstr "branding.logo no es válido"
+#, python-format
+msgid "branding.login_art must be one of: %(values)s"
+msgstr "branding.login_art tiene que ser uno de: %(values)s"
+
+#: storageweb/settings/loader.py
+#, python-format
+msgid "branding.%(key)s is not valid"
+msgstr "branding.%(key)s no es válido"
 
 #: storageweb/settings/loader.py
 msgid "settings_profile can only contain letters, digits, _ and -"
@@ -2704,8 +2742,16 @@ msgid "Blocking rules"
 msgstr "Reglas de bloqueo"
 
 #: storageweb/web/nav.py
-msgid "Failed sign-ins, automatic IP blocking and API tokens"
-msgstr "Intentos fallidos, bloqueo automático de IPs y tokens de API"
+msgid "Failed sign-ins and automatic IP blocking"
+msgstr "Inicios de sesión fallidos y bloqueo automático de IPs"
+
+#: storageweb/web/nav.py
+msgid "API and network drive"
+msgstr "API y unidad de red"
+
+#: storageweb/web/nav.py
+msgid "Personal API tokens and the WebDAV network drive"
+msgstr "Tokens de API personales y la unidad de red WebDAV"
 
 #: storageweb/web/nav.py storageweb/web/templates/admin/overview.html
 msgid "Blocked IPs"
@@ -3219,8 +3265,8 @@ msgid "Sign in"
 msgstr "Iniciar sesión"
 
 #: storageweb/web/templates/login.html
-msgid "or"
-msgstr "o"
+msgid "Use a local account"
+msgstr "Usar una cuenta local"
 
 #: storageweb/web/templates/login.html
 msgid "No sign-in method is enabled. Check config.json."
@@ -3304,7 +3350,7 @@ msgid "Close the other sessions"
 msgstr "Cerrar las demás sesiones"
 
 #: storageweb/web/templates/admin/overview.html storageweb/web/templates/admin/settings/backups.html
-#: storageweb/web/templates/admin/settings/security.html
+#: storageweb/web/templates/admin/settings/clients.html
 #: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/profile.html
 msgid "API tokens"
 msgstr "Tokens de API"
@@ -4856,6 +4902,31 @@ msgstr ""
 msgid "file"
 msgstr "fichero"
 
+#: storageweb/web/templates/admin/settings/clients.html
+msgid ""
+"Users create them in their profile to list, download and upload files from scripts. Disabling "
+"this stops every existing token."
+msgstr ""
+"Los usuarios los crean en su perfil para listar, descargar y subir archivos desde scripts. "
+"Desactivarlo detiene todos los tokens existentes."
+
+#: storageweb/web/templates/admin/settings/clients.html
+#, python-format
+msgid ""
+"Users connect %(url)s as a network drive (Windows, macOS, Linux) or with rclone, with their user "
+"name and an API token as the password."
+msgstr ""
+"Los usuarios conectan %(url)s como unidad de red (Windows, macOS, Linux) o con rclone, con su "
+"nombre de usuario y un token de API como contraseña."
+
+#: storageweb/web/templates/admin/settings/clients.html
+msgid ""
+"Local and system (PAM) users only. Disabled is safer: a token can be revoked and limited to "
+"reading, and Entra ID users only have tokens."
+msgstr ""
+"Solo usuarios locales y del sistema (PAM). Desactivado es más seguro: un token se puede revocar y"
+" limitar a lectura, y los usuarios de Entra ID solo tienen tokens."
+
 #: storageweb/web/templates/admin/settings/auth/entra.html
 #: storageweb/web/templates/admin/settings/entra_register.html
 #: storageweb/web/templates/admin/settings/entra_setup.html
@@ -5277,12 +5348,12 @@ msgid "Enable Entra ID"
 msgstr "Activar Entra ID"
 
 #: storageweb/web/templates/admin/settings/general.html
-msgid "Used when the user has not chosen one and the browser does not ask for an available language."
-msgstr "Se usa cuando el usuario no ha elegido uno y el navegador no pide ninguno disponible."
+msgid "Application"
+msgstr "Aplicación"
 
 #: storageweb/web/templates/admin/settings/general.html
-msgid "Brand"
-msgstr "Marca"
+msgid "Used when the user has not chosen one and the browser does not ask for an available language."
+msgstr "Se usa cuando el usuario no ha elegido uno y el navegador no pide ninguno disponible."
 
 #: storageweb/web/templates/admin/settings/general.html
 msgid "Main color"
@@ -5307,6 +5378,36 @@ msgid ""
 msgstr ""
 "PNG, JPEG, WebP o SVG de hasta 512 KB; mejor cuadrado. Sustituye al icono de la barra lateral, la"
 " página de inicio de sesión y la pestaña del navegador."
+
+#: storageweb/web/templates/admin/settings/general.html
+msgid "Your own image"
+msgstr "Imagen propia"
+
+#: storageweb/web/templates/admin/settings/general.html
+msgid "It is shown instead of the illustrations."
+msgstr "Se muestra en lugar de las ilustraciones."
+
+#: storageweb/web/templates/admin/settings/general.html
+msgid "Remove it and use an illustration"
+msgstr "Quitarla y usar una ilustración"
+
+#: storageweb/web/templates/admin/settings/general.html
+msgid "Illustrations in the main color. «Random» shows a different one each time the page loads."
+msgstr ""
+"Ilustraciones en el color principal. «Aleatoria» muestra una distinta cada vez que se carga la "
+"página."
+
+#: storageweb/web/templates/admin/settings/general.html
+msgid "Upload your own image"
+msgstr "Subir una imagen propia"
+
+#: storageweb/web/templates/admin/settings/general.html
+msgid ""
+"A JPEG or WebP photo up to 3 MB, at least 1000 pixels high. It takes the place of the "
+"illustrations and is cropped to fill the side (on phones, a strip at the top)."
+msgstr ""
+"Una foto JPEG o WebP de hasta 3 MB y al menos 1000 píxeles de alto. Sustituye a las ilustraciones"
+" y se recorta para llenar el lateral (en el móvil, una franja arriba)."
 
 #: storageweb/web/templates/admin/settings/ips.html
 msgid "Blocked addresses"
@@ -5551,31 +5652,6 @@ msgstr ""
 msgid "0 = until an administrator removes it"
 msgstr "0 = hasta que un administrador lo quite"
 
-#: storageweb/web/templates/admin/settings/security.html
-msgid ""
-"Users create them in their profile to list, download and upload files from scripts. Disabling "
-"this stops every existing token."
-msgstr ""
-"Los usuarios los crean en su perfil para listar, descargar y subir archivos desde scripts. "
-"Desactivarlo detiene todos los tokens existentes."
-
-#: storageweb/web/templates/admin/settings/security.html
-#, python-format
-msgid ""
-"Users connect %(url)s as a network drive (Windows, macOS, Linux) or with rclone, with their user "
-"name and an API token as the password."
-msgstr ""
-"Los usuarios conectan %(url)s como unidad de red (Windows, macOS, Linux) o con rclone, con su "
-"nombre de usuario y un token de API como contraseña."
-
-#: storageweb/web/templates/admin/settings/security.html
-msgid ""
-"Local and system (PAM) users only. Disabled is safer: a token can be revoked and limited to "
-"reading, and Entra ID users only have tokens."
-msgstr ""
-"Solo usuarios locales y del sistema (PAM). Desactivado es más seguro: un token se puede revocar y"
-" limitar a lectura, y los usuarios de Entra ID solo tienen tokens."
-
 #: storageweb/web/templates/admin/settings/sessions.html
 #, python-format
 msgid "%(num)s session"
@@ -5667,8 +5743,8 @@ msgid "Users create them in their profile. Revoking one stops it at once."
 msgstr "Los usuarios los crean en su perfil. Revocar uno lo detiene al momento."
 
 #: storageweb/web/templates/admin/settings/sessions.html
-msgid "Allow or forbid tokens in Security"
-msgstr "Permitir o prohibir tokens en Seguridad"
+msgid "Allow or forbid tokens in Security → API and network drive"
+msgstr "Permitir o prohibir los tokens en Seguridad → API y unidad de red"
 
 #: storageweb/web/templates/admin/settings/sessions.html
 msgid "Last used"
@@ -6432,16 +6508,24 @@ msgid "Backup %(name)s deleted."
 msgstr "Copia %(name)s borrada."
 
 #: storageweb/web/views/settings/branding.py
-msgid "Choose an image."
-msgstr "Elige una imagen."
-
-#: storageweb/web/views/settings/branding.py
 msgid "Logo updated."
 msgstr "Logo actualizado."
 
 #: storageweb/web/views/settings/branding.py
 msgid "Logo removed."
 msgstr "Logo quitado."
+
+#: storageweb/web/views/settings/branding.py
+msgid "Sign-in image updated."
+msgstr "Imagen del inicio de sesión actualizada."
+
+#: storageweb/web/views/settings/branding.py
+msgid "Sign-in image removed."
+msgstr "Imagen del inicio de sesión quitada."
+
+#: storageweb/web/views/settings/branding.py
+msgid "Choose an image."
+msgstr "Elige una imagen."
 
 #: storageweb/web/views/settings/common.py
 #, python-format
@@ -6573,8 +6657,14 @@ msgid "How users sign in. Several methods can be enabled at the same time."
 msgstr "Cómo inician sesión los usuarios. Puedes tener varios métodos activos a la vez."
 
 #: storageweb/web/views/settings/forms.py
-msgid "Protection against password guessing, automatic IP blocking and API tokens."
-msgstr "Protección contra quien prueba contraseñas, bloqueo automático de IPs y tokens de API."
+msgid "Protection against password guessing and automatic IP blocking."
+msgstr "Protección contra quien prueba contraseñas y bloqueo automático de IPs."
+
+#: storageweb/web/views/settings/forms.py
+msgid "How scripts, apps and network drives reach the files: personal API tokens and WebDAV."
+msgstr ""
+"Cómo llegan a los archivos los scripts, las aplicaciones y las unidades de red: tokens de API "
+"personales y WebDAV."
 
 #: storageweb/web/views/settings/forms.py
 msgid "Addresses blocked by hand or automatically, and addresses that are never blocked."

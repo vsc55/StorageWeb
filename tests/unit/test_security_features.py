@@ -159,17 +159,30 @@ def test_run_due_cleans_and_backs_up(db_conn, tmp_path):
 # --------------------------------------------------------------------------- marca
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\0" * 64
+JPEG = b"\xff\xd8\xff" + b"\0" * 64
 
 
 def test_logo_save_validate_and_replace(cfg):
-    assert branding.save_logo(cfg, "Logo.PNG", PNG) == "logo.png"
-    assert branding.save_logo(cfg, "x.svg", b"<?xml version='1.0'?><svg xmlns='http://www.w3.org/2000/svg'/>") == "logo.svg"
+    assert branding.save_image(cfg, "logo", "Logo.PNG", PNG) == "logo.png"
+    assert branding.save_image(cfg, "logo", "x.svg", b"<?xml version='1.0'?><svg xmlns='http://www.w3.org/2000/svg'/>") == "logo.svg"
     assert sorted(p.name for p in branding.brand_dir(cfg).iterdir()) == ["logo.svg"]
     for name, data in (("x.gif", PNG), ("x.png", b"no-png"), ("x.png", b""), ("x.png", PNG * 10000)):
         with pytest.raises(branding.BrandingError):
-            branding.save_logo(cfg, name, data)
-    branding.remove_logo(cfg)
+            branding.save_image(cfg, "logo", name, data)
+    branding.remove_image(cfg, "logo")
     assert list(branding.brand_dir(cfg).iterdir()) == []
+
+
+def test_login_image_is_separate_from_the_logo_and_allows_more(cfg):
+    big = PNG * 10000                                                        # ~720 KB: demasiado para el logo
+    assert branding.save_image(cfg, "logo", "l.png", PNG) == "logo.png"
+    assert branding.save_image(cfg, "login_image", "Foto.JPEG", JPEG) == "login.jpg"
+    assert branding.save_image(cfg, "login_image", "f.png", big) == "login.png"   # sustituye a login.jpg
+    assert sorted(p.name for p in branding.brand_dir(cfg).iterdir()) == ["login.png", "logo.png"]
+    with pytest.raises(branding.BrandingError):
+        branding.save_image(cfg, "login_image", "f.png", PNG * 50000)          # más de 3 MB
+    branding.remove_image(cfg, "login_image")
+    assert sorted(p.name for p in branding.brand_dir(cfg).iterdir()) == ["logo.png"]
 
 
 def test_stylesheet_and_color_validation(tmp_path):

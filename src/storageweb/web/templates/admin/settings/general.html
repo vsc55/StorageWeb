@@ -1,8 +1,11 @@
 {% extends "admin/settings/_layout.html" %}
 {% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
 {% block section %}
+{# Una tarjeta por tema. Todo se guarda con la barra salvo subir y quitar imágenes, que son formularios
+   aparte (al final) a los que apuntan sus controles con form=: así cada control queda en su tema #}
 {{ form_start() }}
   <div class="card form-grid">
+    <h3 class="card-title span2">{{ _("Application") }}</h3>
     <label class="{{ err_class('app_name') }}"><span class="label-row">{{ _("Application name") }} {{ origin('app_name') }}</span>
       <input{{ lock('app_name') }} type="text" name="app_name" value="{{ cfg.app_name }}" maxlength="80">
       {{ field_error('app_name') }}</label>
@@ -12,9 +15,11 @@
       </select>
       <small class="muted">{{ _("Used when the user has not chosen one and the browser does not ask for an available language.") }}</small>
       {{ field_error('default_locale') }}</label>
+  </div>
 
-    <h3 class="card-title span2">{{ _("Brand") }}</h3>
-    <div class="span2 brand-color{{ err_class('branding.primary_color') }}">
+  <div class="card section-gap stack">
+    <h3 class="card-title">{{ _("Main color") }}</h3>
+    <div class="brand-color{{ err_class('branding.primary_color') }}">
       <label class="check"><input{{ lock('branding.primary_color') }} type="checkbox" name="custom_color" {% if cfg.branding.primary_color %}checked{% endif %}>
         <span class="label-row">{{ _("Use my own main color") }} {{ origin('branding.primary_color') }}</span></label>
       <input{{ lock('branding.primary_color') }} type="color" name="primary_color" value="{{ cfg.branding.primary_color or '#2563eb' }}" aria-label="{{ _('Main color') }}">
@@ -22,28 +27,71 @@
       {{ field_error('branding.primary_color') }}
     </div>
   </div>
+
+  <div class="card section-gap stack">
+    <h3 class="card-title">{{ _("Logo") }} {{ origin('branding.logo') }}</h3>
+    <div class="brand-logo-row">
+      <span class="rail-brand brand-preview{% if brand.logo %} has-logo{% endif %}" aria-hidden="true">
+        {% if brand.logo %}<img src="{{ url_for('brand.logo', v=brand.version) }}" alt="">{% else %}<svg class="icon"><use href="#i-logo"></use></svg>{% endif %}
+      </span>
+      <label class="sr-only" for="logo-file">{{ _("Logo") }}</label>
+      <input{{ lock('branding.logo') }} type="file" id="logo-file" name="logo" form="logo-upload" accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml" required>
+      <button{{ lock('branding.logo') }} class="btn" type="submit" form="logo-upload">{{ _("Upload") }}</button>
+      {% if brand.logo %}
+      <button{{ lock('branding.logo') }} class="btn btn-ghost" type="submit" form="logo-delete">{{ _("Remove logo") }}</button>
+      {% endif %}
+    </div>
+    <small class="muted">{{ _("PNG, JPEG, WebP or SVG up to 512 KB, square works best. It replaces the icon of the side bar, the sign-in page and the browser tab.") }}</small>
+  </div>
+
+  <div class="card section-gap stack art-field{{ err_class('branding.login_art') }}" role="group" aria-labelledby="art-title">
+    <h3 class="card-title" id="art-title">{{ _("Sign-in image") }} {{ origin('branding.login_art') }}</h3>
+    {% if brand.login_image %}
+    <div class="art-custom">
+      <span class="login-aside art-swatch has-image" aria-hidden="true">
+        <img class="login-art" alt="" src="{{ url_for('brand.login_image', v=brand.version) }}"></span>
+      <div class="art-custom-text">
+        <strong>{{ _("Your own image") }}</strong> {{ origin('branding.login_image') }}
+        <span class="muted small">{{ _("It is shown instead of the illustrations.") }}</span>
+        <button{{ lock('branding.login_image') }} class="btn btn-small" type="submit" form="login-image-delete">{{ _("Remove it and use an illustration") }}</button>
+      </div>
+    </div>
+    {% endif %}
+    <div class="art-options{% if brand.login_image %} is-overridden{% endif %}">
+      {% for code, label in login_arts %}
+      <label class="art-option">
+        <input{{ lock('branding.login_art') }} type="radio" name="login_art" value="{{ code }}" {% if cfg.branding.login_art == code %}checked{% endif %}>
+        <span class="login-aside art-swatch{% if code == 'random' %} art-random{% endif %}" aria-hidden="true">
+          {%- if code == 'random' %}<svg class="icon"><use href="#i-sync"></use></svg>
+          {%- else %}<img class="login-art" alt="" src="{{ url_for('static', filename='img/login-' ~ code ~ '.svg') }}">{% endif -%}
+        </span>
+        <span>{{ label }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    <small class="muted">{{ _("Illustrations in the main color. «Random» shows a different one each time the page loads.") }}</small>
+    {{ field_error('branding.login_art') }}
+    <div class="art-upload">
+      <label for="login-image-file">{{ _("Upload your own image") }}</label>
+      <input{{ lock('branding.login_image') }} type="file" id="login-image-file" name="login_image" form="login-image-upload" accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml" required>
+      <button{{ lock('branding.login_image') }} class="btn" type="submit" form="login-image-upload">{{ _("Upload") }}</button>
+    </div>
+    <small class="muted">{{ _("A JPEG or WebP photo up to 3 MB, at least 1000 pixels high. It takes the place of the illustrations and is cropped to fill the side (on phones, a strip at the top).") }}</small>
+  </div>
   {{ save_bar() }}
 </form>
 
-<div class="card section-gap brand-logo-card">
-  <h3 class="card-title">{{ _("Logo") }} {{ origin('branding.logo') }}</h3>
-  <div class="brand-logo-row">
-    <span class="rail-brand brand-preview{% if brand.logo %} has-logo{% endif %}" aria-hidden="true">
-      {% if brand.logo %}<img src="{{ url_for('brand.logo', v=brand.version) }}" alt="">{% else %}<svg class="icon"><use href="#i-folder"></use></svg>{% endif %}
-    </span>
-    <form method="post" action="{{ url_for('settings.branding_logo') }}" enctype="multipart/form-data" class="inline">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <label class="sr-only" for="logo-file">{{ _("Logo") }}</label>
-      <input{{ lock('branding.logo') }} type="file" id="logo-file" name="logo" accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml" required>
-      <button class="btn" type="submit">{{ _("Upload") }}</button>
-    </form>
-    {% if brand.logo %}
-    <form method="post" action="{{ url_for('settings.branding_logo_delete') }}" class="inline">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <button class="btn btn-ghost" type="submit">{{ _("Remove logo") }}</button>
-    </form>
-    {% endif %}
-  </div>
-  <p class="muted small">{{ _("PNG, JPEG, WebP or SVG up to 512 KB, square works best. It replaces the icon of the side bar, the sign-in page and the browser tab.") }}</p>
-</div>
+{# Subir y quitar imágenes: se envían al momento, no con la barra; sus controles están en las tarjetas de arriba #}
+<form id="logo-upload" method="post" action="{{ url_for('settings.branding_logo') }}" enctype="multipart/form-data" hidden>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+</form>
+<form id="logo-delete" method="post" action="{{ url_for('settings.branding_logo_delete') }}" hidden>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+</form>
+<form id="login-image-upload" method="post" action="{{ url_for('settings.branding_login_image') }}" enctype="multipart/form-data" hidden>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+</form>
+<form id="login-image-delete" method="post" action="{{ url_for('settings.branding_login_image_delete') }}" hidden>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+</form>
 {% endblock %}
