@@ -180,3 +180,26 @@ test("oculto en el servidor (storage.hidden): no se sube ni se borra aquí, y no
   assert.equal(local.text("antes.oculto"), "v");
   assert.equal(s.deletedLocal, 0);
 });
+
+test("un archivo que desaparece mientras se recorre la carpeta no rompe la pasada", async () => {
+  // Pasó en el CI: el -shm de la SQLite del servidor se borró entre el listado de la carpeta y su stat
+  const fsp = require("fs/promises");
+  const os = require("os");
+  const path = require("path");
+  const { LocalFs } = require("../src/localfs");
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "sw-scan-"));
+  await fsp.writeFile(path.join(dir, "queda.txt"), "a");
+  await fsp.writeFile(path.join(dir, "se-va.db-shm"), "b");
+  const realStat = fsp.stat;
+  fsp.stat = async (p, ...rest) => {
+    if (String(p).endsWith("se-va.db-shm")) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    return realStat(p, ...rest);
+  };
+  try {
+    const files = await new LocalFs(dir).scan();
+    assert.deepEqual([...files.keys()], ["queda.txt"]);
+  } finally {
+    fsp.stat = realStat;
+    await fsp.rm(dir, { recursive: true, force: true });
+  }
+});

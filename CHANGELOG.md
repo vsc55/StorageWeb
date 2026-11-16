@@ -143,6 +143,7 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 - En *Mi perfil*, copiar el token de API recién creado y las confirmaciones (cerrar sesiones, revocar tokens) no funcionaban: la página no cargaba ningún script.
 - En el móvil, la barra superior con todas las zonas se desborda: ahora se desliza en horizontal.
 - Los grupos asignados a mano a un usuario de Entra ID o PAM ya no se pierden en su siguiente inicio de sesión.
+- Extensión de VS Code 0.4.2: un archivo que desaparece mientras se recorre la carpeta (un temporal, el `-shm` de una SQLite abierta) ya no hace fallar la sincronización.
 - **CI:** los tests de la extensión de VS Code se lanzan con la lista de ficheros (desde Node 22, `node --test` no recorre una carpeta); la imagen Docker del CI usa una versión PEP 440 válida (`0.0.0+ci`) y comprueba el inicio de sesión en español pidiéndolo; en Python 3.9 los tests del directorio de Entra ID ya no fallan por una anotación `list | None`, y en Python anterior a 3.12 se extrae el texto «write error», que estaba dentro de un f-string.
 
 ## [1.0.0] - 2026-11-11

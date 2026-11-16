@@ -41,7 +41,14 @@ class LocalFs {
         if (item.isDirectory()) {
           if (!this.skip(rel, true)) await walk(rel);
         } else if (item.isFile() && !this.skip(rel, false)) {
-          const st = await fs.stat(this.abs(rel));
+          let st;
+          try {
+            st = await fs.stat(this.abs(rel));
+          } catch (err) {
+            // Borrado entre el listado y el stat (temporales, el -shm de una SQLite abierta…): ya no existe
+            if (/** @type {NodeJS.ErrnoException} */ (err).code === "ENOENT") continue;
+            throw err;
+          }
           files.set(rel, { size: st.size, mtime: Math.floor(st.mtimeMs) });
         }
       }
