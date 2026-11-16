@@ -177,7 +177,9 @@ def upload(root, sub):
             continue
         except (OSError, backends.BackendError) as exc:
             current_app.logger.exception("Error saving %s", name)
-            errors.append(f"{name}: {_reason(exc) or _('write error')}")
+            # Fuera del f-string: antes de Python 3.12 el extractor de textos no ve un _() dentro de uno
+            reason = _reason(exc) or _("write error")
+            errors.append(f"{name}: {reason}")
             tmp.unlink(missing_ok=True)
             continue
         saved.append(backends.name_of(final))

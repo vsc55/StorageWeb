@@ -57,7 +57,9 @@ def test_extension_against_a_real_server(make_app, tmp_path):
     try:
         env = {**os.environ, "STORAGEWEB_TEST_URL": f"http://127.0.0.1:{port}", "STORAGEWEB_TEST_USER": "ana",
                "STORAGEWEB_TEST_TOKEN": plain, "STORAGEWEB_TEST_PASSWORD": PASSWORD, "STORAGEWEB_TEST_DATA": str(tmp_path / "data"), "STORAGEWEB_TEST_HIDDEN": "*.oculto"}
-        result = subprocess.run([NODE, "--test", "test/"], cwd=EXTENSION, env=env, capture_output=True, text=True,
+        # Los ficheros, no la carpeta: desde Node 22 un directorio como argumento de --test no se recorre
+        tests = sorted(p.relative_to(EXTENSION).as_posix() for p in (EXTENSION / "test").glob("*.test.js"))
+        result = subprocess.run([NODE, "--test", *tests], cwd=EXTENSION, env=env, capture_output=True, text=True,
                                 encoding="utf-8", timeout=300)
     finally:
         server.close()

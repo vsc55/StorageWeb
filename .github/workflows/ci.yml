@@ -81,7 +81,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Construir la imagen
-        run: docker build --build-arg VERSION=0.0.0-ci -t storageweb:ci .
+        run: docker build --build-arg VERSION=0.0.0+ci -t storageweb:ci .
       - name: Arrancar y comprobar
         run: |
           printf 'clave-de-prueba-123' > /tmp/pw
@@ -93,8 +93,8 @@ jobs:
             [ "$(docker inspect -f '{{.State.Health.Status}}' sw)" = healthy ] && break; sleep 2
           done
           docker inspect -f '{{.State.Health.Status}}' sw | grep -qx healthy
-          curl -fsS http://127.0.0.1:8080/healthz | grep -q '"0.0.0-ci"'
-          curl -fsS http://127.0.0.1:8080/login | grep -q 'Iniciar sesión'
+          curl -fsS http://127.0.0.1:8080/healthz | grep -q '"0.0.0+ci"'
+          curl -fsS -H 'Accept-Language: es' http://127.0.0.1:8080/login | grep -q 'Iniciar sesión'
           docker exec sw storageweb user-list | grep -q '^admin .* admin '
           test "$(docker exec sw id -u)" = 10001
           # Al reiniciar no se duplica el admin ni se pierde la configuración
@@ -120,7 +120,8 @@ jobs:
           cache-dependency-path: pyproject.toml
       # Sin npm ni pnpm: la extensión no tiene dependencias
       - name: Tests del motor de sincronización (Node)
-        run: node --test clients/vscode/test
+        # Ficheros explícitos: desde Node 22, un directorio como argumento de --test no se recorre
+        run: node --test clients/vscode/test/*.test.js
       - name: Contra un StorageWeb real (dos equipos sincronizando)
         run: |
           python -m pip install -e ".[dev]"

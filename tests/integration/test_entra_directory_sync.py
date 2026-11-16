@@ -1,5 +1,7 @@
 """Integración con el directorio de Entra ID: revisión periódica de las cuentas, usuarios con más de 200 grupos,
 cierre de sesión de canal frontal, cambio de UPN y datos de los grupos dados de alta (Microsoft simulado)."""
+from __future__ import annotations
+
 from pathlib import Path
 
 import pytest

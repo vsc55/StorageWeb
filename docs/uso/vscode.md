@@ -144,7 +144,7 @@ La **lista de servidores** se guarda en este equipo (en los datos de la extensi�
 ## Para desarrolladores
 
 ```bash
-node --test clients/vscode/test      # tests de la extensión (Node 18 o posterior)
+node --test clients/vscode/test/*.test.js      # tests de la extensión (Node 18 o posterior)
 python tools/build_vsix.py --install # empaqueta e instala en este VS Code (luego, recargar la ventana)
 ```
 

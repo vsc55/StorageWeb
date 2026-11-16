@@ -1,4 +1,4 @@
-// Motor de sincronización con un disco y un servidor en memoria: node --test clients/vscode/test
+// Motor de sincronización con un disco y un servidor en memoria: node --test clients/vscode/test/*.test.js
 "use strict";
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
