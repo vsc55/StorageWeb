@@ -6,6 +6,10 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 
 ## [Sin publicar]
 
+### Cambiado
+
+- CI: los tests se ejecutan solo con la última versión de Python (3.14), en Ubuntu, Windows y macOS.
+
 ## [0.1.0] - 2026-11-16
 
 Primera versión publicada. Es la serie **0.x**, en desarrollo: entre versiones menores (0.1 → 0.2) puede haber cambios incompatibles en la configuración, la CLI, la API o las copias de seguridad, y se avisarán aquí.

@@ -53,6 +53,6 @@ python -m pytest -q -k uploads     # filtrar
 
 - **`tests/unit/`:** lógica pura con SQLite directo (fixture `db_conn`): settings, migraciones, cuentas, OAuth2, subidas, copias, i18n, empaquetado y documentación.
 - **`tests/integration/`:** la aplicación con el cliente de pruebas de Flask. Fixtures `make_app(overrides)`, `logged` (usuario `ana`) y `admin` (usuario `root`). Entra ID se simula sustituyendo `oauth2._http_post` (fixture `token_endpoint`).
-- **CI:** los tests se ejecutan en Ubuntu, Windows y macOS con Python 3.9–3.14. Los tests con symlinks se omiten donde el sistema no permite crearlos.
+- **CI:** los tests se ejecutan en Ubuntu, Windows y macOS con la última versión de Python (3.14). Las anteriores que admite el proyecto (desde 3.9) no se prueban en el CI: ojo con sintaxis o bibliotecas que no existan en ellas. Los tests con symlinks se omiten donde el sistema no permite crearlos.
 
 Siguiente: [Extender StorageWeb](extender.md) · [Documentación](documentacion.md) · [Releases](releases.md).

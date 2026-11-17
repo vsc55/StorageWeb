@@ -18,10 +18,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python: ["3.10", "3.12", "3.14"]
-        include:
-          - os: ubuntu-latest
-            python: "3.9"
+        # Solo la última versión de Python; las anteriores que admite pyproject (requires-python) no se prueban
+        python: ["3.14"]
     steps:
       - uses: actions/checkout@v4
 
