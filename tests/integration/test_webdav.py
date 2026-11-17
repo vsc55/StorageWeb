@@ -207,8 +207,8 @@ def test_profile_and_settings(make_app):
     add_user(app, "root", role="admin")
     client = app.test_client()
     login(client, "ana")
-    page = client.get("/profile").get_data(as_text=True)
-    assert "Unidad de red" in page and "http://localhost/dav/" in page and "Usuario: ana" in page
+    page = client.get("/profile/drive").get_data(as_text=True)
+    assert "Unidad de red" in page and "http://localhost/dav/" in page and "<code>ana</code>" in page
     admin = app.test_client()
     login(admin, "root")
     page = admin.get("/admin/settings/clients").get_data(as_text=True)     # Seguridad → API y unidad de red

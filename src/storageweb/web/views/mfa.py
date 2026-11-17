@@ -165,7 +165,7 @@ def _own_account():
 
 
 def _back():
-    return redirect(url_for("profile.profile") + "#mfa")
+    return redirect(url_for("profile.section", section="security") + "#mfa")
 
 
 def _show_codes(codes: list[str], next_url: str | None = None):

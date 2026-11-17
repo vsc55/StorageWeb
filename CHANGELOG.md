@@ -10,6 +10,15 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 
 - **Verificación en dos pasos (TOTP)** para las cuentas que entran con contraseña (locales y PAM): un código de una aplicación de autenticación además de la contraseña. Se activa en *Mi perfil* con un QR (o la clave) y da diez **códigos de recuperación** de un solo uso. La política `security.mfa_required` (*Seguridad → Inicio de sesión*: nadie, administradores o todos) la exige; quien la debe y no la tiene la configura al entrar, así que nunca deja fuera a nadie. Hasta el código no hay sesión, cada código vale una vez y los fallos cuentan como contraseñas erróneas. Con ella, la unidad de red solo admite tokens. Un administrador la quita en la ficha del usuario (y `storageweb-admin mfa-reset`); `mfa-status` lista quién la tiene. La semilla se guarda cifrada, viaja en las copias y se vuelve a cifrar con la clave nueva. QR y TOTP sin dependencias. Migración 002. Auditoría `mfa_enrolled`, `mfa_failed`, `mfa_recovery_used`, `mfa_recovery_regenerated`, `mfa_disabled` y `mfa_reset_by_admin`.
 
+### Cambiado
+
+- ***Mi perfil* por secciones**, con el mismo menú lateral que la administración: *Cuenta* (`/profile`), *Seguridad* (contraseña, verificación en dos pasos y sesiones, `/profile/security`), *Tokens de API* (`/profile/tokens`), *Unidad de red* (`/profile/drive`) y *Espacio* (`/profile/space`); las que el administrador ha desactivado no aparecen. Cada ajuste es una fila con su acción a la derecha y el formulario se despliega debajo, en vez de tarjetas de alturas distintas con huecos.
+
+### Corregido
+
+- En *Mi perfil*, el espacio de la carpeta personal ya no desaparece cuando la unidad de red está desactivada.
+- En las páginas más altas que la ventana, la barra lateral ya no se corta al bajar: su color sigue hasta el final.
+
 ## [0.1.0] - 2026-11-17
 
 Primera versión publicada. Es la serie **0.x**, en desarrollo: entre versiones menores (0.1 → 0.2) puede haber cambios incompatibles en la configuración, la CLI, la API o las copias de seguridad, y se avisarán aquí.

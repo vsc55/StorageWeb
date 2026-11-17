@@ -281,7 +281,7 @@ def test_quota_per_user_in_the_admin_and_profile(quota_app):
     (home / "a.bin").write_bytes(b"x" * (1024 * 1024))
     from storageweb.core import quota
     quota.clear()
-    assert "Espacio de mi carpeta" in client.get("/profile").get_data(as_text=True)
+    assert "Lo que ocupa tu carpeta personal" in client.get("/profile/space").get_data(as_text=True)
     admin = app.test_client()
     login(admin, "root")
     token = get_csrf(admin, "/f/home/")

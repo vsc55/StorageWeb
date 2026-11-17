@@ -2,6 +2,8 @@
 
 /* --- estructura de la aplicación --- */
 .app { display: flex; min-height: 100vh; }
+/* La barra lateral es sticky y de la altura de la ventana: debajo, en páginas largas, sigue su color */
+@media (min-width: 721px) { .app { background: linear-gradient(to right, var(--rail-bg) 76px, transparent 76px); } }
 .rail { flex: 0 0 76px; background: var(--rail-bg); color: var(--rail-fg); display: flex; flex-direction: column;
         align-items: center; gap: 4px; padding: 12px 0; position: sticky; top: 0; height: 100vh;
         z-index: 30; }  /* por encima de las barras sticky del contenido (Guardar ajustes, matriz) */
@@ -47,8 +49,44 @@ summary.avatar { box-shadow: 0 0 0 2px var(--rail-bg); }
 .app-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .page { padding: 20px 28px 32px; width: 100%; }
 
-/* --- perfil --- */
-.profile-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 20px; align-items: start; }
+/* --- perfil: submenú lateral (.zone-nav de admin.css) y una sección por página --- */
+.profile-who { display: flex; align-items: center; gap: 10px; margin: 0 10px 14px; min-width: 0; }
+.profile-avatar { width: 40px; height: 40px; font-size: 15px; flex: 0 0 auto; cursor: default; }
+.profile-who-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.profile-who-text strong { overflow-wrap: anywhere; }
+
+/* Una fila por ajuste: lo que es a la izquierda y su acción a la derecha; al desplegarla, el formulario debajo */
+.card.profile-rows { padding: 0; }
+.profile-row { display: flex; gap: 12px 20px; align-items: center; flex-wrap: wrap; padding: 18px 24px; }
+.profile-row + .profile-row { border-top: 1px solid var(--line); }
+.profile-row-info { flex: 1 1 340px; min-width: 0; }
+.profile-row-info .badge { margin-left: 6px; }
+.profile-row-info p { margin: 2px 0 0; }
+.profile-more { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; }
+.profile-more[open] { flex: 1 0 100%; }
+.profile-more > summary { list-style: none; }
+.profile-more > summary::-webkit-details-marker { display: none; }
+.profile-more[open] > summary { background: var(--bg-hover); }
+.profile-more-body { align-self: stretch; margin-top: 10px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius);
+                     background: var(--bg-soft); }
+.profile-block-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.profile-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.profile-list li { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: var(--radius); }
+.profile-list li.is-current { background: var(--bg-soft); }
+.profile-list .icon { color: var(--muted); }
+.profile-list-text { flex: 1 1 auto; min-width: 0; }
+.profile-list-text .muted { display: block; }
+.profile-main .cell-end { width: 1%; white-space: nowrap; }
+.profile-inline-form { display: flex; gap: 8px 12px; flex-wrap: wrap; align-items: flex-end; }
+.profile-inline-form label { flex: 1 1 140px; }
+.profile-inline-form label.grow { flex: 2 1 220px; }
+.profile-copy { margin: 0; }
+.profile-facts { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; }
+.profile-facts dt { color: var(--muted); }
+.profile-facts dd { margin: 0; min-width: 0; }
+.profile-space .space-info { max-width: none; margin: 0; }
+.profile-space .space-info + .space-info { margin-top: 14px; }
+@media (max-width: 900px) { .profile-who { display: none; } }  /* el submenú pasa a una barra horizontal */
 .card-title { margin: 0; font-size: 16px; font-weight: 600; }
 .form-grid .card-title { margin-top: 6px; }
 .theme-field { border: 0; padding: 0; margin: 0; min-width: 0; }
@@ -147,6 +185,6 @@ summary.avatar { box-shadow: 0 0 0 2px var(--rail-bg); }
   .rail-item { width: auto; flex-direction: row; padding: 8px 10px; }
   .account { margin: 0 0 0 auto; }
   .account-menu { left: auto; right: 0; top: 48px; bottom: auto; width: min(300px, calc(100vw - 16px)); }
-  .profile-grid { grid-template-columns: 1fr; }
+  .profile-row { padding-left: 16px; padding-right: 16px; }
   .page { padding: 16px; }
 }

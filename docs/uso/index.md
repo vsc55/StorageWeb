@@ -19,7 +19,7 @@ Si fallas la contraseña varias veces seguidas, el acceso se bloquea unos minuto
 
 Pulsa tus iniciales, abajo en la barra de la izquierda, para abrir el menú de tu cuenta:
 
-- **Mi perfil:** nombre visible, email, idioma, tema y **cambio de contraseña** (te pide la actual). Si entras con Microsoft o con un usuario del sistema, tu nombre y tu contraseña se gestionan en ese sistema.
+- **Mi perfil:** a la izquierda, un menú con sus secciones, como en la administración: **Cuenta** (nombre visible, email, idioma y tema), **Seguridad** (cambio de contraseña —te pide la actual—, verificación en dos pasos y sesiones abiertas), **Tokens de API**, **Unidad de red** (la dirección lista para copiar) y **Espacio** (lo que ocupa tu carpeta). *Tokens de API* y *Unidad de red* solo aparecen si el administrador las tiene activadas. Si entras con Microsoft o con un usuario del sistema, tu nombre y tu contraseña se gestionan en ese sistema.
 - **Idioma:** **EN** / **ES**. Si no eliges ninguno, se usa el de tu navegador, o el que haya configurado el administrador (por defecto, inglés).
 - **Tema:** **Sistema** (sigue la configuración de tu equipo), **Claro** u **Oscuro**.
 - **Salir.**
@@ -30,7 +30,7 @@ Tus preferencias se guardan en tu cuenta. En la página de inicio de sesión tam
 
 Si entras con usuario y contraseña, puedes añadir un segundo paso: un código de seis dígitos que genera una aplicación del móvil (Microsoft Authenticator, Google Authenticator, FreeOTP…). Así, aunque alguien sepa tu contraseña, no puede entrar.
 
-1. En *Mi perfil → Verificación en dos pasos*, pulsa **Activar**.
+1. En *Mi perfil → Seguridad*, junto a *Verificación en dos pasos*, pulsa **Activar**.
 2. Escanea el código QR con la aplicación (o escribe la clave que aparece debajo).
 3. Escribe el código que muestra la aplicación y pulsa **Activar**.
 4. **Guarda los códigos de recuperación** que aparecen: se enseñan una sola vez. Cada uno te deja entrar una vez si no tienes el móvil a mano.
@@ -43,7 +43,7 @@ Desde entonces, al entrar se te pide el código después de la contraseña. Si t
 
 Si entras con Microsoft, la verificación en dos pasos la gestiona tu organización en Microsoft.
 
-![Mi perfil: cuenta, preferencias, contraseña, sesiones y tokens de API](../img/uso/perfil.webp)
+![Mi perfil → Seguridad: contraseña, verificación en dos pasos y sesiones abiertas](../img/uso/perfil.webp)
 
 ## La pantalla
 
@@ -100,13 +100,15 @@ Escribe en *Filtrar o buscar…*: mientras escribes, filtra la carpeta en la que
 
 Para no tardar demasiado, la búsqueda se para a los 200 resultados o si recorre demasiadas carpetas (sobre todo en almacenamiento remoto: S3, SMB…); entonces lo avisa y conviene afinar las palabras. Con un token de API, `GET /search?q=…` devuelve los resultados en JSON.
 
-En *Mi perfil*, la tarjeta *Espacio de mi carpeta* muestra lo mismo para tu carpeta personal.
+En *Mi perfil → Espacio* ves lo mismo para tu carpeta personal.
 
 ## Sesiones y tokens de API
 
-En *Mi perfil* ves los dispositivos en los que tienes la sesión abierta y puedes cerrar los demás. Si cambias la contraseña, las otras sesiones se cierran solas.
+En *Mi perfil → Seguridad* ves los dispositivos en los que tienes la sesión abierta y puedes cerrar los demás. Si cambias la contraseña, las otras sesiones se cierran solas.
 
-Si necesitas usar tus archivos desde un script, crea un **token de API** en *Mi perfil*: elige si solo puede leer o también escribir, y cuándo caduca. Se muestra una sola vez; guárdalo como una contraseña. Ejemplos de uso en la [guía de seguridad](../administracion/seguridad.md#sesiones-y-tokens-de-api).
+Si necesitas usar tus archivos desde un script, crea un **token de API** en *Mi perfil → Tokens de API*: elige si solo puede leer o también escribir, y cuándo caduca. Se muestra una sola vez; guárdalo como una contraseña. Ejemplos de uso en la [guía de seguridad](../administracion/seguridad.md#sesiones-y-tokens-de-api).
+
+![Mi perfil → Tokens de API: la lista, cada uno con Rotar y Revocar, y el formulario para crear otro](../img/uso/perfil-tokens.webp)
 
 Cada token tiene dos acciones: **Rotar** te da un secreto nuevo con el mismo nombre, alcance y caducidad (contada desde hoy) y anula el anterior en el acto; úsalo si crees que alguien lo ha visto, o para renovarlo antes de que caduque. Lo que lo use (un script, la unidad de red, la extensión de VS Code) necesitará el nuevo. **Revocar** lo anula sin crear otro.
 

@@ -98,7 +98,7 @@ def test_the_policy_makes_admins_set_it_up_at_sign_in(make_app):
 
 def test_from_my_profile(app, logged):
     client, token = logged
-    page = client.get("/profile").get_data(as_text=True)
+    page = client.get("/profile/security").get_data(as_text=True)
     assert 'id="mfa"' in page and "Activar la verificación en dos pasos" in page
     assert client.post("/profile/mfa/begin", data={"_csrf": token}).location.endswith("/profile/mfa")
     page = client.get("/profile/mfa").get_data(as_text=True)
@@ -107,7 +107,7 @@ def test_from_my_profile(app, logged):
     assert client.post("/profile/mfa/confirm", data={"_csrf": token, "code": "123"}).location.endswith("/profile/mfa")
     assert client.post("/profile/mfa/confirm", data={"_csrf": token, "code": code(secret)}).location.endswith(
         "/profile/mfa/codes")
-    assert "Activada" in client.get("/profile").get_data(as_text=True)
+    assert "Activada" in client.get("/profile/security").get_data(as_text=True)
     # Códigos nuevos y desactivar piden un código válido
     assert client.post("/profile/mfa/recovery", data={"_csrf": token, "code": "000000"}).location.endswith("#mfa")
     assert client.post("/profile/mfa/recovery", data={"_csrf": token, "code": code(secret, 1)}).location.endswith(
@@ -116,7 +116,7 @@ def test_from_my_profile(app, logged):
     assert len(fresh) == 10
     # Los pasos de la ventana ya están gastados (antirreplay): se desactiva con un código de recuperación nuevo
     client.post("/profile/mfa/disable", data={"_csrf": token, "code": fresh[0]})
-    assert "Activar la verificación en dos pasos" in client.get("/profile").get_data(as_text=True)
+    assert "Activar la verificación en dos pasos" in client.get("/profile/security").get_data(as_text=True)
     assert last_audit(app, "mfa_disabled")
 
 

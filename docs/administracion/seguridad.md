@@ -75,7 +75,7 @@ flowchart TD
     valid -- No --> fail["Intento fallido<br/>(bloqueo e IPs, como una contraseña)"]
 ```
 
-- **Quién la activa:** cada persona desde *Mi perfil → Verificación en dos pasos*: escanea el QR (o escribe la clave), confirma con un código y guarda los **diez códigos de recuperación** que se enseñan una sola vez. Cada uno vale una vez en lugar del código de la aplicación, por si pierde el móvil; desde el perfil se generan otros (anulan los anteriores) o se desactiva, siempre con un código válido.
+- **Quién la activa:** cada persona desde *Mi perfil → Seguridad*: escanea el QR (o escribe la clave), confirma con un código y guarda los **diez códigos de recuperación** que se enseñan una sola vez. Cada uno vale una vez en lugar del código de la aplicación, por si pierde el móvil; desde el perfil se generan otros (anulan los anteriores) o se desactiva, siempre con un código válido.
 
 ![Seguridad → Inicio de sesión: quién debe tener la verificación en dos pasos y cuántos la tienen](../img/admin/inicio-sesion.webp)
 
@@ -91,7 +91,7 @@ Los parámetros (SHA-1, 6 dígitos, 30 segundos y medio minuto de tolerancia de 
 ## Sesiones y tokens de API
 
 - *Personas → Sesiones y tokens* muestra quién ha iniciado sesión (navegador, IP, última actividad) y todos los tokens de API. Puedes cerrar una sesión, todas las de un usuario o todas menos la tuya, y revocar tokens. Desde el servidor: `storageweb-admin sessions-close <usuario>` o `--all`.
-- Cada usuario ve las suyas en *Mi perfil* y puede cerrar las demás. Cambiar la contraseña cierra las otras sesiones.
+- Cada usuario ve las suyas en *Mi perfil → Seguridad* y puede cerrar las demás. Cambiar la contraseña cierra las otras sesiones.
 - Los tokens de API se crean en *Mi perfil → Tokens de API*. Solo sirven para listar, descargar y subir archivos; nunca para la administración ni el perfil. Se desactivan para todos con `security.api_tokens = false` (también se desactiva entonces *conectar aplicaciones desde el navegador*, `/connect`, con el que la extensión de VS Code consigue su token). Cada aplicación conectada así deja en la auditoría `app_authorized` y `api_token_created`. Cada usuario puede **rotar** sus tokens (secreto nuevo, el anterior deja de valer; `api_token_rotated`); el administrador solo puede revocarlos, para no ver nunca el secreto de otro.
 
 ![Personas → Sesiones y tokens: sesiones abiertas y tokens de API](../img/admin/sesiones.webp)

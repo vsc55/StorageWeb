@@ -60,6 +60,28 @@ def test_account_menu(logged):
 
 def test_profile_requires_login(client):
     assert "/login" in client.get("/profile").location
+    assert "/login" in client.get("/profile/security").location
+
+
+def test_profile_sections_menu(app, make_app):
+    """Una sección por página con el menú lateral; las desactivadas no salen en el menú y dan 404."""
+    client = app.test_client()
+    add_user(app, "ana")
+    login(client, "ana")
+    html = client.get("/profile/security").get_data(as_text=True)
+    assert 'class="zone-link active" href="/profile/security" aria-current="page"' in html
+    for href in ("/profile", "/profile/tokens", "/profile/drive"):
+        assert f'href="{href}"' in html
+    assert 'id="sessions"' in html and 'name="display_name"' not in html
+    assert client.get("/profile/nada").status_code == 404
+
+    closed = make_app({"security": {"api_tokens": False, "webdav": False}})
+    other = closed.test_client()
+    add_user(closed, "luis")
+    login(other, "luis")
+    html = other.get("/profile").get_data(as_text=True)
+    assert 'href="/profile/tokens"' not in html and 'href="/profile/drive"' not in html
+    assert other.get("/profile/tokens").status_code == 404 and other.get("/profile/drive").status_code == 404
 
 
 def test_profile_update_local_user(app, logged):
@@ -122,7 +144,7 @@ def test_change_password_ok(app, logged):
     resp = client.post("/profile/password", data={"_csrf": token, "current_password": PASSWORD,
                                                   "new_password": "nueva-contraseña-1",
                                                   "repeat_password": "nueva-contraseña-1"})
-    assert resp.status_code == 302 and resp.location.endswith("/profile#password")
+    assert resp.status_code == 302 and resp.location.endswith("/profile/security#password")
     assert login(app.test_client(), "ana", "nueva-contraseña-1").status_code == 302
     assert "password_changed" in _actions(app)
 

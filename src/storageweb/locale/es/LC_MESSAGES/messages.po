@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: StorageWeb VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-17 21:53+0100\n"
+"POT-Creation-Date: 2026-11-17 22:31+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -2765,7 +2765,7 @@ msgstr "Dónde están las carpetas personales y límites de subida"
 msgid "Who sees each folder. Groups are created in People → Groups."
 msgstr "Quién ve cada carpeta. Los grupos se crean en Personas → Grupos."
 
-#: storageweb/web/nav.py
+#: storageweb/web/nav.py storageweb/web/views/profile.py
 msgid "Security"
 msgstr "Seguridad"
 
@@ -2874,7 +2874,7 @@ msgstr "Operación · se aplica al momento"
 #: storageweb/web/templates/admin/settings/ips.html
 #: storageweb/web/templates/admin/settings/sessions.html
 #: storageweb/web/templates/admin/settings/system.html storageweb/web/templates/admin/users.html
-#: storageweb/web/templates/browse.html
+#: storageweb/web/templates/browse.html storageweb/web/templates/profile.html
 msgid "Actions"
 msgstr "Acciones"
 
@@ -3416,16 +3416,11 @@ msgstr ""
 "Además de la contraseña, al entrar se pedirá un código de una aplicación del móvil. Aunque "
 "alguien sepa tu contraseña, no podrá entrar."
 
-#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/profile.html
-msgid "Account"
-msgstr "Cuenta"
-
-#: storageweb/web/templates/admin/settings/auth/entra.html
-#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users.html
-#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/admin/users/panel.html
 #: storageweb/web/templates/profile.html
-msgid "Role"
-msgstr "Rol"
+msgid "A token can do what you can, limited to its scope, and never gives access to administration."
+msgstr ""
+"Un token puede hacer lo mismo que tú, limitado a su alcance, y nunca da acceso a la "
+"administración."
 
 #: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
 #: storageweb/web/templates/profile.html
@@ -3437,10 +3432,6 @@ msgid "Your name and email come from your sign-in provider and are updated there
 msgstr "Tu nombre y tu email vienen de tu proveedor de inicio de sesión y se actualizan allí."
 
 #: storageweb/web/templates/profile.html
-msgid "Preferences"
-msgstr "Preferencias"
-
-#: storageweb/web/templates/profile.html
 msgid "Browser language"
 msgstr "Idioma del navegador"
 
@@ -3449,6 +3440,15 @@ msgstr "Idioma del navegador"
 #: storageweb/web/templates/profile.html
 msgid "Save changes"
 msgstr "Guardar cambios"
+
+#: storageweb/web/templates/profile.html
+msgid "The one you use to sign in with your user name."
+msgstr "La que usas para entrar con tu nombre de usuario."
+
+#: storageweb/web/templates/profile.html
+#, python-format
+msgid "You sign in with %(source)s, so your password is managed there."
+msgstr "Inicias sesión con %(source)s, así que tu contraseña se gestiona allí."
 
 #: storageweb/web/templates/profile.html
 msgid "Change password"
@@ -3471,11 +3471,6 @@ msgstr "Mínimo 10 caracteres"
 msgid "Repeat the new password"
 msgstr "Repite la nueva contraseña"
 
-#: storageweb/web/templates/profile.html
-#, python-format
-msgid "You sign in with %(source)s, so your password is managed there."
-msgstr "Inicias sesión con %(source)s, así que tu contraseña se gestiona allí."
-
 #: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users.html
 #: storageweb/web/templates/profile.html
 msgid "On"
@@ -3487,12 +3482,8 @@ msgstr "Desactivada"
 
 #: storageweb/web/templates/profile.html
 #, python-format
-msgid ""
-"Signing in asks for a code from your authenticator app as well as your password. On since "
-"%(date)s."
-msgstr ""
-"Al entrar se pide, además de la contraseña, un código de tu aplicación de autenticación. Activada"
-" desde el %(date)s."
+msgid "A code from your authenticator app besides the password, since %(date)s."
+msgstr "Un código de tu aplicación de autenticación además de la contraseña, desde el %(date)s."
 
 #: storageweb/web/templates/profile.html
 #, python-format
@@ -3500,18 +3491,6 @@ msgid "%(num)s recovery code left."
 msgid_plural "%(num)s recovery codes left."
 msgstr[0] "Te queda %(num)s código de recuperación."
 msgstr[1] "Te quedan %(num)s códigos de recuperación."
-
-#: storageweb/web/templates/profile.html
-msgid "Code from the app (or a recovery code)"
-msgstr "Código de la aplicación (o uno de recuperación)"
-
-#: storageweb/web/templates/profile.html
-msgid "New recovery codes"
-msgstr "Códigos de recuperación nuevos"
-
-#: storageweb/web/templates/profile.html
-msgid "Turn off"
-msgstr "Desactivar"
 
 #: storageweb/web/templates/profile.html
 msgid ""
@@ -3532,8 +3511,29 @@ msgstr ""
 "contraseña."
 
 #: storageweb/web/templates/profile.html
-msgid "My sessions"
-msgstr "Mis sesiones"
+msgid "Recovery codes or turn off"
+msgstr "Códigos de recuperación o desactivar"
+
+#: storageweb/web/templates/profile.html
+msgid "Code from the app (or a recovery code)"
+msgstr "Código de la aplicación (o uno de recuperación)"
+
+#: storageweb/web/templates/profile.html
+msgid "New recovery codes"
+msgstr "Códigos de recuperación nuevos"
+
+#: storageweb/web/templates/profile.html
+msgid "Turn off"
+msgstr "Desactivar"
+
+#: storageweb/web/templates/admin/settings/backups.html
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/profile.html
+msgid "Open sessions"
+msgstr "Sesiones abiertas"
+
+#: storageweb/web/templates/profile.html
+msgid "Close the other sessions"
+msgstr "Cerrar las demás sesiones"
 
 #: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/profile.html
 msgid "this one"
@@ -3545,24 +3545,6 @@ msgid "active %(when)s"
 msgstr "activa %(when)s"
 
 #: storageweb/web/templates/profile.html
-msgid "Close the other sessions"
-msgstr "Cerrar las demás sesiones"
-
-#: storageweb/web/templates/admin/overview.html storageweb/web/templates/admin/settings/backups.html
-#: storageweb/web/templates/admin/settings/clients.html
-#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/profile.html
-msgid "API tokens"
-msgstr "Tokens de API"
-
-#: storageweb/web/templates/profile.html
-msgid ""
-"To use your files from scripts without your password. A token can do what you can, limited to its"
-" scope, and never gives access to administration."
-msgstr ""
-"Para usar tus archivos desde scripts sin tu contraseña. Un token puede hacer lo que tú, limitado "
-"a su alcance, y nunca da acceso a la administración."
-
-#: storageweb/web/templates/profile.html
 msgid "Copy it now: it will not be shown again."
 msgstr "Cópialo ahora: no se volverá a mostrar."
 
@@ -3570,19 +3552,9 @@ msgstr "Cópialo ahora: no se volverá a mostrar."
 msgid "New token"
 msgstr "Token nuevo"
 
-#: storageweb/web/templates/profile.html
-#, python-format
-msgid "expires %(when)s"
-msgstr "caduca %(when)s"
-
-#: storageweb/web/templates/profile.html
-msgid "does not expire"
-msgstr "no caduca"
-
-#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/profile.html
-#, python-format
-msgid "last used %(when)s"
-msgstr "último uso %(when)s"
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/profile.html
+msgid "Last used"
+msgstr "Último uso"
 
 #: storageweb/web/templates/profile.html
 #, python-format
@@ -3623,41 +3595,28 @@ msgid "Create token"
 msgstr "Crear token"
 
 #: storageweb/web/templates/profile.html
-msgid "Space of my folder"
-msgstr "Espacio de mi carpeta"
+msgid "an API token"
+msgstr "un token de API"
 
 #: storageweb/web/templates/profile.html
-msgid "Network drive"
-msgstr "Unidad de red"
+msgid "create one in API tokens"
+msgstr "créalo en Tokens de API"
 
 #: storageweb/web/templates/profile.html
-msgid ""
-"Your folders as a drive in the file explorer (Windows, macOS, Linux) or with rclone, Cyberduck or"
-" WinSCP."
-msgstr ""
-"Tus carpetas como una unidad en el explorador de archivos (Windows, macOS, Linux) o con rclone, "
-"Cyberduck o WinSCP."
-
-#: storageweb/web/templates/profile.html
-#, python-format
-msgid "User: %(user)s"
-msgstr "Usuario: %(user)s"
-
-#: storageweb/web/templates/profile.html
-msgid "Password: an API token (create one above; «read only» if you only need to read)."
-msgstr "Contraseña: un token de API (créalo arriba; «solo lectura» si solo vas a leer)."
+msgid "«read only» if you only need to read"
+msgstr "«solo lectura» si solo necesitas leer"
 
 #: storageweb/web/templates/profile.html
 msgid "You can also use your password."
 msgstr "También puedes usar tu contraseña."
 
 #: storageweb/web/templates/profile.html
-msgid ""
-"Windows: File Explorer → This PC → Map network drive → paste the address. macOS: Finder → Go → "
-"Connect to Server."
-msgstr ""
-"Windows: Explorador de archivos → Este equipo → Conectar a unidad de red → pega la dirección. "
-"macOS: Finder → Ir → Conectarse al servidor."
+msgid "File Explorer → This PC → Map network drive → paste the address."
+msgstr "Explorador de archivos → Este equipo → Conectar a unidad de red → pega la dirección."
+
+#: storageweb/web/templates/profile.html
+msgid "Finder → Go → Connect to Server."
+msgstr "Finder → Ir → Conectarse al servidor."
 
 #: storageweb/web/templates/search.html
 msgid "Search files"
@@ -3909,6 +3868,12 @@ msgid_plural "%(num)s automatic"
 msgstr[0] "%(num)s automática"
 msgstr[1] "%(num)s automáticas"
 
+#: storageweb/web/templates/admin/overview.html storageweb/web/templates/admin/settings/backups.html
+#: storageweb/web/templates/admin/settings/clients.html
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/views/profile.py
+msgid "API tokens"
+msgstr "Tokens de API"
+
 #: storageweb/web/templates/admin/overview.html
 msgid "Public address"
 msgstr "Dirección pública"
@@ -4021,6 +3986,10 @@ msgstr "último acceso %(when)s"
 msgid "Back"
 msgstr "Volver"
 
+#: storageweb/web/templates/admin/user_form.html storageweb/web/views/profile.py
+msgid "Account"
+msgstr "Cuenta"
+
 #: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/user_form.html
 #: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/_macros.html
 msgid "Source"
@@ -4054,6 +4023,12 @@ msgstr "El nombre se actualiza desde %(source)s en cada inicio de sesión."
 #: storageweb/web/templates/admin/user_form.html
 msgid "Role and access"
 msgstr "Rol y acceso"
+
+#: storageweb/web/templates/admin/settings/auth/entra.html
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/admin/users/panel.html
+msgid "Role"
+msgstr "Rol"
 
 #: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
 msgid "Account enabled"
@@ -4252,6 +4227,11 @@ msgstr "Sesiones y tokens de API"
 #: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/admin/user_form.html
 msgid "No open sessions."
 msgstr "No hay sesiones abiertas."
+
+#: storageweb/web/templates/admin/user_form.html
+#, python-format
+msgid "last used %(when)s"
+msgstr "último uso %(when)s"
 
 #: storageweb/web/templates/admin/user_form.html
 msgid "Close all their sessions"
@@ -5071,11 +5051,6 @@ msgstr "Restaurar esta copia"
 #: storageweb/web/templates/admin/settings/backups.html
 msgid "Audit entries"
 msgstr "Entradas de auditoría"
-
-#: storageweb/web/templates/admin/settings/backups.html
-#: storageweb/web/templates/admin/settings/sessions.html
-msgid "Open sessions"
-msgstr "Sesiones abiertas"
 
 #: storageweb/web/templates/admin/settings/backups.html
 msgid "Last audit cleanup"
@@ -5987,10 +5962,6 @@ msgid "Allow or forbid tokens in Security → API and network drive"
 msgstr "Permitir o prohibir los tokens en Seguridad → API y unidad de red"
 
 #: storageweb/web/templates/admin/settings/sessions.html
-msgid "Last used"
-msgstr "Último uso"
-
-#: storageweb/web/templates/admin/settings/sessions.html
 msgid "There are no API tokens."
 msgstr "No hay tokens de API."
 
@@ -6635,6 +6606,38 @@ msgstr "Claro"
 #: storageweb/web/views/profile.py
 msgid "Dark"
 msgstr "Oscuro"
+
+#: storageweb/web/views/profile.py
+msgid "Your name, your email and how the application looks."
+msgstr "Tu nombre, tu email y cómo se ve la aplicación."
+
+#: storageweb/web/views/profile.py
+msgid "How you sign in and where you have a session open."
+msgstr "Cómo entras y dónde tienes la sesión abierta."
+
+#: storageweb/web/views/profile.py
+msgid "To use your files from scripts and programs without your password."
+msgstr "Para usar tus archivos desde scripts y programas sin tu contraseña."
+
+#: storageweb/web/views/profile.py
+msgid "Network drive"
+msgstr "Unidad de red"
+
+#: storageweb/web/views/profile.py
+msgid ""
+"Your folders as a drive in the file explorer (Windows, macOS, Linux) or with rclone, Cyberduck or"
+" WinSCP."
+msgstr ""
+"Tus carpetas como una unidad en el explorador de archivos (Windows, macOS, Linux) o con rclone, "
+"Cyberduck o WinSCP."
+
+#: storageweb/web/views/profile.py
+msgid "Space"
+msgstr "Espacio"
+
+#: storageweb/web/views/profile.py
+msgid "What your personal folder takes up."
+msgstr "Lo que ocupa tu carpeta personal."
 
 #: storageweb/web/views/profile.py
 msgid "Profile saved."

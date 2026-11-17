@@ -58,8 +58,8 @@ def test_profile_sessions_and_password_change(app, client):
     other = app.test_client()
     login(other, "ana")
     login(client, "ana")
-    html = client.get("/profile").get_data(as_text=True)
-    assert "Mis sesiones" in html and "esta" in html
+    html = client.get("/profile/security").get_data(as_text=True)
+    assert "Sesiones abiertas" in html and "esta" in html
     token = get_csrf(client, "/profile")
     client.post("/profile/password", data={"_csrf": token, "current_password": PASSWORD,
                                            "new_password": "otra-clave-larga", "repeat_password": "otra-clave-larga"})
@@ -88,7 +88,7 @@ def user_token(app, client):
         login(client, "ana")
         csrf = get_csrf(client, "/profile")
         client.post("/profile/tokens", data={"_csrf": csrf, "name": f"script-{scope}", "scope": scope, "days": "30"})
-        found = re.search(r'value="(sw_[A-Za-z0-9_\-]+)"', client.get("/profile").get_data(as_text=True))
+        found = re.search(r'value="(sw_[A-Za-z0-9_\-]+)"', client.get("/profile/tokens").get_data(as_text=True))
         assert found
         return found.group(1)
     return _make
@@ -105,7 +105,7 @@ def _bearer(plain):
 
 def test_token_shown_once_and_lists_json(app, client, user_token, tmp_path):
     plain = user_token("read")
-    html = client.get("/profile").get_data(as_text=True)
+    html = client.get("/profile/tokens").get_data(as_text=True)
     assert plain not in html and "script-read" in html                 # ya no se vuelve a mostrar
     api = app.test_client()
     resp = api.get("/f/home/", headers=_bearer(plain))
@@ -149,7 +149,7 @@ def test_bad_token_and_disabled_tokens(app, make_app, client, user_token):
 
 def test_revoke_token(app, client, user_token):
     plain = user_token("read")
-    html = client.get("/profile").get_data(as_text=True)
+    html = client.get("/profile/tokens").get_data(as_text=True)
     token_id = re.search(r'/profile/tokens/(\d+)/delete', html).group(1)
     client.post(f"/profile/tokens/{token_id}/delete", data={"_csrf": get_csrf(client, "/profile")})
     assert app.test_client().get("/f/home/", headers=_bearer(plain)).status_code == 401
@@ -221,8 +221,8 @@ def test_rotate_token(app, client, user_token):
         [before] = api_tokens.list_for_user(get_db(), user["id"])
     csrf = get_csrf(client, "/profile")
     resp = client.post(f"/profile/tokens/{before['id']}/rotate", data={"_csrf": csrf})
-    assert resp.status_code == 302 and resp.location.endswith("/profile#tokens")
-    html = client.get("/profile").get_data(as_text=True)
+    assert resp.status_code == 302 and resp.location.endswith("/profile/tokens")
+    html = client.get("/profile/tokens").get_data(as_text=True)
     new = re.search(r'value="(sw_[A-Za-z0-9_\-]+)"', html).group(1)
     assert new != old and "rotado" in html
     assert api.get("/f/home/", headers=_bearer(old)).status_code == 401, "el anterior ya no vale"

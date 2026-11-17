@@ -1,120 +1,161 @@
 {% extends "base.html" %}
 {% from "_space.html" import quota_meter, space_meter with context %}
-{% block title %}{{ _("My profile") }} · {{ app_name }}{% endblock %}
+{% block title %}{{ section_label }} · {{ _("My profile") }} · {{ app_name }}{% endblock %}
 {% block content %}
-<div class="page">
-  <div class="page-head"><h1>{{ _("My profile") }}</h1></div>
-
-  <div class="profile-grid">
-    <form method="post" action="{{ url_for('profile.profile') }}" class="card form-grid">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <h2 class="span2 card-title">{{ _("Account") }}</h2>
-      <div class="field"><span class="label">{{ _("User") }}</span><strong>{{ user['username'] }}</strong></div>
-      <div class="field"><span class="label">{{ _("Role") }}</span><span><span class="badge badge-{{ user['role'] }}">{{ ROLE_LABELS[user['role']] }}</span></span></div>
-      <label>{{ _("Display name") }}
-        <input type="text" name="display_name" value="{{ user['display_name'] or '' }}" maxlength="200" {% if not editable %}readonly class="from-provider"{% endif %}></label>
-      <label>{{ _("Email") }}
-        <input type="email" name="email" value="{{ user['email'] or '' }}" maxlength="200" {% if not editable %}readonly class="from-provider"{% endif %}></label>
-      {% if not editable %}
-      <p class="span2 muted small">{{ _("Your name and email come from your sign-in provider and are updated there.") }}</p>
-      {% endif %}
-
-      <h2 class="span2 card-title">{{ _("Preferences") }}</h2>
-      <label>{{ _("Language") }}
-        <select name="locale">
-          <option value="" {% if not user_locale %}selected{% endif %}>{{ _("Browser language") }}</option>
-          {% for code, name in locales %}<option value="{{ code }}" lang="{{ code }}" {% if user_locale == code %}selected{% endif %}>{{ name }}</option>{% endfor %}
-        </select></label>
-      <fieldset class="field theme-field">
-        <legend class="label">{{ _("Theme") }}</legend>
-        <div class="theme-options">
-          {% for code, label in themes %}
-          <label class="theme-option">
-            <input type="radio" name="theme" value="{{ code }}" {% if user_theme == code %}checked{% endif %}>
-            <span class="theme-swatch theme-swatch-{{ code }}" aria-hidden="true"><span></span><span></span></span>
-            <span>{{ label }}</span>
-          </label>
-          {% endfor %}
-        </div>
-      </fieldset>
-      <div class="span2 form-actions">
-        <button class="btn btn-primary" type="submit">{{ _("Save changes") }}</button>
+{# Mi perfil: submenú lateral como las zonas de la administración y una sección por página (views/profile.py SECTIONS) #}
+{% set shown_name = user['display_name'] or user['username'] %}
+{% set shown_initials = (shown_name.split()|map('first')|join)[:2]|upper if ' ' in shown_name else shown_name[:2]|upper %}
+{% set method = auth_method(user['source']) %}
+<div class="zone-layout">
+  <nav class="zone-nav" aria-label="{{ _('My profile') }}">
+    <p class="zone-title">{{ _("My profile") }}</p>
+    <div class="profile-who">
+      <span class="avatar profile-avatar" aria-hidden="true">{{ shown_initials }}</span>
+      <div class="profile-who-text">
+        <strong>{{ shown_name }}</strong>
+        <span class="muted small">{{ user['username'] }}</span>
+        <span><span class="badge badge-{{ user['role'] }}">{{ ROLE_LABELS[user['role']] }}</span>
+          <span class="muted small">{{ SOURCE_LABELS[user['source']] }}</span></span>
       </div>
-    </form>
-
-    {% if auth_method(user['source']) and auth_method(user['source']).stores_password %}
-    <form method="post" action="{{ url_for('profile.change_password') }}" class="card stack" id="password">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <h2 class="card-title">{{ _("Change password") }}</h2>
-      <label>{{ _("Current password") }}
-        <input type="password" name="current_password" autocomplete="current-password" required></label>
-      <label>{{ _("New password") }}
-        <input type="password" name="new_password" autocomplete="new-password" minlength="10" required
-               placeholder="{{ _('At least 10 characters') }}"></label>
-      <label>{{ _("Repeat the new password") }}
-        <input type="password" name="repeat_password" autocomplete="new-password" minlength="10" required></label>
-      <div><button class="btn btn-primary" type="submit">{{ _("Change password") }}</button></div>
-    </form>
-    {% else %}
-    <div class="card stack">
-      <h2 class="card-title">{{ _("Password") }}</h2>
-      <p class="muted">{{ _("You sign in with %(source)s, so your password is managed there.", source=SOURCE_LABELS[user['source']]) }}</p>
     </div>
-    {% endif %}
+    <ul>
+      {% for key, label, url in sections %}
+      <li><a class="zone-link{% if key == section %} active{% endif %}" href="{{ url }}"{% if key == section %} aria-current="page"{% endif %}><span>{{ label }}</span></a></li>
+      {% endfor %}
+    </ul>
+  </nav>
+  <div class="page">
+    <section class="settings-main profile-main">
+      <div class="settings-head">
+        <h1>{{ section_label }}</h1>
+        <p class="muted small">{{ section_description }}
+          {% if section == 'tokens' %}{{ _("A token can do what you can, limited to its scope, and never gives access to administration.") }}{% endif %}</p>
+      </div>
 
-    {% if mfa_applies %}
-    <section class="card stack" id="mfa" aria-labelledby="mfa-title">
-      <h2 class="card-title" id="mfa-title">{{ _("Two-step verification") }}
-        {% if mfa.enrolled %}<span class="badge badge-ok">{{ _("On") }}</span>{% else %}<span class="badge">{{ _("Off") }}</span>{% endif %}</h2>
-      {% if mfa.enrolled %}
-      <p class="muted">{{ _("Signing in asks for a code from your authenticator app as well as your password. On since %(date)s.", date=mfa.since|datetime) }}
-        {{ ngettext("%(num)s recovery code left.", "%(num)s recovery codes left.", mfa.recovery_left) }}</p>
-      <form method="post" action="{{ url_for('mfa.regenerate') }}" class="mfa-manage">
+{% if section == 'account' %}
+      <form method="post" action="{{ url_for('profile.profile') }}" class="card form-grid">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <label>{{ _("Code from the app (or a recovery code)") }}
-          <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" required></label>
-        <div class="form-actions">
-          <button class="btn" type="submit">{{ _("New recovery codes") }}</button>
-          <button class="btn btn-danger" type="submit" formaction="{{ url_for('mfa.disable') }}">{{ _("Turn off") }}</button>
+        <label>{{ _("Display name") }}
+          <input type="text" name="display_name" value="{{ user['display_name'] or '' }}" maxlength="200" {% if not editable %}readonly class="from-provider"{% endif %}></label>
+        <label>{{ _("Email") }}
+          <input type="email" name="email" value="{{ user['email'] or '' }}" maxlength="200" {% if not editable %}readonly class="from-provider"{% endif %}></label>
+        {% if not editable %}
+        <p class="span2 muted small">{{ _("Your name and email come from your sign-in provider and are updated there.") }}</p>
+        {% endif %}
+        <label>{{ _("Language") }}
+          <select name="locale">
+            <option value="" {% if not user_locale %}selected{% endif %}>{{ _("Browser language") }}</option>
+            {% for code, name in locales %}<option value="{{ code }}" lang="{{ code }}" {% if user_locale == code %}selected{% endif %}>{{ name }}</option>{% endfor %}
+          </select></label>
+        <fieldset class="field theme-field span2">
+          <legend class="label">{{ _("Theme") }}</legend>
+          <div class="theme-options">
+            {% for code, label in themes %}
+            <label class="theme-option">
+              <input type="radio" name="theme" value="{{ code }}" {% if user_theme == code %}checked{% endif %}>
+              <span class="theme-swatch theme-swatch-{{ code }}" aria-hidden="true"><span></span><span></span></span>
+              <span>{{ label }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+        <div class="span2 form-actions">
+          <button class="btn btn-primary" type="submit">{{ _("Save changes") }}</button>
         </div>
       </form>
-      {% else %}
-      <p class="muted">{{ _("Besides your password, signing in will ask for a code from an app on your phone (Microsoft Authenticator, Google Authenticator…). Someone who learns your password still cannot get in.") }}</p>
-      {% if mfa_required %}<p class="text-danger small">{{ _("Your organization requires it: you will be asked to set it up on your next sign-in.") }}</p>{% endif %}
-      <form method="post" action="{{ url_for('mfa.begin') }}" class="inline">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <button class="btn btn-primary" type="submit">{{ _("Turn on two-step verification") }}</button>
-      </form>
-      {% endif %}
-      {% if webdav and webdav_passwords and own_password %}<p class="muted small">{{ _("With two-step verification on, the network drive only accepts API tokens, not your password.") }}</p>{% endif %}
-    </section>
-    {% endif %}
 
-    <section class="card stack" id="sessions" aria-labelledby="sessions-title">
-      <h2 class="card-title" id="sessions-title">{{ _("My sessions") }}</h2>
-      <ul class="access-list">
-        {% for s in my_sessions %}
-        <li><svg class="icon" aria-hidden="true"><use href="#i-monitor"></use></svg>
-          <span class="access-text"><strong>{{ s['user_agent']|ua_summary }}{% if s['id'] == current_sid %} <span class="badge">{{ _("this one") }}</span>{% endif %}</strong>
-            <span class="muted small">{{ s['ip'] or '—' }} · {{ _("active %(when)s", when=s['last_seen']|datetime) }}</span></span>
-          {% if s['id'] != current_sid %}
-          <form method="post" action="{{ url_for('profile.session_close', sid=s['id']) }}" class="inline">
+{% elif section == 'security' %}
+      <div class="card profile-rows">
+        <div class="profile-row" id="password">
+          <div class="profile-row-info">
+            <strong>{{ _("Password") }}</strong>
+            {% if method and method.stores_password %}
+            <p class="muted small">{{ _("The one you use to sign in with your user name.") }}</p>
+            {% else %}
+            <p class="muted small">{{ _("You sign in with %(source)s, so your password is managed there.", source=SOURCE_LABELS[user['source']]) }}</p>
+            {% endif %}
+          </div>
+          {% if method and method.stores_password %}
+          <details class="profile-more">
+            <summary class="btn">{{ _("Change password") }}</summary>
+            <form method="post" action="{{ url_for('profile.change_password') }}" class="form-grid profile-more-body">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <label class="span2">{{ _("Current password") }}
+                <input type="password" name="current_password" autocomplete="current-password" required></label>
+              <label>{{ _("New password") }}
+                <input type="password" name="new_password" autocomplete="new-password" minlength="10" required
+                       placeholder="{{ _('At least 10 characters') }}"></label>
+              <label>{{ _("Repeat the new password") }}
+                <input type="password" name="repeat_password" autocomplete="new-password" minlength="10" required></label>
+              <div class="span2"><button class="btn btn-primary" type="submit">{{ _("Change password") }}</button></div>
+            </form>
+          </details>
+          {% endif %}
+        </div>
+
+        {% if mfa_applies %}
+        <div class="profile-row" id="mfa">
+          <div class="profile-row-info">
+            <strong>{{ _("Two-step verification") }}</strong>
+            {% if mfa.enrolled %}<span class="badge badge-ok">{{ _("On") }}</span>{% else %}<span class="badge">{{ _("Off") }}</span>{% endif %}
+            {% if mfa.enrolled %}
+            <p class="muted small">{{ _("A code from your authenticator app besides the password, since %(date)s.", date=mfa.since|datetime) }}
+              {{ ngettext("%(num)s recovery code left.", "%(num)s recovery codes left.", mfa.recovery_left) }}</p>
+            {% else %}
+            <p class="muted small">{{ _("Besides your password, signing in will ask for a code from an app on your phone (Microsoft Authenticator, Google Authenticator…). Someone who learns your password still cannot get in.") }}</p>
+            {% if mfa_required %}<p class="text-danger small">{{ _("Your organization requires it: you will be asked to set it up on your next sign-in.") }}</p>{% endif %}
+            {% endif %}
+            {% if webdav and webdav_passwords and own_password %}<p class="muted small">{{ _("With two-step verification on, the network drive only accepts API tokens, not your password.") }}</p>{% endif %}
+          </div>
+          {% if mfa.enrolled %}
+          <details class="profile-more">
+            <summary class="btn">{{ _("Recovery codes or turn off") }}</summary>
+            <form method="post" action="{{ url_for('mfa.regenerate') }}" class="profile-more-body mfa-manage">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <label>{{ _("Code from the app (or a recovery code)") }}
+                <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" required></label>
+              <div class="form-actions">
+                <button class="btn" type="submit">{{ _("New recovery codes") }}</button>
+                <button class="btn btn-danger" type="submit" formaction="{{ url_for('mfa.disable') }}">{{ _("Turn off") }}</button>
+              </div>
+            </form>
+          </details>
+          {% else %}
+          <form method="post" action="{{ url_for('mfa.begin') }}" class="inline">
             <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <button class="link-btn small" type="submit">{{ _("Close") }}</button></form>
-          {% endif %}</li>
-        {% endfor %}
-      </ul>
-      {% if my_sessions|length > 1 %}
-      <form method="post" action="{{ url_for('profile.sessions_close_others') }}">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <button class="btn btn-small" type="submit">{{ _("Close the other sessions") }}</button></form>
-      {% endif %}
-    </section>
+            <button class="btn btn-primary" type="submit">{{ _("Turn on two-step verification") }}</button>
+          </form>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
 
-    {% if tokens_enabled %}
-    <section class="card stack" id="tokens" aria-labelledby="tokens-title">
-      <h2 class="card-title" id="tokens-title">{{ _("API tokens") }}</h2>
-      <p class="muted small">{{ _("To use your files from scripts without your password. A token can do what you can, limited to its scope, and never gives access to administration.") }}</p>
+      <div class="card stack" id="sessions">
+        <div class="profile-block-head">
+          <h2 class="card-title">{{ _("Open sessions") }} <span class="muted">· {{ my_sessions|length }}</span></h2>
+          {% if my_sessions|length > 1 %}
+          <form method="post" action="{{ url_for('profile.sessions_close_others') }}" class="inline">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="link-btn small" type="submit">{{ _("Close the other sessions") }}</button></form>
+          {% endif %}
+        </div>
+        <ul class="profile-list">
+          {% for s in my_sessions %}
+          <li{% if s['id'] == current_sid %} class="is-current"{% endif %}>
+            <svg class="icon" aria-hidden="true"><use href="#i-monitor"></use></svg>
+            <span class="profile-list-text"><strong>{{ s['user_agent']|ua_summary }}</strong>{% if s['id'] == current_sid %} <span class="badge">{{ _("this one") }}</span>{% endif %}
+              <span class="muted small">{{ s['ip'] or '—' }} · {{ _("active %(when)s", when=s['last_seen']|datetime) }}</span></span>
+            {% if s['id'] != current_sid %}
+            <form method="post" action="{{ url_for('profile.session_close', sid=s['id']) }}" class="inline">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <button class="btn btn-small" type="submit">{{ _("Close") }}</button></form>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+
+{% elif section == 'tokens' %}
       {% if new_token %}
       <div class="flash token-new" role="alert">
         <strong>{{ _("Copy it now: it will not be shown again.") }}</strong>
@@ -123,59 +164,66 @@
         <code class="small">curl -H "Authorization: Bearer {{ new_token[:10] }}…" {{ url_for('files.browse', root='home', sub='', _external=True) }}</code>
       </div>
       {% endif %}
-      <ul class="access-list">
-        {% for t in my_tokens %}
-        <li><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg>
-          <span class="access-text"><strong>{{ t['name'] }}</strong>
-            <span class="muted small"><code>{{ t['prefix'] }}…</code> · {{ SCOPE_LABELS[t['scope']] }} ·
-              {{ _("expires %(when)s", when=t['expires_at']|datetime) if t['expires_at'] else _("does not expire") }} ·
-              {{ _("last used %(when)s", when=t['last_used_at']|datetime) }}</span></span>
-          <span class="token-actions">
-          <form method="post" action="{{ url_for('profile.token_rotate', token_id=t['id']) }}" class="inline js-confirm"
-                data-confirm="{{ _('Rotate the token «%(name)s»? You get a new secret with the same name, scope and expiry, and the current one stops working at once: whatever uses it (scripts, network drive, VS Code) needs the new one.', name=t['name']) }}">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <button class="link-btn small" type="submit">{{ _("Rotate") }}</button></form>
-          <form method="post" action="{{ url_for('profile.token_delete', token_id=t['id']) }}" class="inline js-confirm"
-                data-confirm="{{ _('Revoke the token «%(name)s»?', name=t['name']) }}">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <button class="link-btn small" type="submit">{{ _("Revoke") }}</button></form>
-          </span></li>
-        {% else %}
-        <li class="muted small">{{ _("You have no tokens.") }}</li>
-        {% endfor %}
-      </ul>
-      <form method="post" action="{{ url_for('profile.token_create') }}" class="form-grid">
+      {% if my_tokens %}
+      <div class="table-scroll">
+        <table class="files small">
+          <thead><tr><th>{{ _("Name") }}</th><th>{{ _("Scope") }}</th><th>{{ _("Last used") }}</th><th>{{ _("Expires") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr></thead>
+          <tbody>
+            {% for t in my_tokens %}
+            <tr>
+              <td><strong>{{ t['name'] }}</strong> <code class="muted">{{ t['prefix'] }}…</code></td>
+              <td>{{ SCOPE_LABELS[t['scope']] }}</td>
+              <td class="muted">{{ t['last_used_at']|datetime if t['last_used_at'] else '—' }}</td>
+              <td class="muted">{{ t['expires_at']|datetime if t['expires_at'] else _("never") }}</td>
+              <td class="cell-end"><div class="token-actions">
+                <form method="post" action="{{ url_for('profile.token_rotate', token_id=t['id']) }}" class="inline js-confirm"
+                      data-confirm="{{ _('Rotate the token «%(name)s»? You get a new secret with the same name, scope and expiry, and the current one stops working at once: whatever uses it (scripts, network drive, VS Code) needs the new one.', name=t['name']) }}">
+                  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                  <button class="link-btn small" type="submit">{{ _("Rotate") }}</button></form>
+                <form method="post" action="{{ url_for('profile.token_delete', token_id=t['id']) }}" class="inline js-confirm"
+                      data-confirm="{{ _('Revoke the token «%(name)s»?', name=t['name']) }}">
+                  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                  <button class="link-btn small text-danger" type="submit">{{ _("Revoke") }}</button></form>
+              </div></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card"><p class="muted">{{ _("You have no tokens.") }}</p></div>
+      {% endif %}
+      <form method="post" action="{{ url_for('profile.token_create') }}" class="card profile-inline-form">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <label class="span2">{{ _("Name") }}<input type="text" name="name" maxlength="80" required placeholder="{{ _('e.g. nightly backup') }}"></label>
+        <label class="grow">{{ _("New token") }}<input type="text" name="name" maxlength="80" required placeholder="{{ _('e.g. nightly backup') }}"></label>
         <label>{{ _("Scope") }}<select name="scope">{% for k, v in SCOPE_LABELS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
         <label>{{ _("Expires") }}<select name="days">
           {% for d in EXPIRY_DAYS %}<option value="{{ d }}" {% if d == 90 %}selected{% endif %}>{{ ngettext("in %(num)s day", "in %(num)s days", d) if d else _("never") }}</option>{% endfor %}
         </select></label>
-        <div class="span2"><button class="btn btn-primary" type="submit">{{ _("Create token") }}</button></div>
+        <button class="btn btn-primary" type="submit">{{ _("Create token") }}</button>
       </form>
-    </section>
-    {% endif %}
 
-    {% if webdav and (tokens_enabled or webdav_passwords) %}
-    {% if home_quota or home_space %}
-    <section class="card stack" id="space" aria-labelledby="space-title">
-      <h2 class="card-title" id="space-title">{{ _("Space of my folder") }}</h2>
-      {{ quota_meter(home_quota) }}
-      {{ space_meter(home_space) }}
-    </section>
-    {% endif %}
+{% elif section == 'drive' %}
+      <div class="card stack" id="webdav">
+        <div class="copy-row profile-copy"><input type="text" readonly value="{{ webdav_url }}" id="webdav-url" class="mono" aria-label="{{ _('Address') }}">
+          <button type="button" class="btn js-copy" data-copy="#webdav-url">{{ _("Copy") }}</button></div>
+        <dl class="profile-facts">
+          <dt>{{ _("User") }}</dt><dd><code>{{ user['username'] }}</code></dd>
+          <dt>{{ _("Password") }}</dt>
+          <dd>{% if tokens_enabled %}{{ _("an API token") }} (<a href="{{ url_for('profile.section', section='tokens') }}">{{ _("create one in API tokens") }}</a>; {{ _("«read only» if you only need to read") }}){% endif %}
+            {% if webdav_passwords and own_password %}{% if mfa_blocks_password %}<span class="muted small">{{ _("With two-step verification on, the network drive only accepts API tokens, not your password.") }}</span>{% else %}{{ _("You can also use your password.") }}{% endif %}{% endif %}</dd>
+          <dt>Windows</dt><dd>{{ _("File Explorer → This PC → Map network drive → paste the address.") }}</dd>
+          <dt>macOS</dt><dd>{{ _("Finder → Go → Connect to Server.") }}</dd>
+        </dl>
+      </div>
 
-    <section class="card stack" id="webdav" aria-labelledby="webdav-title">
-      <h2 class="card-title" id="webdav-title">{{ _("Network drive") }}</h2>
-      <p class="muted small">{{ _("Your folders as a drive in the file explorer (Windows, macOS, Linux) or with rclone, Cyberduck or WinSCP.") }}</p>
-      <div class="copy-row"><input type="text" readonly value="{{ webdav_url }}" id="webdav-url" class="mono" aria-label="{{ _('Address') }}">
-        <button type="button" class="btn js-copy" data-copy="#webdav-url">{{ _("Copy") }}</button></div>
-      <p class="small">{{ _("User: %(user)s", user=user['username']) }} ·
-        {% if tokens_enabled %}{{ _("Password: an API token (create one above; «read only» if you only need to read).") }}{% endif %}
-        {% if webdav_passwords and own_password %}{{ _("You can also use your password.") }}{% endif %}</p>
-      <p class="muted small">{{ _("Windows: File Explorer → This PC → Map network drive → paste the address. macOS: Finder → Go → Connect to Server.") }}</p>
+{% elif section == 'space' %}
+      <div class="card profile-space">
+        {{ quota_meter(home_quota) }}
+        {{ space_meter(home_space) }}
+      </div>
+{% endif %}
     </section>
-    {% endif %}
   </div>
 </div>
 {% endblock %}
