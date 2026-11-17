@@ -234,6 +234,14 @@ FIELDS: dict[str, Field] = {
         label=_l("Also accept the account password in WebDAV"),
         page="clients",
         words="webdav contraseña password"),
+    "security.mfa_required": Field(
+        doc=("Quién debe tener la **verificación en dos pasos** (TOTP): `off` (nadie, quien quiera la activa en *Mi "
+             "perfil*), `admins` (los administradores) o `all` (todas las cuentas). Solo las cuentas con contraseña "
+             "(locales y PAM): quien entra con Microsoft Entra ID usa el segundo factor de Microsoft. Quien la debe y "
+             "no la tiene la configura al iniciar sesión; quien la tiene la usa siempre, diga lo que diga esto."),
+        label=_l("Two-step verification required for"),
+        page="auth",
+        words="mfa 2fa totp verificación dos pasos segundo factor autenticador authenticator two-step"),
     "maintenance.audit_retention_days": Field(
         doc="Días que se conserva la auditoría; `0` = siempre. La limpieza se hace una vez al día.",
         label=_l("Keep the audit log (days)"),

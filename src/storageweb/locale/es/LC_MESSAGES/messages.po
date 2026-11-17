@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: StorageWeb VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-16 22:44+0100\n"
+"POT-Creation-Date: 2026-11-17 21:53+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -350,6 +350,37 @@ msgstr "Cierra las sesiones abiertas de un usuario (o de todos)"
 msgid "%(num)s session(s) closed."
 msgstr "%(num)s sesión(es) cerrada(s)."
 
+#: storageweb/cli/security.py
+msgid "Remove the two-step verification of a user (lost phone and recovery codes)"
+msgstr "Quitar la verificación en dos pasos de un usuario (perdió el móvil y los códigos de recuperación)"
+
+#: storageweb/cli/security.py
+#, python-format
+msgid "«%(name)s» does not have two-step verification."
+msgstr "«%(name)s» no tiene la verificación en dos pasos."
+
+#: storageweb/cli/security.py
+#, python-format
+msgid "Two-step verification removed from «%(name)s»."
+msgstr "Verificación en dos pasos quitada a «%(name)s»."
+
+#: storageweb/cli/security.py
+msgid "List which accounts have two-step verification"
+msgstr "Listar qué cuentas tienen la verificación en dos pasos"
+
+#: storageweb/cli/security.py
+#, python-format
+msgid "on (%(num)s recovery codes left)"
+msgstr "activada (quedan %(num)s códigos de recuperación)"
+
+#: storageweb/cli/security.py
+msgid "required, not set up"
+msgstr "obligatoria, sin configurar"
+
+#: storageweb/cli/security.py storageweb/settings/fields.py
+msgid "off"
+msgstr "desactivado"
+
 #: storageweb/cli/server.py
 msgid "Overrides server.host"
 msgstr "Sobrescribe server.host"
@@ -536,7 +567,7 @@ msgstr "Ya existe una cuenta con ese nombre. Contacta con el administrador."
 msgid "Your account is not registered in the application. Contact the administrator."
 msgstr "Tu cuenta no está dada de alta en la aplicación. Contacta con el administrador."
 
-#: storageweb/core/accounts.py
+#: storageweb/core/accounts.py storageweb/web/views/mfa.py
 msgid "Your account is disabled."
 msgstr "Tu cuenta está deshabilitada."
 
@@ -753,7 +784,7 @@ msgstr "No se ha podido copiar «%(name)s»: %(error)s"
 msgid "Local"
 msgstr "Local"
 
-#: storageweb/core/groups.py
+#: storageweb/core/groups.py storageweb/web/views/settings/auth_forms.py
 msgid "Administrators"
 msgstr "Administradores"
 
@@ -2114,6 +2145,10 @@ msgstr "Unidad de red (WebDAV)"
 msgid "Also accept the account password in WebDAV"
 msgstr "Admitir también la contraseña de la cuenta en WebDAV"
 
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/auth.html
+msgid "Two-step verification required for"
+msgstr "Verificación en dos pasos obligatoria para"
+
 #: storageweb/settings/fields.py storageweb/web/templates/admin/settings/maintenance.html
 msgid "Keep the audit log (days)"
 msgstr "Conservar la auditoría (días)"
@@ -2162,10 +2197,6 @@ msgstr "vacío"
 #: storageweb/settings/fields.py
 msgid "on"
 msgstr "activado"
-
-#: storageweb/settings/fields.py
-msgid "off"
-msgstr "desactivado"
 
 #: storageweb/settings/loader.py
 #, python-format
@@ -2253,6 +2284,11 @@ msgstr "La carpeta compartida %(name)s no tiene ruta"
 #: storageweb/settings/loader.py
 msgid "At least one sign-in method must be enabled"
 msgstr "Debe haber al menos un método de inicio de sesión activado"
+
+#: storageweb/settings/loader.py
+#, python-format
+msgid "security.mfa_required must be one of: %(values)s"
+msgstr "security.mfa_required tiene que ser uno de: %(values)s"
 
 #: storageweb/settings/loader.py
 msgid "metrics.token must be at least 16 characters long"
@@ -2616,7 +2652,7 @@ msgstr "Aceptar"
 
 #: storageweb/web/js_messages.py storageweb/web/templates/admin/settings/backup_restore.html
 #: storageweb/web/templates/admin/settings/entra_register.html storageweb/web/templates/browse.html
-#: storageweb/web/templates/connect.html
+#: storageweb/web/templates/connect.html storageweb/web/templates/mfa_setup.html
 msgid "Cancel"
 msgstr "Cancelar"
 
@@ -2866,6 +2902,46 @@ msgstr "Subida no encontrada"
 #: storageweb/web/api/uploads.py
 msgid "The offset parameter is missing"
 msgstr "Falta el parámetro offset"
+
+#: storageweb/web/templates/_mfa_setup.html
+msgid ""
+"Install an authenticator app on your phone, if you do not have one (Microsoft Authenticator, "
+"Google Authenticator, FreeOTP…)."
+msgstr ""
+"Instala una aplicación de autenticación en el móvil, si no tienes ninguna (Microsoft "
+"Authenticator, Google Authenticator, FreeOTP…)."
+
+#: storageweb/web/templates/_mfa_setup.html
+msgid "Scan this code with the app:"
+msgstr "Escanea este código con la aplicación:"
+
+#: storageweb/web/templates/_mfa_setup.html
+msgid "Or add it by hand with this key (time-based, 6 digits, every 30 seconds):"
+msgstr "O añádela a mano con esta clave (basada en el tiempo, 6 dígitos, cada 30 segundos):"
+
+#: storageweb/web/templates/_mfa_setup.html
+msgid "Key"
+msgstr "Clave"
+
+#: storageweb/web/templates/_mfa_setup.html storageweb/web/templates/admin/settings/auth/entra.html
+#: storageweb/web/templates/admin/settings/entra_register.html
+#: storageweb/web/templates/admin/settings/entra_setup.html storageweb/web/templates/mfa_codes.html
+#: storageweb/web/templates/profile.html
+msgid "Copy"
+msgstr "Copiar"
+
+#: storageweb/web/templates/_mfa_setup.html
+msgid "Enter the code the app shows to finish:"
+msgstr "Escribe el código que muestra la aplicación para terminar:"
+
+#: storageweb/web/templates/_mfa_setup.html storageweb/web/templates/admin/settings/entra_register.html
+#: storageweb/web/templates/login_mfa.html
+msgid "Code"
+msgstr "Código"
+
+#: storageweb/web/templates/_mfa_setup.html
+msgid "Turn on"
+msgstr "Activar"
 
 #: storageweb/web/templates/_space.html
 #, python-format
@@ -3272,6 +3348,74 @@ msgstr "Usar una cuenta local"
 msgid "No sign-in method is enabled. Check config.json."
 msgstr "No hay ningún método de inicio de sesión activado. Revisa config.json."
 
+#: storageweb/web/templates/admin/settings/auth.html storageweb/web/templates/admin/user_form.html
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/login_mfa.html
+#: storageweb/web/templates/profile.html
+msgid "Two-step verification"
+msgstr "Verificación en dos pasos"
+
+#: storageweb/web/templates/login_mfa.html
+#, python-format
+msgid "Enter the 6-digit code from your authenticator app for %(name)s."
+msgstr "Escribe el código de 6 dígitos de tu aplicación de autenticación para %(name)s."
+
+#: storageweb/web/templates/login_mfa.html
+msgid "Verify"
+msgstr "Verificar"
+
+#: storageweb/web/templates/login_mfa.html
+msgid "No phone at hand? Enter one of your recovery codes instead (XXXXX-XXXXX)."
+msgstr "¿Sin el móvil a mano? Escribe en su lugar uno de tus códigos de recuperación (XXXXX-XXXXX)."
+
+#: storageweb/web/templates/login_mfa.html storageweb/web/templates/login_mfa_enrol.html
+msgid "Back to sign-in"
+msgstr "Volver al inicio de sesión"
+
+#: storageweb/web/templates/login_mfa_enrol.html
+msgid "Set up two-step verification"
+msgstr "Configura la verificación en dos pasos"
+
+#: storageweb/web/templates/login_mfa_enrol.html
+#, python-format
+msgid ""
+"Your organization requires a second step to sign in to %(name)s: a code from an app on your "
+"phone. It only takes a minute."
+msgstr ""
+"Tu organización pide un segundo paso para entrar con %(name)s: un código de una aplicación del "
+"móvil. Se configura en un minuto."
+
+#: storageweb/web/templates/mfa_codes.html
+msgid "Recovery codes"
+msgstr "Códigos de recuperación"
+
+#: storageweb/web/templates/mfa_codes.html
+msgid "Save them now somewhere safe: they will not be shown again."
+msgstr "Guárdalos ahora en un lugar seguro: no se volverán a mostrar."
+
+#: storageweb/web/templates/mfa_codes.html
+msgid ""
+"If you lose your phone, each code lets you sign in once instead of the app's code. Generating new"
+" ones in My profile cancels these."
+msgstr ""
+"Si pierdes el móvil, cada código te deja entrar una vez en lugar del de la aplicación. Generar "
+"otros nuevos en Mi perfil anula estos."
+
+#: storageweb/web/templates/mfa_codes.html
+msgid "I have saved them"
+msgstr "Ya los he guardado"
+
+#: storageweb/web/templates/mfa_setup.html storageweb/web/templates/profile.html
+msgid "Turn on two-step verification"
+msgstr "Activar la verificación en dos pasos"
+
+#: storageweb/web/templates/mfa_setup.html
+msgid ""
+"Besides your password, signing in will ask for a code from an app on your phone. Someone who "
+"learns your password still cannot get in."
+msgstr ""
+"Además de la contraseña, al entrar se pedirá un código de una aplicación del móvil. Aunque "
+"alguien sepa tu contraseña, no podrá entrar."
+
 #: storageweb/web/templates/admin/user_form.html storageweb/web/templates/profile.html
 msgid "Account"
 msgstr "Cuenta"
@@ -3332,6 +3476,61 @@ msgstr "Repite la nueva contraseña"
 msgid "You sign in with %(source)s, so your password is managed there."
 msgstr "Inicias sesión con %(source)s, así que tu contraseña se gestiona allí."
 
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/profile.html
+msgid "On"
+msgstr "Activada"
+
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/profile.html
+msgid "Off"
+msgstr "Desactivada"
+
+#: storageweb/web/templates/profile.html
+#, python-format
+msgid ""
+"Signing in asks for a code from your authenticator app as well as your password. On since "
+"%(date)s."
+msgstr ""
+"Al entrar se pide, además de la contraseña, un código de tu aplicación de autenticación. Activada"
+" desde el %(date)s."
+
+#: storageweb/web/templates/profile.html
+#, python-format
+msgid "%(num)s recovery code left."
+msgid_plural "%(num)s recovery codes left."
+msgstr[0] "Te queda %(num)s código de recuperación."
+msgstr[1] "Te quedan %(num)s códigos de recuperación."
+
+#: storageweb/web/templates/profile.html
+msgid "Code from the app (or a recovery code)"
+msgstr "Código de la aplicación (o uno de recuperación)"
+
+#: storageweb/web/templates/profile.html
+msgid "New recovery codes"
+msgstr "Códigos de recuperación nuevos"
+
+#: storageweb/web/templates/profile.html
+msgid "Turn off"
+msgstr "Desactivar"
+
+#: storageweb/web/templates/profile.html
+msgid ""
+"Besides your password, signing in will ask for a code from an app on your phone (Microsoft "
+"Authenticator, Google Authenticator…). Someone who learns your password still cannot get in."
+msgstr ""
+"Además de la contraseña, al entrar se pedirá un código de una aplicación del móvil (Microsoft "
+"Authenticator, Google Authenticator…). Aunque alguien sepa tu contraseña, no podrá entrar."
+
+#: storageweb/web/templates/profile.html
+msgid "Your organization requires it: you will be asked to set it up on your next sign-in."
+msgstr "Tu organización la exige: se te pedirá que la configures la próxima vez que entres."
+
+#: storageweb/web/templates/profile.html
+msgid "With two-step verification on, the network drive only accepts API tokens, not your password."
+msgstr ""
+"Con la verificación en dos pasos activada, la unidad de red solo admite tokens de API, no tu "
+"contraseña."
+
 #: storageweb/web/templates/profile.html
 msgid "My sessions"
 msgstr "Mis sesiones"
@@ -3370,12 +3569,6 @@ msgstr "Cópialo ahora: no se volverá a mostrar."
 #: storageweb/web/templates/profile.html
 msgid "New token"
 msgstr "Token nuevo"
-
-#: storageweb/web/templates/admin/settings/auth/entra.html
-#: storageweb/web/templates/admin/settings/entra_register.html
-#: storageweb/web/templates/admin/settings/entra_setup.html storageweb/web/templates/profile.html
-msgid "Copy"
-msgstr "Copiar"
 
 #: storageweb/web/templates/profile.html
 #, python-format
@@ -3926,6 +4119,22 @@ msgstr "Dejar vacío para no cambiarla"
 msgid "Signs in with %(source)s: the password is managed there."
 msgstr "Inicia sesión con %(source)s: la contraseña se gestiona allí."
 
+#: storageweb/web/templates/admin/settings/backups.html storageweb/web/templates/admin/user_form.html
+#, python-format
+msgid "since %(date)s"
+msgstr "desde el %(date)s"
+
+#: storageweb/web/templates/admin/user_form.html
+#, python-format
+msgid "%(num)s recovery code left"
+msgid_plural "%(num)s recovery codes left"
+msgstr[0] "le queda %(num)s código de recuperación"
+msgstr[1] "le quedan %(num)s códigos de recuperación"
+
+#: storageweb/web/templates/admin/user_form.html
+msgid "required: they will set it up on their next sign-in"
+msgstr "obligatoria: la configurará la próxima vez que entre"
+
 #: storageweb/web/templates/admin/user_form.html
 msgid "Create user"
 msgstr "Crear usuario"
@@ -3981,6 +4190,30 @@ msgstr "Desactivar usuario"
 #: storageweb/web/templates/admin/user_form.html
 msgid "Enable user"
 msgstr "Activar usuario"
+
+#: storageweb/web/templates/admin/user_form.html
+msgid "Remove two-step verification"
+msgstr "Quitar la verificación en dos pasos"
+
+#: storageweb/web/templates/admin/user_form.html
+msgid ""
+"For someone who lost their phone and their recovery codes. They will sign in with just their "
+"password (or set it up again if it is required). Only they can turn it on again: nobody can set "
+"it up for someone else."
+msgstr ""
+"Para quien perdió el móvil y sus códigos de recuperación. Entrará solo con su contraseña (o la "
+"volverá a configurar si es obligatoria). Solo esa persona puede activarla de nuevo: nadie puede "
+"configurarla por otro."
+
+#: storageweb/web/templates/admin/user_form.html
+#, python-format
+msgid "Remove the two-step verification of «%(name)s»?"
+msgstr "¿Quitar la verificación en dos pasos de «%(name)s»?"
+
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/settings/ips.html
+#: storageweb/web/templates/admin/user_form.html
+msgid "Remove"
+msgstr "Quitar"
 
 #: storageweb/web/templates/admin/user_form.html
 msgid "Delete user"
@@ -4395,10 +4628,6 @@ msgstr "Manual"
 msgid "Remove the administrator role from «%(name)s»?"
 msgstr "¿Quitar el rol de administrador a «%(name)s»?"
 
-#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/settings/ips.html
-msgid "Remove"
-msgstr "Quitar"
-
 #: storageweb/web/templates/admin/groups/_macros.html
 #, python-format
 msgid "Managed in %(source)s"
@@ -4748,6 +4977,26 @@ msgstr "Restablecer"
 msgid "Save to apply the changes."
 msgstr "Guarda para aplicar los cambios."
 
+#: storageweb/web/templates/admin/settings/auth.html
+#, python-format
+msgid "%(num)s of %(total)s account with a password has it on."
+msgid_plural "%(num)s of %(total)s accounts with a password have it on."
+msgstr[0] "%(num)s de %(total)s cuenta con contraseña la tiene activada."
+msgstr[1] "%(num)s de %(total)s cuentas con contraseña la tienen activada."
+
+#: storageweb/web/templates/admin/settings/auth.html
+msgid ""
+"A code from an authenticator app (TOTP) besides the password, for local and system (PAM) "
+"accounts; Microsoft Entra ID accounts use Microsoft's own. Whoever has it on uses it always; "
+"whoever must have it and does not sets it up on their next sign-in, so turning this on never "
+"locks anyone out. With it, the network drive only accepts API tokens."
+msgstr ""
+"Un código de una aplicación de autenticación (TOTP) además de la contraseña, para las cuentas "
+"locales y del sistema (PAM); las de Microsoft Entra ID usan la de Microsoft. Quien la tiene "
+"activada la usa siempre; quien debe tenerla y no la tiene la configura la próxima vez que entra, "
+"así que activar esto nunca deja fuera a nadie. Con ella, la unidad de red solo admite tokens de "
+"API."
+
 #: storageweb/web/templates/admin/settings/backup_restore.html storageweb/web/views/settings/backups.py
 msgid "Restore a backup"
 msgstr "Restaurar una copia de seguridad"
@@ -4822,11 +5071,6 @@ msgstr "Restaurar esta copia"
 #: storageweb/web/templates/admin/settings/backups.html
 msgid "Audit entries"
 msgstr "Entradas de auditoría"
-
-#: storageweb/web/templates/admin/settings/backups.html
-#, python-format
-msgid "since %(date)s"
-msgstr "desde el %(date)s"
 
 #: storageweb/web/templates/admin/settings/backups.html
 #: storageweb/web/templates/admin/settings/sessions.html
@@ -4998,10 +5242,6 @@ msgstr "Abre %(link)s en cualquier dispositivo."
 #: storageweb/web/templates/admin/settings/entra_register.html
 msgid "Enter this code:"
 msgstr "Escribe este código:"
-
-#: storageweb/web/templates/admin/settings/entra_register.html
-msgid "Code"
-msgstr "Código"
 
 #: storageweb/web/templates/admin/settings/entra_register.html
 msgid ""
@@ -6183,7 +6423,7 @@ msgstr "Carpeta compartida «%(label)s» quitada. Sus archivos siguen en el serv
 msgid "Enter your user name and password."
 msgstr "Introduce usuario y contraseña."
 
-#: storageweb/web/views/auth.py
+#: storageweb/web/views/auth.py storageweb/web/views/mfa.py
 msgid "Too many failed attempts. Wait a few minutes."
 msgstr "Demasiados intentos fallidos. Espera unos minutos."
 
@@ -6355,6 +6595,39 @@ msgstr "La conexión con «%(label)s» funciona: %(where)s"
 msgid "Storage location «%(label)s» removed. Its files are still there."
 msgstr "Ubicación de almacenamiento «%(label)s» quitada. Sus archivos siguen ahí."
 
+#: storageweb/web/views/mfa.py
+msgid "The sign-in waited too long for the code. Sign in again."
+msgstr "El inicio de sesión esperó demasiado el código. Vuelve a iniciar sesión."
+
+#: storageweb/web/views/mfa.py
+msgid "The code is not valid."
+msgstr "El código no es válido."
+
+#: storageweb/web/views/mfa.py
+#, python-format
+msgid "You used a recovery code (%(num)s left). Generate new ones in My profile."
+msgstr "Has usado un código de recuperación (te quedan %(num)s). Genera otros nuevos en Mi perfil."
+
+#: storageweb/web/views/mfa.py
+msgid "You sign in with your organization's account: its two-step verification protects you."
+msgstr "Entras con la cuenta de tu organización: te protege su verificación en dos pasos."
+
+#: storageweb/web/views/mfa.py
+msgid "The code is not valid. Check that the phone's clock is right and try again."
+msgstr "El código no es válido. Comprueba que la hora del móvil es correcta y vuelve a intentarlo."
+
+#: storageweb/web/views/mfa.py
+msgid ""
+"Two-step verification is off. Your organization requires it: you will set it up again on your "
+"next sign-in."
+msgstr ""
+"Verificación en dos pasos desactivada. Tu organización la exige: la volverás a configurar la "
+"próxima vez que entres."
+
+#: storageweb/web/views/mfa.py
+msgid "Two-step verification is off."
+msgstr "Verificación en dos pasos desactivada."
+
 #: storageweb/web/views/profile.py
 msgid "Light"
 msgstr "Claro"
@@ -6430,6 +6703,19 @@ msgid "User «%(name)s» disabled: they can no longer sign in."
 msgstr "Usuario «%(name)s» desactivado: ya no puede iniciar sesión."
 
 #: storageweb/web/views/admin/users.py
+msgid "Turn off your own two-step verification in My profile."
+msgstr "Tu propia verificación en dos pasos se desactiva en Mi perfil."
+
+#: storageweb/web/views/admin/users.py
+#, python-format
+msgid ""
+"Two-step verification removed from «%(name)s». On their next sign-in they will only need their "
+"password, or will set it up again if it is required."
+msgstr ""
+"Verificación en dos pasos quitada a «%(name)s». La próxima vez que entre solo necesitará su "
+"contraseña, o la volverá a configurar si es obligatoria."
+
+#: storageweb/web/views/admin/users.py
 #, python-format
 msgid "User «%(name)s» created."
 msgstr "Usuario «%(name)s» creado."
@@ -6438,6 +6724,14 @@ msgstr "Usuario «%(name)s» creado."
 #, python-format
 msgid "User «%(name)s» deleted (their files have not been removed)."
 msgstr "Usuario «%(name)s» eliminado (sus archivos no se han borrado)."
+
+#: storageweb/web/views/settings/auth_forms.py
+msgid "Nobody: optional for everyone"
+msgstr "Nadie: opcional para todos"
+
+#: storageweb/web/views/settings/auth_forms.py
+msgid "All accounts that sign in with a password"
+msgstr "Todas las cuentas que entran con contraseña"
 
 #: storageweb/web/views/settings/backups.py
 #, python-format

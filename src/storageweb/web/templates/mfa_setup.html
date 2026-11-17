@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Turn on two-step verification") }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="page-head"><h1>{{ _("Turn on two-step verification") }}</h1></div>
+  <section class="card stack mfa-card">
+    <p class="muted">{{ _("Besides your password, signing in will ask for a code from an app on your phone. Someone who learns your password still cannot get in.") }}</p>
+    {% set action = url_for('mfa.confirm') %}
+    {% include "_mfa_setup.html" %}
+    <form method="post" action="{{ url_for('mfa.cancel') }}" class="inline">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button class="btn btn-ghost" type="submit">{{ _("Cancel") }}</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

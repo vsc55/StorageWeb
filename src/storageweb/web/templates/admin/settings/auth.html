@@ -4,6 +4,17 @@
 {{ form_start() }}
   {{ field_error('auth') if error_field == 'auth' else '' }}
 
+  <div class="card form-grid">
+    <h3 class="card-title span2">{{ _("Two-step verification") }}</h3>
+    <label class="{{ err_class('security.mfa_required') }}"><span class="label-row">{{ _("Two-step verification required for") }} {{ origin('security.mfa_required') }}</span>
+      <select{{ lock('security.mfa_required') }} name="mfa_required">
+        {% for code, label in mfa_policies %}<option value="{{ code }}" {% if cfg.security.mfa_required == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      {{ field_error('security.mfa_required') }}</label>
+    <p class="muted small">{{ ngettext("%(num)s of %(total)s account with a password has it on.", "%(num)s of %(total)s accounts with a password have it on.", mfa_counts.total, num=mfa_counts.enrolled, total=mfa_counts.total) }}</p>
+    <p class="muted small span2">{{ _("A code from an authenticator app (TOTP) besides the password, for local and system (PAM) accounts; Microsoft Entra ID accounts use Microsoft's own. Whoever has it on uses it always; whoever must have it and does not sets it up on their next sign-in, so turning this on never locks anyone out. With it, the network drive only accepts API tokens.") }}</p>
+  </div>
+
   {# Una tarjeta por método de inicio de sesión registrado (providers/<método>/). Cada uno tiene su
      plantilla en auth/<método>.html; si no, auth/_generic.html la construye con su configuración. #}
   {% for m in auth_methods %}

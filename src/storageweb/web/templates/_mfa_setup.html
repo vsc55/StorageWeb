@@ -1,0 +1,21 @@
+{# Los pasos del alta (QR, clave y código): en el inicio de sesión obligatorio y en Mi perfil. Necesita «setup» (de
+   core.mfa) y «action» (a dónde se envía el código). El SVG del QR lo construye core/mfa/qr.py solo con enteros. #}
+<ol class="mfa-steps">
+  <li>{{ _("Install an authenticator app on your phone, if you do not have one (Microsoft Authenticator, Google Authenticator, FreeOTP…).") }}</li>
+  <li>{{ _("Scan this code with the app:") }}
+    {% if setup.svg %}<div class="mfa-qr">{{ setup.svg|safe }}</div>{% endif %}
+    <span class="muted small">{{ _("Or add it by hand with this key (time-based, 6 digits, every 30 seconds):") }}</span>
+    <div class="copy-row"><input type="text" readonly value="{{ setup.secret_groups }}" id="mfa-secret" class="mono mfa-secret"
+           aria-label="{{ _('Key') }}">
+      <button type="button" class="btn js-copy" data-copy="#mfa-secret">{{ _("Copy") }}</button></div>
+  </li>
+  <li>{{ _("Enter the code the app shows to finish:") }}
+    <form method="post" action="{{ action }}" class="mfa-confirm">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label class="sr-only" for="mfa-code">{{ _("Code") }}</label>
+      <input type="text" id="mfa-code" name="code" class="mfa-code" inputmode="numeric" autocomplete="one-time-code"
+             maxlength="10" required autofocus placeholder="123 456">
+      <button class="btn btn-primary" type="submit">{{ _("Turn on") }}</button>
+    </form>
+  </li>
+</ol>

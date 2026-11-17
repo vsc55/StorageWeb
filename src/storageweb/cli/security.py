@@ -80,3 +80,38 @@ def cmd_sessions_close(cfg, conn, args):
         closed = sessions.delete_for_user(conn, _get(conn, args.username)["id"])
     audit.log(conn, "sessions_closed", args.username or "*", username="cli", detail=str(closed))
     print(_("%(num)s session(s) closed.", num=closed))
+
+
+def _mfa_reset_args(p):
+    p.add_argument("username")
+
+
+@command("mfa-reset", _l("Remove the two-step verification of a user (lost phone and recovery codes)"),
+         _mfa_reset_args, order=134)
+def cmd_mfa_reset(cfg, conn, args):
+    from ..core import mfa
+
+    user = _get(conn, args.username)
+    if not mfa.disable(conn, user):
+        print(_("«%(name)s» does not have two-step verification.", name=user["username"]))
+        return 0
+    audit.log(conn, "mfa_reset_by_admin", user["username"], username="cli")
+    print(_("Two-step verification removed from «%(name)s».", name=user["username"]))
+    return 0
+
+
+@command("mfa-status", _l("List which accounts have two-step verification"), order=135)
+def cmd_mfa_status(cfg, conn, args):
+    from ..core import mfa
+    from ..db.repositories import users
+
+    for user in users.list_all(conn):
+        if not mfa.applies(user):
+            continue
+        state = mfa.status(conn, user)
+        if state["enrolled"]:
+            text = _("on (%(num)s recovery codes left)", num=state["recovery_left"])
+        else:
+            text = _("required, not set up") if mfa.required(cfg, user) else _("off")
+        print(f"{user['username']:<32} {text}")
+    return 0

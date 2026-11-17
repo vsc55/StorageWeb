@@ -26,6 +26,23 @@ Pulsa tus iniciales, abajo en la barra de la izquierda, para abrir el menú de t
 
 Tus preferencias se guardan en tu cuenta. En la página de inicio de sesión también puedes elegir el idioma y el tema.
 
+### Verificación en dos pasos
+
+Si entras con usuario y contraseña, puedes añadir un segundo paso: un código de seis dígitos que genera una aplicación del móvil (Microsoft Authenticator, Google Authenticator, FreeOTP…). Así, aunque alguien sepa tu contraseña, no puede entrar.
+
+1. En *Mi perfil → Verificación en dos pasos*, pulsa **Activar**.
+2. Escanea el código QR con la aplicación (o escribe la clave que aparece debajo).
+3. Escribe el código que muestra la aplicación y pulsa **Activar**.
+4. **Guarda los códigos de recuperación** que aparecen: se enseñan una sola vez. Cada uno te deja entrar una vez si no tienes el móvil a mano.
+
+![Activar la verificación en dos pasos: el QR, la clave y el código](../img/uso/mfa-alta.webp)
+
+![Al entrar, el código después de la contraseña](../img/uso/mfa-codigo.webp)
+
+Desde entonces, al entrar se te pide el código después de la contraseña. Si tu organización la exige, se te pedirá configurarla la primera vez que entres. En el perfil puedes generar códigos de recuperación nuevos (anulan los anteriores) o desactivarla, siempre con un código. Si pierdes el móvil y los códigos, pide a un administrador que te la quite. Con la verificación activada, la [unidad de red](unidad-de-red.md) solo admite tokens de API, no tu contraseña.
+
+Si entras con Microsoft, la verificación en dos pasos la gestiona tu organización en Microsoft.
+
 ![Mi perfil: cuenta, preferencias, contraseña, sesiones y tokens de API](../img/uso/perfil.webp)
 
 ## La pantalla

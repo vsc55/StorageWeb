@@ -286,6 +286,15 @@ def build(base: Path, port: int) -> Path:
         tokens.create(conn, ana, name="Portátil (VS Code)", scope="write", days=365)
         tokens.create(conn, ana, name="Script de copias", scope="read", days=90)
 
+        # Verificación en dos pasos: Luis la tiene (pantalla del código al entrar) y Ana, un alta a medias (el QR)
+        from storageweb.core import mfa
+        from storageweb.core.mfa import totp
+        key = app.extensions["storageweb.runtime"].secrets_key
+        luis = users.get_by_id(conn, ids["luis.martin"])
+        setup = mfa.enroll_begin(conn, key, luis, "StorageWeb")
+        mfa.enroll_confirm(conn, key, luis, totp.code_at(setup["secret"], totp.current_step()))
+        mfa.enroll_begin(conn, key, ana, "StorageWeb")
+
         ipban.allow(conn, "192.0.2.0/24", by="ana.garcia", reason="Oficina central")
         ipban.ban(conn, "203.0.113.0/24", by="ana.garcia", reason="Intentos de acceso repetidos")
 
@@ -316,6 +325,8 @@ def plan(uids: dict) -> list[dict]:
         {"file": "uso/compartida.webp", "path": "/f/proyectos/", "as": "ana.garcia"},
         {"file": "uso/buscar.webp", "path": "/search?q=presupuesto", "as": "ana.garcia"},
         {"file": "uso/perfil.webp", "path": "/profile", "as": "ana.garcia"},
+        {"file": "uso/mfa-alta.webp", "path": "/profile/mfa", "as": "ana.garcia"},
+        {"file": "uso/mfa-codigo.webp", "path": "/login/mfa", "as": "luis.martin"},
         {"file": "uso/explorador-oscuro.webp", "path": "/f/home/Documentos/", "as": "ana.garcia", "scheme": "dark"},
         {"file": "uso/movil.webp", "path": "/f/home/", "as": "ana.garcia", "width": 390, "height": 760,
          "mobile": True},

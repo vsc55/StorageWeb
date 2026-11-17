@@ -12,7 +12,7 @@ from functools import wraps
 
 from flask import Response, abort, g, redirect, render_template, request, session, url_for
 
-from ..core import accounts, ipban, maintenance, tokens
+from ..core import accounts, ipban, maintenance, mfa, tokens
 from ..core.permissions import is_admin
 from ..db.connection import now_iso
 from ..db.repositories import audit
@@ -205,6 +205,11 @@ def _load_dav_user(header: str) -> None:
             if user is not None:
                 with _DAV_CACHE_LOCK:
                     _DAV_CACHE[key] = (user["id"], user["password_hash"], time.monotonic() + DAV_CACHE_SECONDS)
+        if user is not None and mfa.needed(get_db(), cfg, user):
+            # Con verificación en dos pasos, la contraseña sola no basta en ningún sitio: en la unidad de red, un
+            # token. Es su contraseña correcta, así que no cuenta como intento fallido (la unidad reintenta sola).
+            audit.log(get_db(), "login_failed", username=username, ip=ip, detail="webdav:mfa_requires_token")
+            return
     if user is None:
         limiter.failure(ip, username, DAV_BLUEPRINT)
         audit.log(get_db(), "login_failed", username=username, ip=ip, detail=f"webdav:{reason}")

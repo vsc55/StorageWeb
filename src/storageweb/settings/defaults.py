@@ -3,6 +3,8 @@ from __future__ import annotations
 
 ROLES = ("admin", "user")
 PERMISSIONS = ("upload", "download", "mkdir", "rename", "delete")
+# Quién debe tener la verificación en dos pasos (security.mfa_required)
+MFA_POLICIES = ("off", "admins", "all")
 # Ilustraciones de serie del inicio de sesión (web/static/img/login-<clave>.svg)
 LOGIN_ARTS = ("classic", "sync", "waves", "mosaic", "layers")
 # Valores de branding.login_art: una de ellas o «random» (una distinta en cada carga)
@@ -114,6 +116,8 @@ DEFAULTS: dict = {
         "webdav": True,
         # Admitir también la contraseña de la cuenta (usuarios locales y PAM) en WebDAV
         "webdav_passwords": False,
+        # Quién debe tener la verificación en dos pasos (MFA_POLICIES): off, admins o all. Quien la tenga la usa siempre
+        "mfa_required": "off",
     },
     "maintenance": {
         # 0 = conservar toda la auditoría

@@ -1,0 +1,27 @@
+{# Marco de las páginas del inicio de sesión (contraseña, código del segundo factor y su alta): la imagen a la
+   izquierda y una columna con el tema, el idioma y el bloque «panel». #}
+{% extends "base.html" %}
+{% set public_layout = "bare" %}
+{% block content %}
+<div class="login-split">
+  {# Lateral con la imagen: la subida en Sistema → General y marca o la ilustración de serie elegida (en el color principal) #}
+  <aside class="login-aside{% if brand.login_image %} has-image{% endif %}">
+    <img class="login-art" alt=""
+         src="{{ url_for('brand.login_image', v=brand.version) if brand.login_image else url_for('static', filename='img/login-' ~ brand.login_art ~ '.svg') }}">
+    <a class="brand login-brand" href="{{ url_for('files.index') }}">
+      <span class="brand-mark{% if brand.logo %} has-logo{% endif %}">{% if brand.logo %}<img src="{{ url_for('brand.logo', v=brand.version) }}" alt="">{% else %}<svg class="icon" aria-hidden="true"><use href="#i-logo"></use></svg>{% endif %}</span>{{ app_name }}
+    </a>
+  </aside>
+
+  <div class="login-side">
+    <div class="public-tools login-tools">
+      {{ themebox(false) }}
+      {{ langbox() }}
+    </div>
+
+    <section class="login-panel{% block panel_class %}{% endblock %}">
+      {% block panel %}{% endblock %}
+    </section>
+  </div>
+</div>
+{% endblock %}

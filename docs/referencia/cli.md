@@ -33,6 +33,8 @@ storageweb [--config RUTA] <comando> [opciones]
 | [`ip-unban`](#ip-unban) | Desbloquea una IP o red (rescate si te has bloqueado) |
 | [`ip-allow`](#ip-allow) | Añade una IP o red a la lista blanca (nunca se bloquea) |
 | [`sessions-close`](#sessions-close) | Cierra las sesiones abiertas de un usuario (o de todos) |
+| [`mfa-reset`](#mfa-reset) | Quitar la verificación en dos pasos de un usuario (perdió el móvil y los códigos de recuperación) |
+| [`mfa-status`](#mfa-status) | Listar qué cuentas tienen la verificación en dos pasos |
 | [`backup`](#backup) | Copia de seguridad de la base de datos, config.json y secret_key |
 | [`backup-list`](#backup-list) | Lista las copias de seguridad de una carpeta |
 | [`restore`](#restore) | Restaura una copia (con el servicio parado) |
@@ -228,6 +230,27 @@ storageweb sessions-close <username> [--all]
 |---|---|
 | `username` | Usuario |
 | `--all` | Cerrar todas las sesiones |
+
+### `mfa-reset` {#mfa-reset}
+
+Quitar la verificación en dos pasos de un usuario (perdió el móvil y los códigos de recuperación).
+
+```
+storageweb mfa-reset <username>
+```
+
+| Argumento | Descripción |
+|---|---|
+| `username` |  |
+
+### `mfa-status` {#mfa-status}
+
+Listar qué cuentas tienen la verificación en dos pasos.
+
+```
+storageweb mfa-status
+```
+
 
 ### `backup` {#backup}
 

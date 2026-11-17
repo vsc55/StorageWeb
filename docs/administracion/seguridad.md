@@ -8,7 +8,7 @@
 - [ ] El cortafuegos solo expone 443 (y 80 para la redirección). El 8080 no debe ser accesible desde fuera.
 - [ ] `/etc/storageweb/config.json` en `root:storageweb 0640`. Si pones secretos en él (el `client_secret`, contraseñas de ubicaciones), cífralos con `storageweb-admin encrypt-secret` o pásalos por variables de entorno.
 - [ ] `<data_dir>/secrets.key` y `<data_dir>/secret_key` solo legibles por el servicio (`0600`, los crea así).
-- [ ] Al menos un admin con una contraseña larga, o mejor solo admins de Entra ID con MFA.
+- [ ] Al menos un admin con una contraseña larga y **verificación en dos pasos** (`security.mfa_required = admins`), o solo admins de Entra ID con el MFA de Microsoft.
 - [ ] Entra ID: *Assignment required* y App Roles; anota la caducidad del `client_secret`.
 - [ ] Copias programadas y [restauración probada](copias-seguridad.md).
 - [ ] La auditoría se revisa periódicamente (*Seguridad → Auditoría* o `storageweb-admin audit`).
@@ -57,6 +57,36 @@ La clave de cifrado es, por orden, la variable de entorno `STORAGEWEB_SECRETS_KE
 - **Rescate** si te bloqueas: `sudo storageweb-admin ip-unban --all` (o `ip-unban <ip>`); `ip-list` muestra las reglas.
 
 ![Seguridad → IPs bloqueadas: una red bloqueada y la lista blanca de la oficina](../img/admin/ips.webp)
+
+## Verificación en dos pasos
+
+Además de la contraseña, un código de seis dígitos de una aplicación de autenticación del móvil (TOTP, RFC 6238: Microsoft Authenticator, Google Authenticator, FreeOTP…). Es para las cuentas que entran con contraseña, **locales y del sistema (PAM)**; quien entra con **Microsoft Entra ID** usa el segundo factor de Microsoft y StorageWeb no le pide otro.
+
+```mermaid
+flowchart TD
+    pw["Usuario y contraseña<br/>correctos"] --> q{"¿Tiene la verificación<br/>activada?"}
+    q -- Sí --> code["Pide el código<br/>(aún no hay sesión)"]
+    q -- No --> pol{"¿La política se la exige?"}
+    pol -- No --> ok[Sesión abierta]
+    pol -- Sí --> enrol["La configura ahora:<br/>QR, clave y un código"]
+    enrol --> codes[Códigos de recuperación] --> ok
+    code --> valid{"¿Código válido<br/>y no usado?"}
+    valid -- Sí --> ok
+    valid -- No --> fail["Intento fallido<br/>(bloqueo e IPs, como una contraseña)"]
+```
+
+- **Quién la activa:** cada persona desde *Mi perfil → Verificación en dos pasos*: escanea el QR (o escribe la clave), confirma con un código y guarda los **diez códigos de recuperación** que se enseñan una sola vez. Cada uno vale una vez en lugar del código de la aplicación, por si pierde el móvil; desde el perfil se generan otros (anulan los anteriores) o se desactiva, siempre con un código válido.
+
+![Seguridad → Inicio de sesión: quién debe tener la verificación en dos pasos y cuántos la tienen](../img/admin/inicio-sesion.webp)
+
+- **Quién debe tenerla:** *Seguridad → Inicio de sesión → Verificación en dos pasos obligatoria para* (`security.mfa_required`): *nadie* (`off`, por defecto: opcional), *administradores* (`admins`) o *todas las cuentas que entran con contraseña* (`all`). Activarlo **no deja fuera a nadie**: quien debe tenerla y no la tiene la configura en ese momento, al iniciar sesión. Y quien la tiene la usa siempre, valga lo que valga el ajuste.
+- **Sin sesión hasta el código:** con la contraseña correcta solo queda una nota en la cookie que caduca a los **5 minutos**; los códigos equivocados cuentan como contraseñas equivocadas (`security.max_login_failures` y el bloqueo de IPs), y acertar la contraseña no reinicia la cuenta. Cada código vale **una sola vez** (también los de recuperación), aunque siga dentro de sus 30 segundos.
+- **La unidad de red** (WebDAV) no pide códigos: a una cuenta con la verificación activada (u obligada a tenerla) no se le admite la contraseña aunque esté `security.webdav_passwords`, solo **tokens de API**. Los tokens y la extensión de VS Code siguen igual (el token se crea con la sesión iniciada, código incluido).
+- **Si alguien pierde el móvil y los códigos:** un administrador la quita en la ficha del usuario (*Quitar la verificación en dos pasos*; `mfa_reset_by_admin` en la auditoría) y esa persona vuelve a entrar con su contraseña (y la configura otra vez si es obligatoria). Nadie puede activarla por otro. Desde el servidor, cuando ya no queda nadie que pueda entrar: `storageweb-admin mfa-reset <usuario>`; `mfa-status` lista quién la tiene.
+- **Dónde se ve:** la lista de usuarios tiene la columna *2FA*, la ficha de cada usuario su estado y *Inicio de sesión* cuántas cuentas la tienen.
+- **Cómo se guarda:** la semilla, **cifrada** con la clave de los secretos (`secrets.key`), como los demás secretos; se vuelve a cifrar con `rotate-secrets-key` y al restaurar una copia de otro servidor. De los códigos de recuperación solo se guarda el hash. Una copia de seguridad lleva las dos cosas, así que restaurarla deja la verificación como estaba.
+
+Los parámetros (SHA-1, 6 dígitos, 30 segundos y medio minuto de tolerancia de reloj) son los que entienden todas las aplicaciones y no se configuran: una aplicación que recibe otros suele ignorarlos y los códigos fallarían sin explicación.
 
 ## Sesiones y tokens de API
 

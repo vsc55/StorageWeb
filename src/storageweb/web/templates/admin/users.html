@@ -47,7 +47,7 @@
   <thead>
     <tr><th class="col-check"><input type="checkbox" id="bulk-all" aria-label="{{ _('Select all') }}"></th>
         <th>{{ _("User") }}</th><th>{{ _("Source") }}</th><th>{{ _("Role") }}</th>
-        <th>{{ _("Groups") }}</th><th>{{ _("Status") }}</th><th>{{ _("Last sign-in") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr>
+        <th>{{ _("Groups") }}</th><th>{{ _("Status") }}</th><th><abbr title="{{ _('Two-step verification') }}">2FA</abbr></th><th>{{ _("Last sign-in") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr>
   </thead>
   <tbody>
     {% for u in users %}
@@ -60,6 +60,7 @@
       <td><span class="badge badge-{{ u['role'] }}">{{ ROLE_LABELS[u['role']] }}</span></td>
       <td><span class="tags">{% for name in group_names[u['id']] %}<span class="tag">{{ name }}</span>{% endfor %}</span></td>
       <td>{{ status_badge(u) }}</td>
+      <td>{% if u['id'] in mfa_users %}<span class="badge badge-ok">{{ _("On") }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
       <td class="small">{{ u['last_login']|datetime }}</td>
       <td class="actions">
         {% if u['id'] != current_user['id'] %}
@@ -75,7 +76,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="8" class="muted">{{ _("No users.") }}</td></tr>
+    <tr><td colspan="9" class="muted">{{ _("No users.") }}</td></tr>
     {% endfor %}
   </tbody>
 </table>

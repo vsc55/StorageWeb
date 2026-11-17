@@ -1,0 +1,13 @@
+{% extends "_login_frame.html" %}
+{% block title %}{{ _("Set up two-step verification") }} · {{ app_name }}{% endblock %}
+{% block panel_class %} login-panel-wide{% endblock %}
+{% block panel %}
+<h1>{{ _("Set up two-step verification") }}</h1>
+<p class="muted">{{ _("Your organization requires a second step to sign in to %(name)s: a code from an app on your phone. It only takes a minute.", name=user['username']) }}</p>
+{% set action = url_for('mfa.login_enrol') %}
+{% include "_mfa_setup.html" %}
+<form method="post" action="{{ url_for('mfa.login_cancel') }}" class="inline">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <button class="btn btn-ghost" type="submit">{{ _("Back to sign-in") }}</button>
+</form>
+{% endblock %}

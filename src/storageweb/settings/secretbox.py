@@ -208,4 +208,23 @@ def rekey(conn: Connection, old: bytes | None, new: bytes) -> int:
             store.put_doc(conn, name, sealed, "system")
             changed += 1
         changed += _locations(conn, name, convert)
+    return changed + _mfa_seeds(conn, old, new)
+
+
+def _mfa_seeds(conn: Connection, old: bytes | None, new: bytes) -> int:
+    """Vuelve a cifrar las semillas de la verificación en dos pasos (van con la cuenta, no con un perfil)."""
+    from ..db.repositories import mfa  # noqa: PLC0415
+    changed = 0
+    for row in mfa.secrets(conn):
+        try:
+            sealed = encrypt(new, decrypt(old, row["secret"]))
+        except SecretError:
+            try:
+                decrypt(new, row["secret"])   # ya estaba con la clave nueva
+            except SecretError:
+                _log.warning("A two-step verification seed cannot be decrypted with either key: it is kept as is")
+            continue
+        mfa.set_secret(conn, row["user_id"], sealed)
+        changed += 1
+    conn.commit()
     return changed

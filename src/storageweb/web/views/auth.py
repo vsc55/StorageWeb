@@ -10,7 +10,7 @@ from flask import (Blueprint, abort, current_app, flash, g, redirect, render_tem
                    url_for)
 
 from ... import providers
-from ...core import accounts, ipban
+from ...core import accounts, ipban, mfa
 from ...core import shares as share_core
 from ...db.repositories import audit, sessions as session_repo, users
 from ...i18n import _
@@ -19,6 +19,7 @@ from ...providers import SSOError
 from ...settings import ConfigError, runtime_view
 from ..context import external_url, get_db, invalidate_settings, runtime, settings, throttle
 from ..guards import client_ip, end_session, safe_next, start_session
+from . import mfa as mfa_views
 
 bp = Blueprint("auth", __name__)
 
@@ -55,6 +56,10 @@ def login():
             flash(_("Too many failed attempts. Wait a few minutes."), "error")
         else:
             user = accounts.authenticate_password(get_db(), cfg, username, password)
+            step = mfa.needed(get_db(), cfg, user) if user else ""
+            if step:
+                # Falta el segundo factor: no hay sesión todavía (y el limitador no se reinicia hasta el código)
+                return mfa_views.hold(user, username, next_url, step)
             if user:
                 limiter.success(ip, username)
                 start_session(user)

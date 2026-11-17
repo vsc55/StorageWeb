@@ -47,6 +47,7 @@ Layering under `src/storageweb/` (enforced by review, see CONTRIBUTING.md): `web
 - **Metrics** (`metrics.enabled`): `storageweb/metrics.py` (process counters, `metrics.inc`, Prometheus text format, no deps; `audit.log` counts every action), `core/monitoring.py` (scrape-time gauges from the DB/memory only — never walk folders or connect at scrape time; the `monitoring` maintenance task measures shares and tests locations), `web/views/metrics.py` (`/metrics`, token/allowed networks/loopback; skipped by `load_current_user`; also counts requests).
 - **Restore from the web** (`core/maintenance.restore_backup`): `RESTORING` event → `guards.maintenance_gate` answers 503; safety backup (`label="antes-de-restaurar"`, not pruned: `backup.prune` only touches dated names), `backup.restore_online` (SQLite backup API into the live DB + migrations), all sessions deleted, in-memory caches cleared in `web/views/settings/backups.py`.
 - **Public ids**: users and groups have a `uid` (UUID v4, set by `users.create`/`groups.create`) used in every admin URL and form (`/admin/users/<user_uid>`, `/admin/groups/<group_uid>`, `?u=`/`?g=`, bulk `ids`, `group_uid`, matrix field names); the integer `id` stays the internal key and is never accepted in URLs. Tests use `tests/helpers.py` `U(x)`/`G(x)` (row or id → uid).
+- **Two-step verification** (`core/mfa/`: `totp.py` RFC 6238 and `qr.py` ISO 18004 written here, no deps; service + policy in `__init__`; repo `db/repositories/mfa.py`, tables `mfa_factors`/`mfa_recovery`, migration 002): only for password methods (`mfa.applies`: local, PAM), never SSO. `security.mfa_required` off/admins/all on the *Sign-in* settings page. A password sign-in that owes the code is **not a session**: `web/views/mfa.py` `hold()` leaves a signed `mfa_pending` note (5 min) and `/login/mfa` or `/login/mfa/enrol` (forced enrolment, never locks out) open the session after re-reading the account. Wrong codes go through the same `LoginThrottle` key as passwords and the correct password does not reset it while the code is pending. Codes are single-use (`last_step`, atomic `note_step`/`consume_recovery`). Seed encrypted with the secrets key; `secretbox.rekey` re-encrypts it. With MFA, WebDAV refuses the account password (tokens only). Admin reset in the user page, CLI `mfa-reset`/`mfa-status`.
 - **Audit**: relevant actions call `audit.log(...)`. Every action name used in code must be listed in `docs/referencia/auditoria.md` (enforced by `tests/unit/test_docs.py`).
 
 ## i18n
@@ -64,7 +65,7 @@ Layering under `src/storageweb/` (enforced by review, see CONTRIBUTING.md): `web
 
 ## Current state
 
-Pending features are listed in `docs/proyecto/hoja-de-ruta.md` (notifications, TOTP, LDAP/SAML/SCIM, dependency CVE check).
+Pending features are listed in `docs/proyecto/hoja-de-ruta.md` (notifications, LDAP/SAML/SCIM, dependency CVE check, sync client, versions, preview, share links, antivirus).
 
 
 Users and groups each have two permanent views, list and panels (remembered per session); the access matrix is a separate page in the Access zone.

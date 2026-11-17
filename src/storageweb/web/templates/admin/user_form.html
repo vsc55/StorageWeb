@@ -98,6 +98,14 @@
   <p class="muted small span2">{{ _("Signs in with %(source)s: the password is managed there.", source=SOURCE_LABELS[user['source']]) }}
     {% if user['external_id'] %}<code>{{ user['external_id'] }}</code>{% endif %}</p>
   {% endif %}
+  {% if user and mfa_applies %}
+  <p class="small span2"><strong>{{ _("Two-step verification") }}:</strong>
+    {% if mfa.enrolled %}<span class="badge badge-ok">{{ _("On") }}</span>
+      <span class="muted">{{ _("since %(date)s", date=mfa.since|datetime) }} · {{ ngettext("%(num)s recovery code left", "%(num)s recovery codes left", mfa.recovery_left) }}</span>
+    {% else %}<span class="badge">{{ _("Off") }}</span>
+      {% if mfa_required %}<span class="muted">{{ _("required: they will set it up on their next sign-in") }}</span>{% endif %}
+    {% endif %}</p>
+  {% endif %}
 
   <div class="span2 form-actions">
     <button class="btn btn-primary" type="submit">{{ _("Save changes") if user else _("Create user") }}</button>
@@ -136,6 +144,19 @@
       <button class="btn{% if user['enabled'] %} btn-danger{% else %} btn-primary{% endif %}" type="submit">{{ _("Disable user") if user['enabled'] else _("Enable user") }}</button>
     </form>
   </div>
+  {% if mfa.enrolled %}
+  <div class="danger-row">
+    <div>
+      <strong>{{ _("Remove two-step verification") }}</strong>
+      <p class="muted small">{{ _("For someone who lost their phone and their recovery codes. They will sign in with just their password (or set it up again if it is required). Only they can turn it on again: nobody can set it up for someone else.") }}</p>
+    </div>
+    <form method="post" action="{{ url_for('admin.user_mfa_reset', user_uid=user['uid']) }}" class="inline js-confirm"
+          data-confirm="{{ _('Remove the two-step verification of «%(name)s»?', name=user['username']) }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button class="btn btn-danger" type="submit">{{ _("Remove") }}</button>
+    </form>
+  </div>
+  {% endif %}
   <div class="danger-row">
     <div>
       <strong>{{ _("Delete user") }}</strong>

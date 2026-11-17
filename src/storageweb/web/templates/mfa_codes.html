@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Recovery codes") }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="page-head"><h1>{{ _("Recovery codes") }}</h1></div>
+  <section class="card stack mfa-card" role="alert">
+    <p><strong>{{ _("Save them now somewhere safe: they will not be shown again.") }}</strong>
+      {{ _("If you lose your phone, each code lets you sign in once instead of the app's code. Generating new ones in My profile cancels these.") }}</p>
+    <ol class="mfa-recovery">
+      {% for code in codes %}<li><code>{{ code }}</code></li>{% endfor %}
+    </ol>
+    <textarea id="mfa-recovery-text" class="sr-only" readonly aria-hidden="true">{{ codes|join('\n') }}</textarea>
+    <div class="form-actions">
+      <button type="button" class="btn js-copy" data-copy="#mfa-recovery-text">{{ _("Copy") }}</button>
+      <a class="btn btn-primary" href="{{ next_url or url_for('profile.profile') ~ '#mfa' }}">{{ _("I have saved them") }}</a>
+    </div>
+  </section>
+</div>
+{% endblock %}

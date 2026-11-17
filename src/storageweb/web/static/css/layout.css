@@ -110,6 +110,23 @@ summary.avatar { box-shadow: 0 0 0 2px var(--rail-bg); }
 .login-local > summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .login-local[open] > summary .icon { transform: rotate(180deg); }
 .login-local > form { margin-top: 8px; }
+/* --- verificación en dos pasos (alta en el inicio de sesión y en Mi perfil) --- */
+.login-panel-wide { max-width: 440px; }
+.mfa-steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 18px; }
+.mfa-steps > li { display: list-item; }      /* con flex se perdería el número del paso */
+.mfa-steps > li > * { margin-top: 8px; }
+.mfa-steps > li > span { display: block; }
+.mfa-qr { width: 200px; max-width: 100%; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
+.mfa-qr svg { display: block; width: 100%; height: auto; }
+.mfa-secret { letter-spacing: .06em; }
+.mfa-code { font-size: 20px; letter-spacing: .2em; font-variant-numeric: tabular-nums; }
+.mfa-confirm { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.mfa-confirm .mfa-code { width: 9.5em; }
+.mfa-recovery { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px 24px; font-size: 16px; }
+.mfa-recovery code { letter-spacing: .08em; }
+.mfa-manage { display: flex; flex-direction: column; gap: 10px; }
+
 @media (max-width: 860px) {
   .login-split { flex-direction: column; }
   .login-aside { flex: 0 0 140px; max-width: none; }

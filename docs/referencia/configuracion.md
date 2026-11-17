@@ -132,6 +132,7 @@ Cada valor sale de la capa con más prioridad que lo fije, campo a campo: **pred
 | `security.api_tokens` | booleano | `true` | Sí | `STORAGEWEB_SECURITY__API_TOKENS` | Permitir tokens de API personales (`Authorization: Bearer sw_…`) para scripts. |
 | `security.webdav` | booleano | `true` | Sí | `STORAGEWEB_SECURITY__WEBDAV` | Unidad de red: servidor WebDAV en `/dav/` (Windows, macOS, Linux, rclone…). Se entra con el nombre de usuario y un token de API como contraseña. Necesita `api_tokens` salvo que se admita la contraseña de la cuenta. |
 | `security.webdav_passwords` | booleano | `false` | Sí | `STORAGEWEB_SECURITY__WEBDAV_PASSWORDS` | Admitir también la contraseña de la cuenta (usuarios locales y PAM) en WebDAV. Desactivado: solo tokens, que se pueden revocar y limitar a lectura. |
+| `security.mfa_required` | texto | `"off"` | Sí | `STORAGEWEB_SECURITY__MFA_REQUIRED` | Quién debe tener la **verificación en dos pasos** (TOTP): `off` (nadie, quien quiera la activa en *Mi perfil*), `admins` (los administradores) o `all` (todas las cuentas). Solo las cuentas con contraseña (locales y PAM): quien entra con Microsoft Entra ID usa el segundo factor de Microsoft. Quien la debe y no la tiene la configura al iniciar sesión; quien la tiene la usa siempre, diga lo que diga esto. |
 
 ## Mantenimiento (`maintenance`)
 

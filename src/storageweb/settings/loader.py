@@ -26,7 +26,7 @@ from .errors import ConfigError
 from .layers import _get, _set, merge_overrides
 from . import location_types
 from . import auth_methods
-from .defaults import DEFAULTS, LOGIN_ART_CHOICES, PERMISSIONS, RUNTIME_SECTIONS, SECRET_FIELDS
+from .defaults import DEFAULTS, LOGIN_ART_CHOICES, MFA_POLICIES, PERMISSIONS, RUNTIME_SECTIONS, SECRET_FIELDS
 
 SHARE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 PROFILE_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -331,6 +331,11 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     sec["api_tokens"] = bool(sec["api_tokens"])
     sec["webdav"] = bool(sec["webdav"])
     sec["webdav_passwords"] = bool(sec["webdav_passwords"])
+    sec["mfa_required"] = str(sec.get("mfa_required") or "off").strip().lower()
+    if sec["mfa_required"] not in MFA_POLICIES:
+        # Rechazado al guardar: un valor desconocido se leería como «nadie», que falla ABIERTO
+        raise ConfigError(_("security.mfa_required must be one of: %(values)s", values=", ".join(MFA_POLICIES)),
+                          "security.mfa_required")
 
     # --- mantenimiento
     maint = cfg["maintenance"]

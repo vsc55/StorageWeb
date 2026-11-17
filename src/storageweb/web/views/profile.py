@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from flask import Blueprint, abort, flash, g, redirect, render_template, request, session, url_for
 
-from ...core import quota, storage, tokens
+from ...core import mfa, quota, storage, tokens
 from ...core.accounts import source_labels, stores_password
 from ...db.repositories import api_tokens, audit, users
 from ...db.repositories import sessions as session_repo
@@ -85,7 +85,8 @@ def profile():
         tokens_enabled=settings()["security"]["api_tokens"], my_tokens=api_tokens.list_for_user(get_db(), user["id"]),
         webdav=settings()["security"]["webdav"], webdav_passwords=settings()["security"]["webdav_passwords"],
         webdav_url=external_url("dav.root"), own_password=stores_password(user["source"]),
-        new_token=session.pop("new_token", None), SCOPE_LABELS=tokens.SCOPE_LABELS, EXPIRY_DAYS=tokens.EXPIRY_DAYS)
+        new_token=session.pop("new_token", None), SCOPE_LABELS=tokens.SCOPE_LABELS, EXPIRY_DAYS=tokens.EXPIRY_DAYS,
+        mfa_applies=mfa.applies(user), mfa=mfa.status(get_db(), user), mfa_required=mfa.required(settings(), user))
 
 
 @bp.route("/profile/password", methods=["POST"])

@@ -16,7 +16,11 @@ from collections.abc import Callable
 from flask import request
 
 from .... import providers
+from ....db.repositories import mfa as mfa_repo
+from ....i18n import _l
 from ....providers import AuthMethod
+from ....settings.defaults import MFA_POLICIES
+from ...context import get_db
 from .common import checked, form_int, split_list
 
 _PARSERS: dict[str, Callable[[AuthMethod], dict]] = {}
@@ -61,11 +65,24 @@ def generic_parser(method: AuthMethod) -> dict:
 
 
 def parse() -> dict:
-    return {"auth": {m.key: _PARSERS.get(m.key, generic_parser)(m) for m in providers.methods()}}
+    return {"auth": {m.key: _PARSERS.get(m.key, generic_parser)(m) for m in providers.methods()},
+            # La política de la verificación en dos pasos va en esta página (es del inicio de sesión)
+            "security": {"mfa_required": request.form.get("mfa_required", "off")}}
+
+
+MFA_POLICY_LABELS = dict(zip(MFA_POLICIES, (_l("Nobody: optional for everyone"), _l("Administrators"),
+                                            _l("All accounts that sign in with a password"))))
 
 
 def context(cfg: dict) -> dict:
-    ctx: dict = {"auth_methods": providers.methods()}
+    password_methods = [m.key for m in providers.methods() if m.password and not m.sso]
+    marks = ",".join("?" * len(password_methods)) or "''"
+    with_password = get_db().execute(f"SELECT id FROM users WHERE enabled = 1 AND source IN ({marks})",  # noqa: S608
+                                     password_methods).fetchall()
+    enrolled = mfa_repo.enrolled_ids(get_db())
+    ctx: dict = {"auth_methods": providers.methods(), "mfa_policies": list(MFA_POLICY_LABELS.items()),
+                 "mfa_counts": {"total": len(with_password),
+                                "enrolled": sum(1 for r in with_password if r["id"] in enrolled)}}
     for method in providers.methods():
         if method.key in _CONTEXTS:
             ctx.update(_CONTEXTS[method.key](cfg))

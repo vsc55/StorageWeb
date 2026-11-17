@@ -5,12 +5,13 @@ import re
 
 from flask import abort, flash, g, redirect, render_template, request, session, url_for
 
-from ....core import accounts
+from ....core import accounts, mfa
 from ....core import groups as group_core
 from ....core.permissions import ADMIN, PERMISSION_LABELS, permissions_for
 from ....core import quota
 from ....core.storage import available_roots, explain_access, home_quota_mb
 from ....db.repositories import api_tokens, audit, users
+from ....db.repositories import mfa as mfa_repo
 from ....db.repositories import groups as group_repo
 from ....db.repositories import sessions as session_repo
 from ....i18n import _, _l, format_size, ngettext
@@ -95,7 +96,7 @@ def users_list():
                            session_count=len(session_repo.list_all(get_db())),
                            filters=f, search=f["q"], status=f["status"], counts=users.counts(get_db()),
                            all_groups=group_repo.list_all(get_db()), group_names=_group_names(shown),
-                           page_size=PAGE_SIZE)
+                           page_size=PAGE_SIZE, mfa_users=mfa_repo.enrolled_ids(get_db()))
 
 
 @bp.route("/users/bulk", methods=["POST"])
@@ -159,6 +160,8 @@ def _user_detail(user) -> dict:
             "user_tokens": api_tokens.list_for_user(get_db(), user["id"]),
             "access": explain_access(user, cfg, labels) if user["enabled"] else [],
             "activity": audit.for_user(get_db(), user["username"], 8),
+            "mfa": mfa.status(get_db(), user), "mfa_applies": mfa.applies(user),
+            "mfa_required": mfa.required(cfg, user),
             "role_permissions": [PERMISSION_LABELS[p] for p in PERMISSIONS if p in perms]}
 
 
@@ -200,6 +203,22 @@ def user_status(user_uid: str):
         message = _("User «%(name)s» enabled.", name=user["username"]) if enabled else \
             _("User «%(name)s» disabled: they can no longer sign in.", name=user["username"])
         flash(message, "info")
+    return back(url_for("admin.user_edit", user_uid=user_uid))
+
+
+@bp.route("/users/<user_uid>/mfa/reset", methods=["POST"])
+@admin_required
+def user_mfa_reset(user_uid: str):
+    """Quita la verificación en dos pasos de otra cuenta: el camino de vuelta para quien perdió el móvil y los códigos.
+    No existe lo contrario: nadie puede activar la de otro (solo el dueño da de alta la aplicación que tiene en la
+    mano). La propia se quita desde Mi perfil, con un código."""
+    user = _user_or_404(user_uid)
+    if user["id"] == g.user["id"]:
+        flash(_("Turn off your own two-step verification in My profile."), "error")
+    elif mfa.disable(get_db(), user):
+        audit_event("mfa_reset_by_admin", user["username"])
+        flash(_("Two-step verification removed from «%(name)s». On their next sign-in they will only need their "
+                "password, or will set it up again if it is required.", name=user["username"]), "info")
     return back(url_for("admin.user_edit", user_uid=user_uid))
 
 

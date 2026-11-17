@@ -17,9 +17,15 @@ Cada acción relevante se guarda en la tabla `audit_log`. Se puede consultar en 
 
 | Acción | Cuándo | `detail` |
 |---|---|---|
-| `login` | Inicio de sesión correcto | Origen: `local`, `pam` o `entra` |
-| `login_failed` | Contraseña incorrecta, error del proveedor SSO o credenciales de la unidad de red no válidas | `entra:<código>` en SSO; en WebDAV, `webdav:bad_token`, `webdav:bad_password` o `webdav:password_not_allowed` (se usó la contraseña de la cuenta sin estar admitida) |
-| `login_blocked` | Intento durante un bloqueo por intentos fallidos | |
+| `login` | Inicio de sesión correcto | Origen: `local`, `pam` o `entra`; con verificación en dos pasos, `+totp` (código de la aplicación) o `+recovery` (código de recuperación): `local+totp` |
+| `login_failed` | Contraseña incorrecta, error del proveedor SSO o credenciales de la unidad de red no válidas | `entra:<código>` en SSO; en WebDAV, `webdav:bad_token`, `webdav:bad_password`, `webdav:password_not_allowed` (se usó la contraseña de la cuenta sin estar admitida) o `webdav:mfa_requires_token` (contraseña correcta de una cuenta con verificación en dos pasos: en la unidad de red solo valen tokens) |
+| `login_blocked` | Intento durante un bloqueo por intentos fallidos | `mfa` si fue al escribir el código del segundo paso |
+| `mfa_enrolled` | Verificación en dos pasos activada | `self` (desde *Mi perfil*) o `forced` (la política la exigía y se configuró al iniciar sesión) |
+| `mfa_failed` | Código del segundo paso rechazado (cuenta como intento fallido) | `stage=verify` (al entrar), `enrol` (al activarla) o `manage` (al cambiarla en *Mi perfil*), y `error=empty` o `bad_code` |
+| `mfa_recovery_used` | Se gastó un código de recuperación | `left=<los que quedan>` |
+| `mfa_recovery_regenerated` | Juego nuevo de códigos de recuperación (los anteriores dejan de valer) | |
+| `mfa_disabled` | Verificación en dos pasos desactivada por su dueño | `self` |
+| `mfa_reset_by_admin` | Un administrador (o `cli`, con `mfa-reset`) quitó la verificación en dos pasos de otra cuenta | |
 | `login_denied` | Cuenta de Entra rechazada (tenant, grupo, conflicto, no dada de alta, desactivada) | `entra:<motivo>` |
 | `logout` | Cierre de sesión | `entra:frontchannel` si la cerró Microsoft (cierre de sesión de canal frontal) |
 | `user_provisioned` | Usuario de Entra creado automáticamente | `entra:<rol>` |

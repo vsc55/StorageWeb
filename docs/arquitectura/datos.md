@@ -104,6 +104,21 @@ erDiagram
         text updated_at
         text updated_by
     }
+    mfa_factors {
+        int user_id PK
+        text method "totp"
+        text secret "semilla cifrada (enc:v1:)"
+        int confirmed "0 = alta a medias"
+        int last_step "antirreplay"
+    }
+    mfa_recovery {
+        int id PK
+        int user_id
+        text code_hash "nunca el código"
+        text used_at
+    }
+    users ||--o| mfa_factors : ""
+    users ||--o{ mfa_recovery : ""
     uploads {
         text id PK
         int user_id
@@ -128,11 +143,12 @@ erDiagram
 | `shares`, `share_access` | Carpetas compartidas creadas desde la web (por perfil) y quién entra en cada una: todos, un usuario o un grupo, con lectura o escritura. Las de `config.json` no están aquí: se leen del fichero y se ven de solo lectura. Ver la [decisión 0018](decisiones/0018-carpetas-y-ubicaciones-como-entidades.md). |
 | `locations`, `location_options` | Ubicaciones de almacenamiento externo creadas desde la web y sus opciones (dependen del tipo); los secretos, cifrados. |
 | `settings` | Estado interno como documentos JSON: cuándo corrió cada tarea de mantenimiento (`maintenance_state`), permisos del último inicio de sesión de cada método SSO… |
+| `mfa_factors`, `mfa_recovery` | Verificación en dos pasos (migración 002): la semilla TOTP de cada cuenta, **cifrada** con la clave de los secretos (se vuelve a cifrar al rotarla o al restaurar una copia de otro servidor), si el alta está confirmada y el último paso aceptado (un código no vale dos veces); y el hash de sus códigos de recuperación, de un solo uso. |
 | `uploads` | Subidas por partes en curso. El progreso **no** se guarda aquí: es el tamaño del `.part`. |
 
 `PRAGMA user_version` guarda la versión del esquema.
 
-Las sesiones **no** se guardan en la base de datos: son cookies firmadas con `secret_key` que contienen el id de usuario y el token CSRF. Por eso, si cambias `secret_key`, se cierran todas las sesiones.
+Cada sesión es una fila de `sessions` (navegador, IP, última actividad) y la cookie, firmada con `secret_key`, solo lleva su id, el del usuario y el token CSRF: cerrar una sesión es borrar su fila. Si cambias `secret_key`, las cookies dejan de valer y se cierran todas. Un inicio de sesión que espera el código del segundo paso **no** es una sesión: solo una nota en la cookie que caduca a los 5 minutos.
 
 ## Sistema de ficheros
 
