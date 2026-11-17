@@ -142,3 +142,33 @@ def test_proxy_examples_never_pass_a_client_prefix(make_app):
     assert "header_up -X-Forwarded-Prefix" in html                             # Caddy
     assert "ssl_protocols TLSv1.2 TLSv1.3;" in html and "SSLProtocol -all +TLSv1.2 +TLSv1.3" in html
     assert "server_tokens off;" in html and "ServerSignature Off" in html
+
+
+def test_waitress_passes_the_proxy_headers_to_the_application(make_app):
+    """Con un servidor Waitress de verdad: por defecto borra X-Forwarded-* que no vienen de un trusted_proxy, y
+    entonces la aplicación veía todo como HTTP y desde la IP del proxy (auditoría, sesiones y bloqueo de IPs
+    con la IP del proxy, que además nunca se bloquea por ser local). Detrás de un proxy no debe borrarlas."""
+    import threading
+    import urllib.error
+    import urllib.request
+
+    from waitress.server import create_server
+
+    from storageweb.cli.server import waitress_options
+    from storageweb.web.context import get_db
+
+    app = make_app({"server": {"behind_proxy": True}})
+    server = create_server(app, host="127.0.0.1", port=0, **waitress_options(app.config["SW"]["server"]))
+    threading.Thread(target=server.run, daemon=True).start()
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:{server.effective_port}/login", data=b"username=x",
+                                     headers={"X-Forwarded-For": "203.0.113.7", "X-Forwarded-Proto": "https"})
+        with pytest.raises(urllib.error.HTTPError) as err:   # sin token CSRF: 400 y cuenta como infracción
+            urllib.request.urlopen(req, timeout=10)
+        assert err.value.code == 400
+    finally:
+        server.close()
+    with app.app_context():
+        ips = [r["ip"] for r in get_db().execute("SELECT ip FROM ip_offenses")]
+    assert ips == ["203.0.113.7"]                            # la del cliente, no la del proxy (127.0.0.1)
+    assert waitress_options({**app.config["SW"]["server"], "behind_proxy": False})["clear_untrusted_proxy_headers"]

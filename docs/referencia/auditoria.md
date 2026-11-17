@@ -2,6 +2,8 @@
 
 Cada acción relevante se guarda en la tabla `audit_log`. Se puede consultar en *Seguridad → Auditoría*, filtrando por usuario y acción, o con `storageweb-admin audit`.
 
+![Seguridad → Auditoría](../img/admin/auditoria.webp)
+
 | Campo | Contenido |
 |---|---|
 | `ts` | Fecha y hora en UTC (ISO 8601) |

@@ -16,6 +16,7 @@ import threading
 import time
 import urllib.parse
 
+from ..base import SSOError
 from . import oauth2
 from .common import endpoints
 from .register import GRAPH, RegisterError, _message, _request
@@ -45,10 +46,14 @@ def _app_token(ecfg: dict) -> str:
         cached = _tokens.get(key)
         if cached and cached[0] > time.monotonic():
             return cached[1]
-    body = oauth2._http_post(endpoints(ecfg)["token"], {
-        "grant_type": "client_credentials", "client_id": ecfg["client_id"],
-        "client_secret": ecfg["client_secret"], "scope": "https://graph.microsoft.com/.default"},
-        float(ecfg.get("timeout_seconds") or 10))
+    try:
+        body = oauth2._http_post(endpoints(ecfg)["token"], {
+            "grant_type": "client_credentials", "client_id": ecfg["client_id"],
+            "client_secret": ecfg["client_secret"], "scope": "https://graph.microsoft.com/.default"},
+            float(ecfg.get("timeout_seconds") or 10))
+    except SSOError as exc:
+        # Sin red, DNS o Microsoft caído: como cualquier otro fallo de Graph (las páginas no deben romperse)
+        raise RegisterError(str(exc)) from exc
     token = body.get("access_token")
     if not token:
         raise RegisterError(_message(body) or "no token")

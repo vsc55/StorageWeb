@@ -9,6 +9,10 @@ Abre la dirección que te haya dado tu organización (por ejemplo `https://files
 - **Usuario y contraseña:** para cuentas locales o del sistema.
 - **Iniciar sesión con Microsoft:** con tu cuenta del trabajo (Entra ID / Microsoft 365).
 
+![Página de inicio de sesión con el botón de Microsoft y la cuenta local plegada](../img/uso/inicio-sesion.webp)
+
+Si tu organización usa Microsoft, su botón va primero y el usuario y la contraseña quedan plegados en **Usar una cuenta local**. Arriba a la derecha puedes elegir el tema y el idioma.
+
 Si fallas la contraseña varias veces seguidas, el acceso se bloquea unos minutos. Es una protección contra ataques; espera y vuelve a intentarlo.
 
 ## Tu cuenta: idioma, tema y perfil
@@ -22,27 +26,30 @@ Pulsa tus iniciales, abajo en la barra de la izquierda, para abrir el menú de t
 
 Tus preferencias se guardan en tu cuenta. En la página de inicio de sesión también puedes elegir el idioma y el tema.
 
+![Mi perfil: cuenta, preferencias, contraseña, sesiones y tokens de API](../img/uso/perfil.webp)
+
 ## La pantalla
 
-```
-┌────┬──────────────┬───────────────────────────────┬──────────────┐
-│ ▣  │ Ubicaciones  │ Mi carpeta / Proyectos   [⌕] [+ Nueva carpeta] [⤒ Subir] │
-│Arch│ ▾ Mi carpeta │ ☐ Nombre ↑      Tamaño  Modificado │ Detalle      │
-│    │    Proyectos │ ☐ Contratos                       │  informe.pdf │
-│Usu │      Contr…  │ ☑ informe.pdf   2,4 MB  11/11/26  │  Tipo · PDF  │
-│Aju │ ▸ Compartido │ ☐ fotos.zip     18 MB   07/11/26  │  [Descargar] │
-│ AD │              │ Suelta archivos aquí…             │              │
-└────┴──────────────┴───────────────────────────────┴──────────────┘
-```
+![El explorador: barra lateral, ubicaciones, lista de archivos y detalle del archivo seleccionado](../img/uso/explorador.webp)
 
 - **Barra de la izquierda:** *Archivos* y, si eres administrador, el *Resumen* y las zonas *Personas*, *Acceso*, *Seguridad* y *Sistema* (Ctrl+K busca en todas). Abajo, tus iniciales abren el menú de tu cuenta.
 - **Ubicaciones:** *Mi carpeta*, solo tuya, y las carpetas compartidas que te haya asignado el administrador. Las marcadas *(lectura)* solo permiten descargar. Bajo la ubicación abierta se ven la ruta actual y sus subcarpetas.
 - **Lista:** pulsa el nombre de una carpeta para entrar en ella, o el de un archivo para descargarlo. Pulsa los títulos *Nombre*, *Tamaño* o *Modificado* para ordenar; la segunda pulsación invierte el orden. El cuadro *Filtrar o buscar…* oculta lo que no coincide mientras escribes; con **Intro** busca en todas tus carpetas (ver *Buscar archivos*).
 - **Detalle (derecha):** sin nada seleccionado, muestra la carpeta, su **cuota** si tiene (cuánto lleva usado y qué porcentaje; a partir del 90 % y al superarla aparece además un aviso encima de la lista; lo que no quepa en la cuota no se puede subir, copiar ni mover a esa carpeta, salvo que el administrador haya dejado las cuotas solo como aviso) y el **espacio libre** de su almacenamiento, con una barra del espacio usado (naranja a partir del 80 %, roja del 95 %). En S3 y Azure no hay un tamaño fijo y lo dice; en otros almacenamientos remotos no se muestra. Al pulsar una fila (fuera del nombre) se selecciona y se muestran su tipo, tamaño, fecha y acciones. En pantallas estrechas el detalle aparece debajo de la lista, y en el móvil los paneles se apilan.
 
+![Una carpeta compartida: sin selección, el detalle muestra la cuota y el espacio libre](../img/uso/compartida.webp)
+
+<p align="center">
+  <img src="../img/uso/movil.webp" alt="StorageWeb en el móvil: la barra arriba y los paneles apilados" width="300">
+  &nbsp;&nbsp;
+  <img src="../img/uso/explorador-oscuro.webp" alt="El explorador con el tema oscuro" width="560">
+</p>
+
 ## Seleccionar varios
 
 Marca las casillas de la izquierda, o la de la cabecera para seleccionar todo lo visible. Aparece una barra con **Descargar** (uno o varios; varios o una carpeta, en un ZIP), **Mover a…**, **Copiar a…**, **Renombrar** (un elemento) y **Eliminar** (uno o varios). Pulsa **Esc** o *Quitar selección* para deseleccionar.
+
+![Tres archivos seleccionados con la barra de acciones](../img/uso/seleccion.webp)
 
 ## Subir archivos
 
@@ -72,6 +79,8 @@ Nunca se sobrescribe nada: si en el destino ya hay algo con el mismo nombre, ese
 
 Escribe en *Filtrar o buscar…*: mientras escribes, filtra la carpeta en la que estás. Pulsa **Intro** para buscar por nombre **en todas tus carpetas**. Da igual mayúsculas, minúsculas y tildes («ano» encuentra «Año 2026»), y con varias palabras busca los nombres que las contienen todas. Los resultados enlazan al archivo y a la carpeta donde está.
 
+![Resultados de buscar «presupuesto» en todas las carpetas](../img/uso/buscar.webp)
+
 Para no tardar demasiado, la búsqueda se para a los 200 resultados o si recorre demasiadas carpetas (sobre todo en almacenamiento remoto: S3, SMB…); entonces lo avisa y conviene afinar las palabras. Con un token de API, `GET /search?q=…` devuelve los resultados en JSON.
 
 En *Mi perfil*, la tarjeta *Espacio de mi carpeta* muestra lo mismo para tu carpeta personal.
@@ -88,7 +97,7 @@ Con un token también puedes conectar tus carpetas como **unidad de red** en Win
 
 ## Cerrar sesión
 
-Pulsa **Salir** arriba a la derecha. Si tu organización lo ha configurado, también se cierra tu sesión de Microsoft.
+Pulsa tus iniciales, abajo en la barra de la izquierda, y **Salir**. Si entraste con Microsoft y tu organización lo ha configurado, también se cierra tu sesión de Microsoft.
 
 ## Preguntas frecuentes
 

@@ -64,10 +64,26 @@ Después, en *Acceso → Carpetas compartidas*, crea la carpeta con la ruta del 
 
 Una **ubicación** es una conexión con nombre (`storage.locations`). Se gestionan en *Sistema → Almacenamiento externo*:
 
+```mermaid
+flowchart LR
+    subgraph SW [StorageWeb]
+        H["Carpetas personales<br/>homes/{username}"]
+        P[Proyectos]
+        C[Contabilidad]
+        M[Marketing]
+    end
+    H --> NAS[("Ubicación «nas»<br/>SMB")]
+    P --> DISCO[("Disco del servidor<br/>o un montaje")]
+    C --> S3[("Ubicación «s3»<br/>S3, MinIO…")]
+    M --> DISCO
+```
+
 1. **Nueva ubicación** del tipo que sea (S3, SMB, SFTP, WebDAV, FTP, Azure), con sus datos y credenciales.
 2. **Guardar y probar la conexión**: comprueba que se puede listar la raíz.
 3. En *Acceso → Carpetas compartidas*, elige la ubicación en **Dónde están los archivos** y pon la **ruta dentro de ella** (`contabilidad`, `proyectos/2026`; vacía = su raíz).
 4. Para las carpetas personales: *Acceso → Carpetas personales → Dónde están las carpetas personales*, con una plantilla relativa como `homes/{username}`.
+
+![Sistema → Almacenamiento externo con una ubicación SMB](../img/admin/ubicaciones.webp)
 
 Requisitos: las bibliotecas no se instalan por defecto con `pip`.
 
@@ -220,6 +236,16 @@ Se aplican a la ruta dentro de cada carpeta de StorageWeb (la personal o cada co
 ## Cuotas
 
 Las cuotas **impiden escribir lo que no quepa** (`storage.quota_enforce`, activado por defecto): no se puede subir, copiar ni mover a una carpeta lo que la deje por encima de su cuota. La web lo explica en cada archivo rechazado, la unidad de red y la API responden `507 Insufficient Storage` con el motivo, y la extensión de VS Code para y lo avisa. Desactivado, las cuotas solo avisan. En los dos casos se ven en el explorador (barra en el panel de la carpeta y un aviso encima de la lista a partir del 90 % y al superarla), en *Mi perfil* y en la administración.
+
+```mermaid
+flowchart TD
+    W["Subir, copiar o mover a una carpeta<br/>(web, API o unidad de red)"] --> Q{"¿Tiene cuota y<br/>quota_enforce está activo?"}
+    Q -- No --> OK[Se escribe]
+    Q -- Sí --> C{"¿Usado + lo que entra − lo que se libera<br/>cabe en la cuota?"}
+    C -- Sí --> OK
+    C -- No --> X["Se rechaza: aviso en la web,<br/>507 en la unidad de red y la API"]
+    OK --> R[Se suma al uso guardado]
+```
 
 - **Carpetas personales:** cuota por defecto en *Acceso → Carpetas personales* (`storage.home_quota_mb`, en MB; `0` = sin cuota).
     - **Por grupo:** en la ficha de cada grupo (*Personas → Grupos*), la cuota de la carpeta personal de sus miembros (`storage.group_quotas`). Si alguien está en varios grupos con cuota se aplica la mayor (`0` = sin cuota gana).

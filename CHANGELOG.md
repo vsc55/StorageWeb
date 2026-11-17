@@ -6,11 +6,7 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 
 ## [Sin publicar]
 
-### Cambiado
-
-- CI: los tests se ejecutan solo con la última versión de Python (3.14), en Ubuntu, Windows y macOS.
-
-## [0.1.0] - 2026-11-16
+## [0.1.0] - 2026-11-17
 
 Primera versión publicada. Es la serie **0.x**, en desarrollo: entre versiones menores (0.1 → 0.2) puede haber cambios incompatibles en la configuración, la CLI, la API o las copias de seguridad, y se avisarán aquí.
 
@@ -29,7 +25,7 @@ Primera versión publicada. Es la serie **0.x**, en desarrollo: entre versiones 
 
 - **Unidad de red (WebDAV)** en `/dav/` para Windows, macOS, Linux, rclone, Cyberduck o WinSCP, con los mismos permisos que la web, escritura condicional (`If-Match`) y cuota publicada (RFC 4331).
 - **Tokens de API personales** (`Authorization: Bearer sw_…`) de lectura o de lectura y escritura, con caducidad, rotación y revocación; los listados responden en JSON.
-- **Extensión de Visual Studio Code** (`clients/vscode`): sincroniza en los dos sentidos la carpeta del espacio de trabajo con una de StorageWeb, con conflictos guardados como copia, papelera, exclusiones (`.storagewebignore` y `.gitignore`) y protección contra bucles; navegar, abrir y guardar directamente en varios servidores. Sin dependencias; el `.vsix` va en cada release con la misma versión.
+- **Extensión de Visual Studio Code** (`clients/vscode`): sincroniza en los dos sentidos la carpeta del espacio de trabajo con una de StorageWeb, con conflictos guardados como copia, papelera, exclusiones (`.storagewebignore` y `.gitignore`) y protección contra bucles; navegar, abrir y guardar directamente en varios servidores. Sin dependencias; el `.vsix` va en cada release con su propia versión (la 0.4.2 en esta).
 - **Conectar aplicaciones iniciando sesión en el navegador** (`/connect/<aplicación>`, OAuth con PKCE): la aplicación recibe su token sin copiarlo.
 
 **Usuarios e inicio de sesión**
@@ -53,7 +49,7 @@ Primera versión publicada. Es la serie **0.x**, en desarrollo: entre versiones 
 - Administración por **zonas** (Personas, Acceso, Seguridad, Sistema), **Resumen** con avisos y su acción, y **buscador** (Ctrl+K) que lleva al ajuste exacto.
 - **Configuración por capas**, campo a campo: valores predeterminados < web < `config.json` < variables `STORAGEWEB_*`. Lo fijado en fichero o entorno queda bloqueado en la web; *Restablecer* por campo; **perfiles de ajustes** para varias instancias sobre la misma base de datos; carpetas compartidas, ubicaciones y cuotas de grupo como entidades propias (ADR 0017 y 0018).
 - **Marca**: color principal, logo propio (o el cubo de serie), favicon e imagen del inicio de sesión.
-- **Red y HTTPS**: dirección pública (`network.public_url`), proxies encadenados, subrutas (`X-Forwarded-Prefix`) y diagnóstico de cómo llega la petición, con ejemplos de nginx, Apache y Caddy.
+- **Red y HTTPS**: dirección pública (`network.public_url`), proxies encadenados (`server.proxy_hops`, con las cabeceras `X-Forwarded-*` validadas por la aplicación), subrutas (`X-Forwarded-Prefix`) y diagnóstico de cómo llega la petición, con ejemplos de nginx, Apache y Caddy.
 - **Mantenimiento**: retención de la auditoría, compactación, **copias de seguridad** desde la web (crear, descargar, subir, borrar y automáticas) y **restaurar** con el servicio en marcha.
 - **Métricas para Prometheus** en `/metrics`.
 
@@ -65,7 +61,8 @@ Primera versión publicada. Es la serie **0.x**, en desarrollo: entre versiones 
 
 - Paquetes `.deb` y `.rpm` (amd64 y arm64) con las dependencias incluidas, instalador `install.sh`, imagen **Docker** multi-arquitectura en GHCR, overlay de **Gentoo** y plantillas de **nginx** y **Apache**.
 - CLI `storageweb` (servidor, usuarios, sesiones, IPs, copias y restauración, secretos, ajustes) y timer de systemd para copias.
-- `GET /healthz` y documentación en MkDocs con la referencia de configuración, CLI y API generada desde el código.
+- `GET /healthz` y documentación en MkDocs con capturas de pantalla reales (de una demostración con datos inventados, `tools/screenshots/`), diagramas de flujo y la referencia de configuración, CLI y API generada desde el código.
+- Releases en GitHub con el texto de su sección de este registro, paquetes, imagen Docker, documentación en GitHub Pages y la extensión de VS Code.
 
 ### Notas
 

@@ -22,6 +22,8 @@ Cada valor sale de la capa con más prioridad que lo fije, **campo a campo**:
 - **Vuelta atrás completa:** *Sistema → Información → Restablecer todos los ajustes web* o `storageweb-admin settings-reset` descartan los ajustes web; lo que fijan `config.json` y el entorno no cambia.
 - **Secretos:** el `client_secret` de Entra ID nunca se muestra. Si dejas el campo vacío, se conserva el actual.
 
+![Sistema → Información: lo de arranque y, campo a campo, de dónde sale cada valor](../img/admin/sistema.webp)
+
 !!! note "¿Cuál uso?"
     - **Desde el navegador:** deja en `config.json` solo lo de arranque (es lo que traen los paquetes y la imagen Docker) y configura lo demás en la web.
     - **Ansible, Puppet, Kubernetes…:** pon en `config.json` o en variables lo que deba ser fijo. La web lo muestra bloqueado y nadie lo cambia por error.
@@ -67,13 +69,27 @@ Cada página dice de qué tipo es:
 
 Las direcciones de las secciones de ajustes no cambian (`/admin/settings/auth`, `/admin/settings/ips`…); `/admin/settings/shares` redirige a *Acceso → Carpetas compartidas*.
 
+![El Resumen: avisos, una tarjeta por zona, tareas frecuentes y la actividad reciente](../img/admin/resumen.webp)
+
 ### Buscador
 
 **Ctrl+K** (o la tecla `/`) abre el buscador desde cualquier página. Encuentra páginas, ajustes, acciones frecuentes, usuarios, grupos y carpetas compartidas, sin distinguir mayúsculas ni tildes. Un ajuste lleva a su página, abre la pestaña que lo contiene y resalta el campo. Sin JavaScript, el cuadro del Resumen lleva a una página de resultados (`/admin/search?q=…`).
 
+![El buscador (Ctrl+K) con los ajustes de cuotas](../img/admin/buscador.webp)
+
 ### Carpetas compartidas
 
 *Acceso → Carpetas compartidas* muestra cada carpeta con quién entra y con qué permiso, y avisa si la ruta no existe en el servidor. En la ficha de cada carpeta se cambian el nombre, la etiqueta, la ruta y *Solo lectura para todos*, y se da o se quita el acceso a **todos los usuarios**, a un **usuario** o a un **grupo**, cada uno con *Lectura y escritura* o *Solo lectura*. Quitar una carpeta no borra sus archivos. La *Matriz de accesos* es la misma información vista por grupos.
+
+![Acceso → Carpetas compartidas: cada carpeta con quién entra y con qué permiso](../img/admin/carpetas.webp)
+
+![La ficha de una carpeta: ruta, cuota y quién entra](../img/admin/carpeta.webp)
+
+### Marca
+
+*Sistema → General y marca* tiene el nombre de la aplicación y el idioma por defecto, el **color principal**, el **logo** (sustituye al cubo de serie en la barra lateral, el inicio de sesión y la pestaña del navegador) y la **imagen del inicio de sesión**: una de las cinco ilustraciones de serie, que toman el color principal, *Aleatoria* para una distinta en cada carga, o una foto propia que se sube ahí mismo.
+
+![Sistema → General y marca: aplicación, color principal, logo e imagen del inicio de sesión](../img/admin/marca.webp)
 
 ## Dónde se busca `config.json`
 

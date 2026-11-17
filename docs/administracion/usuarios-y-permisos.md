@@ -34,6 +34,19 @@ Los permisos del rol `user` se cambian en *Acceso → Permisos del rol*. El serv
 - **Personal:** sale de `storage.home_template`, o de la ruta personalizada del usuario (campo *Carpeta personal*). Se crea en el primer acceso si `create_home` está activo.
 - **Compartidas:** se asignan por usuario o por [grupo](#grupos). El acceso de un grupo puede ser de lectura y escritura o de solo lectura (`read_only_groups`); un usuario puede escribir si entra por su nombre o por algún grupo que no sea de solo lectura. Si la carpeta es `read_only`, nadie escribe.
 
+```mermaid
+flowchart TD
+    U[Usuario] --> H["Mi carpeta: siempre,<br/>con los permisos de su rol"]
+    U --> Q{"Cada carpeta compartida:<br/>¿por qué vías entra?"}
+    Q --> A["Abierta a todos (*)"]
+    Q --> N[Por su nombre]
+    Q --> G["Por un grupo<br/>(local, Entra ID o sistema)"]
+    Q --> AD["Grupo Administradores,<br/>si es admin"]
+    A & N & G & AD --> W{"¿Alguna vía permite escribir<br/>y la carpeta no es de solo lectura?"}
+    W -- Sí --> E["Escritura: subir, renombrar, borrar…<br/>según los permisos del rol"]
+    W -- No --> L[Solo lectura: descargar]
+```
+
 ## Grupos
 
 *Personas → Grupos* reúne los grupos que dan acceso a las carpetas compartidas. Cada grupo tiene un **identificador** (el que usan las carpetas, p. ej. `rrhh`), un nombre visible y un origen:
@@ -58,7 +71,12 @@ Hay dos vistas para elegir, con el selector *Lista · Paneles* (se recuerda la �
 
 - **Lista:** tabla de grupos y una ficha por grupo con sus datos, miembros, carpetas y baja.
 - **Paneles:** lista a la izquierda y detalle con las pestañas *Miembros*, *Carpetas* y *Ajustes*.
+
+![Personas → Grupos: locales y de Entra ID, con sus miembros y carpetas](../img/admin/grupos.webp)
+
 La **matriz de accesos** está en *Acceso → Matriz de accesos*: una fila por grupo y una columna por carpeta compartida; cada celda es *—*, *Lectura* o *Escritura*. Guarda los cambios en los ajustes de las carpetas (`groups` y `read_only_groups`). Las carpetas abiertas a todos (`users: ["*"]`) no dependen de los grupos.
+
+![Acceso → Matriz de accesos: una fila por grupo y una columna por carpeta](../img/admin/matriz.webp)
 
 Eliminar un grupo quita el acceso que da; no toca usuarios ni archivos. La [decisión 0011](../arquitectura/decisiones/0011-grupos-gestionados.md) explica el modelo.
 
@@ -72,7 +90,11 @@ Eliminar un grupo quita el acceso que da; no toca usuarios ni archivos. La [deci
     - **Lista:** filtros por estado, origen, rol y grupo, paginación y **acciones en bloque** (añadir a un grupo, cambiar el rol, activar, desactivar). Cada acción se aplica a cada usuario con sus protecciones; los que no se pueden cambiar se listan.
     - **Paneles:** lista a la izquierda y detalle con las pestañas *Perfil*, *Grupos*, *Acceso efectivo* y *Actividad*.
 
+    ![Personas → Usuarios, vista de lista](../img/admin/usuarios.webp)
+
     La ficha de cada usuario muestra su **acceso efectivo** (qué carpetas ve, con qué permiso y por qué: su carpeta, abierta a todos, por su nombre o por un grupo) y su **actividad reciente** en la auditoría.
+
+    ![La ficha de una usuaria de Entra ID: datos de solo lectura, acceso efectivo, sesiones y actividad](../img/admin/usuario.webp)
     La lista se puede filtrar por estado (*Todos*, *Activos*, *Desactivados*) y cada fila tiene su botón *Desactivar*/*Activar*.
 
 === "CLI"

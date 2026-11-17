@@ -33,6 +33,19 @@ Para mostrar los grupos de Entra ID con su nombre en lugar del Object ID (en *Gr
 
 ## Cuentas al día con Entra ID
 
+```mermaid
+stateDiagram-v2
+    state "Activa" as ACT
+    state "Desactivada por Entra ID" as DIR
+    state "Desactivada a mano" as MAN
+    [*] --> ACT: primer inicio de sesión
+    ACT --> DIR: borrada, desactivada o fuera de<br/>los grupos permitidos en Entra ID
+    DIR --> ACT: Entra ID la vuelve a dejar entrar
+    ACT --> MAN: un admin la desactiva
+    DIR --> MAN: un admin la desactiva
+    MAN --> ACT: solo la reactiva un admin
+```
+
 Un usuario de Entra ID puede seguir entrando sin pasar por Microsoft mientras tenga una **sesión abierta** (hasta `session.lifetime_hours`) o un **token de API** (la extensión de VS Code, la unidad de red, scripts), que puede no caducar. Por eso StorageWeb revisa periódicamente esas cuentas contra Entra ID (`auth.entra.directory_sync_minutes`, cada 60 minutos por defecto; `0` = solo al iniciar sesión):
 
 - si la cuenta **se ha borrado o desactivado** en Entra ID, o ya **no está en los grupos permitidos** (`allowed_groups`), se desactiva en StorageWeb y se cierran sus sesiones; sus tokens dejan de valer mientras tanto. En su ficha se indica que la desactivó Entra ID;
@@ -84,6 +97,8 @@ Los motivos de esta elección están en el [ADR 0003](../arquitectura/decisiones
 ## 2. Configurar StorageWeb
 
 La forma más rápida es el **asistente**: *Seguridad → Inicio de sesión → Asistente*. Te da la Redirect URI para copiar, pide los identificadores y el secreto, el alta de usuarios y el grupo de administradores, comprueba la conexión y activa Entra ID.
+
+![Seguridad → Inicio de sesión: la tarjeta de Microsoft Entra ID con sus acciones y la conexión](../img/admin/inicio-sesion.webp)
 
 !!! tip "Probar conexión"
     El botón *Probar conexión* comprueba la configuración guardada sin que nadie inicie sesión: que el tenant existe (metadatos OIDC), que la aplicación existe y la Redirect URI está registrada (petición a `/authorize` con `prompt=none`) y que el secreto es válido y no ha caducado (token de aplicación con `client_credentials`). Después revisa **los permisos de la API, uno a uno**: cada permiso de aplicación que usa StorageWeb (`Group.Read.All` y `User.Read.All`), si está concedido con consentimiento de administrador y si funciona de verdad; si la aplicación tiene **permisos de más** que StorageWeb no usa, lo avisa (mínimo privilegio); y los **permisos de inicio de sesión** (`openid`, `profile`, `email` y los de `auth.entra.scopes`, como `User.Read`), según lo que Microsoft concedió en el último inicio de sesión, que StorageWeb apunta cada vez que alguien entra. Si la aplicación la registró o reparó StorageWeb, ya sabe que les dio el consentimiento y salen en verde desde el principio; si no, hasta el primer inicio de sesión salen como pendientes de comprobar. Necesita salida a `login.microsoftonline.com`. Con endpoints propios solo comprueba los metadatos del `issuer`.

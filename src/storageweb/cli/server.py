@@ -18,6 +18,19 @@ def _serve_args(p):
     p.add_argument("--no-reload", action="store_true", help=_("With --dev, without reload (for debugging)"))
 
 
+def waitress_options(srv: dict) -> dict:
+    """Opciones de Waitress para la sección ``server`` de la configuración.
+
+    Detrás de un proxy, Waitress no debe borrar las cabeceras ``X-Forwarded-*`` (lo hace por defecto con las
+    que no vienen de un ``trusted_proxy``): las valida ProxyFix con ``server.proxy_hops`` (``app.py``). Sin
+    proxy se siguen borrando, y la aplicación tampoco las usaría.
+    """
+    return {"threads": int(srv["threads"]),
+            "max_request_body_size": srv["max_upload_mb"] * 1024 * 1024 + 1024 * 1024,
+            "channel_timeout": 300, "ident": "StorageWeb",
+            "clear_untrusted_proxy_headers": not srv["behind_proxy"]}
+
+
 @command("serve", _l("Start the web server"), _serve_args, needs_db=False, order=10)
 def cmd_serve(args) -> int:
     from .. import create_app
@@ -45,7 +58,5 @@ def cmd_serve(args) -> int:
     logging.getLogger("waitress").setLevel(logging.INFO)
     app.logger.info("StorageWeb listening on http://%s:%s (config: %s)", host, port,
                     app.config["SW"]["_config_path"])
-    serve(app, host=host, port=port, threads=int(srv["threads"]),
-          max_request_body_size=srv["max_upload_mb"] * 1024 * 1024 + 1024 * 1024,
-          channel_timeout=300, ident="StorageWeb")
+    serve(app, host=host, port=port, **waitress_options(srv))
     return 0

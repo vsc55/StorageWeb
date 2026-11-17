@@ -99,3 +99,17 @@ def test_info_for_brings_the_description(graph):
     answers[("GET", "/groups?")] = (200, {"value": [{"id": G2, "displayName": "Ventas", "description": None}]})
     assert ed.search_groups(ECFG, "Ven") == [{"id": G2, "name": "Ventas", "description": ""}]
     assert "$select=id,displayName,description" in calls[-1][1]
+
+
+def test_without_network_the_directory_answers_empty(graph, monkeypatch):
+    # Sin red (o Microsoft caído) el token de aplicación falla con SSOError: las páginas que muestran nombres de
+    # grupos no deben romperse (salió como error 500 en Grupos y en Inicio de sesión)
+    from storageweb.providers.base import SSOError
+
+    def down(url, data, timeout):
+        raise SSOError("network_error", "No se pudo contactar con el proveedor")
+
+    monkeypatch.setattr(oauth2, "_http_post", down)
+    assert ed.names_for(ECFG, [G1]) == {}
+    assert ed.info_for(ECFG, [G1]) == {}
+    assert ed.search_groups(ECFG, "Ventas") == []

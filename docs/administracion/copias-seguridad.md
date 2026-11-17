@@ -27,9 +27,26 @@ sudo storageweb-admin backup-list
 - **Copia automática** cada N horas (`maintenance.backup_interval_hours`) hecha por el propio servicio, conservando `backup_keep`. Es una alternativa al timer de systemd; no actives los dos.
 - **Retención de la auditoría** (`maintenance.audit_retention_days`), compactación de la base de datos y exportación de la auditoría a CSV.
 
+![Sistema → Copias y base de datos](../img/admin/copias.webp)
+
 ### Restaurar desde la web
 
 El botón **Restaurar** de cada copia lleva a una página con lo que contiene la copia (fecha, versión) y lo que va a pasar. Hay que escribir **RESTAURAR** para confirmarlo. Entonces, con el servicio en marcha:
+
+```mermaid
+sequenceDiagram
+    participant A as Admin
+    participant S as StorageWeb
+    participant D as Base de datos
+    A->>S: Restaurar (escribe RESTAURAR)
+    S->>S: Mantenimiento: el resto de peticiones recibe 503
+    S->>D: Copia de lo actual («antes-de-restaurar»)
+    S->>D: Sustituye la base de datos y aplica las migraciones
+    S->>D: Vuelve a cifrar los secretos con la clave de este servidor
+    S->>D: Cierra todas las sesiones
+    S->>S: Fin del mantenimiento
+    S-->>A: Hecho (sigue dentro si es admin en la copia)
+```
 
 1. El servicio se pone **en mantenimiento**: el resto de peticiones (web, unidad de red, API) reciben `503` con `Retry-After` durante el momento que dura.
 2. Se hace una **copia de lo actual**, `storageweb-backup-antes-de-restaurar-<fecha>.tar.gz`, para poder volver atrás (restaurándola igual).

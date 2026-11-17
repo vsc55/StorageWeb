@@ -2,7 +2,8 @@
 """Empaqueta la extensión de VS Code (clients/vscode) en un .vsix sin npm ni vsce.
 
     python tools/build_vsix.py                    -> clients/vscode/dist/storageweb-sync-<versión>.vsix
-    python tools/build_vsix.py --version 1.2.0 --out dist   (la release: la versión de StorageWeb)
+    python tools/build_vsix.py --out dist                    (la release: con la versión de package.json)
+    python tools/build_vsix.py --version 1.2.0               (otra versión, solo para pruebas)
     python tools/build_vsix.py --install          -> además lo instala en VS Code (``code --install-extension``)
 
 Un .vsix es un zip (formato OPC) con ``extension.vsixmanifest``, ``[Content_Types].xml`` y la

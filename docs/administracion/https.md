@@ -8,6 +8,14 @@ StorageWeb escucha en HTTP en `127.0.0.1:8080` y espera un **proxy inverso con H
 
 Hay plantillas listas para **nginx** y **Apache** (abajo); sirve cualquier otro proxy que envíe las cabeceras `X-Forwarded-*` y permita cuerpos grandes (ver *Otros proxies*).
 
+```mermaid
+flowchart TD
+    B[Navegador] -- HTTPS --> P["nginx o Apache<br/>(certificado)"]
+    P -- "HTTP local + X-Forwarded-For,<br/>-Proto, -Host, -Prefix" --> W["Waitress<br/>127.0.0.1:8080"]
+    W -- "con server.behind_proxy<br/>deja pasar las cabeceras" --> F["ProxyFix<br/>(server.proxy_hops)"]
+    F --> A["StorageWeb ve HTTPS,<br/>el nombre público y la IP real"]
+```
+
 ## nginx
 
 Los paquetes instalan la plantilla en `/usr/share/storageweb/nginx-storageweb.conf`. En el repositorio está en `packaging/nginx/storageweb.conf`. El instalador la copia con `install.sh --nginx`.

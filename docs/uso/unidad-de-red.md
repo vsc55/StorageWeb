@@ -8,6 +8,13 @@ StorageWeb también es un servidor **WebDAV**: tus carpetas (la personal y las c
 | **Usuario** | tu nombre de usuario de StorageWeb |
 | **Contraseña** | un **token de API** (*Mi perfil → Tokens de API*). Con alcance *solo lectura* la unidad no deja cambiar nada. Si el administrador lo permite, también tu contraseña (usuarios locales y del sistema) |
 
+```mermaid
+flowchart LR
+    C["Explorador de archivos,<br/>rclone, WinSCP…"] -- "Cada petición:<br/>usuario + token" --> T{"¿Token válido, tuyo<br/>y sin caducar?"}
+    T -- Sí --> P["Permisos de tu rol,<br/>recortados al alcance del token"] --> F["Tus carpetas:<br/>la personal y las compartidas"]
+    T -- No --> E["401: el programa vuelve a pedir<br/>usuario y contraseña"]
+```
+
 !!! tip "¿Por qué un token y no mi contraseña?"
     Los programas guardan la contraseña de la unidad. Un token se puede limitar a lectura, poner con caducidad y revocar desde *Mi perfil* sin cambiar tu contraseña. Además, los usuarios de Microsoft (Entra ID) no tienen contraseña en StorageWeb: para ellos el token es la única forma.
 

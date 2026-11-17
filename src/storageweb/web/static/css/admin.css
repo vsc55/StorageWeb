@@ -422,7 +422,9 @@ h2.section-label, .section-label { margin: 0; font-size: 12px; font-weight: 600;
            flex-direction: column; overflow: hidden; }
 .palette[open] { display: flex; }
 .palette::backdrop { background: rgba(16, 24, 40, .45); }
-.palette-input { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 0 18px; border-bottom: 1px solid var(--line); }
+/* Es un <label>: sin flex-direction heredaría la columna de los label de los formularios (base.css) */
+.palette-input { display: flex; flex-direction: row; align-items: center; gap: 10px; min-height: 56px; padding: 0 18px;
+                 border-bottom: 1px solid var(--line); color: var(--fg); font-size: inherit; }
 .palette-input input { flex: 1 1 auto; border: 0; background: transparent; font-size: 16px; outline: none; padding: 10px 0; }
 .palette-input .icon { color: var(--muted); }
 .palette-results, .search-results { list-style: none; margin: 0; padding: 8px; overflow: auto; }

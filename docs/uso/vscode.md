@@ -14,7 +14,7 @@ Necesita VS Code 1.85 o posterior y que StorageWeb tenga activada la [unidad de 
 
 ### 1. Conseguir el fichero `.vsix`
 
-- **De una versión publicada:** en la *release* de GitHub, el fichero `storageweb-sync-X.Y.Z.vsix` (tiene la misma versión que StorageWeb).
+- **De una versión publicada:** en la *release* de GitHub, el fichero `storageweb-sync-<versión>.vsix` (la extensión tiene su propia versión, distinta de la de StorageWeb).
 - **De la última versión en desarrollo:** en GitHub, *Actions → CI →* la última ejecución de la rama principal → artefacto **storageweb-vscode** (es un `.zip` con el `.vsix` dentro).
 - **Generarlo** desde el repositorio:
   ```bash
@@ -53,6 +53,25 @@ En el panel, sección *Servidores*, botón **+** (*Añadir servidor…*). Escrib
 
 En los dos casos la extensión comprueba que funcionan antes de guardarlo. *Cambiar el token…* pregunta lo mismo; con el navegador tienes que entrar con el mismo usuario del servidor (otra cuenta es otro servidor).
 
+Al iniciar sesión en el navegador, VS Code y StorageWeb se pasan el token así (OAuth con PKCE):
+
+```mermaid
+sequenceDiagram
+    participant V as VS Code
+    participant N as Navegador
+    participant S as StorageWeb
+    V->>V: Inventa un secreto y calcula su huella
+    V->>N: Abre /connect/vscode con la huella
+    N->>S: Inicias sesión (contraseña o Microsoft)
+    S-->>N: ¿Permitir conectar Visual Studio Code?
+    N->>S: Permitir
+    S-->>N: Vuelve a vscode:// con un código (un solo uso, 5 minutos)
+    N->>V: Abre VS Code con el código
+    V->>S: Código + secreto
+    S->>S: ¿El secreto corresponde a la huella?
+    S-->>V: Token de API «Visual Studio Code (equipo)»
+```
+
 !!! note "Iniciar sesión en el navegador"
     Necesita que StorageWeb tenga los tokens de API activados (*Seguridad → API y unidad de red*, vienen así) y un servidor con esta versión o posterior; si no, la extensión lo dice y puedes usar usuario y token. No funciona en VS Code en el navegador (vscode.dev) ni en conexiones remotas. El intercambio es seguro aunque otro programa vea la vuelta a VS Code: el código solo vale una vez, durante 5 minutos, y solo con un secreto que la extensión nunca envía al navegador (PKCE).
 
@@ -81,6 +100,19 @@ La primera sincronización junta las dos carpetas: sube lo que solo está en tu 
 El icono de la nube de la barra de estado resume el estado de todas (sincronizado, sincronizando o error). Al pulsarlo aparecen *Sincronizar ahora*, *Abrir en el navegador*, *Ver el registro* y *Desvincular*.
 
 ## Cómo sincroniza
+
+```mermaid
+flowchart TD
+    A["Cada archivo: tu equipo y el servidor,<br/>comparados con la última sincronización"] --> B{"¿Qué ha cambiado?"}
+    B -- Nada --> N[No hace nada]
+    B -- "Solo en tu equipo" --> S["Lo sube, diciendo qué versión conocía<br/>(If-Match)"]
+    B -- "Solo en el servidor" --> D[Lo descarga]
+    B -- "Borrado en un lado" --> X["Lo borra en el otro<br/>(en tu equipo, a la papelera)"]
+    B -- "En los dos" --> C["Conflicto: el del servidor se queda el nombre<br/>y el tuyo pasa a «nombre (conflicto …)»"]
+    S --> R{"¿Lo cambió alguien<br/>entre medias?"}
+    R -- No --> OK[Subido]
+    R -- "Sí: el servidor la rechaza" --> C
+```
 
 - **Al guardar**, crear, renombrar o borrar un archivo, sube o borra solo ese archivo (a los 1,5 s, juntando los cambios seguidos).
 - **Cada minuto** (`storageweb.pollSeconds`), una sincronización completa trae lo que cambió en el servidor.

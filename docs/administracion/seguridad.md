@@ -56,11 +56,15 @@ La clave de cifrado es, por orden, la variable de entorno `STORAGEWEB_SECRETS_KE
 - **Lista blanca:** redes que nunca se bloquean (la oficina, la VPN).
 - **Rescate** si te bloqueas: `sudo storageweb-admin ip-unban --all` (o `ip-unban <ip>`); `ip-list` muestra las reglas.
 
+![Seguridad → IPs bloqueadas: una red bloqueada y la lista blanca de la oficina](../img/admin/ips.webp)
+
 ## Sesiones y tokens de API
 
 - *Personas → Sesiones y tokens* muestra quién ha iniciado sesión (navegador, IP, última actividad) y todos los tokens de API. Puedes cerrar una sesión, todas las de un usuario o todas menos la tuya, y revocar tokens. Desde el servidor: `storageweb-admin sessions-close <usuario>` o `--all`.
 - Cada usuario ve las suyas en *Mi perfil* y puede cerrar las demás. Cambiar la contraseña cierra las otras sesiones.
 - Los tokens de API se crean en *Mi perfil → Tokens de API*. Solo sirven para listar, descargar y subir archivos; nunca para la administración ni el perfil. Se desactivan para todos con `security.api_tokens = false` (también se desactiva entonces *conectar aplicaciones desde el navegador*, `/connect`, con el que la extensión de VS Code consigue su token). Cada aplicación conectada así deja en la auditoría `app_authorized` y `api_token_created`. Cada usuario puede **rotar** sus tokens (secreto nuevo, el anterior deja de valer; `api_token_rotated`); el administrador solo puede revocarlos, para no ver nunca el secreto de otro.
+
+![Personas → Sesiones y tokens: sesiones abiertas y tokens de API](../img/admin/sesiones.webp)
 
 ```bash
 TOKEN=sw_…
