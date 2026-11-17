@@ -68,8 +68,10 @@ jobs:
 
       - name: Inspeccionar paquetes
         run: |
-          for f in dist/*.deb; do echo "== $f"; dpkg-deb --info "$f"; dpkg-deb -c "$f" | head -n 25; done
-          for f in dist/*.rpm; do echo "== $f"; rpm -qip "$f"; rpm -qlp "$f" | head -n 25; done
+          # sed lee toda la salida: con head, el listado se corta, dpkg-deb/rpm reciben SIGPIPE y pipefail
+          # da el paso por fallido aunque el paquete esté bien
+          for f in dist/*.deb; do echo "== $f"; dpkg-deb --info "$f"; dpkg-deb -c "$f" | sed -n '1,25p'; done
+          for f in dist/*.rpm; do echo "== $f"; rpm -qip "$f"; rpm -qlp "$f" | sed -n '1,25p'; done
           V="${{ steps.version.outputs.version }}"
           tar -tzf "dist/storageweb-gentoo-overlay-$V.tar.gz"
           tar -xzf "dist/storageweb-gentoo-overlay-$V.tar.gz" -O --wildcards '*/Manifest'
@@ -80,7 +82,7 @@ jobs:
           sudo apt-get install -y ./dist/storageweb_${V}_amd64.deb
           systemctl is-active storageweb
           for i in $(seq 1 20); do curl -fsS -o /dev/null http://127.0.0.1:8080/login && break; sleep 1; done
-          curl -fsS http://127.0.0.1:8080/login | grep -q 'Iniciar sesión'
+          curl -fsS -H 'Accept-Language: es' http://127.0.0.1:8080/login | grep -q 'Iniciar sesión'  # sale en inglés por defecto
           sudo storageweb-admin user-add ci --role admin --password contraseña-de-prueba
           sudo storageweb-admin user-list | grep -q '^ci .* admin '
           sudo storageweb-admin check-config
