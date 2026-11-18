@@ -22,6 +22,7 @@ Un ADR (*Architecture Decision Record*) explica **por qué** se tomó una decisi
 | [0016](0016-conectar-aplicaciones-con-el-navegador.md) | Conectar aplicaciones iniciando sesión en el navegador (PKCE) | Aceptada |
 | [0017](0017-ajustes-web-por-campo.md) | Ajustes web por campo, una fila por perfil y campo | Aceptada |
 | [0018](0018-carpetas-y-ubicaciones-como-entidades.md) | Carpetas compartidas, ubicaciones y cuotas de grupo como entidades | Aceptada |
+| [0019](0019-windows-servicio-y-caddy.md) | En Windows, servicio propio sin dependencias y Caddy para el HTTPS | Aceptada |
 
 ## Cómo proponer uno
 

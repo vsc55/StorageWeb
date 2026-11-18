@@ -1,4 +1,4 @@
-# HTTPS con nginx o Apache
+# HTTPS con nginx, Apache o Caddy
 
 StorageWeb escucha en HTTP en `127.0.0.1:8080` y espera un **proxy inverso con HTTPS** delante. HTTPS es imprescindible por tres motivos:
 
@@ -6,11 +6,11 @@ StorageWeb escucha en HTTP en `127.0.0.1:8080` y espera un **proxy inverso con H
 - Microsoft Entra ID solo acepta URLs de vuelta HTTPS (salvo `localhost`);
 - las contraseñas y los archivos viajan cifrados.
 
-Hay plantillas listas para **nginx** y **Apache** (abajo); sirve cualquier otro proxy que envíe las cabeceras `X-Forwarded-*` y permita cuerpos grandes (ver *Otros proxies*).
+Hay plantillas listas para **nginx**, **Apache** y **Caddy** (abajo); sirve cualquier otro proxy que envíe las cabeceras `X-Forwarded-*` y permita cuerpos grandes (ver *Otros proxies*). En **Windows**, usa Caddy: [guía de Windows](windows.md).
 
 ```mermaid
 flowchart TD
-    B[Navegador] -- HTTPS --> P["nginx o Apache<br/>(certificado)"]
+    B[Navegador] -- HTTPS --> P["nginx, Apache o Caddy<br/>(certificado)"]
     P -- "HTTP local + X-Forwarded-For,<br/>-Proto, -Host, -Prefix" --> W["Waitress<br/>127.0.0.1:8080"]
     W -- "con server.behind_proxy<br/>deja pasar las cabeceras" --> F["ProxyFix<br/>(server.proxy_hops)"]
     F --> A["StorageWeb ve HTTPS,<br/>el nombre público y la IP real"]
@@ -80,6 +80,28 @@ Antes de usarla en producción: `apachectl configtest`, sube un archivo grande y
 
 Subidas y descargas van en streaming sin configurar nada (Apache no guarda las descargas en disco, a diferencia de nginx). No actives `proxy-sendchunked`: la aplicación necesita el tamaño de la subida para rechazar de entrada un archivo demasiado grande o sin espacio. Los métodos de WebDAV (`PROPFIND`, `MOVE`, `LOCK`…) pasan por el proxy sin más; no actives `mod_dav` para esa ruta.
 
+## Caddy
+
+Caddy pide y renueva el certificado él solo, redirige HTTP a HTTPS, usa solo TLS 1.2 y 1.3, no guarda en disco las subidas ni las descargas y envía `X-Forwarded-For`, `X-Forwarded-Proto` y `X-Forwarded-Host` (sustituyendo los que mande el cliente). Por eso su plantilla es corta. Los paquetes la instalan en `/usr/share/storageweb/Caddyfile` (en el repositorio, `packaging/caddy/Caddyfile`). Es también la forma recomendada de tener HTTPS en [Windows](windows.md). Con Docker, `packaging/docker/compose.caddy.yaml` lo trae todo: ver [Docker con Caddy](docker.md#con-caddy-https).
+
+```bash
+sudo apt install caddy                                      # Debian 13 / Ubuntu 24.04 o posteriores
+sudo cp /usr/share/storageweb/Caddyfile /etc/caddy/Caddyfile
+sudo nano /etc/caddy/Caddyfile                              # el nombre y, si hace falta, el certificado
+sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
+```
+
+### Directivas importantes
+
+| Directiva | Por qué |
+|---|---|
+| `request_body { max_size … }` | Tamaño máximo de petición (≥ `server.max_upload_mb`), como `client_max_body_size` en nginx. Sin él, Caddy no pone límite y lo pone la aplicación. |
+| `header_up -X-Forwarded-Prefix` | La subruta solo la dice el proxy: se quita la que pudiera mandar el cliente (Caddy la dejaría pasar). Bajo una subruta, el ejemplo de *Red y HTTPS* usa `handle_path` y la pone. |
+| `flush_interval -1` | Las descargas y los ZIP salen al momento, sin esperar a llenar un búfer. |
+| `tls …` | Solo si el equipo no es accesible desde internet: tu certificado (`tls cert.pem key.pem`), la CA propia de Caddy (`tls internal`) o Let's Encrypt validando por DNS. Ver [el certificado en una red interna](windows.md#el-certificado). |
+
+Los métodos de WebDAV (`PROPFIND`, `MOVE`, `LOCK`…) y los nombres con caracteres codificados pasan tal cual, sin configurar nada.
+
 !!! danger "behind_proxy"
     Activa `server.behind_proxy` **solo** si la aplicación es accesible únicamente a través del proxy (`server.host = 127.0.0.1`). Si no, un cliente podría falsificar `X-Forwarded-For` y saltarse el bloqueo de intentos por IP.
 
@@ -116,19 +138,8 @@ Se usa para las URLs que salen hacia fuera: la dirección de vuelta de Entra ID 
 La misma página tiene un ejemplo de nginx, Apache y Caddy rellenado con tus valores (nombre, puerto, subruta y tamaño máximo).
 
 !!! note "¿Y HTTPS sin proxy?"
-    StorageWeb usa Waitress, que no cifra. Delega HTTPS en un proxy: nginx o Apache con certbot, o Caddy, que obtiene y renueva el certificado solo. La cabecera HSTS se envía automáticamente cuando la petición llega por HTTPS.
+    StorageWeb usa Waitress, que no cifra. Delega HTTPS en un proxy: nginx o Apache con certbot, o Caddy, que obtiene y renueva el certificado solo (también en Windows, donde IIS no sirve: ver la [guía de Windows](windows.md)). La cabecera HSTS se envía automáticamente cuando la petición llega por HTTPS.
 
 ## Otros proxies
 
-Sirve cualquier proxy que envíe las cabeceras `X-Forwarded-*` y permita cuerpos grandes: Caddy, Traefik o HAProxy. Un ejemplo con Caddy:
-
-```
-files.midominio.com {
-    request_body {
-        max_size 2100MB
-    }
-    reverse_proxy 127.0.0.1:8080 {
-        flush_interval -1
-    }
-}
-```
+Sirve cualquier proxy que envíe las cabeceras `X-Forwarded-*`, quite la `X-Forwarded-Prefix` que mande el cliente y permita cuerpos grandes. Para **Traefik** con Docker hay un `packaging/docker/compose.traefik.yaml` listo: ver [Docker con Traefik](docker.md#con-traefik-https). Con HAProxy u otros, las tablas de *Directivas importantes* de arriba dicen qué hace falta y por qué.

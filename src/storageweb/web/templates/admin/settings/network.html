@@ -34,7 +34,7 @@
 
 <div class="card section-gap">
   <h3 class="card-title">{{ _("Reverse proxy and HTTPS (config.json, requires restarting)") }}</h3>
-  <p class="muted small">{{ _("StorageWeb serves plain HTTP; HTTPS and the certificate are handled by the reverse proxy (nginx, Caddy, Traefik…).") }}</p>
+  <p class="muted small">{{ _("StorageWeb serves plain HTTP; HTTPS and the certificate are handled by the reverse proxy (nginx, Apache, Caddy…).") }}</p>
   <dl class="kv section-gap">
     <dt><code>server.behind_proxy</code></dt><dd>{{ _("Yes") if boot_server.behind_proxy else _("No") }}</dd>
     <dt><code>server.proxy_hops</code></dt><dd>{{ boot_server.proxy_hops }}</dd>
@@ -127,6 +127,20 @@ server {
         flush_interval -1
     }{% endif %}
 }</pre>
+    <p class="muted small">{{ _("Caddy redirects HTTP to HTTPS, renews the certificate and sends the X-Forwarded headers by itself. Template with the certificate options for an internal network: /usr/share/storageweb/Caddyfile (in the repository, packaging/caddy/Caddyfile). It is also the way to use HTTPS on Windows; with Docker, packaging/docker/compose.caddy.yaml.") }}</p>
+  </details>
+  <details>
+    <summary>{{ _("Example for Traefik in Docker (labels of the StorageWeb container)") }}</summary>
+    <pre class="code">labels:
+  - "traefik.enable=true"
+  - "traefik.http.routers.storageweb.rule=Host(`{{ example.host }}`){% if example.prefix %} &amp;&amp; PathPrefix(`{{ example.prefix }}`){% endif %}"
+  - "traefik.http.routers.storageweb.entrypoints=websecure"
+  - "traefik.http.routers.storageweb.tls.certresolver=le"
+  - "traefik.http.routers.storageweb.middlewares=storageweb-noprefix{% if example.prefix %},storageweb-prefix{% endif %}"
+  - "traefik.http.middlewares.storageweb-noprefix.headers.customrequestheaders.X-Forwarded-Prefix="{% if example.prefix %}
+  - "traefik.http.middlewares.storageweb-prefix.stripprefix.prefixes={{ example.prefix }}"{% endif %}
+  - "traefik.http.services.storageweb.loadbalancer.server.port={{ example.port }}"</pre>
+    <p class="muted small">{{ _("Traefik itself needs the entry points web and websecure, the certificate resolver «le», readTimeout=0 for large uploads through the network drive and the encoded characters allowed: the full file is packaging/docker/compose.traefik.yaml in the repository.") }}</p>
   </details>
 </div>
 {% endblock %}

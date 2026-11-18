@@ -25,7 +25,7 @@ overrides:
       - python3-venv
       - adduser | passwd
     recommends:
-      - nginx | apache2
+      - nginx | apache2 | caddy
   rpm:
     depends:
       - python3 >= 3.9
@@ -77,6 +77,11 @@ contents:
 
   - src: packaging/nginx/storageweb.conf
     dst: /usr/share/storageweb/nginx-storageweb.conf
+    file_info:
+      mode: 0644
+
+  - src: packaging/caddy/Caddyfile
+    dst: /usr/share/storageweb/Caddyfile
     file_info:
       mode: 0644
 

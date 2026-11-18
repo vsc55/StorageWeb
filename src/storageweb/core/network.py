@@ -65,7 +65,7 @@ def diagnose(facts: dict, headers: dict, cfg: dict, boot: dict) -> dict:
             "example": {"host": target.hostname or "files.example.com", "prefix": (target.path or "").rstrip("/"),
                         "upstream": f"{'127.0.0.1' if server['host'] in ('0.0.0.0', '::') else server['host']}"
                                     f":{server['port']}",
-                        "body_mb": server["max_upload_mb"] + 16}}
+                        "port": server["port"], "body_mb": server["max_upload_mb"] + 16}}
 
 
 def warnings(diagnosis: dict) -> list[tuple[str, str]]:

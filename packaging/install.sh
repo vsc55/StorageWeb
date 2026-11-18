@@ -61,6 +61,7 @@ install -d -m 0755 "$SHARE_DIR"
 install -m 0644 "$ROOT/config/config.example.json" "$SHARE_DIR/config.example.json"
 install -m 0644 "$PKG/nginx/storageweb.conf" "$SHARE_DIR/nginx-storageweb.conf"
 install -m 0644 "$PKG/apache/storageweb.conf" "$SHARE_DIR/apache-storageweb.conf"
+install -m 0644 "$PKG/caddy/Caddyfile" "$SHARE_DIR/Caddyfile"
 mkdir -p "$CONF_DIR"
 if [[ ! -f "$CONF_DIR/config.json" ]]; then
   log "Creando $CONF_DIR/config.json"

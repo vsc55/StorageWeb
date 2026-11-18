@@ -1,0 +1,46 @@
+# Caddyfile: proxy inverso HTTPS delante de StorageWeb (Entra ID exige HTTPS en la redirect URI).
+# Linux: /etc/caddy/Caddyfile. Windows: junto a caddy.exe (C:\Caddy\Caddyfile).
+# Equivale a packaging/nginx/storageweb.conf y packaging/apache/storageweb.conf.
+#
+# Caddy ya hace por su cuenta lo que en nginx y Apache hay que escribir: redirigir HTTP a HTTPS, solo
+# TLS 1.2 y 1.3, pedir y renovar el certificado, no guardar en disco ni las subidas ni las descargas y
+# enviar X-Forwarded-For, X-Forwarded-Proto y X-Forwarded-Host (sustituyendo los que mande el cliente).
+# En StorageWeb: server.host 127.0.0.1, server.behind_proxy true y network.public_url con este nombre.
+
+files.midominio.com {
+	# Certificado. Sin nada más, Caddy lo pide a Let's Encrypt: el nombre tiene que apuntar a este equipo
+	# y los puertos 80 y 443 tienen que llegar desde internet. Si el equipo solo está en la red interna,
+	# usa una de estas opciones (quita el # de una):
+	#
+	# Tu certificado (el de la empresa, o uno de win-acme o certbot); tras renovarlo: caddy reload
+	# tls C:/certs/fullchain.pem C:/certs/privkey.pem
+	#
+	# La CA propia de Caddy: instala su certificado raíz en cada equipo que vaya a entrar
+	# tls internal
+	#
+	# Let's Encrypt validando por DNS, sin abrir puertos: necesita un caddy.exe con el módulo de tu
+	# proveedor de DNS (se elige al descargarlo en caddyserver.com/download)
+	# tls {
+	#	dns cloudflare {env.CF_API_TOKEN}
+	# }
+
+	# Tamaño máximo de cada petición, >= server.max_upload_mb. Las subidas desde el navegador van en partes
+	# de hasta 32 MB, así que no dependen de esto; solo afecta a la subida sin JavaScript y a la unidad de
+	# red (WebDAV), que suben cada archivo en una sola petición.
+	request_body {
+		max_size 2100MB
+	}
+
+	# Registro de accesos propio del sitio (por defecto Caddy no lo guarda)
+	# log {
+	#	output file C:/Caddy/logs/storageweb.log
+	# }
+
+	reverse_proxy 127.0.0.1:8080 {
+		# La subruta solo la dice el proxy: se quita la que mandara el cliente (la aplicación la usaría en
+		# sus enlaces). Bajo una subruta, mira el ejemplo de Sistema → Red y HTTPS.
+		header_up -X-Forwarded-Prefix
+		# Descargas y ZIP al momento, sin esperar a llenar un búfer
+		flush_interval -1
+	}
+}

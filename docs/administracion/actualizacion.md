@@ -18,8 +18,8 @@
 === "Docker"
 
     ```bash
-    docker pull ghcr.io/<owner>/<repo>:X.Y.Z
-    docker rm -f storageweb && docker run ... ghcr.io/<owner>/<repo>:X.Y.Z
+    docker pull ghcr.io/vsc55/storageweb:X.Y.Z
+    docker rm -f storageweb && docker run ... ghcr.io/vsc55/storageweb:X.Y.Z
     ```
 
 === "Gentoo"

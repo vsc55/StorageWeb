@@ -4,9 +4,9 @@
 
 - **Sistema:**
   - Linux (Ubuntu 22.04+, Debian 12+, RHEL/Rocky/Alma 9+, Fedora o Gentoo) para producción;
-  - Windows y macOS también funcionan, sin el servicio del sistema.
+  - Windows también, como servicio y con Caddy para el HTTPS: ver la [guía de Windows](windows.md). macOS funciona, sin servicio del sistema.
 - **Python 3.9 o superior:** los paquetes usan el del sistema.
-- **Proxy con HTTPS:** necesario en producción ([nginx o Apache](https.md)) y obligatorio para Entra ID.
+- **Proxy con HTTPS:** necesario en producción ([nginx, Apache o Caddy](https.md)) y obligatorio para Entra ID.
 - **Disco:** el que necesiten los archivos de los usuarios. La base de datos ocupa muy poco.
 
 ## Elegir el método
@@ -50,7 +50,7 @@ sudo storageweb-admin check-config
 systemctl status storageweb
 ```
 
-Siguientes pasos: [HTTPS con nginx o Apache](https.md), [configuración](configuracion.md) y [copias de seguridad](copias-seguridad.md).
+Siguientes pasos: [HTTPS con nginx, Apache o Caddy](https.md), [configuración](configuracion.md) y [copias de seguridad](copias-seguridad.md).
 
 ## Desde el código fuente
 
@@ -78,6 +78,8 @@ cp config.example.json config.json                         # y ajústalo
 storageweb --config config.json user-add admin --role admin
 storageweb --config config.json serve
 ```
+
+En Windows, para dejarlo como servicio y con HTTPS, sigue la [guía de Windows](windows.md).
 
 En un `config.json` para pruebas en `http://localhost`, pon `"session": {"cookie_secure": false}` y `"server": {"behind_proxy": false}`.
 

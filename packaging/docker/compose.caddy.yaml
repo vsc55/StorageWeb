@@ -1,0 +1,72 @@
+# StorageWeb con Caddy delante: HTTPS con certificado de Let's Encrypt, que Caddy pide y renueva solo.
+#
+# Se usa solo, sin el código: en una carpeta vacía del servidor,
+#   0. curl -fLO https://raw.githubusercontent.com/vsc55/StorageWeb/master/packaging/docker/compose.caddy.yaml
+#   1. Un .env junto a este fichero:
+#        STORAGEWEB_DOMAIN=files.midominio.com
+#   2. printf 'una-clave-larga' > admin_password.txt
+#   3. docker compose -f compose.caddy.yaml up -d
+#
+# El nombre tiene que apuntar a este equipo y los puertos 80 y 443 tienen que llegar desde internet (Let's
+# Encrypt lo comprueba). El Caddyfile va dentro de este fichero (configs: content, Docker Compose 2.23.1 o
+# posterior). Explicación: docs/administracion/docker.md, sección «Con Caddy». Plantilla comentada, con las
+# opciones del certificado para una red interna: packaging/caddy/Caddyfile del repositorio.
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+    volumes:
+      # Los certificados y la cuenta de Let's Encrypt: si se pierden, se piden otra vez (y Let's Encrypt
+      # limita cuántos se pueden pedir por semana)
+      - caddy-data:/data
+      - caddy-config:/config
+
+  storageweb:
+    image: ghcr.io/vsc55/storageweb:latest
+    restart: unless-stopped
+    # Sin «ports»: solo se llega a través de Caddy. Con behind_proxy, abrir el puerto dejaría falsear la IP
+    environment:
+      STORAGEWEB_ADMIN_USER: admin
+      STORAGEWEB_ADMIN_PASSWORD_FILE: /run/secrets/storageweb_admin_password
+      STORAGEWEB_BEHIND_PROXY: "true"
+      STORAGEWEB_COOKIE_SECURE: "true"
+      STORAGEWEB_PUBLIC_URL: ${STORAGEWEB_DOMAIN:?define STORAGEWEB_DOMAIN en .env}
+    secrets:
+      - storageweb_admin_password
+    volumes:
+      - storageweb-data:/data
+
+configs:
+  caddyfile:
+    # Caddy ya redirige HTTP a HTTPS, usa solo TLS 1.2 y 1.3, no guarda en disco subidas ni descargas y
+    # sustituye X-Forwarded-For, -Proto y -Host. En una red interna, añade «tls internal» (o tu certificado)
+    # dentro del bloque del nombre: ver la plantilla.
+    content: |
+      ${STORAGEWEB_DOMAIN} {
+          # >= server.max_upload_mb: la unidad de red sube cada archivo en una sola petición
+          request_body {
+              max_size 2100MB
+          }
+          reverse_proxy storageweb:8080 {
+              # La subruta solo la dice el proxy: se quita la que mandara el cliente
+              header_up -X-Forwarded-Prefix
+              # Descargas y ZIP al momento, sin esperar a llenar un búfer
+              flush_interval -1
+          }
+      }
+
+secrets:
+  storageweb_admin_password:
+    file: ./admin_password.txt
+
+volumes:
+  storageweb-data:
+  caddy-data:
+  caddy-config:

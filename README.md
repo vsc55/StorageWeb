@@ -18,7 +18,7 @@ sudo storageweb-admin user-add admin --role admin
 # Docker
 docker run -d -p 8080:8080 -v storageweb-data:/data \
   -e STORAGEWEB_ADMIN_USER=admin -e STORAGEWEB_ADMIN_PASSWORD='una-clave-larga' \
-  ghcr.io/<owner>/<repo>:latest
+  ghcr.io/vsc55/storageweb:latest
 ```
 
 En producción, ponlo detrás de un proxy con HTTPS ([guía](docs/administracion/https.md)).

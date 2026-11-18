@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: StorageWeb VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-17 22:31+0100\n"
+"POT-Creation-Date: 2026-11-18 22:51+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -50,7 +50,7 @@ msgstr "RUTA"
 msgid "Path to config.json (default $STORAGEWEB_CONFIG, then /etc/storageweb/config.json)"
 msgstr "Ruta a config.json (por defecto $STORAGEWEB_CONFIG, luego /etc/storageweb/config.json)"
 
-#: storageweb/cli/__init__.py storageweb/cli/server.py
+#: storageweb/cli/__init__.py storageweb/cli/server.py storageweb/cli/service.py
 #, python-format
 msgid "Configuration error: %(error)s"
 msgstr "Error de configuración: %(error)s"
@@ -400,6 +400,152 @@ msgstr "Con --dev, sin recarga (para depurar)"
 #: storageweb/cli/server.py
 msgid "Start the web server"
 msgstr "Arranca el servidor web"
+
+#: storageweb/cli/service.py
+msgid "install, remove, start, stop or status"
+msgstr "install, remove, start, stop o status"
+
+#: storageweb/cli/service.py
+msgid "Name of the service (default StorageWeb)"
+msgstr "Nombre del servicio (por defecto StorageWeb)"
+
+#: storageweb/cli/service.py
+msgid ""
+"Account that runs it: «virtual» (default: NT SERVICE\\<name>, with access only to the folders it "
+"needs) or LocalSystem (full access to the computer)"
+msgstr ""
+"Cuenta que lo ejecuta: «virtual» (por defecto: NT SERVICE\\<nombre>, con acceso solo a las "
+"carpetas que necesita) o LocalSystem (acceso total al equipo)"
+
+#: storageweb/cli/service.py
+#, python-format
+msgid "Log: %(path)s"
+msgstr "Registro: %(path)s"
+
+#: storageweb/cli/service.py
+msgid ""
+"The Python from the Microsoft Store cannot run services: install it from python.org (or with the "
+"Python install manager) and create the venv again."
+msgstr ""
+"El Python de la Microsoft Store no puede ejecutar servicios: instálalo desde python.org (o con el"
+" instalador de Python) y vuelve a crear el venv."
+
+#: storageweb/cli/service.py
+#, python-format
+msgid "The service %(name)s already exists. Remove it first: storageweb service remove"
+msgstr "El servicio %(name)s ya existe. Quítalo antes: storageweb service remove"
+
+#: storageweb/cli/service.py
+#, python-format
+msgid "«%(command)s» failed: %(output)s"
+msgstr "«%(command)s» ha fallado: %(output)s"
+
+#: storageweb/cli/service.py
+#, python-format
+msgid "Service %(name)s installed: it starts with the computer and restarts if it stops."
+msgstr "Servicio %(name)s instalado: arranca con el equipo y se reinicia si se para."
+
+#: storageweb/cli/service.py
+#, python-format
+msgid "Could not give %(account)s access to %(path)s: %(output)s"
+msgstr "No se pudo dar a %(account)s acceso a %(path)s: %(output)s"
+
+#: storageweb/cli/service.py
+#, python-format
+msgid "  Read access: %(path)s"
+msgstr "  Lectura: %(path)s"
+
+#: storageweb/cli/service.py
+#, python-format
+msgid "  Write access: %(path)s"
+msgstr "  Escritura: %(path)s"
+
+#: storageweb/cli/service.py
+#, python-format
+msgid ""
+"Folders added later outside these (a shared folder on another disk) need the same access: icacls "
+"<folder> /grant \"%(account)s:(OI)(CI)M\""
+msgstr ""
+"Las carpetas que añadas después fuera de estas (una compartida en otro disco) necesitan el mismo "
+"acceso: icacls <carpeta> /grant \"%(account)s:(OI)(CI)M\""
+
+#: storageweb/cli/service.py
+#, python-format
+msgid ""
+"Warning: server.host is %(host)s. Behind Caddy, listen only on 127.0.0.1 so nobody can skip the "
+"proxy."
+msgstr ""
+"Aviso: server.host es %(host)s. Detrás de Caddy, escucha solo en 127.0.0.1 para que nadie pueda "
+"saltarse el proxy."
+
+#: storageweb/cli/service.py
+msgid "Start it with: storageweb service start"
+msgstr "Arráncalo con: storageweb service start"
+
+#: storageweb/cli/service.py
+#, python-format
+msgid "The service %(name)s is not installed."
+msgstr "El servicio %(name)s no está instalado."
+
+#: storageweb/cli/service.py
+#, python-format
+msgid "Service %(name)s removed. The access given to its account stays on the folders."
+msgstr "Servicio %(name)s quitado. El acceso que se dio a su cuenta sigue en las carpetas."
+
+#: storageweb/cli/service.py
+#, python-format
+msgid "The service %(name)s is not installed: storageweb service install"
+msgstr "El servicio %(name)s no está instalado: storageweb service install"
+
+#: storageweb/cli/service.py
+#, python-format
+msgid "Service %(name)s running."
+msgstr "Servicio %(name)s en marcha."
+
+#: storageweb/cli/service.py
+#, python-format
+msgid "The service %(name)s did not start."
+msgstr "El servicio %(name)s no ha arrancado."
+
+#: storageweb/cli/service.py
+#, python-format
+msgid "Service %(name)s stopped."
+msgstr "Servicio %(name)s parado."
+
+#: storageweb/cli/service.py
+#, python-format
+msgid "The service %(name)s is still stopping."
+msgstr "El servicio %(name)s aún se está parando."
+
+#: storageweb/cli/service.py
+#, python-format
+msgid "Service %(name)s: %(state)s"
+msgstr "Servicio %(name)s: %(state)s"
+
+#: storageweb/cli/service.py
+msgid "Windows service: install, remove, start, stop or status"
+msgstr "Servicio de Windows: instalar, quitar, arrancar, parar o ver su estado"
+
+#: storageweb/cli/service.py
+msgid "Only on Windows. On Linux the packages install the systemd service (storageweb.service)."
+msgstr "Solo en Windows. En Linux, los paquetes instalan el servicio de systemd (storageweb.service)."
+
+#: storageweb/cli/service.py
+msgid "Run it from a terminal opened as administrator."
+msgstr "Ejecútalo desde un terminal abierto como administrador."
+
+#: storageweb/cli/service.py
+#, python-format
+msgid "Configuration file not found: %(path)s (use --config)"
+msgstr "No se encuentra el fichero de configuración: %(path)s (usa --config)"
+
+#: storageweb/cli/service_host.py
+msgid ""
+"This program is started by the Windows service manager (storageweb service start). To run "
+"StorageWeb in a console: storageweb serve."
+msgstr ""
+"Este programa lo arranca el Administrador de servicios de Windows (storageweb service start). "
+"Para ejecutar StorageWeb en una consola: storageweb serve."
 
 #: storageweb/cli/users.py
 msgid "User name (for Entra ID, the UPN: juan@contoso.com)"
@@ -5792,10 +5938,10 @@ msgstr "Proxy inverso y HTTPS (config.json, requiere reiniciar)"
 #: storageweb/web/templates/admin/settings/network.html
 msgid ""
 "StorageWeb serves plain HTTP; HTTPS and the certificate are handled by the reverse proxy (nginx, "
-"Caddy, Traefik…)."
+"Apache, Caddy…)."
 msgstr ""
-"StorageWeb sirve HTTP sin cifrar; el HTTPS y el certificado los pone el proxy inverso (nginx, "
-"Caddy, Traefik…)."
+"StorageWeb sirve HTTP sin cifrar; el HTTPS y el certificado son cosa del proxy inverso (nginx, "
+"Apache, Caddy…)."
 
 #: storageweb/web/templates/admin/settings/network.html
 #: storageweb/web/templates/admin/settings/system.html
@@ -5828,6 +5974,32 @@ msgstr ""
 #: storageweb/web/templates/admin/settings/network.html
 msgid "Example for Caddy (automatic certificate)"
 msgstr "Ejemplo para Caddy (certificado automático)"
+
+#: storageweb/web/templates/admin/settings/network.html
+msgid ""
+"Caddy redirects HTTP to HTTPS, renews the certificate and sends the X-Forwarded headers by "
+"itself. Template with the certificate options for an internal network: "
+"/usr/share/storageweb/Caddyfile (in the repository, packaging/caddy/Caddyfile). It is also the "
+"way to use HTTPS on Windows; with Docker, packaging/docker/compose.caddy.yaml."
+msgstr ""
+"Caddy redirige HTTP a HTTPS, renueva el certificado y envía las cabeceras X-Forwarded por sí "
+"solo. Plantilla con las opciones del certificado para una red interna: "
+"/usr/share/storageweb/Caddyfile (en el repositorio, packaging/caddy/Caddyfile). Es también la "
+"forma de tener HTTPS en Windows; con Docker, packaging/docker/compose.caddy.yaml."
+
+#: storageweb/web/templates/admin/settings/network.html
+msgid "Example for Traefik in Docker (labels of the StorageWeb container)"
+msgstr "Ejemplo para Traefik en Docker (etiquetas del contenedor de StorageWeb)"
+
+#: storageweb/web/templates/admin/settings/network.html
+msgid ""
+"Traefik itself needs the entry points web and websecure, the certificate resolver «le», "
+"readTimeout=0 for large uploads through the network drive and the encoded characters allowed: the"
+" full file is packaging/docker/compose.traefik.yaml in the repository."
+msgstr ""
+"Traefik necesita además los puntos de entrada web y websecure, el resolvedor de certificados "
+"«le», readTimeout=0 para las subidas grandes por la unidad de red y los caracteres codificados "
+"permitidos: el fichero completo es packaging/docker/compose.traefik.yaml, en el repositorio."
 
 #: storageweb/web/templates/admin/settings/permissions.html
 msgid "Permissions of the «User» role"

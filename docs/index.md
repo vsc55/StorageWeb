@@ -33,7 +33,7 @@ StorageWeb es un servidor web para **subir y descargar archivos** desde el naveg
     ```bash
     docker run -d -p 8080:8080 -v storageweb-data:/data \
       -e STORAGEWEB_ADMIN_USER=admin -e STORAGEWEB_ADMIN_PASSWORD='una-clave-larga' \
-      ghcr.io/<owner>/<repo>:latest
+      ghcr.io/vsc55/storageweb:latest
     ```
 
 === "Windows / macOS"
@@ -47,4 +47,4 @@ StorageWeb es un servidor web para **subir y descargar archivos** desde el naveg
 Después, entra con el usuario admin y abre el **Resumen** de la administración (o pulsa Ctrl+K para buscar un ajuste).
 
 !!! warning "HTTPS"
-    En producción pon delante un proxy con HTTPS ([guía de nginx o Apache](administracion/https.md)). Sin HTTPS, la cookie de sesión no se envía (`session.cookie_secure`) y Microsoft Entra ID rechaza la URL de vuelta.
+    En producción pon delante un proxy con HTTPS ([guía de nginx, Apache o Caddy](administracion/https.md); en Windows, [Caddy](administracion/windows.md)). Sin HTTPS, la cookie de sesión no se envía (`session.cookie_secure`) y Microsoft Entra ID rechaza la URL de vuelta.

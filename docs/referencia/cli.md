@@ -19,6 +19,7 @@ storageweb [--config RUTA] <comando> [opciones]
 | Comando | Descripción |
 |---|---|
 | [`serve`](#serve) | Arranca el servidor web |
+| [`service`](#service) | Servicio de Windows: instalar, quitar, arrancar, parar o ver su estado |
 | [`init-db`](#init-db) | Crea la base de datos o aplica las migraciones pendientes |
 | [`user-add`](#user-add) | Crea un usuario (local por defecto) |
 | [`user-passwd`](#user-passwd) | Cambia la contraseña de un usuario local |
@@ -55,6 +56,20 @@ storageweb serve [--host HOST] [--port PORT] [--dev] [--no-reload]
 | `--port` `PORT` | Sobrescribe server.port |
 | `--dev` | Desarrollo: depurador y recarga automática |
 | `--no-reload` | Con --dev, sin recarga (para depurar) |
+
+### `service` {#service}
+
+Servicio de Windows: instalar, quitar, arrancar, parar o ver su estado.
+
+```
+storageweb service <action> [--name NAME] [--account ACCOUNT]
+```
+
+| Argumento | Descripción |
+|---|---|
+| `action` | install, remove, start, stop o status Valores: `install`, `remove`, `start`, `stop`, `status`. |
+| `--name` `NAME` | Nombre del servicio (por defecto StorageWeb) Por defecto: `StorageWeb`. |
+| `--account` `ACCOUNT` | Cuenta que lo ejecuta: «virtual» (por defecto: NT SERVICE\<nombre>, con acceso solo a las carpetas que necesita) o LocalSystem (acceso total al equipo) Valores: `virtual`, `LocalSystem`. Por defecto: `virtual`. |
 
 ### `init-db` {#init-db}
 

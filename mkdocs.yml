@@ -56,7 +56,8 @@ nav:
       - Instalación: administracion/instalacion.md
       - Docker: administracion/docker.md
       - Gentoo: administracion/gentoo.md
-      - HTTPS con nginx o Apache: administracion/https.md
+      - HTTPS con nginx, Apache o Caddy: administracion/https.md
+      - Windows: administracion/windows.md
       - Configuración: administracion/configuracion.md
       - Microsoft Entra ID: administracion/entra-id.md
       - Usuarios, roles y permisos: administracion/usuarios-y-permisos.md
@@ -97,6 +98,7 @@ nav:
           - 0016 Conectar aplicaciones con el navegador: arquitectura/decisiones/0016-conectar-aplicaciones-con-el-navegador.md
           - 0017 Ajustes web por campo: arquitectura/decisiones/0017-ajustes-web-por-campo.md
           - 0018 Carpetas y ubicaciones como entidades: arquitectura/decisiones/0018-carpetas-y-ubicaciones-como-entidades.md
+          - 0019 Servicio de Windows y Caddy: arquitectura/decisiones/0019-windows-servicio-y-caddy.md
           - Plantilla: arquitectura/decisiones/plantilla.md
   - Desarrollo:
       - desarrollo/index.md

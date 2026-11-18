@@ -130,6 +130,18 @@ def test_apache_example_with_the_configured_values(make_app):
 
 
 
+def test_traefik_example_with_a_subpath(make_app):
+    """Bajo una subruta, Traefik quita la del cliente y luego stripprefix pone la buena (en ese orden)."""
+    app = make_app({"network": {"public_url": "www.example.com/archivos"}})
+    add_user(app, "root", role="admin")
+    client = app.test_client()
+    login(client, "root")
+    html = client.get("/admin/settings/network").get_data(as_text=True)
+    assert "Host(`www.example.com`) &amp;&amp; PathPrefix(`/archivos`)" in html
+    assert "routers.storageweb.middlewares=storageweb-noprefix,storageweb-prefix" in html
+    assert "storageweb-prefix.stripprefix.prefixes=/archivos" in html
+
+
 def test_proxy_examples_never_pass_a_client_prefix(make_app):
     """Sin subruta, los ejemplos quitan la X-Forwarded-Prefix que pudiera mandar el cliente; con subruta, la ponen."""
     app = make_app({"network": {"public_url": "files.example.com"}})
@@ -140,6 +152,7 @@ def test_proxy_examples_never_pass_a_client_prefix(make_app):
     assert 'proxy_set_header X-Forwarded-Prefix "";' in html                  # nginx
     assert "RequestHeader unset X-Forwarded-Prefix" in html                    # Apache
     assert "header_up -X-Forwarded-Prefix" in html                             # Caddy
+    assert "customrequestheaders.X-Forwarded-Prefix=" in html                  # Traefik
     assert "ssl_protocols TLSv1.2 TLSv1.3;" in html and "SSLProtocol -all +TLSv1.2 +TLSv1.3" in html
     assert "server_tokens off;" in html and "ServerSignature Off" in html
 

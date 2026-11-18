@@ -2,8 +2,8 @@
 
 ## Lista de comprobación
 
-- [ ] **HTTPS** con un proxy inverso ([nginx o Apache](https.md)) y `session.cookie_secure = true`.
-- [ ] El proxy solo acepta TLS 1.2 y 1.3, no anuncia su versión y quita la cabecera `X-Forwarded-Prefix` que mande el cliente (las plantillas de [nginx y Apache](https.md) ya lo hacen).
+- [ ] **HTTPS** con un proxy inverso ([nginx, Apache o Caddy](https.md)) y `session.cookie_secure = true`.
+- [ ] El proxy solo acepta TLS 1.2 y 1.3, no anuncia su versión y quita la cabecera `X-Forwarded-Prefix` que mande el cliente (las plantillas de [nginx, Apache y Caddy](https.md) ya lo hacen).
 - [ ] `server.host = 127.0.0.1` y `server.behind_proxy = true`, de modo que la aplicación solo sea accesible a través del proxy.
 - [ ] El cortafuegos solo expone 443 (y 80 para la redirección). El 8080 no debe ser accesible desde fuera.
 - [ ] `/etc/storageweb/config.json` en `root:storageweb 0640`. Si pones secretos en él (el `client_secret`, contraseñas de ubicaciones), cífralos con `storageweb-admin encrypt-secret` o pásalos por variables de entorno.

@@ -73,14 +73,14 @@ def test_dockerfile_and_entrypoint():
     assert "--password-stdin" in entry and 'exec storageweb "$@"' in entry
 
 
-@pytest.mark.parametrize("proxy", ["nginx", "apache"])
-def test_proxy_templates_are_shipped_everywhere(proxy):
-    """Las plantillas de proxy (nginx y Apache) van en los paquetes, en el ebuild de Gentoo y en install.sh."""
-    assert (PKG / proxy / "storageweb.conf").is_file()
-    shipped = f"packaging/{proxy}/storageweb.conf"
+@pytest.mark.parametrize("template", ["nginx/storageweb.conf", "apache/storageweb.conf", "caddy/Caddyfile"])
+def test_proxy_templates_are_shipped_everywhere(template):
+    """Las plantillas de proxy (nginx, Apache y Caddy) van en los paquetes, en el ebuild de Gentoo y en install.sh."""
+    assert (PKG / template).is_file()
+    shipped = f"packaging/{template}"
     assert shipped in (PKG / "nfpm.yaml").read_text(encoding="utf-8")
     assert shipped in (PKG / "gentoo" / "www-apps" / "storageweb" / "storageweb.ebuild.in").read_text(encoding="utf-8")
-    assert f'"$PKG/{proxy}/storageweb.conf"' in (PKG / "install.sh").read_text(encoding="utf-8")
+    assert f'"$PKG/{template}"' in (PKG / "install.sh").read_text(encoding="utf-8")
 
 
 def test_apache_template_essentials():
@@ -95,6 +95,56 @@ def test_apache_template_essentials():
     for directive in ("RequestHeader unset X-Forwarded-Prefix", "SSLProtocol -all +TLSv1.2 +TLSv1.3",
                       "ServerSignature Off", "ErrorLog", "CustomLog"):
         assert directive in conf, directive
+
+
+def test_caddy_template_essentials():
+    """Lo que Caddy no hace solo: tamaño máximo, quitar la subruta del cliente y no retener las descargas."""
+    conf = (PKG / "caddy" / "Caddyfile").read_text(encoding="utf-8")
+    for directive in ("reverse_proxy 127.0.0.1:8080", "header_up -X-Forwarded-Prefix", "flush_interval -1",
+                      "max_size", "tls internal"):
+        assert directive in conf, directive
+
+
+def test_caddy_compose_essentials():
+    """compose.caddy.yaml: Caddy con el Caddyfile dentro, StorageWeb sin puerto publicado y detrás del proxy."""
+    import yaml
+
+    compose = yaml.safe_load((PKG / "docker" / "compose.caddy.yaml").read_text(encoding="utf-8"))
+    caddy, app = compose["services"]["caddy"], compose["services"]["storageweb"]
+    assert caddy["configs"] == [{"source": "caddyfile", "target": "/etc/caddy/Caddyfile"}]
+    caddyfile = compose["configs"]["caddyfile"]["content"]
+    for directive in ("${STORAGEWEB_DOMAIN} {", "reverse_proxy storageweb:8080", "header_up -X-Forwarded-Prefix",
+                      "flush_interval -1", "max_size"):
+        assert directive in caddyfile, directive
+    assert caddyfile.count("{") == caddyfile.count("}")
+    assert "ports" not in app and app["environment"]["STORAGEWEB_BEHIND_PROXY"] == "true"
+    assert "caddy-data:/data" in caddy["volumes"]                # los certificados sobreviven
+    assert app["image"] == "ghcr.io/vsc55/storageweb:latest" and "build" not in app   # sin el código
+
+
+def test_traefik_compose_essentials():
+    """compose.traefik.yaml: HTTPS con Traefik sin publicar StorageWeb, subidas grandes (readTimeout), nombres con
+    caracteres codificados y la subruta del cliente quitada."""
+    import yaml
+
+    compose = yaml.safe_load((PKG / "docker" / "compose.traefik.yaml").read_text(encoding="utf-8"))
+    traefik, app = compose["services"]["traefik"], compose["services"]["storageweb"]
+    flags = set(traefik["command"])
+    for flag in ("--providers.docker.exposedByDefault=false",
+                 "--entryPoints.web.http.redirections.entryPoint.to=websecure",
+                 "--entryPoints.websecure.transport.respondingTimeouts.readTimeout=0",
+                 "--entryPoints.websecure.http.encodedCharacters.allowEncodedPercent=true",
+                 "--entryPoints.websecure.http.encodedCharacters.allowEncodedHash=true",
+                 "--entryPoints.websecure.http.encodedCharacters.allowEncodedQuestionMark=true"):
+        assert flag in flags, flag
+    assert "/var/run/docker.sock:/var/run/docker.sock:ro" in traefik["volumes"]
+    assert "ports" not in app                                    # solo a través de Traefik
+    assert app["environment"]["STORAGEWEB_BEHIND_PROXY"] == "true"
+    labels = set(app["labels"])
+    assert "traefik.http.middlewares.storageweb-noprefix.headers.customrequestheaders.X-Forwarded-Prefix=" in labels
+    assert "traefik.http.routers.storageweb.middlewares=storageweb-noprefix" in labels
+    assert "traefik.http.services.storageweb.loadbalancer.server.port=8080" in labels
+    assert app["image"] == "ghcr.io/vsc55/storageweb:latest" and "build" not in app   # sin el código
 
 
 def test_nginx_template_essentials():

@@ -31,6 +31,16 @@ def waitress_options(srv: dict) -> dict:
             "clear_untrusted_proxy_headers": not srv["behind_proxy"]}
 
 
+def create_waitress(app, host: str | None = None, port: int | None = None):
+    """El servidor Waitress de ``app`` sin arrancarlo (``.run()``): lo usa el servicio de Windows, que lo
+    para desde otro hilo (``cli/service_host.py``)."""
+    from waitress.server import create_server
+
+    srv = app.config["SW"]["server"]
+    return create_server(app, host=host or srv["host"], port=srv["port"] if port is None else port,
+                         **waitress_options(srv))
+
+
 @command("serve", _l("Start the web server"), _serve_args, needs_db=False, order=10)
 def cmd_serve(args) -> int:
     from .. import create_app

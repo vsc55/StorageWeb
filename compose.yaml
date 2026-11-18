@@ -1,11 +1,15 @@
 # docker compose up -d   →  http://localhost:8080
 #
-# En producción pon delante un proxy con HTTPS (Traefik, Caddy, nginx…); Entra ID lo exige.
+# Para desarrollo: compila la imagen con el código de este repositorio.
+# En producción pon delante un proxy con HTTPS (Entra ID lo exige). Listos para usar, sin el código:
+#   packaging/docker/compose.caddy.yaml     (lo más sencillo)
+#   packaging/docker/compose.traefik.yaml
+# Ver docs/administracion/docker.md.
 # Para probar en http://localhost sin HTTPS: STORAGEWEB_COOKIE_SECURE=false y STORAGEWEB_BEHIND_PROXY=false
 # (solo se aplican al generar /data/config.json la primera vez).
 services:
   storageweb:
-    image: ghcr.io/OWNER/storageweb:latest   # o compílala en local con "build: ."
+    image: ghcr.io/vsc55/storageweb:latest   # sin «build», usa la publicada
     build: .
     restart: unless-stopped
     ports:

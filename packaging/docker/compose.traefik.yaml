@@ -1,0 +1,77 @@
+# StorageWeb con Traefik delante: HTTPS con certificado de Let's Encrypt, que Traefik pide y renueva solo.
+#
+# Se usa solo, sin el código: en una carpeta vacía del servidor,
+#   0. curl -fLO https://raw.githubusercontent.com/vsc55/StorageWeb/master/packaging/docker/compose.traefik.yaml
+#   1. Un .env junto a este fichero:
+#        STORAGEWEB_DOMAIN=files.midominio.com
+#        ACME_EMAIL=admin@midominio.com          (opcional)
+#   2. printf 'una-clave-larga' > admin_password.txt
+#   3. docker compose -f compose.traefik.yaml up -d
+#
+# El nombre tiene que apuntar a este equipo y los puertos 80 y 443 tienen que llegar desde internet (Let's
+# Encrypt lo comprueba). Explicación de cada línea: docs/administracion/docker.md, sección «Con Traefik».
+services:
+  traefik:
+    image: traefik:v3   # 3.6.4 o posterior: las opciones de encodedCharacters no existen antes
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      # Solo los contenedores con la etiqueta traefik.enable=true
+      - --providers.docker.exposedByDefault=false
+      - --entryPoints.web.address=:80
+      - --entryPoints.web.http.redirections.entryPoint.to=websecure
+      - --entryPoints.web.http.redirections.entryPoint.scheme=https
+      - --entryPoints.websecure.address=:443
+      # Traefik 3 corta a los 60 s la lectura de una petición entera: la unidad de red (WebDAV) sube cada
+      # archivo en una sola petición y uno grande no cabe. 0 = sin límite (o un valor grande, p. ej. 2h)
+      - --entryPoints.websecure.transport.respondingTimeouts.readTimeout=0
+      # Nombres de archivo con %, ?, # o ; (llegan codificados: %25, %3F, %23, %3B). Algunas versiones de
+      # Traefik los rechazan por defecto; StorageWeb valida cada ruta por su cuenta
+      - --entryPoints.websecure.http.encodedCharacters.allowEncodedPercent=true
+      - --entryPoints.websecure.http.encodedCharacters.allowEncodedQuestionMark=true
+      - --entryPoints.websecure.http.encodedCharacters.allowEncodedHash=true
+      - --entryPoints.websecure.http.encodedCharacters.allowEncodedSemicolon=true
+      - --certificatesResolvers.le.acme.email=${ACME_EMAIL:-}
+      - --certificatesResolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesResolvers.le.acme.tlsChallenge=true
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Traefik lee de Docker qué contenedores publicar. Aun en solo lectura, quien controle Traefik
+      # controla Docker: ver la guía (proxy del socket)
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-certs:/letsencrypt
+
+  storageweb:
+    image: ghcr.io/vsc55/storageweb:latest
+    restart: unless-stopped
+    # Sin «ports»: solo se llega a través de Traefik. Con behind_proxy, abrir el puerto dejaría falsear la IP
+    environment:
+      STORAGEWEB_ADMIN_USER: admin
+      STORAGEWEB_ADMIN_PASSWORD_FILE: /run/secrets/storageweb_admin_password
+      STORAGEWEB_BEHIND_PROXY: "true"
+      STORAGEWEB_COOKIE_SECURE: "true"
+      STORAGEWEB_PUBLIC_URL: ${STORAGEWEB_DOMAIN:?define STORAGEWEB_DOMAIN en .env}
+    secrets:
+      - storageweb_admin_password
+    volumes:
+      - storageweb-data:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.storageweb.rule=Host(`${STORAGEWEB_DOMAIN}`)"
+      - "traefik.http.routers.storageweb.entrypoints=websecure"
+      - "traefik.http.routers.storageweb.tls.certresolver=le"
+      - "traefik.http.routers.storageweb.middlewares=storageweb-noprefix"
+      # La subruta solo la dice el proxy: vacía = se quita la que mandara el cliente (la aplicación la
+      # usaría en sus enlaces)
+      - "traefik.http.middlewares.storageweb-noprefix.headers.customrequestheaders.X-Forwarded-Prefix="
+      - "traefik.http.services.storageweb.loadbalancer.server.port=8080"
+
+secrets:
+  storageweb_admin_password:
+    file: ./admin_password.txt
+
+volumes:
+  storageweb-data:
+  traefik-certs:
