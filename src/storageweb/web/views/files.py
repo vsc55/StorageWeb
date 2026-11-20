@@ -6,23 +6,24 @@ from __future__ import annotations
 
 import secrets
 from datetime import datetime, timezone
-from urllib.parse import quote
+from urllib.parse import quote, unquote, urlsplit
 
-from flask import (Blueprint, Response, abort, current_app, flash, g, jsonify, redirect, render_template, request,
-                   stream_with_context, url_for)
+from flask import (Blueprint, Response, abort, current_app, flash, g, jsonify, make_response, redirect,
+                   render_template, request, stream_with_context, url_for)
+from markupsafe import Markup, escape
 
 from ... import patterns
 from ... import metrics
-from ...core import backends, storage, tokens
+from ...core import backends, markdown, preview, storage, tokens
 from ...core import files as files_core
 from ...core import quota
 from ...core.permissions import PERMISSION_LABELS, effective_for_root, permissions_for
 from ...core.security import UPLOAD_TMP_PREFIX, PathError, safe_filename
 from ...db.repositories import audit
-from ...i18n import _, ngettext
+from ...i18n import _, format_datetime, format_size, ngettext
 from ..context import boot_config, get_db, settings
 from ..downloads import SANDBOX, send_entry
-from ..guards import client_ip, login_required, safe_next
+from ..guards import client_ip, login_required, safe_next, with_token
 
 bp = Blueprint("files", __name__)
 
@@ -65,7 +66,12 @@ def _require(root: dict, perm: str) -> None:
 
 def _audit(action: str, root: dict, rel: str, detail: str | None = None) -> None:
     audit.log(get_db(), action, f"{root['name']}:/{rel}", username=g.user["username"], ip=client_ip(),
-              detail=detail)
+              detail=with_token(detail))
+
+
+def _viewable(name: str) -> bool:
+    """Si el archivo se abre en el visor (según ``preview.*``); para las plantillas del explorador y la búsqueda."""
+    return preview.kind_of(name, settings()["preview"]) is not None
 
 
 def _wants_json() -> bool:
@@ -126,7 +132,7 @@ def browse(root, sub):
                            tree=storage.folder_tree(r, rel, settings()["storage"]["show_hidden"], hidden, entries),
                            space=storage.space_of(r, rel), quota_status=quota.status(r),
                            perms=_perms(r), max_upload_mb=boot_config()["server"]["max_upload_mb"],
-                           sort=sort, descending=descending,
+                           sort=sort, descending=descending, viewable=_viewable,
                            max_file_size_mb=settings()["storage"]["max_file_size_mb"])
 
 
@@ -141,6 +147,118 @@ def download(root, sub):
         abort(404)
     _audit("download", r, rel)
     return send_entry(r, rel, entry)
+
+
+# --------------------------------------------------------------------------- visor (texto y Markdown)
+
+def _md_link(root: dict, rel: str):
+    """Dirección de un enlace del documento: http(s) y mailto tal cual; una ruta de la misma raíz, al visor o
+    a la descarga; cualquier otra cosa (``javascript:``, ``data:``, otro servidor sin esquema, fuera de la
+    raíz, oculto), ``None``: se ve el texto sin enlace."""
+    def link(url: str) -> str | None:
+        parts = urlsplit(url)
+        if parts.scheme.lower() in ("http", "https", "mailto"):
+            return url
+        if parts.scheme or url.startswith("//"):
+            return None
+        target = preview.resolve(rel, url)
+        if target is None or storage.is_hidden(settings(), target):
+            return None
+        kind = preview.kind_of(target, settings()["preview"])
+        if kind is None:
+            return url_for("files.download", root=root["name"], sub=target)
+        anchor = f"#{markdown.HEADING_PREFIX}{markdown.slug(unquote(parts.fragment))}" \
+            if parts.fragment and kind == "markdown" else ""
+        return url_for("files.view", root=root["name"], sub=target) + anchor
+    return link
+
+
+def _md_image(root: dict, rel: str):
+    """Solo imágenes de la misma raíz: las de fuera no se cargan (dirían a un tercero quién lee el documento)."""
+    def image(url: str) -> str | None:
+        parts = urlsplit(url)
+        if parts.scheme or url.startswith("//"):
+            return None
+        target = preview.resolve(rel, url)
+        if target is None or not preview.is_image(target) or storage.is_hidden(settings(), target):
+            return None
+        return url_for("files.download", root=root["name"], sub=target)
+    return image
+
+
+@bp.route("/diagram-frame")
+def diagram_frame():
+    """La página del marco aislado donde Mermaid dibuja un diagrama del visor. No lleva datos (el código llega
+    por postMessage) ni necesita sesión. Su CSP la convierte en un origen opaco (``sandbox allow-scripts``):
+    un fallo de Mermaid no alcanzaría las cookies ni la página. ``'self'`` y el origen explícito porque en un
+    documento aislado algunos navegadores no casan ``'self'``."""
+    options = settings()["preview"]
+    if not (options["enabled"] and options["diagrams"]):
+        abort(404)    # desactivados: Mermaid no llega al navegador
+    origin = request.host_url.rstrip("/")
+    rv = make_response(render_template("diagram_frame.html", dark=request.args.get("dark") == "1"))
+    rv.headers["Content-Security-Policy"] = (
+        f"sandbox allow-scripts; default-src 'none'; script-src 'self' {origin}; style-src 'unsafe-inline'; "
+        f"img-src data:; font-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'; "
+        f"frame-ancestors 'self' {origin}")
+    rv.headers["X-Frame-Options"] = "SAMEORIGIN"
+    return rv
+
+
+@bp.route("/view/<root>/<path:sub>")
+@login_required
+def view(root, sub):
+    """El archivo en el navegador: Markdown renderizado (o su código) y texto con números de línea. Nunca HTML
+    del usuario: el Markdown pasa por ``core/markdown.py`` y el HTML y el SVG se ven como código."""
+    r = _root(root)
+    _require(r, "download")
+    rel = _rel(sub)
+    entry = _stat(r, rel)
+    if entry is None or entry.is_dir:
+        abort(404)
+    options = settings()["preview"]
+    name = backends.name_of(rel)
+    kind = preview.kind_of(name, options)
+    if kind is None:     # visor desactivado, extensión fuera de la lista o bloqueada: se descarga
+        return redirect(url_for("files.download", root=root, sub=rel))
+    source = kind != "markdown" or request.args.get("source") == "1"
+    try:
+        content = preview.read_text(r["backend"], rel, entry.size, limit=options["max_mb"] * 1024 * 1024)
+    except FileNotFoundError:
+        abort(404)
+    except backends.BackendError as exc:
+        abort(502, description=exc.message)
+    rendered = None
+    if content.text is not None:
+        _audit("download", r, rel, "view")
+        if not source:
+            try:
+                rendered = markdown.render(content.text, link=_md_link(r, rel), image=_md_image(r, rel))
+            except Exception:  # noqa: BLE001 — un documento raro no puede romper el visor: se ve su código
+                current_app.logger.exception("Could not render %s:/%s as Markdown", r["name"], rel)
+                source = True
+    parent = "/".join(rel.split("/")[:-1])
+    try:
+        siblings = storage.list_directory(r, parent, settings()["storage"]["show_hidden"],
+                                          hidden=patterns.of(settings()))
+    except (PermissionError, backends.BackendError):
+        siblings = []
+    previous, following = preview.neighbours(siblings, rel, options)
+    is_log = preview.extension(name) in preview.LOG
+    lines = content.lines if source else []
+    # Las líneas, ya escapadas, en Python: un bucle de la plantilla por línea es varias veces más lento
+    lines_html = Markup("".join(
+        f'<li class="lvl-{level}">{escape(line)}</li>' if (level := preview.log_level(line) if is_log else "")
+        else f"<li>{escape(line)}</li>" for line in lines))
+    return render_template(
+        "view.html", root=r, rel=rel, name=name, parent=parent, crumbs=storage.breadcrumbs(parent), kind=kind,
+        ext=preview.extension(name), size=format_size(entry.size),
+        mtime=format_datetime(datetime.fromtimestamp(entry.mtime)) if entry.mtime else "",
+        content=content, source=source, lines=lines, lines_html=lines_html,
+        html=Markup(rendered.html) if rendered else None,   # seguro: lo genera core/markdown (todo escapado)
+        toc=rendered.toc if rendered else [],
+        diagrams=rendered.diagrams if rendered and options["diagrams"] else 0,   # desactivados: se ve el código
+        previous=previous, following=following, max_mb=options["max_mb"])
 
 
 @bp.route("/upload/<root>/", defaults={"sub": ""}, methods=["POST"])
@@ -426,5 +544,5 @@ def search():
              "size": i["bytes"], "modified": datetime.fromtimestamp(i["ts"], timezone.utc).isoformat(timespec="seconds")}
             for i in result.items])
     perms = {r["name"]: _perms(r) for r in roots}
-    return render_template("search.html", query=query, result=result, scope=scope, perms=perms,
+    return render_template("search.html", query=query, result=result, scope=scope, perms=perms, viewable=_viewable,
                            limit=SEARCH_LIMIT)

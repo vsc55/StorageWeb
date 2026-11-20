@@ -306,10 +306,10 @@
       details.mtime.textContent = r.dataset.mtime;
       details.icon.querySelector("use").setAttribute("href", isDir(r) ? "#i-folder" : "#i-file");
       details.icon.setAttribute("class", "icon icon-xl " + (isDir(r) ? "folder-icon" : "file-icon"));
-      details.open.hidden = !isDir(r);
-      details.open.setAttribute("href", isDir(r) ? r.dataset.href : "#");
+      details.open.hidden = !isDir(r) && !r.dataset.view;     // carpetas y archivos que se ven en el visor
+      details.open.setAttribute("href", isDir(r) ? r.dataset.href : (r.dataset.view || "#"));
       if (details.download) {
-        var link = isDir(r) ? r.dataset.zip : r.dataset.href;  // una carpeta se descarga como ZIP
+        var link = isDir(r) ? r.dataset.zip : r.dataset.download;  // una carpeta se descarga como ZIP
         details.download.hidden = !link;
         details.download.setAttribute("href", link || "#");
       }
@@ -361,7 +361,7 @@
   // ------------------------------------------------------------------ descargar (uno, o varios como ZIP)
 
   function downloadMany(sel) {
-    if (sel.length === 1 && !isDir(sel[0]) && sel[0].dataset.href) { window.location.href = sel[0].dataset.href; return; }
+    if (sel.length === 1 && !isDir(sel[0]) && sel[0].dataset.download) { window.location.href = sel[0].dataset.download; return; }
     if (sel.length === 1 && sel[0].dataset.zip) { window.location.href = sel[0].dataset.zip; return; }
     var f = document.getElementById("zip-form");
     if (!f) return;

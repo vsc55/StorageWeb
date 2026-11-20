@@ -1,0 +1,19 @@
+<!doctype html>
+{# Marco aislado de un diagrama del visor (files.diagram_frame): CSP «sandbox allow-scripts», así que corre en un
+   origen opaco, sin las cookies ni la página de la aplicación. Recibe el código por postMessage (viewer.js) y
+   devuelve solo su altura. No extiende base.html: no lleva nada de la aplicación. #}
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="{{ 'dark' if dark else 'light' }}">
+<title>Diagram</title>
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; }
+  #out { display: flex; justify-content: center; padding: 8px 0; }
+  #out svg { max-width: 100%; height: auto; }
+</style>
+<script src="{{ url_for('static', filename='vendor/mermaid/mermaid.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/diagram-frame.js') }}"></script>
+</head>
+<body data-dark="{{ '1' if dark else '0' }}"><div id="out"></div></body>
+</html>

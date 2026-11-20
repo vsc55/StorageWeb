@@ -242,6 +242,38 @@ FIELDS: dict[str, Field] = {
         label=_l("Two-step verification required for"),
         page="auth",
         words="mfa 2fa totp verificación dos pasos segundo factor autenticador authenticator two-step"),
+    "preview.enabled": Field(
+        doc=("Abrir en el navegador, sin descargarlos, los archivos de texto y Markdown (doble clic en el explorador). "
+             "Desactivado, todos se descargan como cualquier otro archivo."),
+        label=_l("Open text and Markdown files in the browser"),
+        page="preview",
+        words="visor vista previa ver abrir markdown texto preview viewer"),
+    "preview.diagrams": Field(
+        doc=("Dibujar los diagramas `mermaid` de los `.md` (con Mermaid, en un marco aislado del resto de la página). "
+             "Desactivado, se ve su código y Mermaid no se descarga."),
+        label=_l("Draw Mermaid diagrams"),
+        page="preview",
+        words="diagramas mermaid gráficos diagrams"),
+    "preview.max_mb": Field(
+        doc="Tamaño máximo, en MB, de un archivo para verse en el navegador (de 1 a 20); más grande, se descarga.",
+        label=_l("Largest file to view (MB)"),
+        page="preview",
+        words="tamaño máximo visor size limit"),
+    "preview.extensions": Field(
+        doc=("Extensiones (sin el punto) que se abren en el visor: la lista entera. De serie, Markdown (`md`…, con "
+             "formato), HTML y SVG (`html`, `svg`…, siempre como código), texto y datos (`txt`, `log`, `csv`, `json`, "
+             "`yml`…) y código (`py`, `js`, `ps1`, `sh`, `sql`…). Si la cambias, se guarda la tuya entera; "
+             "*Restablecer* vuelve a la de serie. Archivos como `README` o `Dockerfile` se abren siempre."),
+        label=_l("Extensions that open in the viewer"),
+        page="preview",
+        words="extensiones texto código markdown abrir extensions"),
+    "preview.blocked_extensions": Field(
+        doc=("Extensiones que nunca se abren en el visor, aunque estén en la lista anterior: se descargan. De serie, "
+             "archivos de texto que suelen guardar secretos o claves: `asc`, `env`, `key`, `pem` y `ppk`. Un archivo "
+             "sin extensión que empieza por punto cuenta como si lo fuera: `.env` se bloquea con `env`."),
+        label=_l("Never open in the viewer"),
+        page="preview",
+        words="extensiones bloquear excluir nunca descargar block exclude"),
     "maintenance.audit_retention_days": Field(
         doc="Días que se conserva la auditoría; `0` = siempre. La limpieza se hace una vez al día.",
         label=_l("Keep the audit log (days)"),

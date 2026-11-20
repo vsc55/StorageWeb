@@ -30,6 +30,7 @@ from .defaults import DEFAULTS, LOGIN_ART_CHOICES, MFA_POLICIES, PERMISSIONS, RU
 
 SHARE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 PROFILE_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+PREVIEW_MAX_MB = 20         # preview.max_mb: el visor lee el archivo entero en memoria y lo pinta en la página
 
 
 def default_config_path() -> Path:
@@ -80,7 +81,7 @@ def _resolve(base_dir: Path, value: str) -> Path:
 def _field_path(field: str) -> str | None:
     """Ruta completa del ajuste a partir del nombre que usan los mensajes («storage.shares»)."""
     if field.startswith(("storage.", "security.", "auth.", "network.", "server.", "maintenance.", "branding.",
-                         "metrics.")):
+                         "metrics.", "preview.")):
         return field
     return "storage.shares" if "." in field else None
 
@@ -343,6 +344,21 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     maint["backup_interval_hours"] = _non_negative_int(maint["backup_interval_hours"],
                                                        "maintenance.backup_interval_hours")
     maint["backup_keep"] = _positive_int(maint["backup_keep"], "maintenance.backup_keep")
+
+    # --- visor
+    view = cfg["preview"]
+    view["enabled"] = bool(view.get("enabled"))
+    view["diagrams"] = bool(view.get("diagrams"))
+    view["max_mb"] = _positive_int(view.get("max_mb"), "preview.max_mb")
+    if view["max_mb"] > PREVIEW_MAX_MB:
+        raise ConfigError(_("preview.max_mb cannot be more than %(num)s", num=PREVIEW_MAX_MB), "preview.max_mb")
+    for key in ("extensions", "blocked_extensions"):
+        exts = [x.lower().lstrip(".") for x in _str_list(view.get(key) or [], f"preview.{key}")]
+        bad = [x for x in exts if not re.fullmatch(r"[a-z0-9_+-]{1,16}", x)]
+        if bad:
+            raise ConfigError(_("preview.%(field)s: %(value)s is not a file extension", field=key, value=bad[0]),
+                              f"preview.{key}")
+        view[key] = sorted(set(exts))
 
     # --- métricas
     metrics = cfg["metrics"]

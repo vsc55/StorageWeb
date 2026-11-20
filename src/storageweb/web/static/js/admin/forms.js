@@ -269,6 +269,128 @@
     return fields.size;
   };
 
+  // Listas (data-list, p. ej. extensiones del visor): cada elemento es una etiqueta. Se escribe y con Intro (o
+  // coma) se añade; la × la quita; con el campo vacío, Retroceso quita la última. El campo de texto real sigue
+  // en el formulario (oculto): es lo que se envía y lo que ven los borradores, Descartar y Restablecer.
+  var LIST_ITEM = /^[a-z0-9_+-]{1,16}$/;
+  function listItems(text) {
+    return String(text || "").split(/[\s,]+/).map(function (x) { return x.trim().toLowerCase().replace(/^\./, ""); })
+      .filter(function (x, i, all) { return x && all.indexOf(x) === i; });
+  }
+  function renderLists(root) {
+    (root || document).querySelectorAll("[data-list]").forEach(function (el) { if (el.swRenderTags) el.swRenderTags(); });
+  }
+  document.querySelectorAll("[data-list]").forEach(function (source) {
+    var locked = source.disabled;
+    var box = document.createElement("div");
+    box.className = "tags" + (locked ? " is-locked" : "");
+    var list = document.createElement("div");
+    list.className = "tags-list";
+    list.setAttribute("role", "list");
+    box.appendChild(list);
+    var input = null;
+    if (!locked) {
+      input = document.createElement("input");
+      input.type = "text";
+      input.className = "tags-input mono";
+      input.setAttribute("autocomplete", "off");
+      input.setAttribute("spellcheck", "false");
+      input.placeholder = source.getAttribute("placeholder") || t("Type to filter, Enter to add");
+      var label = source.closest("label");
+      var row = label && label.querySelector(".label-row");
+      if (row && row.firstChild) input.setAttribute("aria-label", row.firstChild.textContent.trim());
+      box.appendChild(input);
+    }
+    source.classList.add("tags-source");
+    source.parentNode.insertBefore(box, source.nextSibling);
+
+    var setItems = function (items) {
+      source.value = items.join(", ");
+      source.dispatchEvent(new Event("input", { bubbles: true }));  // «sin guardar», borradores
+      render();
+    };
+    var render = function () {
+      var items = listItems(source.value);
+      list.textContent = "";
+      items.forEach(function (item) {
+        var tag = document.createElement("span");
+        tag.className = "tag";
+        tag.setAttribute("role", "listitem");
+        var text = document.createElement("span");
+        text.textContent = item;
+        tag.appendChild(text);
+        if (!locked) {
+          var remove = document.createElement("button");
+          remove.type = "button";
+          remove.className = "tag-remove";
+          remove.textContent = "×";
+          remove.setAttribute("aria-label", t("Remove %(name)s", { name: item }));
+          remove.addEventListener("click", function () {
+            setItems(listItems(source.value).filter(function (x) { return x !== item; }));
+            if (input) input.focus();
+          });
+          tag.appendChild(remove);
+        }
+        list.appendChild(tag);
+      });
+      box.classList.toggle("is-empty", !items.length);
+      filter();
+    };
+    // Lo que se escribe filtra las etiquetas: se ve al momento si ya está (y Intro la añade si no)
+    var hint = document.createElement("span");
+    hint.className = "tags-hint muted small";
+    hint.setAttribute("aria-live", "polite");
+    hint.hidden = true;
+    box.appendChild(hint);
+    var filter = function () {
+      var q = input ? input.value.trim().toLowerCase().replace(/^\./, "") : "";
+      var shown = 0;
+      var exact = false;
+      Array.prototype.forEach.call(list.children, function (tag) {
+        var text = tag.firstChild.textContent;
+        tag.hidden = Boolean(q) && text.indexOf(q) < 0;
+        tag.classList.toggle("is-match", Boolean(q) && text === q);
+        if (!tag.hidden) shown++;
+        if (q && text === q) exact = true;
+      });
+      hint.hidden = !q || (shown > 0 && !exact);
+      hint.textContent = exact ? t("It is already in the list.") : t("None matches: press Enter to add it.");
+    };
+    source.swRenderTags = render;
+    render();
+    if (!input) return;
+
+    var add = function () {
+      var typed = listItems(input.value);
+      if (!typed.length) { input.value = ""; return; }
+      var bad = typed.filter(function (x) { return !LIST_ITEM.test(x); });
+      if (bad.length) {
+        input.setCustomValidity(t("%(value)s is not a file extension", { value: bad[0] }));
+        input.reportValidity();
+        return;
+      }
+      input.setCustomValidity("");
+      var items = listItems(source.value);
+      typed.forEach(function (x) { if (items.indexOf(x) < 0) items.push(x); });
+      input.value = "";
+      setItems(items);
+    };
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(); }  // Intro no envía el formulario
+      else if (e.key === "Escape" && input.value) { e.preventDefault(); input.value = ""; filter(); }  // borra el filtro
+      else if (e.key === "Backspace" && !input.value) {
+        var items = listItems(source.value);
+        if (items.length) { items.pop(); setItems(items); }
+      }
+    });
+    input.addEventListener("input", function () {
+      input.setCustomValidity("");
+      if (/[\s,]/.test(input.value)) add();   // pegar «md, txt log» o escribir un espacio: se añaden
+      else filter();
+    });
+    box.addEventListener("click", function (e) { if (e.target === box || e.target === list) input.focus(); });
+  });
+
   document.querySelectorAll("form[data-watch]").forEach(function (form) {
     var status = form.querySelector("[data-save-status]");
     var w = { form: form, key: formKey(form), dirty: false, count: 0, idleText: status ? status.textContent : "",
@@ -325,7 +447,20 @@
         });
         return;
       }
-      setTimeout(refresh, 0);  // el formulario vuelve a sus valores al terminar el evento
+      setTimeout(function () {  // el formulario vuelve a sus valores al terminar el evento
+        // Los Restablecer pendientes también se deshacen: vuelven su etiqueta («modificado») y su botón
+        form.querySelectorAll("[data-sw-reset-pending]").forEach(function (b) {
+          b.hidden = false;
+          b.removeAttribute("data-sw-reset-pending");
+          var badge = b.previousElementSibling;
+          if (badge && badge.hasAttribute("data-sw-text")) {
+            badge.textContent = badge.getAttribute("data-sw-text");
+            badge.classList.remove("origin-pending");
+          }
+        });
+        renderLists(form);
+        refresh();
+      }, 0);
     });
     form.addEventListener("submit", function (e) {
       var others = otherKeys();
@@ -343,7 +478,7 @@
       writeDrafts(all);
     });
     var draft = readDrafts()[w.key];
-    if (draft && !w.hasError) applyState(form, draft.state);
+    if (draft && !w.hasError) { applyState(form, draft.state); renderLists(form); }
     refresh();
     try {
       if (sessionStorage.getItem("sw-resubmit") === w.key) {
@@ -367,6 +502,75 @@
     e.preventDefault();
     var value = JSON.parse(btn.getAttribute("data-default"));
     var form = controls[0].form || controls[0].closest("form");
+    // Una lista escrita a mano (data-list: extensiones del visor): antes, qué se añade y qué se quita
+    if (controls.length === 1 && controls[0].hasAttribute("data-list")) {
+      var listOf = function (text) {
+        return String(text || "").split(/[\s,]+/).map(function (x) { return x.trim().toLowerCase(); })
+          .filter(function (x, i, all) { return x && all.indexOf(x) === i; });
+      };
+      var now = listOf(controls[0].value);
+      var wanted = listOf(value);
+      var added = wanted.filter(function (x) { return now.indexOf(x) < 0; });
+      var removed = now.filter(function (x) { return wanted.indexOf(x) < 0; });
+      var label = controls[0].closest("label");
+      var row = label && label.querySelector(".label-row");
+      var name = row && row.firstChild ? row.firstChild.textContent.trim() : "";
+      window.SW.confirm(t("Back to the default list?"), {
+        ok: t("Back to the default"), wide: true, content: listDiff(name, added, removed)
+      }).then(function (ok) { if (ok) resetTo(btn, controls, form, value); });
+      return;
+    }
+    resetTo(btn, controls, form, value);
+  });
+
+  // Qué cambia al volver a una lista predeterminada: cifras, lo que se quita y lo que se añade (en una zona con
+  // desplazamiento y buscador, para que el diálogo quepa aunque sean cientos)
+  function listDiff(name, added, removed) {
+    var make = function (tag, cls, text) {
+      var el = document.createElement(tag);
+      if (cls) el.className = cls;
+      if (text !== undefined) el.textContent = text;
+      return el;
+    };
+    var box = make("div", "list-diff");
+    box.appendChild(make("p", "muted small list-diff-note",
+      (name ? name + ". " : "") + t("The change is applied when you save the page.")));
+    if (!added.length && !removed.length) {
+      box.appendChild(make("p", "", t("Nothing changes: it already has the default values.")));
+      return box;
+    }
+    var counts = make("div", "list-diff-counts");
+    if (added.length) counts.appendChild(make("span", "list-diff-count is-added", "+" + added.length));
+    if (removed.length) counts.appendChild(make("span", "list-diff-count is-removed", "−" + removed.length));
+    box.appendChild(counts);
+    var section = function (title, items, cls, searchable) {
+      var part = make("section", "list-diff-part");
+      var head = make("div", "list-diff-head");
+      head.appendChild(make("h3", "list-diff-title " + cls, title + " (" + items.length + ")"));
+      var chips = make("div", "list-diff-chips" + (items.length > 24 ? " is-long" : ""));
+      items.forEach(function (x) { chips.appendChild(make("span", "list-diff-chip " + cls, x)); });
+      if (searchable && items.length > 24) {
+        var search = make("input", "list-diff-search");
+        search.type = "search";
+        search.placeholder = t("Search");
+        search.setAttribute("aria-label", t("Search"));
+        search.addEventListener("keydown", function (e) { if (e.key === "Enter") e.preventDefault(); });  // no acepta
+        search.addEventListener("input", function () {
+          var q = search.value.trim().toLowerCase();
+          Array.prototype.forEach.call(chips.children, function (c) { c.hidden = q && c.textContent.indexOf(q) < 0; });
+        });
+        head.appendChild(search);
+      }
+      part.appendChild(head);
+      part.appendChild(chips);
+      return part;
+    };
+    if (removed.length) box.appendChild(section(t("It removes"), removed, "is-removed", true));
+    if (added.length) box.appendChild(section(t("It adds"), added, "is-added", true));
+    return box;
+  }
+
+  function resetTo(btn, controls, form, value) {
     if (value !== null && typeof value === "object") {
       // Listas de filas (mapeo de roles): se quitan todas y queda una vacía
       var rows = controls.map(function (el) { return el.closest("tr"); }).filter(Boolean);
@@ -379,16 +583,19 @@
         if (el.type === "checkbox") el.checked = Boolean(value);
         else if (el.type === "color") { if (value) el.value = value; }
         else el.value = value === null ? "" : String(value);
+        if (el.swRenderTags) el.swRenderTags();   // una lista de etiquetas: se vuelve a pintar
       });
     }
     var badge = btn.previousElementSibling;
     if (badge && badge.classList.contains("origin")) {
+      if (!badge.hasAttribute("data-sw-text")) badge.setAttribute("data-sw-text", badge.textContent);  // para Descartar
       badge.textContent = t("default (save to apply)");
       badge.classList.add("origin-pending");
     }
     btn.hidden = true;
+    btn.setAttribute("data-sw-reset-pending", "");
     if (form) form.dispatchEvent(new Event("change", { bubbles: true }));
-  });
+  }
 
   // Pestañas a partir de fieldsets: <div class="js-tabs"><fieldset class="tab-panel"><legend>…
   document.querySelectorAll(".js-tabs").forEach(function (box) {

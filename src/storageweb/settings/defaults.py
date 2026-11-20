@@ -13,8 +13,24 @@ LOGIN_ART_CHOICES = (*LOGIN_ARTS, "random")
 # Secciones que se pueden editar desde la web (se guardan en SQLite y prevalecen sobre config.json).
 # El resto (server, data_dir, database, secret_key, session) solo se configura en config.json
 # porque afectan al arranque.
+# Extensiones que abre el visor de serie (preview.extensions): Markdown, HTML y SVG (como código), texto, datos y código
+PREVIEW_EXTENSIONS = tuple(sorted({
+    "md", "markdown", "mdown", "mkd", "mkdn",
+    "html", "htm", "xhtml", "svg",
+    "txt", "text", "log", "csv", "tsv", "json", "jsonl", "ndjson", "xml", "yml", "yaml", "toml", "ini", "cfg",
+    "conf", "config", "properties", "rst", "adoc", "tex", "srt", "vtt", "diff", "patch", "reg", "nfo",
+    "py", "pyw", "js", "mjs", "cjs", "ts", "tsx", "jsx", "css", "scss", "sass", "less", "sh", "bash", "zsh",
+    "fish", "ps1", "psm1", "psd1", "bat", "cmd", "vbs", "vb", "c", "h", "cc", "cpp", "hpp", "cs", "java", "kt",
+    "kts", "go", "rs", "rb", "php", "pl", "pm", "lua", "r", "swift", "scala", "groovy", "gradle", "sql", "dart",
+    "m", "asm", "s", "mk", "cmake", "dockerfile", "gitignore", "gitattributes", "editorconfig",
+    "vue", "svelte", "graphql", "proto", "tf", "hcl", "nix", "lock",
+}))
+
+# Bloqueadas de serie (preview.blocked_extensions): texto con secretos o claves privadas. `.env` cuenta como `env`
+PREVIEW_BLOCKED = ("asc", "env", "key", "pem", "ppk")
+
 RUNTIME_SECTIONS = ("app_name", "default_locale", "branding", "network", "storage", "permissions", "auth", "security",
-                    "maintenance", "metrics")
+                    "maintenance", "metrics", "preview")
 
 # Campos secretos: nunca se muestran en la web; si se guardan vacíos se conserva el valor anterior.
 # Los de cada método de inicio de sesión los añade su proveedor (settings/auth_methods.py).
@@ -118,6 +134,20 @@ DEFAULTS: dict = {
         "webdav_passwords": False,
         # Quién debe tener la verificación en dos pasos (MFA_POLICIES): off, admins o all. Quien la tenga la usa siempre
         "mfa_required": "off",
+    },
+    # Visor de archivos de texto y Markdown en el navegador (/view/…, core/preview.py)
+    "preview": {
+        "enabled": True,
+        # Diagramas ```mermaid``` de los .md, dibujados en un marco aislado; desactivado, se ve su código
+        "diagrams": True,
+        # Tamaño máximo para verse en el navegador; más grande, se descarga
+        "max_mb": 2,
+        # Las extensiones (sin el punto) que se abren en el visor: la lista entera, editable. Las de Markdown se
+        # ven con formato; html, htm, xhtml y svg, siempre como código
+        "extensions": list(PREVIEW_EXTENSIONS),
+        # Las que nunca se abren aunque estén en la lista anterior (se descargan): de serie, archivos de texto que
+        # suelen guardar secretos o claves
+        "blocked_extensions": list(PREVIEW_BLOCKED),
     },
     "maintenance": {
         # 0 = conservar toda la auditoría

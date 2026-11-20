@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from storageweb.db.repositories import sessions, users
+from storageweb.db.repositories import audit, sessions, users
 from storageweb.web.context import get_db
 from tests.helpers import PASSWORD, add_user, get_csrf, login, U
 
@@ -130,6 +130,9 @@ def test_write_token_uploads_without_csrf(app, client, user_token, home):
                     data={"files": (io.BytesIO(b"datos"), "nuevo.txt")})
     assert resp.status_code == 200 and resp.get_json()["saved"] == ["nuevo.txt"]
     assert (home / "nuevo.txt").read_bytes() == b"datos"
+    with app.app_context():                     # la auditoría dice con qué token: script, VS Code, unidad…
+        [row] = audit.recent(get_db(), 1, action="upload")
+    assert row["detail"].endswith(" token=script-write")
 
 
 def test_token_cannot_reach_admin_or_profile(app, client, user_token):

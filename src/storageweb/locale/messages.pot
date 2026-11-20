@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: StorageWeb VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-18 22:51+0100\n"
+"POT-Creation-Date: 2026-11-20 20:05+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -201,6 +201,7 @@ msgid "Sign-in"
 msgstr ""
 
 #: storageweb/cli/config.py storageweb/web/templates/browse.html storageweb/web/templates/search.html
+#: storageweb/web/templates/view.html
 msgid "Location"
 msgstr ""
 
@@ -1031,6 +1032,14 @@ msgstr ""
 msgid "See the backups"
 msgstr ""
 
+#: storageweb/core/markdown.py
+msgid "External image not loaded:"
+msgstr ""
+
+#: storageweb/core/markdown.py
+msgid "open the link"
+msgstr ""
+
 #: storageweb/core/network.py
 msgid ""
 "The request carries X-Forwarded-* headers but server.behind_proxy is disabled: they are ignored, "
@@ -1110,7 +1119,7 @@ msgid "Upload files"
 msgstr ""
 
 #: storageweb/core/permissions.py storageweb/web/templates/admin/settings/backups.html
-#: storageweb/web/templates/browse.html
+#: storageweb/web/templates/browse.html storageweb/web/templates/view.html
 msgid "Download"
 msgstr ""
 
@@ -2220,6 +2229,27 @@ msgstr ""
 msgid "Two-step verification required for"
 msgstr ""
 
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/preview.html
+msgid "Open text and Markdown files in the browser"
+msgstr ""
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/preview.html
+msgid "Draw Mermaid diagrams"
+msgstr ""
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/preview.html
+#: storageweb/web/views/settings/forms.py
+msgid "Largest file to view (MB)"
+msgstr ""
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/preview.html
+msgid "Extensions that open in the viewer"
+msgstr ""
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/preview.html
+msgid "Never open in the viewer"
+msgstr ""
+
 #: storageweb/settings/fields.py storageweb/web/templates/admin/settings/maintenance.html
 msgid "Keep the audit log (days)"
 msgstr ""
@@ -2355,6 +2385,16 @@ msgstr ""
 #: storageweb/settings/loader.py
 #, python-format
 msgid "security.mfa_required must be one of: %(values)s"
+msgstr ""
+
+#: storageweb/settings/loader.py
+#, python-format
+msgid "preview.max_mb cannot be more than %(num)s"
+msgstr ""
+
+#: storageweb/settings/loader.py
+#, python-format
+msgid "preview.%(field)s: %(value)s is not a file extension"
 msgstr ""
 
 #: storageweb/settings/loader.py
@@ -2691,6 +2731,67 @@ msgid "Copied"
 msgstr ""
 
 #: storageweb/web/js_messages.py
+msgid "Diagram"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "Back to the default list?"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "It adds"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "It removes"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "Back to the default"
+msgstr ""
+
+#: storageweb/web/js_messages.py storageweb/web/templates/admin/groups/list.html
+#: storageweb/web/templates/admin/search.html storageweb/web/templates/admin/users/_macros.html
+#: storageweb/web/templates/base.html storageweb/web/templates/search.html
+msgid "Search"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "Type to filter, Enter to add"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "It is already in the list."
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "None matches: press Enter to add it."
+msgstr ""
+
+#: storageweb/web/js_messages.py storageweb/web/templates/admin/access/folder.html
+#, python-format
+msgid "Remove %(name)s"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "%(value)s is not a file extension"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "The change is applied when you save the page."
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "Nothing changes: it already has the default values."
+msgstr ""
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "This diagram could not be drawn: %(error)s"
+msgstr ""
+
+#: storageweb/web/js_messages.py
 msgid "Waiting for you to sign in…"
 msgstr ""
 
@@ -2887,6 +2988,14 @@ msgid "Name, default language, logo and color"
 msgstr ""
 
 #: storageweb/web/nav.py
+msgid "File preview"
+msgstr ""
+
+#: storageweb/web/nav.py
+msgid "Text and Markdown viewer, diagrams and which files open"
+msgstr ""
+
+#: storageweb/web/nav.py
 msgid "Network and HTTPS"
 msgstr ""
 
@@ -2998,7 +3107,7 @@ msgid "Enter the code the app shows to finish:"
 msgstr ""
 
 #: storageweb/web/templates/_mfa_setup.html storageweb/web/templates/admin/settings/entra_register.html
-#: storageweb/web/templates/login_mfa.html
+#: storageweb/web/templates/login_mfa.html storageweb/web/templates/view.html
 msgid "Code"
 msgstr ""
 
@@ -3103,12 +3212,6 @@ msgstr ""
 #: storageweb/web/templates/admin/overview.html storageweb/web/templates/admin/search.html
 #: storageweb/web/templates/base.html
 msgid "Search the administration"
-msgstr ""
-
-#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/search.html
-#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/base.html
-#: storageweb/web/templates/search.html
-msgid "Search"
 msgstr ""
 
 #: storageweb/web/templates/admin/search.html storageweb/web/templates/base.html
@@ -3706,6 +3809,78 @@ msgstr ""
 #: storageweb/web/templates/search.html
 #, python-format
 msgid "Nothing found with «%(query)s»."
+msgstr ""
+
+#: storageweb/web/templates/view.html
+#, python-format
+msgid "Back to the folder %(name)s"
+msgstr ""
+
+#: storageweb/web/templates/view.html
+msgid "Text"
+msgstr ""
+
+#: storageweb/web/templates/view.html
+#, python-format
+msgid "%(num)s line"
+msgid_plural "%(num)s lines"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/templates/view.html
+#, python-format
+msgid "modified %(when)s"
+msgstr ""
+
+#: storageweb/web/templates/view.html
+#, python-format
+msgid "Previous: %(name)s"
+msgstr ""
+
+#: storageweb/web/templates/view.html
+#, python-format
+msgid "Next: %(name)s"
+msgstr ""
+
+#: storageweb/web/templates/view.html
+msgid "How to see it"
+msgstr ""
+
+#: storageweb/web/templates/view.html
+msgid "View"
+msgstr ""
+
+#: storageweb/web/templates/view.html
+msgid "Wrap lines"
+msgstr ""
+
+#: storageweb/web/templates/view.html
+msgid "Copy all"
+msgstr ""
+
+#: storageweb/web/templates/view.html
+#, python-format
+msgid "It is too large to view here (more than %(num)s MB). Download it to open it on your computer."
+msgstr ""
+
+#: storageweb/web/templates/view.html
+msgid "It is not a text file, so it cannot be viewed here."
+msgstr ""
+
+#: storageweb/web/templates/view.html
+msgid "In this document"
+msgstr ""
+
+#: storageweb/web/templates/view.html
+msgid "Its code is shown, not the page: opening it here could run whatever it carries with your session."
+msgstr ""
+
+#: storageweb/web/templates/view.html
+msgid "It is not in UTF-8: it is shown as Windows-1252 (Western European)."
+msgstr ""
+
+#: storageweb/web/templates/view.html
+msgid "To search in the file, use your browser's search (Ctrl+F)."
 msgstr ""
 
 #: storageweb/web/templates/admin/_layout.html
@@ -4442,11 +4617,6 @@ msgstr ""
 
 #: storageweb/web/templates/admin/access/folder.html
 msgid "Remove access"
-msgstr ""
-
-#: storageweb/web/templates/admin/access/folder.html
-#, python-format
-msgid "Remove %(name)s"
 msgstr ""
 
 #: storageweb/web/templates/admin/access/folder.html storageweb/web/templates/admin/access/folders.html
@@ -5780,6 +5950,47 @@ msgstr ""
 msgid "Administrators always have every permission. In read-only folders only downloading is allowed."
 msgstr ""
 
+#: storageweb/web/templates/admin/settings/preview.html
+msgid "Viewer"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/preview.html
+msgid ""
+"A double click opens them without downloading them: Markdown with its format, text and code with "
+"line numbers. HTML and SVG are always shown as code. Disabled, every file is downloaded."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/preview.html
+msgid "Larger files are downloaded. The viewer reads the whole file to show it."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/preview.html
+msgid "Diagrams"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/preview.html
+msgid ""
+"The mermaid blocks of a .md are drawn with Mermaid, inside a frame isolated from the page and the"
+" session. Disabled, their code is shown and Mermaid is never sent to the browser."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/preview.html
+msgid "Which files"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/preview.html
+msgid ""
+"Type an extension (without the dot) and press Enter to add it; the × removes it. Markdown (md…) "
+"is shown with its format; HTML and SVG (html, svg…) always as code; the rest, as text. Files such"
+" as README or Dockerfile always open."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/preview.html
+msgid ""
+"They are downloaded even if they are in the list above. By default, text files that usually hold "
+"secrets or keys; .env counts as env. Type one and press Enter to add it."
+msgstr ""
+
 #: storageweb/web/templates/admin/settings/security.html
 msgid "Failed sign-ins"
 msgstr ""
@@ -6865,6 +7076,12 @@ msgstr ""
 
 #: storageweb/web/views/settings/forms.py
 msgid "Addresses blocked by hand or automatically, and addresses that are never blocked."
+msgstr ""
+
+#: storageweb/web/views/settings/forms.py
+msgid ""
+"Which files open in the browser without downloading them, how large they can be and whether "
+"Markdown diagrams are drawn."
 msgstr ""
 
 #: storageweb/web/views/settings/forms.py

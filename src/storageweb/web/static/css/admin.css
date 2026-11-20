@@ -200,9 +200,20 @@ a.chip-detected:hover { text-decoration: none; border-color: var(--primary); }
 .link-btn.small { font-size: 12px; }
 .has-error input, .has-error select, .has-error textarea { border-color: var(--danger); }
 .field-error { display: block; color: var(--danger); font-size: 12px; }
-.save-bar { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-            padding: 10px 14px; border-radius: 10px; background: var(--fg); color: var(--bg); box-shadow: var(--shadow); }
-.save-bar .btn-ghost { color: var(--bg); border-color: transparent; }
+/* Barra de guardar: oscura con texto claro en el tema claro; en el oscuro, azul de la marca para que destaque
+   sobre las tarjetas (invertirla la dejaría clara y con «Descartar» ilegible) */
+.save-bar { --save-bg: #1b2230; --save-fg: #ffffff; --save-hover: rgba(255, 255, 255, .12); --save-line: transparent;
+            position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+            padding: 10px 14px; border-radius: 10px; border: 1px solid var(--save-line);
+            background: var(--save-bg); color: var(--save-fg); box-shadow: var(--shadow); }
+[data-theme="dark"] .save-bar { --save-bg: #1e3a6e; --save-fg: #ffffff; --save-hover: rgba(255, 255, 255, .12);
+                                --save-line: #3b67b8; }
+@media (prefers-color-scheme: dark) {
+  [data-theme="system"] .save-bar { --save-bg: #1e3a6e; --save-fg: #ffffff; --save-hover: rgba(255, 255, 255, .12);
+                                    --save-line: #3b67b8; }
+}
+.save-bar .btn-ghost { background: transparent; color: var(--save-fg); border-color: transparent; }
+.save-bar .btn-ghost:hover, .save-bar .btn-ghost:focus-visible { background: var(--save-hover); color: var(--save-fg); }
 .js .save-bar.is-idle { display: none; }
 .changed-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .changed-list li { display: flex; gap: 10px; align-items: center; }
@@ -469,3 +480,56 @@ td.is-dirty, tr.is-dirty { outline-offset: -2px; background: color-mix(in srgb, 
 td.is-dirty[data-dirty-label]::after { display: none; }  /* en las tablas basta con el color */
 .tab.has-dirty::after, summary.has-dirty::after { content: ""; display: inline-block; width: 7px; height: 7px;
   margin-left: 6px; border-radius: 50%; background: #f59e0b; vertical-align: middle; }
+
+/* Diálogo de Restablecer una lista (admin/forms.js listDiff): cifras, lo que se quita y lo que se añade */
+.sw-modal.is-wide { width: min(600px, calc(100vw - 32px)); }
+.sw-modal { max-height: calc(100vh - 32px); }
+.sw-modal-title { font-size: 17px; font-weight: 600; }
+.list-diff { display: flex; flex-direction: column; gap: 14px; margin-top: -8px; min-height: 0; }
+.list-diff-note { margin: 0; }
+.list-diff-counts { display: flex; flex-wrap: wrap; gap: 8px; }
+.list-diff-count { padding: 3px 10px; border-radius: 999px; font-weight: 600; font-size: 13px; }
+.list-diff-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+.list-diff-title { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.list-diff-search { width: 170px; height: 30px; padding: 0 8px; font-size: 12px; }
+.list-diff-chips { display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; }
+.list-diff-chips.is-long { max-height: min(250px, 38vh); overflow-y: auto; padding: 10px; border: 1px solid var(--line-soft);
+                           border-radius: 10px; background: var(--bg-soft); }
+.list-diff-chip { padding: 2px 8px; border-radius: 6px; border: 1px solid; font-size: 12px;
+                  font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, "Liberation Mono", monospace; }
+.list-diff-chip[hidden] { display: none; }
+/* Añadido en verde y quitado en rojo, también en el tema oscuro */
+.list-diff-count.is-added, .list-diff-chip.is-added { background: var(--ok-bg); color: #067647; border-color: #abefc6; }
+.list-diff-count.is-removed, .list-diff-chip.is-removed { background: var(--err-bg); color: var(--danger); border-color: var(--danger-line); }
+.list-diff-title.is-added { color: #067647; }
+.list-diff-title.is-removed { color: var(--danger); }
+[data-theme="dark"] .list-diff-count.is-added, [data-theme="dark"] .list-diff-chip.is-added,
+[data-theme="dark"] .list-diff-title.is-added { color: #7ee2a0; border-color: #24563a; }
+@media (prefers-color-scheme: dark) {
+  [data-theme="system"] .list-diff-count.is-added, [data-theme="system"] .list-diff-chip.is-added,
+  [data-theme="system"] .list-diff-title.is-added { color: #7ee2a0; border-color: #24563a; }
+}
+
+/* Listas como etiquetas (data-list, admin/forms.js): el campo de texto real queda oculto y es el que se envía */
+.js .tags-source { display: none; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px; min-height: 40px; cursor: text;
+        border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); }
+.tags:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.tags.is-locked { cursor: default; background: var(--bg-soft); }
+.tags-list { display: contents; }
+.tag { display: inline-flex; align-items: center; gap: 2px; padding: 2px 4px 2px 8px; border-radius: 6px;
+       background: var(--surface-head); border: 1px solid var(--line-soft); color: var(--fg); font-size: 12px; line-height: 1.5;
+       font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, "Liberation Mono", monospace; }
+.tags.is-locked .tag { padding-right: 8px; }
+.tag-remove { width: 20px; height: 20px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--muted);
+              font-size: 15px; line-height: 1; cursor: pointer; }
+.tag-remove:hover, .tag-remove:focus-visible { background: var(--bg-hover); color: var(--danger); }
+/* Más específico que los estilos generales de input: dentro de la caja no lleva borde propio */
+.tags input.tags-input { flex: 1 1 140px; min-width: 120px; width: auto; height: 28px; min-height: 0; padding: 0 6px;
+                         border: 0; border-radius: 0; background: transparent; box-shadow: none; font-size: 13px; }
+.tags input.tags-input:focus { outline: none; box-shadow: none; }
+/* Filtro de las etiquetas: lo escrito en el cuadro deja solo las que coinciden */
+.tag[hidden] { display: none; }
+.tag.is-match { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-soft); }
+.tags-hint { flex: 1 0 100%; padding: 0 6px 2px; }
+.tags-hint[hidden] { display: none; }

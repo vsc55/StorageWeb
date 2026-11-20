@@ -92,6 +92,8 @@ ZONES: tuple[Zone, ...] = (
     Zone("system", _l("System"), "settings", (
         _settings("general", _l("General and branding"), hint=_l("Name, default language, logo and color"),
                   words="nombre idioma logo color marca branding language"),
+        _settings("preview", _l("File preview"), hint=_l("Text and Markdown viewer, diagrams and which files open"),
+                  words="vista previa visor ver markdown texto diagramas mermaid extensiones preview viewer"),
         _settings("network", _l("Network and HTTPS"), hint=_l("Public address, reverse proxy and HTTPS"),
                   words="red https proxy fqdn dominio url pública public certificate"),
         Page("locations", _l("Storage locations"), "locations.index",

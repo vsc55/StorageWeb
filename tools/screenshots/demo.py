@@ -86,7 +86,10 @@ def _ago(**delta) -> str:
 def _file(path: Path, size: int, days: float) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "wb") as fh:
-        fh.truncate(size)
+        if path.name in TEXTS:            # lo que se abre en el visor necesita contenido de verdad
+            fh.write(TEXTS[path.name].encode("utf-8"))
+        else:
+            fh.truncate(size)
     stamp = (NOW - timedelta(days=days)).timestamp()
     os.utime(path, (stamp, stamp))
 
@@ -116,7 +119,76 @@ HOME_ANA = [
     ("Logo empresa.svg", 12 * KB, 40),
     ("Fotos evento.zip", 96 * MB, 12),
     ("Plan de proyecto.md", 6 * KB, 2),
+    ("Registro de copias.log", 18 * KB, 0.4),
 ]
+
+# Contenido de los archivos que se ven en el visor (el resto son ceros del tamaño indicado)
+TEXTS = {
+    "Plan de proyecto.md": """# Plan de proyecto: web corporativa
+
+Renovación de la web de la empresa para el primer trimestre de 2027. Responsable: **Ana García**;
+seguimiento cada lunes con dirección.
+
+## Objetivos
+
+- Una web más rápida y pensada para el móvil.
+- El catálogo con los productos de 2026.
+- El formulario de contacto conectado con el CRM.
+
+## Cómo se publica
+
+```mermaid
+flowchart LR
+    M[Maquetas] --> D[Desarrollo]
+    D --> P{¿Pruebas bien?}
+    P -- Sí --> L[Lanzamiento]
+    P -- No --> D
+```
+
+## Calendario
+
+| Fase | Fechas | Estado |
+|------|--------|--------|
+| Maquetas | 3 al 21 de noviembre | Hecho |
+| Desarrollo | 24 de noviembre al 30 de enero | En curso |
+| Pruebas y lanzamiento | Febrero | Pendiente |
+
+## Tareas de esta semana
+
+- [x] Revisar las maquetas con dirección
+- [x] Elegir el alojamiento
+- [ ] Preparar los textos del catálogo
+- [ ] Probar el formulario con el CRM
+
+## Publicar en pruebas
+
+Desde el servidor de desarrollo:
+
+```bash
+./publicar.sh --entorno pruebas --avisar equipo-web
+```
+
+> **Antes de publicar**, revisa que el informe de ventas de octubre
+> ([Documentos/Informes](Documentos/Informes/Informe%20ventas%20octubre.pdf)) tenga las cifras cerradas.
+
+## Riesgos
+
+1. Que el catálogo no esté a tiempo: se publica primero sin él.
+2. Que el CRM cambie su API en enero: el proveedor lo confirma el día 15.
+""",
+    "Registro de copias.log": "\n".join([
+        "2026-11-20 02:00:01 INFO  Copia diaria iniciada (destino: NAS de la oficina)",
+        "2026-11-20 02:00:01 INFO  Base de datos: 4,2 MB copiados",
+        "2026-11-20 02:00:03 INFO  Carpetas personales: 18 usuarios, 1.284 archivos nuevos o cambiados",
+        "2026-11-20 02:03:47 WARN  «Fotos evento.zip» cambió mientras se copiaba; se copiará en la próxima",
+        "2026-11-20 02:03:48 INFO  Carpetas compartidas: proyectos, contabilidad, plantillas",
+        "2026-11-20 02:05:12 ERROR No se pudo leer «Catálogo 2026.indd»: el archivo está bloqueado por otro programa",
+        "2026-11-20 02:05:12 INFO  Se reintentará a las 03:00",
+        "2026-11-20 02:05:13 INFO  Copia diaria terminada: 2,1 GB en 5 min 12 s, 1 aviso, 1 error",
+        "2026-11-20 03:00:02 INFO  Reintento: «Catálogo 2026.indd» copiado (48 MB)",
+        "2026-11-20 03:00:02 INFO  Copias guardadas: 14 diarias, 8 semanales, 12 mensuales",
+    ]) + "\n",
+}
 SHARES = {
     "proyectos": [
         ("Web corporativa", None, 1), ("Web corporativa/Maquetas", None, 1),
@@ -324,6 +396,9 @@ def plan(uids: dict) -> list[dict]:
          "js": f"({select})(['Presupuesto 2026.xlsx', 'Notas reunión dirección.docx', 'Plan de proyecto.md'])"},
         {"file": "uso/compartida.webp", "path": "/f/proyectos/", "as": "ana.garcia"},
         {"file": "uso/buscar.webp", "path": "/search?q=presupuesto", "as": "ana.garcia"},
+        {"file": "uso/visor-markdown.webp", "path": "/view/home/Plan%20de%20proyecto.md", "as": "ana.garcia",
+         "wait": 2500},   # el diagrama se dibuja en su marco
+        {"file": "uso/visor-texto.webp", "path": "/view/home/Registro%20de%20copias.log", "as": "ana.garcia"},
         {"file": "uso/perfil.webp", "path": "/profile/security", "as": "ana.garcia"},
         {"file": "uso/perfil-tokens.webp", "path": "/profile/tokens", "as": "ana.garcia"},
         {"file": "uso/mfa-alta.webp", "path": "/profile/mfa", "as": "ana.garcia"},

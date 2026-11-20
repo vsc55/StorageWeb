@@ -24,8 +24,8 @@ from ...forms import split_list
 from .common import checked, form_int, network_context, save_partial
 
 
-SECTIONS = ("general", "storage", "permissions", "auth", "security", "clients", "ips", "sessions", "network", "maintenance",
-            "backups", "system")
+SECTIONS = ("general", "storage", "permissions", "auth", "security", "clients", "ips", "sessions", "network", "preview",
+            "maintenance", "backups", "system")
 SECTION_LABELS = {name: nav.PAGES[name].label for name in SECTIONS}
 SECTION_DESCRIPTIONS = {
     "general": _l("Name of the application, default language, logo and color."),
@@ -35,6 +35,8 @@ SECTION_DESCRIPTIONS = {
     "security": _l("Protection against password guessing and automatic IP blocking."),
     "clients": _l("How scripts, apps and network drives reach the files: personal API tokens and WebDAV."),
     "ips": _l("Addresses blocked by hand or automatically, and addresses that are never blocked."),
+    "preview": _l("Which files open in the browser without downloading them, how large they can be and whether "
+                  "Markdown diagrams are drawn."),
     "maintenance": _l("How long the audit log is kept, how often backups are made and the metrics for monitoring."),
     "backups": _l("Backups, database size and cleanup tasks."),
     "sessions": _l("Who is signed in now and which API tokens exist. Closing a session signs that browser out on its "
@@ -94,6 +96,21 @@ def _clients() -> dict:
     }}
 
 
+def _preview() -> dict:
+    return {"preview": {
+        "enabled": checked("preview_enabled"),
+        "diagrams": checked("preview_diagrams"),
+        "max_mb": form_int("preview_max_mb", "preview.max_mb", _("Largest file to view (MB)")),
+        "extensions": _extensions("preview_extensions"),
+        "blocked_extensions": _extensions("preview_blocked_extensions"),
+    }}
+
+
+def _extensions(name: str) -> list[str]:
+    """Una lista de extensiones escrita a mano: separadas por comas, espacios o líneas."""
+    return [ext for item in split_list(request.form.get(name, "")) for ext in item.split()]
+
+
 def _maintenance() -> dict:
     return {"maintenance": {
         "audit_retention_days": form_int("audit_retention_days", "maintenance.audit_retention_days", _("Audit retention")),
@@ -108,7 +125,8 @@ def _maintenance() -> dict:
 
 
 PARSERS = {"general": _general, "storage": _storage, "permissions": _permissions,
-           "auth": auth_forms.parse, "security": _security, "clients": _clients, "network": _network, "maintenance": _maintenance}
+           "auth": auth_forms.parse, "security": _security, "clients": _clients, "network": _network, "preview": _preview,
+           "maintenance": _maintenance}
 
 
 def _display(draft: dict | None) -> dict:

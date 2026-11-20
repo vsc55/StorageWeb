@@ -62,6 +62,23 @@ Si entras con Microsoft, la verificación en dos pasos la gestiona tu organizaci
   <img src="../img/uso/explorador-oscuro.webp" alt="El explorador con el tema oscuro" width="560">
 </p>
 
+## Ver archivos de texto y Markdown
+
+Los archivos de texto se abren en el navegador, sin descargarlos: con **doble clic**, pulsando su nombre o con **Abrir** en el panel de detalle. El resto (PDF, imágenes, Office…) se descarga como siempre.
+
+- **Markdown** (`.md`): se ve con formato (títulos, listas, tablas, código, citas, diagramas `mermaid`, enlaces e imágenes de la misma carpeta) y, en pantallas anchas, con un índice a la derecha. **Código** muestra el texto tal cual. Los enlaces a otros `.md` se abren también en el visor.
+- **Texto y código** (`.txt`, `.log`, `.csv`, `.json`, `.yml`, `.ini`, `.py`, `.js`, `.ps1`, `.sql` y muchos más): con números de línea, **Ajustar líneas** para las largas y **Copiar todo**. En los `.log`, los avisos salen en ámbar y los errores en rojo. Para buscar dentro, la búsqueda del navegador (Ctrl+F).
+- **HTML y SVG**: se ve su código, nunca la página. Abrirla aquí podría ejecutar lo que lleve dentro con tu sesión; para verla, descárgala.
+- Con las flechas de arriba pasas al archivo anterior o al siguiente de la carpeta que también se pueda ver.
+
+![El visor con un documento Markdown: formato, un diagrama, el índice, Vista y Código](../img/uso/visor-markdown.webp)
+
+![Un .log en el visor: números de línea, avisos y errores en color, Ajustar líneas y Copiar todo](../img/uso/visor-texto.webp)
+
+Se ven archivos de hasta 2 MB (el administrador puede cambiarlo); uno más grande, o uno que no es texto, se descarga. Si no está en UTF-8, se muestra como Windows-1252 (lo habitual en archivos antiguos de Windows) y lo avisa. Las imágenes de otras webs no se cargan dentro de un documento, para que nadie sepa quién lo está leyendo; queda un enlace para abrirlas. Los diagramas `mermaid` se dibujan (sin JavaScript se ve su código). Ver un archivo cuenta en la auditoría como una descarga (detalle `view`).
+
+El administrador decide en *Sistema → Vista previa* si hay visor, si se dibujan los diagramas, el tamaño máximo, la lista de extensiones que se abren y las que no se abren nunca. De serie no se abren los archivos de texto que suelen guardar secretos o claves (`.env`, `.pem`, `.key`, `.ppk`, `.asc`): se descargan. *Restablecer* devuelve una lista a la de serie y, antes, dice qué extensiones se añaden y cuáles se quitan. Ver `preview.*` en la [referencia de configuración](../referencia/configuracion.md).
+
 ## Seleccionar varios
 
 Marca las casillas de la izquierda, o la de la cabecera para seleccionar todo lo visible. Aparece una barra con **Descargar** (uno o varios; varios o una carpeta, en un ZIP), **Mover a…**, **Copiar a…**, **Renombrar** (un elemento) y **Eliminar** (uno o varios). Pulsa **Esc** o *Quitar selección* para deseleccionar.

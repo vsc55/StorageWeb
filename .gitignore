@@ -13,3 +13,6 @@ config/config.json
 config.json
 admin_password.txt
 site/
+
+# Ajustes personales de VS Code (tasks.json, launch.json y extensions.json sí se comparten)
+.vscode/settings.json

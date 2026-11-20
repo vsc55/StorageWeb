@@ -39,7 +39,7 @@ from ...db.repositories import audit
 from ...i18n import _
 from ..context import get_db, settings
 from ..downloads import SANDBOX, etag, send_entry
-from ..guards import client_ip
+from ..guards import client_ip, with_token
 
 bp = Blueprint("dav", __name__, url_prefix="/dav")
 
@@ -109,7 +109,8 @@ def _stat(root: dict, rel: str):
 
 
 def _audit(action: str, root: dict, rel: str, detail: str = "webdav") -> None:
-    audit.log(get_db(), action, f"{root['name']}:/{rel}", username=g.user["username"], ip=client_ip(), detail=detail)
+    audit.log(get_db(), action, f"{root['name']}:/{rel}", username=g.user["username"], ip=client_ip(),
+              detail=with_token(detail))
 
 
 def _etags(header: str) -> set[str]:

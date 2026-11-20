@@ -280,6 +280,15 @@ def set_security_headers(response):
     return response
 
 
+def with_token(detail: str | None) -> str | None:
+    """El detalle de la auditoría con el token de la petición al final (``… token=<nombre>``), si se hizo con
+    uno: distingue VS Code («Visual Studio Code (equipo)»), un script o la unidad de red de cada equipo."""
+    token = g.get("api_token")
+    if token is None:
+        return detail
+    return f"{detail} token={token['name']}" if detail else f"token={token['name']}"
+
+
 def audit_event(action: str, target: str | None = None, detail: str | None = None) -> None:
-    """Registra en la auditoría una acción del usuario de la petición (con su IP)."""
-    audit.log(get_db(), action, target, username=g.user["username"], ip=client_ip(), detail=detail)
+    """Registra en la auditoría una acción del usuario de la petición (con su IP y, si lo hay, su token)."""
+    audit.log(get_db(), action, target, username=g.user["username"], ip=client_ip(), detail=with_token(detail))

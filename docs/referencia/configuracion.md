@@ -134,6 +134,16 @@ Cada valor sale de la capa con más prioridad que lo fije, campo a campo: **pred
 | `security.webdav_passwords` | booleano | `false` | Sí | `STORAGEWEB_SECURITY__WEBDAV_PASSWORDS` | Admitir también la contraseña de la cuenta (usuarios locales y PAM) en WebDAV. Desactivado: solo tokens, que se pueden revocar y limitar a lectura. |
 | `security.mfa_required` | texto | `"off"` | Sí | `STORAGEWEB_SECURITY__MFA_REQUIRED` | Quién debe tener la **verificación en dos pasos** (TOTP): `off` (nadie, quien quiera la activa en *Mi perfil*), `admins` (los administradores) o `all` (todas las cuentas). Solo las cuentas con contraseña (locales y PAM): quien entra con Microsoft Entra ID usa el segundo factor de Microsoft. Quien la debe y no la tiene la configura al iniciar sesión; quien la tiene la usa siempre, diga lo que diga esto. |
 
+## preview
+
+| Clave | Tipo | Por defecto | Web | Variable | Descripción |
+|---|---|---|---|---|---|
+| `preview.enabled` | booleano | `true` | Sí | `STORAGEWEB_PREVIEW__ENABLED` | Abrir en el navegador, sin descargarlos, los archivos de texto y Markdown (doble clic en el explorador). Desactivado, todos se descargan como cualquier otro archivo. |
+| `preview.diagrams` | booleano | `true` | Sí | `STORAGEWEB_PREVIEW__DIAGRAMS` | Dibujar los diagramas `mermaid` de los `.md` (con Mermaid, en un marco aislado del resto de la página). Desactivado, se ve su código y Mermaid no se descarga. |
+| `preview.max_mb` | entero | `2` | Sí | `STORAGEWEB_PREVIEW__MAX_MB` | Tamaño máximo, en MB, de un archivo para verse en el navegador (de 1 a 20); más grande, se descarga. |
+| `preview.extensions` | lista | `["adoc", "asm", "bash", "bat", "c", "cc", "cfg", "cjs", "cmake", "cmd", "conf", "config", "cpp", "cs", "css", "csv", "dart", "diff", "dockerfile", "editorconfig", "fish", "gitattributes", "gitignore", "go", "gradle", "graphql", "groovy", "h", "hcl", "hpp", "htm", "html", "ini", "java", "js", "json", "jsonl", "jsx", "kt", "kts", "less", "lock", "log", "lua", "m", "markdown", "md", "mdown", "mjs", "mk", "mkd", "mkdn", "ndjson", "nfo", "nix", "patch", "php", "pl", "pm", "properties", "proto", "ps1", "psd1", "psm1", "py", "pyw", "r", "rb", "reg", "rs", "rst", "s", "sass", "scala", "scss", "sh", "sql", "srt", "svelte", "svg", "swift", "tex", "text", "tf", "toml", "ts", "tsv", "tsx", "txt", "vb", "vbs", "vtt", "vue", "xhtml", "xml", "yaml", "yml", "zsh"]` | Sí | `STORAGEWEB_PREVIEW__EXTENSIONS` | Extensiones (sin el punto) que se abren en el visor: la lista entera. De serie, Markdown (`md`…, con formato), HTML y SVG (`html`, `svg`…, siempre como código), texto y datos (`txt`, `log`, `csv`, `json`, `yml`…) y código (`py`, `js`, `ps1`, `sh`, `sql`…). Si la cambias, se guarda la tuya entera; *Restablecer* vuelve a la de serie. Archivos como `README` o `Dockerfile` se abren siempre. |
+| `preview.blocked_extensions` | lista | `["asc", "env", "key", "pem", "ppk"]` | Sí | `STORAGEWEB_PREVIEW__BLOCKED_EXTENSIONS` | Extensiones que nunca se abren en el visor, aunque estén en la lista anterior: se descargan. De serie, archivos de texto que suelen guardar secretos o claves: `asc`, `env`, `key`, `pem` y `ppk`. Un archivo sin extensión que empieza por punto cuenta como si lo fuera: `.env` se bloquea con `env`. |
+
 ## Mantenimiento (`maintenance`)
 
 | Clave | Tipo | Por defecto | Web | Variable | Descripción |

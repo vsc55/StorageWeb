@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}{{ name }} · {{ app_name }}{% endblock %}
+{% block content %}
+{# Visor de texto y Markdown (files.view). El HTML del Markdown lo genera core/markdown.py, con todo el texto
+   escapado; el HTML y el SVG del usuario solo se ven como código #}
+{% set folder_url = url_for('files.browse', root=root.name, sub=parent) %}
+{% set download_url = url_for('files.download', root=root.name, sub=rel) %}
+{% set folder_name = crumbs[-1].name if crumbs else root.label %}
+<div class="viewer">
+  <header class="viewer-head">
+    <div class="viewer-who">
+      <a class="btn btn-icon viewer-back" href="{{ folder_url }}" aria-label="{{ _('Back to the folder %(name)s', name=folder_name) }}"
+         title="{{ _('Back to the folder %(name)s', name=folder_name) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-left"></use></svg></a>
+      <div class="viewer-title">
+        <nav class="viewer-crumbs" aria-label="{{ _('Location') }}">
+          <a href="{{ url_for('files.browse', root=root.name, sub='') }}">{{ root.label }}</a>
+          {% for c in crumbs %}<span aria-hidden="true">/</span><a href="{{ url_for('files.browse', root=root.name, sub=c.rel) }}">{{ c.name }}</a>{% endfor %}
+        </nav>
+        <h1><svg class="icon icon-sm" aria-hidden="true"><use href="#i-doc"></use></svg><span>{{ name }}</span></h1>
+        <p class="muted small">
+          {%- if kind == 'markdown' %}Markdown{% elif kind == 'markup' %}{{ ext|upper }}{% else %}{{ _("Text") }}{% endif %}
+          {%- if content.text is not none and source %} · {{ 'UTF-8' if content.encoding == 'utf-8' else 'Windows-1252' }} · {{ ngettext("%(num)s line", "%(num)s lines", lines|length) }}{% endif %}
+          · {{ size }}{% if mtime %} · {{ _("modified %(when)s", when=mtime) }}{% endif %}</p>
+      </div>
+    </div>
+    <div class="viewer-actions">
+      {% if previous %}<a class="btn btn-icon" href="{{ url_for('files.view', root=root.name, sub=previous.rel) }}"
+         aria-label="{{ _('Previous: %(name)s', name=previous.name) }}" title="{{ _('Previous: %(name)s', name=previous.name) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-left"></use></svg></a>{% endif %}
+      {% if following %}<a class="btn btn-icon" href="{{ url_for('files.view', root=root.name, sub=following.rel) }}"
+         aria-label="{{ _('Next: %(name)s', name=following.name) }}" title="{{ _('Next: %(name)s', name=following.name) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-right"></use></svg></a>{% endif %}
+      {% if kind == 'markdown' and content.text is not none %}
+      <div class="segmented viewer-mode" role="group" aria-label="{{ _('How to see it') }}">
+        <a class="segment{% if not source %} active{% endif %}" href="{{ url_for('files.view', root=root.name, sub=rel) }}"{% if not source %} aria-current="page"{% endif %}>{{ _("View") }}</a>
+        <a class="segment{% if source %} active{% endif %}" href="{{ url_for('files.view', root=root.name, sub=rel, source=1) }}"{% if source %} aria-current="page"{% endif %}>{{ _("Code") }}</a>
+      </div>
+      {% endif %}
+      {% if lines %}
+      <label class="btn viewer-js viewer-wrap"><input type="checkbox" id="viewer-wrap"> {{ _("Wrap lines") }}</label>
+      <button type="button" class="btn viewer-js" id="viewer-copy"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-copy"></use></svg><span>{{ _("Copy all") }}</span></button>
+      {% endif %}
+      <a class="btn btn-primary" href="{{ download_url }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Download") }}</a>
+    </div>
+  </header>
+
+  {% if content.text is none %}
+  <div class="viewer-empty card">
+    <svg class="icon icon-xl" aria-hidden="true"><use href="#i-doc"></use></svg>
+    {% if content.reason == 'too_large' %}
+    <p>{{ _("It is too large to view here (more than %(num)s MB). Download it to open it on your computer.", num=max_mb) }}</p>
+    {% else %}
+    <p>{{ _("It is not a text file, so it cannot be viewed here.") }}</p>
+    {% endif %}
+    <a class="btn btn-primary" href="{{ download_url }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Download") }}</a>
+  </div>
+
+  {% elif html %}
+  <div class="viewer-body">
+    {% if toc %}
+    <details class="viewer-toc-small">
+      <summary>{{ _("In this document") }}</summary>
+      <nav>{% for level, text, hid in toc %}<a class="toc-{{ level }}" href="#{{ hid }}">{{ text }}</a>{% endfor %}</nav>
+    </details>
+    {% endif %}
+    <article class="md"{% if diagrams %} data-diagram-frame="{{ url_for('files.diagram_frame') }}"{% endif %}>{{ html }}</article>
+    {% if toc %}
+    <aside class="viewer-toc" aria-label="{{ _('In this document') }}">
+      <p class="section-label">{{ _("In this document") }}</p>
+      <nav>{% for level, text, hid in toc %}<a class="toc-{{ level }}" href="#{{ hid }}">{{ text }}</a>{% endfor %}</nav>
+    </aside>
+    {% endif %}
+  </div>
+
+  {% else %}
+  <div class="viewer-code">
+    {% if kind == 'markup' %}
+    <p class="flash viewer-note" role="note"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-shield"></use></svg>
+      {{ _("Its code is shown, not the page: opening it here could run whatever it carries with your session.") }}</p>
+    {% endif %}
+    {% if content.encoding != 'utf-8' %}
+    <p class="muted small">{{ _("It is not in UTF-8: it is shown as Windows-1252 (Western European).") }}</p>
+    {% endif %}
+    <ol class="code-lines" id="viewer-text">{{ lines_html }}</ol>
+    <p class="muted small">{{ _("To search in the file, use your browser's search (Ctrl+F).") }}</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/viewer.js') }}"></script>{% endblock %}

@@ -68,6 +68,18 @@ def test_auth(dav):
     assert call("PROPFIND", "/dav/", PROPFIND, {"Depth": "1"}).status_code == 207
 
 
+def test_audit_says_which_token(dav):
+    """Los cambios por la unidad de red (y la extensión de VS Code, que la usa) dicen con qué token se hicieron."""
+    app, _client, call, _tmp = dav
+    assert call("PUT", "/dav/equipo/nota.txt", b"hola").status_code == 201
+    assert call("MOVE", "/dav/equipo/nota.txt", extra={"Destination": "/dav/equipo/nota2.txt"}).status_code == 201
+    assert call("DELETE", "/dav/equipo/nota2.txt").status_code == 204
+    with app.app_context():
+        details = [(r["action"], r["detail"]) for r in audit.recent(get_db(), 3)]
+    assert details == [("delete", "webdav token=dav"), ("rename", "webdav:move:equipo:/nota2.txt token=dav"),
+                       ("upload", "webdav:4 token=dav")]
+
+
 def test_passwords_when_allowed(make_app):
     app = make_app({"security": {"webdav_passwords": True}})
     add_user(app, "ana")
@@ -76,6 +88,10 @@ def test_passwords_when_allowed(make_app):
         assert client.open("/dav/", method="PROPFIND", headers=_basic("ana", PASSWORD)).status_code == 207
     assert client.open("/dav/", method="PROPFIND", headers=_basic("EQUIPO\\ana", PASSWORD)).status_code == 207
     assert client.open("/dav/", method="PROPFIND", headers=_basic("ana", "mala")).status_code == 401
+    assert client.open("/dav/home/con-clave.txt", method="PUT", data=b"x",
+                       headers=_basic("ana", PASSWORD)).status_code == 201
+    with app.app_context():                     # con la contraseña de la cuenta no hay token que anotar
+        assert audit.recent(get_db(), 1, action="upload")[0]["detail"] == "webdav:1"
 
 
 def test_disabled(make_app):

@@ -59,7 +59,7 @@ La barra lateral tiene *Archivos* y, para los administradores, el **Resumen** y 
 | **Personas** | Usuarios · Grupos · Sesiones y tokens |
 | **Acceso** | Carpetas compartidas · Matriz de accesos · Permisos del rol · Carpetas personales |
 | **Seguridad** | Inicio de sesión · Reglas de bloqueo · API y unidad de red · IPs bloqueadas · Auditoría |
-| **Sistema** | General y marca · Red y HTTPS · Mantenimiento · Copias y base de datos · Información |
+| **Sistema** | General y marca · Vista previa · Red y HTTPS · Mantenimiento · Copias y base de datos · Información |
 
 Cada página dice de qué tipo es:
 

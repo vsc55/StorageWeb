@@ -24,7 +24,7 @@ from ...db.repositories import audit
 from ...db.repositories import uploads as repo
 from ...i18n import _
 from ..context import boot_config, get_db, settings
-from ..guards import client_ip
+from ..guards import client_ip, with_token
 from . import json_api
 
 bp = Blueprint("uploads", __name__, url_prefix="/api/uploads")
@@ -138,7 +138,7 @@ def complete(upload_id: str):
     metrics.inc("storageweb_upload_bytes_total", row["size"], via="api" if g.get("api_token") else "web")
     repo.delete(get_db(), upload_id)
     audit.log(get_db(), "upload", f"{root['name']}:/{final}",
-              username=g.user["username"], ip=client_ip(), detail=str(row["size"]))
+              username=g.user["username"], ip=client_ip(), detail=with_token(str(row["size"])))
     return {"name": backends.name_of(final), "size": row["size"]}
 
 

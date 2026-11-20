@@ -42,6 +42,7 @@ Las capas y el porqué de esta organización están en [Arquitectura](../arquite
 - **Textos e idiomas:** todo texto visible pasa por `_()` y está escrito **en inglés** (es la clave del catálogo); la traducción al español va en `locale/es/LC_MESSAGES/messages.po`. Más detalle en [Textos y traducciones](extender.md#textos-y-traducciones). Los logs se escriben en inglés y no se traducen. La documentación está en español.
 - **Compatibilidad:** Python 3.9+ (`from __future__ import annotations`) y Linux, Windows y macOS (`pathlib`, nada de rutas con `/` a mano).
 - **Estilo:** líneas de hasta 100–110 caracteres, docstrings en los módulos y en las funciones no evidentes.
+- **JavaScript de terceros:** solo Mermaid (diagramas del visor), copiado en `src/storageweb/web/static/vendor/` con `python tools/vendor.py`. El script descarga una versión fija del registro de npm, comprueba su huella SHA-512 y extrae solo los ficheros que se usan, sin npm ni pnpm y sin ejecutar nada del paquete. Las huellas de los ficheros extraídos están en el script: `tools/vendor.py --check` (también lo hace un test) avisa si alguien los cambia a mano. Para actualizarlo, cambia la versión y la huella del paquete en el script y ejecútalo.
 
 ## Tests
 

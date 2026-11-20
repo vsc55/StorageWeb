@@ -139,8 +139,11 @@
             <svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-right"></use></svg>{{ _("Parent folder") }}</a></td></tr>
           {% endif %}
           {% for e in entries %}
-          {% set href = url_for('files.browse', root=root.name, sub=e.rel) if e.is_dir else (url_for('files.download', root=root.name, sub=e.rel) if can_download else '') %}
+          {% set download_href = url_for('files.download', root=root.name, sub=e.rel) if not e.is_dir and can_download else '' %}
+          {% set view_href = url_for('files.view', root=root.name, sub=e.rel) if can_download and viewable(e.name) else '' %}
+          {% set href = url_for('files.browse', root=root.name, sub=e.rel) if e.is_dir else (view_href or download_href) %}
           <tr class="file-row" data-name="{{ e.name }}" data-dir="{{ '1' if e.is_dir else '0' }}" data-href="{{ href }}"
+              data-download="{{ download_href }}" data-view="{{ view_href }}"
               data-rel="{{ e.rel }}" data-zip="{{ url_for('files.zip_folder', root=root.name, sub=e.rel) if can_download else '' }}"
               {% if can_download or can_rename %}draggable="true"{% endif %}
               data-kind="{{ _('Folder') if e.is_dir else (_('%(ext)s file', ext=e.ext) if e.ext else _('File')) }}"
@@ -157,7 +160,7 @@
             <td class="col-date">{{ e.mtime }}</td>
             <td class="row-actions">
               {% if not e.is_dir and can_download %}
-              <a class="btn btn-icon" href="{{ href }}" title="{{ _('Download') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg><span class="sr-only">{{ _("Download") }}</span></a>
+              <a class="btn btn-icon" href="{{ download_href }}" title="{{ _('Download') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg><span class="sr-only">{{ _("Download") }}</span></a>
               {% elif can_download %}
               <a class="btn btn-icon" href="{{ url_for('files.zip_folder', root=root.name, sub=e.rel) }}" title="{{ _('Download as ZIP') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg><span class="sr-only">{{ _("Download as ZIP") }}</span></a>
               {% endif %}

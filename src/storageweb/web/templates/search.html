@@ -33,7 +33,7 @@
         <td class="name"><span class="name-cell">
           <svg class="icon {{ 'folder-icon' if i.is_dir else 'file-icon' }}" aria-hidden="true"><use href="#i-{{ 'folder' if i.is_dir else 'file' }}"></use></svg>
           {% if i.is_dir %}<a href="{{ url_for('files.browse', root=r.name, sub=i.rel) }}">{{ i.name }}</a>
-          {% elif 'download' in perms[r.name] %}<a href="{{ url_for('files.download', root=r.name, sub=i.rel) }}">{{ i.name }}</a>
+          {% elif 'download' in perms[r.name] %}<a href="{{ url_for('files.view' if viewable(i.name) else 'files.download', root=r.name, sub=i.rel) }}">{{ i.name }}</a>
           {% else %}<span>{{ i.name }}</span>{% endif %}</span></td>
         <td><a href="{{ folder_url }}" class="muted">{{ r.label }}{% if i.folder %} / {{ i.folder }}{% endif %}</a></td>
         <td class="num">{{ i.size }}</td>

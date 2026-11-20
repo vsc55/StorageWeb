@@ -88,13 +88,17 @@ ecurso`) |
 | `branding_login_image_removed` | Imagen propia del inicio de sesión quitada (vuelve la de serie) |  |
 | `settings_field_reset` | Un ajuste vuelve a su valor predeterminado (*Restablecer*) | Ruta del ajuste |
 | `settings_reset` | Ajustes web descartados (web o `settings-reset`) | |
-| `upload` | Archivo subido | Tamaño en bytes |
-| `download` | Archivo descargado | |
-| `mkdir` | Carpeta creada | |
-| `rename` | Archivo o carpeta renombrado | Nombre nuevo |
-| `delete` | Archivo o carpeta eliminado | |
+| `upload` | Archivo subido (también al copiar por la unidad de red) | Tamaño en bytes; por la unidad de red, `webdav:<bytes>` o `webdav:copy:<destino>` |
+| `download` | Archivo descargado | Por la unidad de red, `webdav`; abierto en el visor, `view` |
+| `mkdir` | Carpeta creada | Por la unidad de red, `webdav` |
+| `rename` | Archivo o carpeta renombrado o movido | Nombre nuevo; por la unidad de red, `webdav:move:<destino>` |
+| `delete` | Archivo o carpeta eliminado | Por la unidad de red, `webdav` |
 | `backup` | Copia de seguridad creada | |
 | `restore` | Copia restaurada | Fecha y versión de la copia |
+
+**Con qué programa.** Si la acción con archivos se hizo con un token de API, su detalle termina en `token=<nombre del token>`. Es el caso de la unidad de red, la extensión de VS Code y los scripts. Así se distingue, por ejemplo, un guardado desde VS Code (`webdav:1532 token=Visual Studio Code (PORTATIL-ANA)`, el nombre que pone la extensión al conectarse) de uno desde el Explorador de Windows con otro token. Con la contraseña de la cuenta, o desde la web, no hay token y el detalle no lo lleva. Pon a cada token un nombre que diga dónde se usa.
+
+Listar carpetas por la unidad de red (`PROPFIND`) no se registra: los clientes lo hacen continuamente. La primera sincronización de VS Code de cada sesión sube y borra un archivo de prueba `.storageweb-probe-…`.
 
 La tabla crece indefinidamente. Si necesitas purgarla, hazlo con SQL sobre una copia, o con el servicio parado:
 

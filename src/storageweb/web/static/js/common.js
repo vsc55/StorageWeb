@@ -15,22 +15,24 @@
   }
 
   // Modal propio en lugar de confirm/prompt/alert del navegador. Devuelve una promesa:
-  //   SW.confirm(texto, {ok, danger}) → true/false     SW.prompt(texto, valor) → texto o null
+  //   SW.confirm(texto, {ok, danger, content, wide}) → true/false     SW.prompt(texto, valor) → texto o null
   //   SW.alert(texto) → cuando se cierra
+  // ``content``: un elemento que va debajo del texto (el texto pasa a ser el título); ``wide``: más ancho.
   // Usa <dialog>: el foco queda dentro, Esc cancela y el fondo no se puede tocar.
   function modal(opts) {
     return new Promise(function (resolve) {
       var dialog = document.createElement("dialog");
-      dialog.className = "sw-modal" + (opts.danger ? " is-danger" : "");
+      dialog.className = "sw-modal" + (opts.danger ? " is-danger" : "") + (opts.wide ? " is-wide" : "");
       dialog.setAttribute("role", opts.cancel === false ? "alertdialog" : "dialog");
       var form = document.createElement("form");
       form.method = "dialog";
       var message = document.createElement("p");
-      message.className = "sw-modal-message";
+      message.className = "sw-modal-message" + (opts.content ? " sw-modal-title" : "");
       message.id = "sw-modal-message";
       message.textContent = opts.message;
       dialog.setAttribute("aria-describedby", message.id);
       form.appendChild(message);
+      if (opts.content) form.appendChild(opts.content);
       var input = null;
       if (opts.input !== undefined) {
         input = document.createElement("input");
@@ -84,7 +86,8 @@
   window.SW = {
     t: t,
     confirm: function (message, opts) {
-      return modal({ message: message, ok: opts && opts.ok, danger: opts && opts.danger });
+      return modal({ message: message, ok: opts && opts.ok, danger: opts && opts.danger,
+                     content: opts && opts.content, wide: opts && opts.wide });
     },
     prompt: function (message, value) { return modal({ message: message, input: value || "" }); },
     alert: function (message) { return modal({ message: message, cancel: false, ok: t("OK") }); }
