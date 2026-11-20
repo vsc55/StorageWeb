@@ -1,0 +1,48 @@
+{# Filas del explorador: las incluye browse.html y las devuelve files.browse con ?rows=1 (cargar más al bajar y
+   el filtro en carpetas que no caben enteras). Contexto: root, rows, perms, viewable, favorite_keys #}
+{% set can_download = 'download' in perms %}
+{% set can_rename = 'rename' in perms %}
+{% set can_delete = 'delete' in perms %}
+{% for e in rows %}
+{% set download_href = url_for('files.download', root=root.name, sub=e.rel) if not e.is_dir and can_download else '' %}
+{% set view_href = url_for('files.view', root=root.name, sub=e.rel) if can_download and viewable(e.name) else '' %}
+{% set href = url_for('files.browse', root=root.name, sub=e.rel) if e.is_dir else (view_href or download_href) %}
+<tr class="file-row" data-name="{{ e.name }}" data-dir="{{ '1' if e.is_dir else '0' }}" data-href="{{ href }}"
+    data-download="{{ download_href }}" data-view="{{ view_href }}" data-fav="{{ '1' if (root.name, e.rel) in favorite_keys else '0' }}"
+    data-rel="{{ e.rel }}" data-zip="{{ url_for('files.zip_folder', root=root.name, sub=e.rel) if can_download else '' }}"
+    {% if can_download or can_rename %}draggable="true"{% endif %}
+    data-kind="{{ _('Folder') if e.is_dir else (_('%(ext)s file', ext=e.ext) if e.ext else _('File')) }}"
+    data-size="{{ e.size or '—' }}" data-mtime="{{ e.mtime }}">
+  <td class="col-check"><input type="checkbox" class="row-check" aria-label="{{ _('Select %(name)s', name=e.name) }}"></td>
+  <td class="name">
+    <span class="name-cell">
+      <svg class="icon {{ 'folder-icon' if e.is_dir else 'file-icon' }}" aria-hidden="true"><use href="#i-{{ 'folder' if e.is_dir else 'file' }}"></use></svg>
+      {% if href %}<a href="{{ href }}">{{ e.name }}</a>{% else %}<span>{{ e.name }}</span>{% endif %}
+      {% if e.ext %}<span class="ext">{{ e.ext }}</span>{% endif %}
+    </span>
+  </td>
+  <td class="num">{{ e.size }}</td>
+  <td class="col-date">{{ e.mtime }}</td>
+  <td class="row-actions">
+    {% if not e.is_dir and can_download %}
+    <a class="btn btn-icon" href="{{ download_href }}" title="{{ _('Download') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg><span class="sr-only">{{ _("Download") }}</span></a>
+    {% elif can_download %}
+    <a class="btn btn-icon" href="{{ url_for('files.zip_folder', root=root.name, sub=e.rel) }}" title="{{ _('Download as ZIP') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg><span class="sr-only">{{ _("Download as ZIP") }}</span></a>
+    {% endif %}
+    {% if can_rename %}
+    <form method="post" action="{{ url_for('files.rename', root=root.name, sub=e.rel) }}" class="inline js-rename" data-name="{{ e.name }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="name" value="{{ e.name }}">
+      <button class="btn btn-icon" type="submit" title="{{ _('Rename') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-rename"></use></svg><span class="sr-only">{{ _("Rename") }}</span></button>
+    </form>
+    {% endif %}
+    {% if can_delete %}
+    <form method="post" action="{{ url_for('files.delete', root=root.name, sub=e.rel) }}" class="inline js-confirm js-delete"
+          data-confirm="{{ _('Delete the folder «%(name)s» and all its contents?', name=e.name) if e.is_dir else _('Delete «%(name)s»?', name=e.name) }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button class="btn btn-icon btn-danger" type="submit" title="{{ _('Delete') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-delete"></use></svg><span class="sr-only">{{ _("Delete") }}</span></button>
+    </form>
+    {% endif %}
+  </td>
+</tr>
+{% endfor %}

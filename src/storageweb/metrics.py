@@ -23,6 +23,8 @@ COUNTERS = {
     "storageweb_upload_bytes_total": "Bytes uploaded, by way (web, api, webdav).",
     "storageweb_download_bytes_total": "Bytes downloaded, by way (web, webdav).",
     "storageweb_quota_rejections_total": "Writes rejected because they did not fit in the quota.",
+    "storageweb_audit_forward_errors_total": "Audit events that could not be forwarded to syslog or the file.",
+    "storageweb_audit_forward_dropped_total": "Audit events not forwarded because the queue was full.",
 }
 
 _lock = threading.Lock()

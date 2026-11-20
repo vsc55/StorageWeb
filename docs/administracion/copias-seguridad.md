@@ -22,10 +22,9 @@ sudo storageweb-admin backup-list
 
 ## Desde la web
 
-*Sistema → Copias y base de datos* lista las copias de `<data_dir>/backups`, crea una al momento, las descarga, las borra, **las restaura** y permite **subir** una copia (de este u otro servidor) para restaurarla. En *Sistema → Mantenimiento* se configuran:
+*Sistema → Copias y base de datos* lista las copias de `<data_dir>/backups`, crea una al momento, las descarga, las borra, **las restaura** y permite **subir** una copia (de este u otro servidor) para restaurarla; también compacta la base de datos y limpia la auditoría antigua.
 
-- **Copia automática** cada N horas (`maintenance.backup_interval_hours`) hecha por el propio servicio, conservando `backup_keep`. Es una alternativa al timer de systemd; no actives los dos.
-- **Retención de la auditoría** (`maintenance.audit_retention_days`), compactación de la base de datos y exportación de la auditoría a CSV.
+En *Sistema → Copias automáticas* se configuran la **copia automática** cada N horas (`maintenance.backup_interval_hours`) hecha por el propio servicio, conservando `backup_keep` (una alternativa al timer de systemd: no actives los dos), y la [copia fuera del servidor](#copia-fuera-del-servidor). La retención de la auditoría está en *Seguridad → Registro de auditoría*.
 
 ![Sistema → Copias y base de datos](../img/admin/copias.webp)
 
@@ -85,7 +84,22 @@ Las copias de antes de restaurar y las subidas no entran en la rotación (`backu
     docker exec storageweb storageweb backup --keep 14     # queda en el volumen: /data/db/backups
     ```
 
-Después, sácalas del servidor con rsync, restic o similar. Una copia que solo está en el mismo disco no protege frente a la pérdida del disco.
+Después, sácalas del servidor: con la [copia fuera del servidor](#copia-fuera-del-servidor) de StorageWeb o con rsync, restic o similar. Una copia que solo está en el mismo disco no protege frente a la pérdida del disco.
+
+## Copia fuera del servidor
+
+StorageWeb puede enviar cada copia, además, a una [ubicación de almacenamiento](almacenamiento.md) (un bucket S3, un NAS por SMB, un servidor SFTP…). Se configura en *Sistema → Copias automáticas → Copia fuera del servidor*:
+
+- **Enviar también las copias a** (`maintenance.offsite_location`): la ubicación; vacío = solo en este servidor.
+- **Carpeta en la ubicación** (`maintenance.offsite_path`, `storageweb-backups` por defecto): se crea si no existe.
+- **Copias que se conservan en la ubicación** (`maintenance.offsite_keep`, 14): las más antiguas se borran allí al enviar otra. Las de *antes de restaurar* y las subidas a mano no se borran solas.
+
+Se envían todas: la automática del servicio, la de *Crear una copia ahora* y la de `storageweb backup` (también la del timer de systemd o de cron, que lee la ubicación aunque se haya elegido desde la web; `--no-offsite` para no enviarla). Si el envío falla, la copia del servidor se queda igualmente, el *Resumen* lo avisa y en *Copias y base de datos* cada copia tiene **Enviar fuera** para reintentarlo. En la auditoría quedan `backup_offsite` y `backup_offsite_failed`.
+
+!!! warning "Llevan la base de datos y las claves"
+    Una copia contiene los hashes de las contraseñas, `secret_key` y `secrets.key` (con la que se descifran los secretos de los ajustes). Usa una ubicación a la que solo lleguen los administradores, con su propio usuario y, si el servicio lo permite, cifrado en reposo y versiones (S3 *Object Lock*, instantáneas del NAS) para que un atacante que entre en el servidor no pueda borrarlas.
+
+**Recuperar un servidor perdido:** instala StorageWeb en uno nuevo, da de alta la misma ubicación y elígela en *Copias automáticas*. En *Copias y base de datos → Fuera del servidor*, **Ver las copias de allí** las lista (solo se conecta cuando lo pides); **Traer a este servidor** descarga una a la lista de copias, comprueba que se puede restaurar y desde ahí se **restaura** como cualquier otra (auditoría `backup_fetched`).
 
 ## Archivos de los usuarios
 

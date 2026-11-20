@@ -3,6 +3,7 @@
 
   var form = document.getElementById("upload-form");
   var input = document.getElementById("file-input");
+  var folderInput = document.getElementById("folder-input");
   var dropzone = document.getElementById("dropzone");
   var panel = document.getElementById("upload-panel");
   var csrf = document.querySelector('meta[name="csrf-token"]').getAttribute("content");
@@ -65,10 +66,12 @@
 
   // ------------------------------------------------------------------ subida por partes
 
-  function uploadFile(file, ui) {
+  function uploadFile(item, ui) {
     var api = form.dataset.api;
-    // Clave para reanudar la misma subida tras recargar la página
-    var key = "sw-upload:" + [form.dataset.root, form.dataset.path, file.name, file.size, file.lastModified].join("|");
+    var file = item.file;
+    // Clave para reanudar la misma subida tras recargar la página (con su subcarpeta, si viene de una carpeta)
+    var key = "sw-upload:" + [form.dataset.root, form.dataset.path, item.folder, file.name, file.size,
+                              file.lastModified].join("|");
     var id = store(key), received = 0, chunk = 0;
 
     function start() {
@@ -81,7 +84,7 @@
 
     return start().then(function (st) {
       if (st) return;
-      return request("POST", api, { root: form.dataset.root, path: form.dataset.path,
+      return request("POST", api, { root: form.dataset.root, path: form.dataset.path, folders: item.folder,
                                     name: file.name, size: file.size })
         .then(function (r) { id = r.id; chunk = r.chunk_size; received = 0; store(key, id); });
     }).then(function () {
@@ -121,43 +124,84 @@
     });
   }
 
+  // Archivos sueltos (File) o de una carpeta ({file, folder}); con el selector de carpetas, la subcarpeta sale
+  // de webkitRelativePath («Viaje/Fotos/a.jpg» → «Viaje/Fotos»)
+  function asItem(f) {
+    if (f.file) return f;
+    var rel = f.webkitRelativePath || "";
+    return { file: f, folder: rel.indexOf("/") >= 0 ? rel.slice(0, rel.lastIndexOf("/")) : "" };
+  }
+
+  function pathOf(item) { return item.folder ? item.folder + "/" + item.file.name : item.file.name; }
+
   function uploadAll(files) {
     if (!files || !files.length || !form) return;
     var maxFile = parseInt(form.dataset.maxFile, 10) || 0;
-    var list = Array.prototype.slice.call(files);
-    var tooBig = list.filter(function (f) { return maxFile && f.size > maxFile; });
+    var list = Array.prototype.map.call(files, asItem);
+    var tooBig = list.filter(function (it) { return maxFile && it.file.size > maxFile; });
     if (tooBig.length) {
-      list = list.filter(function (f) { return tooBig.indexOf(f) < 0; });
+      list = list.filter(function (it) { return tooBig.indexOf(it) < 0; });
       window.SW.alert(t("These files exceed the maximum size allowed (%(max)s):", {max: fmt(maxFile)}) + "\n" +
-                      tooBig.map(function (f) { return f.name; }).join("\n"))
+                      tooBig.map(pathOf).join("\n"))
         .then(function () { if (list.length) startUpload(list); });
       return;
     }
     startUpload(list);
   }
 
+  // Lo que se arrastra: con carpetas, se recorren (y sus subcarpetas) y cada archivo lleva la suya
+  function droppedItems(dt) {
+    var entries = Array.prototype.map.call(dt.items || [], function (i) {
+      return i.kind === "file" && i.webkitGetAsEntry ? i.webkitGetAsEntry() : null;   // hay que pedirlo ya
+    }).filter(Boolean);
+    if (!entries.some(function (e) { return e.isDirectory; })) return Promise.resolve(dt.files);
+    var out = [];
+    var walk = function (entry, folder) {
+      if (entry.isFile) {
+        return new Promise(function (resolve) {
+          entry.file(function (f) { out.push({ file: f, folder: folder }); resolve(); }, function () { resolve(); });
+        });
+      }
+      var reader = entry.createReader();
+      var sub = folder ? folder + "/" + entry.name : entry.name;
+      var batch = function () {   // readEntries devuelve las entradas por tandas, hasta una vacía
+        return new Promise(function (resolve) { reader.readEntries(resolve, function () { resolve([]); }); })
+          .then(function (list) {
+            if (!list.length) return null;
+            return list.reduce(function (p, e) { return p.then(function () { return walk(e, sub); }); },
+                               Promise.resolve()).then(batch);
+          });
+      };
+      return batch();
+    };
+    return entries.reduce(function (p, e) { return p.then(function () { return walk(e, ""); }); }, Promise.resolve())
+      .then(function () { return out; });
+  }
+
   function startUpload(list) {
 
-    var total = list.reduce(function (s, f) { return s + f.size; }, 0) || 1;
+    var total = list.reduce(function (s, it) { return s + it.file.size; }, 0) || 1;
     var done = 0, errors = [], bar = panel.querySelector(".bar"),
         label = panel.querySelector(".label"), detail = panel.querySelector(".detail");
     current.cancelled = false;
     panel.hidden = false;
     if (input) input.disabled = true;
+    if (folderInput) folderInput.disabled = true;
     window.onbeforeunload = function () { return t("An upload is in progress"); };
 
     var chain = Promise.resolve();
-    list.forEach(function (file, i) {
+    list.forEach(function (item, i) {
+      var file = item.file;
       chain = chain.then(function () {
         if (current.cancelled) return;
-        detail.textContent = t("File %(index)s of %(total)s: %(name)s", {index: i + 1, total: list.length, name: file.name});
-        return uploadFile(file, function (bytes) {
+        detail.textContent = t("File %(index)s of %(total)s: %(name)s", {index: i + 1, total: list.length, name: pathOf(item)});
+        return uploadFile(item, function (bytes) {
           var pct = Math.min(100, Math.floor(((done + bytes) / total) * 100));
           bar.style.width = pct + "%";
           label.textContent = pct + "% · " + fmt(done + bytes) + " / " + fmt(total);
         }).then(function () { done += file.size; }, function (err) {
           if (err.status === -1) return;
-          errors.push(file.name + ": " + errorText(err));
+          errors.push(pathOf(item) + ": " + errorText(err));
           done += file.size;
         });
       });
@@ -192,6 +236,9 @@
   if (input) {
     input.addEventListener("change", function () { uploadAll(input.files); });
   }
+  if (folderInput) {
+    folderInput.addEventListener("change", function () { uploadAll(folderInput.files); });
+  }
 
   // Solo archivos que vienen de fuera (del equipo); arrastrar filas para mover no es subir
   function bringsFiles(e) {
@@ -213,13 +260,14 @@
       });
     });
     document.addEventListener("drop", function (e) {
-      if (bringsFiles(e) && e.dataTransfer.files.length) uploadAll(e.dataTransfer.files);
+      if (!bringsFiles(e) || !e.dataTransfer.files.length) return;
+      droppedItems(e.dataTransfer).then(uploadAll);
     });
   }
 
   // ------------------------------------------------------------------ acciones de la tabla
 
-  document.querySelectorAll("form.js-rename").forEach(function (f) {
+  function wireRename(f) {
     f.addEventListener("submit", function (e) {
       if (f.dataset.renamed === "1") { delete f.dataset.renamed; return; }
       e.preventDefault();
@@ -230,6 +278,38 @@
         f.dataset.renamed = "1";
         f.submit();
       });
+    });
+  }
+  document.querySelectorAll("form.js-rename").forEach(wireRename);
+
+  // ------------------------------------------------------------------ favoritos: la X de la lista
+  // Quita el favorito sin recargar; si es la carpeta en la que estás, el formulario sigue (y la estrella se apaga)
+  document.querySelectorAll("form.fav-remove").forEach(function (f) {
+    f.addEventListener("submit", function (e) {
+      if (f.hasAttribute("data-here")) return;
+      e.preventDefault();
+      // getAttribute: el formulario tiene un campo «action», que tapa la propiedad f.action
+      fetch(f.getAttribute("action"), { method: "POST", body: new FormData(f), credentials: "same-origin",
+                        headers: { "Accept": "application/json" } })
+        .then(function (r) {
+          if (!r.ok) throw new Error(r.status);
+          var li = f.closest("li");
+          var list = li.parentNode;
+          li.remove();
+          // La fila del explorador, si está a la vista, deja de ser favorita (panel de detalle)
+          var table = document.getElementById("file-table");
+          if (table && table.dataset.root === f.elements.root.value) {
+            table.querySelectorAll("tr.file-row").forEach(function (row) {
+              if (row.dataset.rel === f.elements.path.value) row.dataset.fav = "0";
+            });
+          }
+          if (!list.children.length) {   // sin favoritos: fuera la sección
+            var title = list.previousElementSibling;
+            if (title && title.classList.contains("panel-title")) title.remove();
+            list.remove();
+          }
+        })
+        .catch(function () { window.SW.alert(t("Network error.")); });
     });
   });
 
@@ -253,7 +333,8 @@
     size: document.getElementById("details-size"),
     mtime: document.getElementById("details-mtime"),
     open: document.getElementById("details-open"),
-    download: document.getElementById("details-download")
+    download: document.getElementById("details-download"),
+    fav: document.getElementById("details-fav")
   };
   var filterInput = document.getElementById("filter-input");
   var filterEmpty = document.getElementById("filter-empty");
@@ -313,7 +394,28 @@
         details.download.hidden = !link;
         details.download.setAttribute("href", link || "#");
       }
+      if (details.fav) {
+        var on = r.dataset.fav === "1";
+        details.fav.dataset.rel = r.dataset.rel;
+        details.fav.classList.toggle("is-on", on);
+        details.fav.setAttribute("aria-pressed", on ? "true" : "false");
+        details.fav.querySelector("span").textContent = on ? t("Remove from favorites") : t("Add to favorites");
+      }
     }
+  }
+
+  // Favoritos desde el panel de detalle: se marca o se quita y se recarga (el panel izquierdo cambia)
+  if (details.fav) {
+    details.fav.addEventListener("click", function () {
+      var body = new URLSearchParams({ root: details.fav.dataset.root, path: details.fav.dataset.rel || "" });
+      fetch(details.fav.dataset.favUrl, {
+        method: "POST", body: body, credentials: "same-origin",
+        headers: { "X-CSRF-Token": csrf, "Accept": "application/json" }
+      }).then(function (res) {
+        if (!res.ok) throw new Error(String(res.status));
+        window.location.reload();
+      }).catch(function () { window.SW.alert(t("Network error.")); });
+    });
   }
 
   function selectOnly(row) {
@@ -321,7 +423,8 @@
     update();
   }
 
-  rows.forEach(function (row) {
+  // Eventos de una fila: las de la página y las que llegan después (cargar más, filtro en el servidor)
+  function wireRow(row) {
     checkbox(row).addEventListener("change", update);
     row.addEventListener("click", function (e) {
       if (e.target.closest("a, button, input, label, form")) return;
@@ -331,7 +434,8 @@
       if (e.target.closest("a, button, input, label, form")) return;
       if (row.dataset.href) window.location.href = row.dataset.href;
     });
-  });
+    wireDrag(row);
+  }
 
   if (selectAll) {
     selectAll.addEventListener("change", function () {
@@ -516,7 +620,7 @@
   var DRAG_TYPE = "application/x-storageweb-items";
   var dragging = null;
 
-  rows.forEach(function (row) {
+  function wireDrag(row) {
     if (row.getAttribute("draggable") !== "true") return;
     row.addEventListener("dragstart", function (e) {
       if (!checkbox(row).checked) selectOnly(row);
@@ -526,7 +630,8 @@
       e.dataTransfer.setData("text/plain", selected().map(function (r) { return r.dataset.name; }).join("\n"));
     });
     row.addEventListener("dragend", function () { dragging = null; });
-  });
+  }
+  rows.forEach(wireRow);
 
   function dropTarget(el) {
     var row = el.closest("tr.file-row");
@@ -586,8 +691,124 @@
     if (e.key === "Escape" && selected().length && !e.target.closest("input, textarea, select")) runAction("clear");
   });
 
+  // ------------------------------------------------------------------ carpetas que no caben en la página
+  // (storage.page_size / listing_mode, files._listing): «scroll» carga más filas al bajar; con el filtro, las
+  // filas que coinciden las da el servidor (entre todas las de la carpeta), también por trozos
+  var foot = document.getElementById("listing-foot");
+  var tbody = table.tBodies[0];
+  var pager = document.getElementById("listing-pager");
+  var loadMoreBtn = document.getElementById("load-more");
+  var statusEl = document.getElementById("listing-status");
+  var initialStatus = statusEl ? statusEl.textContent : "";
+  var mode = foot ? foot.dataset.mode : "";
+  var nextRows = foot ? foot.dataset.next : "";
+  var query = filterInput ? filterInput.value.trim() : "";
+  var total = foot ? parseInt(foot.dataset.total, 10) || 0 : 0;
+  var loading = false;
+  var seq = 0;
+
+  function canLoadMore() { return !!nextRows && (mode === "scroll" || query !== ""); }
+
+  function refreshFoot() {
+    if (!foot) return;
+    if (pager) pager.hidden = mode !== "pages" || query !== "";
+    if (loadMoreBtn) loadMoreBtn.hidden = !canLoadMore();
+    if (statusEl && (mode === "scroll" || query !== "")) {
+      statusEl.textContent = query
+        ? t("%(shown)s of %(total)s items match «%(query)s»", { shown: rows.length, total: total, query: query })
+        : t("%(shown)s of %(total)s items", { shown: rows.length, total: total });
+    } else if (statusEl) {
+      statusEl.textContent = initialStatus;
+    }
+    if (filterEmpty) filterEmpty.hidden = rows.length > 0 || query === "";
+  }
+
+  function fetchRows(url) {
+    return fetch(url, { credentials: "same-origin", headers: { "Accept": "text/html" } }).then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.text().then(function (html) {
+        return { html: html, next: r.headers.get("X-Next") || "", total: parseInt(r.headers.get("X-Total"), 10) || 0 };
+      });
+    });
+  }
+
+  function putRows(html, replace) {
+    var tpl = document.createElement("template");
+    tpl.innerHTML = html;
+    if (replace) {
+      rows.forEach(function (r) { r.remove(); });
+      rows = [];
+    }
+    var empty = tbody.querySelector("tr.row-empty");
+    if (empty) empty.remove();
+    Array.prototype.forEach.call(tpl.content.querySelectorAll("tr.file-row"), function (row) {
+      tbody.appendChild(row);
+      rows.push(row);
+      wireRow(row);
+      row.querySelectorAll("form.js-rename").forEach(wireRename);
+      row.querySelectorAll("form.js-confirm").forEach(window.SW.confirmForm);
+    });
+    update();
+  }
+
+  function loadMore() {
+    if (loading || !canLoadMore()) return;
+    loading = true;
+    var mine = seq;
+    fetchRows(nextRows).then(function (res) {
+      if (mine !== seq) return;          // el filtro cambió mientras tanto
+      putRows(res.html, false);
+      nextRows = res.next;
+      total = res.total;
+      refreshFoot();
+      return true;
+    }).catch(function () { window.SW.alert(t("Network error.")); return false; })
+      .then(function (ok) {
+        loading = false;
+        // El observador solo avisa al entrar en la vista: si tras cargar el botón sigue cerca, se carga otro trozo
+        if (ok && mine === seq && loadMoreBtn && !loadMoreBtn.hidden &&
+            loadMoreBtn.getBoundingClientRect().top < window.innerHeight + 600) loadMore();
+      });
+  }
+
+  if (foot) {
+    if (mode === "scroll" && pager) pager.hidden = true;   // sin JavaScript, el paginador
+    if (loadMoreBtn) {
+      loadMoreBtn.addEventListener("click", loadMore);
+      if ("IntersectionObserver" in window) {
+        new IntersectionObserver(function (entries) {
+          if (entries[0].isIntersecting) loadMore();
+        }, { rootMargin: "600px 0px" }).observe(loadMoreBtn);
+      }
+    }
+    refreshFoot();
+  }
+
+  // El filtro: en una carpeta entera en la página, al momento sobre las filas; si no, pregunta al servidor
+  var filterTimer = null;
+  function serverFilter() {
+    var mine = ++seq;
+    loading = false;
+    // Sin filtro, vuelve a lo de antes: la página del paginador o el principio
+    var url = foot.dataset.filter + (query ? "&q=" + encodeURIComponent(query)
+      : (mode === "pages" ? "&page=" + foot.dataset.page : ""));
+    fetchRows(url).then(function (res) {
+      if (mine !== seq) return;
+      putRows(res.html, true);
+      nextRows = res.next;
+      total = res.total;
+      refreshFoot();
+    }).catch(function () { window.SW.alert(t("Network error.")); });
+  }
+
   if (filterInput) {
     filterInput.addEventListener("input", function () {
+      if (foot) {
+        query = filterInput.value.trim();
+        clearTimeout(filterTimer);
+        filterTimer = setTimeout(serverFilter, 250);
+        return;
+      }
       var q = filterInput.value.trim().toLowerCase();
       var shown = 0;
       rows.forEach(function (r) {

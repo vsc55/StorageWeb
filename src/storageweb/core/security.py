@@ -22,6 +22,33 @@ class PathError(Exception):
     """Ruta fuera de la raíz permitida o no válida."""
 
 
+# Lo que Windows trata como especial en un nombre (como os.path.isreserved de Python 3.13): un nombre que acaba en
+# punto o espacio (Windows los quita: «secreto.md.» abre «secreto.md»), «:» (flujos de NTFS: «secreto.md::$DATA»
+# abre el contenido), comodines y los dispositivos (CON, NUL…, también con extensión: «con.txt»)
+_WIN_SPECIAL_CHARS = re.compile(r'[\x00-\x1f:*?"<>|]')
+_WIN_DEVICES = {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$",
+                *(f"{port}{n}" for port in ("COM", "LPT") for n in (*"0123456789", "\u00b9", "\u00b2", "\u00b3"))}
+_SHORT_NAME = re.compile(r"~\d")
+
+
+def windows_reserved(name: str) -> bool:
+    """``True`` si ``name`` (un nombre, sin barras) no es lo que parece en Windows: abriría otro archivo, un flujo
+    de NTFS o un dispositivo. Esas rutas se rechazan en el disco de un servidor Windows y en SMB, porque se saltarían
+    los «ocultos para todos» (``storage.hidden``) o dejarían colgada la petición (``CON``)."""
+    if not name or name in (".", ".."):
+        return False
+    if name[-1] in ". " or _WIN_SPECIAL_CHARS.search(name):
+        return True
+    return name.split(".")[0].rstrip(" ").upper() in _WIN_DEVICES
+
+
+def check_windows_parts(parts) -> None:
+    """:class:`PathError` si algún trozo de la ruta es un nombre especial de Windows (:func:`windows_reserved`)."""
+    for part in parts:
+        if windows_reserved(part):
+            raise PathError(part)
+
+
 def safe_filename(name: str) -> str:
     """Sanea un nombre de archivo/carpeta conservando acentos y espacios."""
     name = unicodedata.normalize("NFC", name or "")
@@ -56,9 +83,17 @@ def resolve_inside(base: Path, sub: str) -> Path:
     parts = [p for p in sub.replace("\\", "/").split("/") if p not in ("", ".")]
     if any(p == ".." for p in parts):
         raise PathError(sub)
+    if IS_WINDOWS:
+        check_windows_parts(parts)
     target = base.joinpath(*parts).resolve() if parts else base
     if target != base and base not in target.parents:
         raise PathError(sub)
+    if IS_WINDOWS and any(_SHORT_NAME.search(p) for p in parts) and target != base:
+        # Un nombre corto de 8.3 («SECRET~1.MD») abre el largo («secreto.md») sin que lo vea storage.hidden: solo
+        # vale si es el nombre de verdad
+        real = target.relative_to(base).parts
+        if [p.casefold() for p in real] != [p.casefold() for p in parts]:
+            raise PathError(sub)
     return target
 
 
@@ -67,6 +102,8 @@ def resolve_entry(base: Path, sub: str) -> Path:
     parts = [p for p in sub.replace("\\", "/").split("/") if p not in ("", ".")]
     if not parts or parts[-1] == "..":
         raise PathError(sub)
+    if IS_WINDOWS:
+        check_windows_parts(parts)
     entry = resolve_inside(base, "/".join(parts[:-1])) / parts[-1]
     if not (entry.exists() or entry.is_symlink()):
         raise PathError(sub)

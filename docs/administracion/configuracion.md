@@ -57,9 +57,11 @@ La barra lateral tiene *Archivos* y, para los administradores, el **Resumen** y 
 |---|---|
 | **Resumen** | Avisos que necesitan atención (secreto de Entra ID a punto de caducar, carpetas que no existen, copias automáticas que no se hacen, problemas de red), una tarjeta por zona, tareas frecuentes y la actividad reciente. El número rojo de la barra lateral cuenta los avisos |
 | **Personas** | Usuarios · Grupos · Sesiones y tokens |
-| **Acceso** | Carpetas compartidas · Matriz de accesos · Permisos del rol · Carpetas personales |
-| **Seguridad** | Inicio de sesión · Reglas de bloqueo · API y unidad de red · IPs bloqueadas · Auditoría |
-| **Sistema** | General y marca · Vista previa · Red y HTTPS · Mantenimiento · Copias y base de datos · Información |
+| **Acceso** | Carpetas compartidas · Matriz de accesos · Permisos del rol · Carpetas personales · Cuotas |
+| **Seguridad** | Inicio de sesión · Reglas de bloqueo · API y unidad de red · IPs bloqueadas · Auditoría · Registro de auditoría (retención, niveles y SIEM) |
+| **Sistema** | General y marca · Red y HTTPS · Almacenamiento externo · Archivos y explorador · Vista previa · Copias automáticas · Copias y base de datos · Monitorización · Información |
+
+**Ajustes bloqueados:** lo que está en `config.json` o en una variable de entorno no se cambia desde la web. En el menú de cada zona, junto a la página, un candado dice cuántos ajustes suyos están así; arriba de la página, la lista de esos ajustes (con su variable de entorno o `config.json`) enlaza a cada uno, y el campo sale desactivado con su origen.
 
 Cada página dice de qué tipo es:
 

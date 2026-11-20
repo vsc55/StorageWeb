@@ -15,7 +15,7 @@ from flask import Flask
 
 def init_web(app: Flask) -> None:
     """Conecta la capa web a la aplicación: hooks de cada petición, plantillas, errores y blueprints."""
-    from .background import maintenance_tick
+    from .background import apply_process_settings, maintenance_tick
     from .context import close_db
     from .errors import register_error_handlers
     from .guards import (check_csrf, ip_gate, load_current_user, maintenance_gate, reset_request_locale,
@@ -26,6 +26,7 @@ def init_web(app: Flask) -> None:
     # El orden importa: primero el usuario y su idioma, para que hasta el error de CSRF salga traducido
     app.before_request(start_timer)
     app.before_request(maintenance_gate)
+    app.before_request(apply_process_settings)
     app.before_request(ip_gate)
     app.before_request(load_current_user)
     app.before_request(select_locale)

@@ -150,6 +150,9 @@ def login_enrol():
 
 @bp.route("/login/mfa/cancel", methods=["POST"])
 def login_cancel():
+    held = session.get(_PENDING) or {}
+    if held:
+        audit_event("login_cancelled", held.get("name"), "mfa", username=held.get("name"))
     session.pop(_PENDING, None)
     return redirect(url_for("auth.login", manual=1))
 
@@ -181,6 +184,7 @@ def begin():
     if user is None or mfa.enrolled(get_db(), user):
         return _back()
     mfa.enroll_begin(get_db(), _key(), user, _issuer())
+    audit_event("mfa_enrol_started", user["username"])
     return redirect(url_for("mfa.setup"))
 
 

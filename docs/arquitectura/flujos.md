@@ -56,7 +56,7 @@ sequenceDiagram
     participant N as Navegador (app.js)
     participant S as API /api/uploads
     participant D as Disco
-    N->>S: POST {root, path, name, size}
+    N->>S: POST {root, path, name, size, folders?}
     S->>S: Permiso, nombre, tamaño máx., espacio libre
     S->>D: crear .sw-upload-<id>.part vacío
     S-->>N: 201 {id, chunk_size}

@@ -241,7 +241,7 @@ def test_quota_of_personal_and_shared_folders(quota_app):
     from storageweb.core import quota
     _app, client, token, home = quota_app
     (home / "datos.bin").write_bytes(b"x" * (9 * 1024 * 1024 + 512 * 1024))   # 9,5 de 10 MB: aviso
-    quota.clear()  # escrito por fuera de la web: la caché no se entera (tarda hasta CACHE_SECONDS)
+    quota.clear()  # escrito por fuera de la web: se vería al volver a medir (storage.quota_refresh_minutes)
     html = client.get("/f/home/").get_data(as_text=True)
     assert "Cuota: 9.5 MB de 10.0 MB" in html.replace(",", ".") and "95% de la cuota usada: casi llena." in html
     assert "quota-notice quota-warn" in html

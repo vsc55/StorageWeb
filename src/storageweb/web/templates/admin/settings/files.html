@@ -1,0 +1,33 @@
+{% extends "admin/settings/_layout.html" %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
+{% block section %}
+{# Sistema → Archivos y explorador: qué se ve, qué no existe para nadie, tamaños y carpetas grandes #}
+{% set st = cfg.storage %}
+{{ form_start() }}
+  <div class="card form-grid">
+    <label class="check"><input{{ lock('storage.show_hidden') }} type="checkbox" name="show_hidden" {% if st.show_hidden %}checked{% endif %}> {{ _("Show hidden files") }} {{ origin('storage.show_hidden') }}</label>
+    <label class="{{ err_class('storage.max_file_size_mb') }}"><span class="label-row">{{ _("Maximum size per file (MB)") }} {{ origin('storage.max_file_size_mb') }}</span>
+      <input{{ lock('storage.max_file_size_mb') }} type="number" name="max_file_size_mb" value="{{ st.max_file_size_mb }}" min="0">
+      <small class="muted">{{ _("0 = no limit; uploads are sent in parts") }}</small>
+      {{ field_error('storage.max_file_size_mb') }}</label>
+    <label class="{{ err_class('storage.page_size') }}"><span class="label-row">{{ _("Items shown at once") }} {{ origin('storage.page_size') }}</span>
+      <input{{ lock('storage.page_size') }} type="number" name="page_size" value="{{ st.page_size }}" min="50" max="5000" step="10">
+      <small class="muted">{{ _("From 50 to 5000. The API and the network drive always list the whole folder.") }}</small>
+      {{ field_error('storage.page_size') }}</label>
+    <label class="{{ err_class('storage.listing_mode') }}"><span class="label-row">{{ _("Folders with many items") }} {{ origin('storage.listing_mode') }}</span>
+      <select{{ lock('storage.listing_mode') }} name="listing_mode">
+        <option value="scroll" {% if st.listing_mode == 'scroll' %}selected{% endif %}>{{ _("Load more while scrolling") }}</option>
+        <option value="pages" {% if st.listing_mode == 'pages' %}selected{% endif %}>{{ _("By pages") }}</option>
+        <option value="search" {% if st.listing_mode == 'search' %}selected{% endif %}>{{ _("Only the first ones; the rest, with the filter") }}</option>
+      </select>
+      <small class="muted">{{ _("In all three, the filter of the folder searches among all its items.") }}</small>
+      {{ field_error('storage.listing_mode') }}</label>
+    <label class="check"><input{{ lock('storage.create_shares') }} type="checkbox" name="create_shares" {% if st.create_shares %}checked{% endif %}> {{ _("Create shared folders if they do not exist") }} {{ origin('storage.create_shares') }}</label>
+    <label class="span2 {{ err_class('storage.hidden') }}"><span class="label-row">{{ _("Hidden for everyone") }} {{ origin('storage.hidden') }}</span>
+      <textarea{{ lock('storage.hidden') }} name="hidden" rows="5" class="mono" spellcheck="false" placeholder="Thumbs.db&#10;desktop.ini&#10;.DS_Store&#10;*.tmp&#10;.git/">{{ st.hidden|join('\n') }}</textarea>
+      <small class="muted">{{ _("One pattern per line, like .gitignore: «Thumbs.db» or «*.tmp» anywhere, «.git/» only folders, «/private» from the root of each folder. They are not listed and cannot be opened or created (web, network drive and API); the files stay on disk.") }}</small>
+      {{ field_error('storage.hidden') }}</label>
+  </div>
+  {{ save_bar() }}
+</form>
+{% endblock %}

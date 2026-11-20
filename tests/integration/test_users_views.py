@@ -179,3 +179,31 @@ def test_public_ids_in_addresses_and_forms(app, admin):
     assert ("select", "group_uid", None) in reader.found and ("option", None, G(gid)) in reader.found
     client.post(f"/admin/users/{U(ana)}/groups", data={"_csrf": token, "group_uid": G(gid)})
     assert "Finanzas" in client.get(f"/admin/users/{U(ana)}").get_data(as_text=True)
+
+
+def test_entra_accounts_can_be_disabled_but_not_your_own(make_app):
+    """Una cuenta de Entra ID se desactiva como cualquier otra; la propia no (el botón se ve, desactivado, con el
+    motivo, y guardar la ficha la deja activa)."""
+    from storageweb.db.repositories import users as user_repo
+    from storageweb.web.context import get_db
+    from tests.helpers import add_user, get_csrf, login
+
+    app = make_app({"auth": {"entra": {"enabled": True, "tenant_id": "t", "client_id": "c", "client_secret": "s"}}})
+    add_user(app, "root", role="admin")
+    with app.app_context():
+        user_repo.create(get_db(), username="ana@contoso.com", source="entra", role="user", password_hash=None)
+        ana = user_repo.get_by_username(get_db(), "ana@contoso.com")
+        root = user_repo.get_by_username(get_db(), "root")
+    client = app.test_client()
+    login(client, "root")
+    csrf = get_csrf(client, "/admin/users")
+    client.post(f"/admin/users/{ana['uid']}/status", data={"_csrf": csrf, "enabled": "0"})
+    with app.app_context():
+        assert not user_repo.get_by_username(get_db(), "ana@contoso.com")["enabled"]
+    own = client.get(f"/admin/users/{root['uid']}").get_data(as_text=True)
+    assert "No puedes desactivar ni borrar tu propia cuenta" in own and f"/admin/users/{root['uid']}/status" not in own
+    assert 'type="button" disabled title="No puedes deshabilitar tu propia cuenta."' in own
+    form = {"_csrf": csrf, "role": "admin", "enabled": "on", "display_name": "", "email": ""}
+    client.post(f"/admin/users/{root['uid']}", data=form)
+    with app.app_context():
+        assert user_repo.get_by_username(get_db(), "root")["enabled"]

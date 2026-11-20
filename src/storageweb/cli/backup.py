@@ -18,11 +18,14 @@ def _backup_dir(cfg, args) -> Path:
 def _backup_args(p):
     p.add_argument("--output", help=_("Destination folder (default <data_dir>/backups)"))
     p.add_argument("--keep", type=int, help=_("Keep only the N most recent backups in the folder"))
+    p.add_argument("--no-offsite", action="store_true",
+                   help=_("Do not send it outside the server even if maintenance.offsite_location is set"))
 
 
 @command("backup", _l("Back up the database, config.json and secret_key"), _backup_args, order=140)
 def cmd_backup(cfg, conn, args):
-    from ..core import backup
+    from ..core import backup, maintenance
+    from ..settings.runtime import open_runtime
 
     try:
         path = backup.create(cfg, _backup_dir(cfg, args), keep=args.keep)
@@ -30,6 +33,13 @@ def cmd_backup(cfg, conn, args):
         _fail(_("Error: %(error)s", error=exc))
     audit.log(conn, "backup", str(path), username="cli")
     print(path)
+    if args.no_offsite:
+        return
+    # La ubicación puede estar elegida desde la web: con los ajustes efectivos, no solo config.json
+    runtime, _boot = open_runtime(args.config, create_key=False)
+    error = maintenance.send_offsite(conn, runtime.current(conn), path, "cli")
+    if error:
+        _fail(_("The backup was made, but it could not be sent outside the server: %(error)s", error=error))
 
 
 def _backup_list_args(p):

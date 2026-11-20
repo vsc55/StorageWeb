@@ -14,14 +14,16 @@ def cmd_init_db(cfg, conn, args):
 
 
 def _audit_args(p):
+    from ..audit_levels import LEVELS
     p.add_argument("--limit", type=int, default=50, help=_("Maximum number of entries"))
     p.add_argument("--user", help=_("Filter by user"))
+    p.add_argument("--level", choices=LEVELS, help=_("Only from this level up"))
 
 
 @command("audit", _l("Show the audit log"), _audit_args, order=100)
 def cmd_audit(cfg, conn, args):
-    for r in audit.recent(conn, args.limit, username=args.user):
-        print(f"{r['ts']}  {r['username'] or '-':<25} {r['action']:<16} {r['target'] or '':<40} "
+    for r in audit.recent(conn, args.limit, username=args.user, min_level=args.level):
+        print(f"{r['ts']}  {r['level']:<8} {r['username'] or '-':<25} {r['action']:<16} {r['target'] or '':<40} "
               f"{r['ip'] or ''} {r['detail'] or ''}")
 
 

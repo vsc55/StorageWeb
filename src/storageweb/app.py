@@ -9,19 +9,15 @@ from flask import Flask
 
 from .core.security import LoginThrottle
 from .db import init_db
-from .settings import RuntimeSettings, ensure_secret_key, env_config, fields, normalize, read_config_file, secretbox
+from .settings import ensure_secret_key, fields
+from .settings.runtime import open_runtime
 from .web import init_web
 
 
 def create_app(config_path: str | None = None) -> Flask:
-    file_cfg, cfg_path = read_config_file(config_path)
-    env_cfg = env_config()
-    cfg = normalize(file_cfg, cfg_path, env_cfg=env_cfg)  # sin ajustes web: arranque (servidor, BD, sesión)
-    # Clave de los secretos guardados; con ella, los secretos cifrados de config.json o del entorno se descifran
-    secrets_key = secretbox.load_key(cfg["data_dir"])
-    file_cfg = secretbox.decrypt_layer(secrets_key, file_cfg, "config.json")
-    env_cfg = secretbox.decrypt_layer(secrets_key, env_cfg, "STORAGEWEB_*")
-    cfg = normalize(file_cfg, cfg_path, env_cfg=env_cfg)
+    # Configuración de arranque (config.json + entorno, sin ajustes web: servidor, BD, sesión) y los ajustes por
+    # capas, con la clave de los secretos guardados (con ella se descifran también los de config.json y entorno)
+    runtime, cfg = open_runtime(config_path)
 
     app = Flask(__name__, template_folder="web/templates", static_folder="web/static",
                 static_url_path="/static")
@@ -36,9 +32,8 @@ def create_app(config_path: str | None = None) -> Flask:
         # Lax es necesario para que la cookie llegue en la redirección de vuelta desde Entra ID
         SESSION_COOKIE_SAMESITE="Lax",
     )
-    app.extensions["storageweb.runtime"] = RuntimeSettings(file_cfg, cfg_path, env_cfg, cfg["settings_profile"])
-    app.extensions["storageweb.runtime"].labeler = fields.label
-    app.extensions["storageweb.runtime"].secrets_key = secrets_key
+    runtime.labeler = fields.label
+    app.extensions["storageweb.runtime"] = runtime
     app.extensions["storageweb.maintenance"] = {"next": 0.0, "lock": threading.Lock()}
     app.extensions["storageweb.throttle"] = LoginThrottle(cfg["security"]["max_login_failures"],
                                                           cfg["security"]["lockout_minutes"] * 60)

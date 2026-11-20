@@ -46,6 +46,7 @@ def check_csrf() -> None:
     sent = request.headers.get("X-CSRF-Token") or request.form.get("_csrf")
     if not expected or not sent or not hmac.compare_digest(expected, sent):
         ipban.offense(get_db(), settings(), client_ip(), "csrf")
+        audit_event("csrf_rejected", request.path, request.method)
         abort(400, description=_("Invalid CSRF token. Reload the page and try again."))
 
 
@@ -144,7 +145,7 @@ def _load_token_user(plain: str) -> None:
     cfg = settings()
     if not cfg["security"]["api_tokens"]:
         abort(401, description=_("API tokens are disabled."))
-    found = tokens.authenticate(get_db(), plain, client_ip())
+    found = tokens.authenticate(get_db(), plain, client_ip(), cfg["security"]["api_token_max_days"])
     if not found:
         ipban.offense(get_db(), cfg, client_ip(), "bad_token")
         abort(401, description=_("Invalid or expired API token."))
@@ -187,7 +188,7 @@ def _load_dav_user(header: str) -> None:
     user, token, reason = None, None, "bad_password"
     if password.startswith(tokens.PREFIX):
         reason = "bad_token"
-        found = tokens.authenticate(get_db(), password, ip) if cfg["security"]["api_tokens"] else None
+        found = tokens.authenticate(get_db(), password, ip, cfg["security"]["api_token_max_days"])             if cfg["security"]["api_tokens"] else None
         if found and found[0]["username"].lower() == username.lower():
             user, token = found
     elif not cfg["security"]["webdav_passwords"]:
@@ -289,6 +290,10 @@ def with_token(detail: str | None) -> str | None:
     return f"{detail} token={token['name']}" if detail else f"token={token['name']}"
 
 
-def audit_event(action: str, target: str | None = None, detail: str | None = None) -> None:
-    """Registra en la auditoría una acción del usuario de la petición (con su IP y, si lo hay, su token)."""
-    audit.log(get_db(), action, target, username=g.user["username"], ip=client_ip(), detail=with_token(detail))
+def audit_event(action: str, target: str | None = None, detail: str | None = None, *, username: str | None = None,
+                level: str | None = None) -> None:
+    """Registra en la auditoría una acción del usuario de la petición (con su IP y, si lo hay, su token). Sin
+    sesión (la pantalla de entrada), ``username`` o nadie."""
+    user = g.get("user")
+    audit.log(get_db(), action, target, username=username or (user["username"] if user is not None else None),
+              ip=client_ip(), detail=with_token(detail), level=level)

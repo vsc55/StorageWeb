@@ -18,7 +18,7 @@ from typing import BinaryIO
 
 from ...i18n import _
 from ...settings.location_types import LocationSchema
-from ..security import UPLOAD_TMP_PREFIX, PathError
+from ..security import UPLOAD_TMP_PREFIX, PathError, check_windows_parts
 
 
 @dataclass
@@ -164,9 +164,19 @@ class Backend:
     """Almacenamiento de una raíz. Las subclases implementan las operaciones básicas."""
 
     kind = ""
+    # El servidor de la ubicación es Windows (opción windows_server): sus rutas no admiten los nombres especiales de
+    # Windows («a.txt.», «a.txt::$DATA», «CON»…), que abrirían otro archivo o un dispositivo (backend_for lo pone)
+    windows_names = False
 
     def __init__(self, staging: Path):
         self.staging = staging  # zona local para recibir las subidas por partes
+
+    def _clean(self, rel: str) -> str:
+        """``clean_rel`` y, si el servidor es Windows, sin nombres especiales de Windows."""
+        cleaned = clean_rel(rel)
+        if self.windows_names and cleaned:
+            check_windows_parts(cleaned.split("/"))
+        return cleaned
 
     # ------------------------------------------------------------------ a implementar
     def describe(self) -> str:

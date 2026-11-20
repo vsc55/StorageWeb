@@ -348,3 +348,20 @@ class RuntimeSettings:
     def reset(self, conn: Connection, username: str | None) -> None:
         """Descarta todos los ajustes web: vuelven los predeterminados (salvo lo bloqueado)."""
         store.put_doc(conn, self.profile, {}, username)
+
+
+def open_runtime(config_path=None, *, create_key: bool = True) -> tuple[RuntimeSettings, dict]:
+    """Los ajustes por capas como los usa el servidor: ``(RuntimeSettings, configuración de arranque)``. La
+    configuración de arranque es config.json + entorno (con sus secretos cifrados ya descifrados); los ajustes
+    efectivos, con lo guardado desde la web, salen de ``RuntimeSettings.current(conn)`` (p. ej. en la CLI)."""
+    from .loader import env_config, read_config_file  # noqa: PLC0415
+    file_cfg, cfg_path = read_config_file(config_path)
+    env_cfg = env_config()
+    cfg = normalize(file_cfg, cfg_path, env_cfg=env_cfg)
+    key = secretbox.load_key(cfg["data_dir"], create=create_key)
+    file_cfg = secretbox.decrypt_layer(key, file_cfg, "config.json")
+    env_cfg = secretbox.decrypt_layer(key, env_cfg, "STORAGEWEB_*")
+    cfg = normalize(file_cfg, cfg_path, env_cfg=env_cfg)
+    runtime = RuntimeSettings(file_cfg, cfg_path, env_cfg, cfg["settings_profile"])
+    runtime.secrets_key = key
+    return runtime, cfg

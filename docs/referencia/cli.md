@@ -172,13 +172,14 @@ storageweb user-exists <username>
 Muestra el registro de auditoría.
 
 ```
-storageweb audit [--limit LIMIT] [--user USER]
+storageweb audit [--limit LIMIT] [--user USER] [--level LEVEL]
 ```
 
 | Argumento | Descripción |
 |---|---|
 | `--limit` `LIMIT` | Número máximo de entradas Por defecto: `50`. |
 | `--user` `USER` | Filtra por usuario |
+| `--level` `LEVEL` | Solo desde este nivel hacia arriba Valores: `debug`, `info`, `warning`, `error`, `critical`. |
 
 ### `check-config` {#check-config}
 
@@ -272,13 +273,14 @@ storageweb mfa-status
 Copia de seguridad de la base de datos, config.json y secret_key.
 
 ```
-storageweb backup [--output OUTPUT] [--keep KEEP]
+storageweb backup [--output OUTPUT] [--keep KEEP] [--no-offsite]
 ```
 
 | Argumento | Descripción |
 |---|---|
 | `--output` `OUTPUT` | Carpeta de destino (por defecto <data_dir>/backups) |
 | `--keep` `KEEP` | Conserva solo las N copias más recientes de la carpeta |
+| `--no-offsite` | No enviarla fuera del servidor aunque maintenance.offsite_location esté configurado |
 
 ### `backup-list` {#backup-list}
 

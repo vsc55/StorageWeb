@@ -1,7 +1,7 @@
 """Páginas de error traducidas (las descripciones de Werkzeug están en inglés)."""
 from __future__ import annotations
 
-from flask import Flask, Response, render_template, request
+from flask import Flask, Response, g, render_template, request
 from werkzeug.exceptions import HTTPException
 
 from ..core.security import PathError
@@ -29,6 +29,18 @@ def _render_error(code: int, name, description: str | None):
     return render_template("error.html", code=code, name=name, description=description), code
 
 
+def _audit_denied(exc: HTTPException) -> None:
+    """Un 403 de alguien con sesión (sin permiso, carpeta de solo lectura, sin acceso a la administración) queda
+    en la auditoría como ``access_denied``. Los de una IP bloqueada no: ya consta el bloqueo y serían miles."""
+    if exc.code != 403 or g.get("user") is None:
+        return
+    from .guards import audit_event  # noqa: PLC0415 (guards importa de aquí)
+    try:
+        audit_event("access_denied", request.path, f"{request.method}: {exc.description}"[:200])
+    except Exception:  # noqa: BLE001 (la página de error sale igual)
+        pass
+
+
 def register_error_handlers(app: Flask) -> None:
     @app.errorhandler(HTTPException)
     def handle_http_error(exc: HTTPException):
@@ -37,6 +49,7 @@ def register_error_handlers(app: Flask) -> None:
             if exc.description and exc.description != type(exc).description:
                 body += f"\n{exc.description}"  # p. ej. por qué no cabe en la cuota (lo muestra la extensión)
             return Response(body, exc.code, mimetype="text/plain")
+        _audit_denied(exc)
         # Si la descripción es la genérica de Werkzeug (en inglés), se usa la traducida
         description = exc.description
         if description == type(exc).description:

@@ -13,6 +13,7 @@
   "cfg.remoteFolder": "Folder of StorageWeb synchronized with this one: `home/…` (your personal folder) or the name of a shared folder.",
   "cfg.autoSync": "Upload the changes when saving, creating, renaming or deleting files. Disabled: only the periodic and manual synchronizations.",
   "cfg.pollSeconds": "Seconds between full synchronizations (to bring the changes made on the server).",
+  "cfg.refreshSeconds": "Seconds between checks of the server files open in the editor or shown in the Explorer (`storageweb://`): if someone changed them on the server, the editor reloads them (if they have no unsaved changes). `0` = never; at least 5. Only while the window is active.",
   "cfg.exclude": "More patterns that are not synchronized (besides `.git`, `node_modules`, `.venv`, `__pycache__` and temporary files), only on this computer. For example `dist/**` or `**/*.log`. To share them with the other computers, use the `.storagewebignore` file of the folder.",
   "cfg.confirmDeletesOver": "Ask before deleting more than this many files in one synchronization (in case a folder was emptied by mistake).",
   "cmd.addServer": "Add server…",

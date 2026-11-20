@@ -17,6 +17,7 @@ PERMISSION_LABELS = {
     "mkdir": _l("Create folders"),
     "rename": _l("Rename"),
     "delete": _l("Delete"),
+    "edit": _l("Edit text files"),
 }
 assert set(ROLE_LABELS) == set(ROLES) and set(PERMISSION_LABELS) == set(PERMISSIONS)
 

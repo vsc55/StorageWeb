@@ -26,6 +26,9 @@ Hay tres protecciones: un admin no puede quitarse el rol, ni desactivarse, ni bo
 | Crear carpetas | ✔ | ✔ | ✘ |
 | Renombrar | ✔ | ✘ | ✘ |
 | Eliminar | ✔ | ✘ | ✘ |
+| Editar archivos de texto | ✔ | ✘ | ✘ |
+
+*Editar archivos de texto* deja cambiar y guardar desde el visor los archivos de texto en UTF-8 que se pueden ver (botón **Editar**); es aparte de *Subir* y *Eliminar*, que son los que pide la unidad de red para sobrescribir. Con un token de solo lectura no se edita.
 
 Los permisos del rol `user` se cambian en *Acceso → Permisos del rol*. El servidor los comprueba en cada acción, también en la API: la interfaz solo oculta los botones.
 

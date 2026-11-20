@@ -11,6 +11,7 @@ from pathlib import Path
 
 from ...i18n import _, _l
 from ...settings.location_types import LocationSchema, Option
+from ..security import check_windows_parts
 from .base import BackendError, Entry, RemoteBackend, clean_rel, join_rel, name_of
 
 COPY_BLOCK = 1024 * 1024
@@ -81,6 +82,8 @@ class SMBBackend(RemoteBackend):
 
     def _unc(self, rel: str) -> str:
         parts = [p for p in join_rel(self.base, clean_rel(rel)).split("/") if p]
+        # Al otro lado hay un Windows (o un Samba con flujos): «a.txt::$DATA», «a.txt.» o «CON» no son lo que parecen
+        check_windows_parts(parts)
         return "\\".join([f"\\\\{self.server}", self.share, *parts])
 
     def stat(self, rel: str) -> Entry | None:

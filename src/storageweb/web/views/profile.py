@@ -11,7 +11,7 @@ from ...i18n import LOCALES, _, _l, locale_display_name, ngettext
 from ...i18n import normalize as normalize_locale
 from ...providers import local
 from ..context import external_url, get_db, settings
-from ..guards import client_ip, login_required, safe_next
+from ..guards import audit_event, client_ip, login_required, safe_next
 
 bp = Blueprint("profile", __name__)
 
@@ -43,6 +43,7 @@ def change_theme():
         session["theme"] = theme
         if g.get("user") is not None:
             users.update(get_db(), g.user["id"], theme=theme)
+        audit_event("preference_changed", None, f"theme={theme}")
     return redirect(safe_next(request.form.get("next")))
 
 
@@ -99,7 +100,9 @@ def _render(section: str):
     elif section == "tokens":
         context.update(my_tokens=api_tokens.list_for_user(get_db(), user["id"]),
                        new_token=session.pop("new_token", None),
-                       SCOPE_LABELS=tokens.SCOPE_LABELS, EXPIRY_DAYS=tokens.EXPIRY_DAYS)
+                       SCOPE_LABELS=tokens.SCOPE_LABELS,
+                       EXPIRY_DAYS=tokens.allowed_days(cfg["security"]["api_token_max_days"]),
+                       token_max_days=cfg["security"]["api_token_max_days"])
     elif section == "drive":
         context.update(webdav_url=external_url("dav.root"), mfa_blocks_password=bool(mfa.needed(get_db(), cfg, user)))
     elif section == "space":
@@ -201,7 +204,8 @@ def token_create():
     try:
         plain, _token_id = tokens.create(get_db(), g.user, name=request.form.get("name", ""),
                                          scope=request.form.get("scope", "read"),
-                                         days=request.form.get("days", 90, type=int))
+                                         days=request.form.get("days", 90, type=int),
+                                         max_days=settings()["security"]["api_token_max_days"])
     except tokens.TokenError as exc:
         flash(str(exc), "error")
     else:
@@ -217,7 +221,8 @@ def token_rotate(token_id: int):
     if not settings()["security"]["api_tokens"]:
         abort(403, description=_("API tokens are disabled."))
     try:
-        plain, _token_id = tokens.rotate(get_db(), g.user, api_tokens.get(get_db(), token_id))
+        plain, _token_id = tokens.rotate(get_db(), g.user, api_tokens.get(get_db(), token_id),
+                                         settings()["security"]["api_token_max_days"])
     except tokens.TokenError:
         abort(404)
     session["new_token"] = plain  # se muestra una sola vez

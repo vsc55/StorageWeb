@@ -103,6 +103,7 @@ class SFTPBackend(RemoteBackend):
     kind = "sftp"
     schema = LocationSchema(
         kind="sftp",
+        windows_option=True,
         label=_l("SFTP (SSH)"),
         short_label="SFTP",
         doc="Servidor SFTP (SSH): Linux, NAS, hostings.",
@@ -166,7 +167,7 @@ class SFTPBackend(RemoteBackend):
         return self.label
 
     def _p(self, rel: str) -> str:
-        joined = join_rel(self.base, clean_rel(rel))
+        joined = join_rel(self.base, self._clean(rel))
         return ("/" + joined) if self.absolute else (joined or ".")
 
     def _sftp(self):

@@ -160,6 +160,7 @@ def _run_check() -> dict:
 def entra_test():
     result = _run_check()
     ok = entra_check.summary(result["results"])
+    audit_event("entra_tested", settings()["auth"]["entra"].get("client_id") or None, "ok" if ok else "problems")
     flash(_("Connection with Entra ID checked: everything is correct.") if ok else
           _("Connection with Entra ID checked: there are problems, see the details."), "info" if ok else "error")
     target = request.form.get("next")
@@ -292,6 +293,7 @@ def _start_flow(kind: str, options: dict):
     try:
         code = entra_register.device_start()
     except entra_register.RegisterError as exc:
+        audit_event("entra_app_register_failed", options.get("client_id"), f"{kind}:start:{exc}"[:200])
         flash(_("Could not start the sign-in with Microsoft: %(error)s", error=exc), "error")
         return redirect(url_for("settings.section", name="auth") if kind != "register"
                         else url_for("settings.entra_register_page"))
@@ -303,6 +305,7 @@ def _start_flow(kind: str, options: dict):
                        "expires_at": time.time() + int(code.get("expires_in", 900)),
                        "interval": int(code.get("interval", 5)), "options": options, "user_id": g.user["id"]}
     session["entra_register"] = key
+    audit_event("entra_flow_started", options.get("client_id"), kind)
     return redirect(url_for("settings.entra_register_page"))
 
 
@@ -342,8 +345,10 @@ def entra_grant_groups():
 @bp.route("/entra/register/cancel", methods=["POST"])
 @admin_required
 def entra_register_cancel():
-    key, _flow = _register_flow()
+    key, flow = _register_flow()
     _drop_flow(key)
+    if flow:
+        audit_event("entra_flow_cancelled", (flow.get("options") or {}).get("client_id"), flow.get("kind"))
     return redirect(url_for("settings.entra_register_page"))
 
 

@@ -48,6 +48,7 @@ erDiagram
         text target
         text ip
         text detail
+        text level
     }
     settings_values {
         text profile PK "default"
@@ -137,13 +138,14 @@ erDiagram
 | `users` | Cuentas. `uid` es su identificador público (UUID v4): el que va en las direcciones y los formularios de la administración; `id` es la clave interna de las relaciones. `source` es la clave de su método de inicio de sesión (cualquiera registrado; sin `CHECK` desde la migración 007). `(source, external_id)` es único: una cuenta de Entra por `oid`. `username` no distingue mayúsculas. `groups` es la lista efectiva que usan las carpetas: `external_groups` más los nombres de sus grupos. |
 | `groups` | Grupos dados de alta. Como los usuarios, `uid` es su identificador público. `(source, external_id)` es único. `home_quota_mb` es la cuota de la carpeta personal de sus miembros. `builtin = 1` marca el grupo de serie `admins` (migración 005), cuyos miembros son los usuarios con rol admin. Ver la [decisión 0011](decisiones/0011-grupos-gestionados.md). |
 | `user_groups` | Pertenencias. Al iniciar sesión solo se reemplazan las `sync`; las `manual` se conservan. |
-| `audit_log` | Registro de eventos; ver la [referencia de auditoría](../referencia/auditoria.md). |
+| `audit_log` | Registro de eventos, cada uno con su nivel (`level`: `debug`, `info`, `warning`, `error` o `critical`; migración 004); ver la [referencia de auditoría](../referencia/auditoria.md). |
 | `settings_values` | Ajustes guardados desde la web: una fila por perfil (`settings_profile`) y campo, con su valor en JSON (los secretos, cifrados), y quién y cuándo lo cambió. Solo lo que difiere de los predeterminados. Ver la [decisión 0017](decisiones/0017-ajustes-web-por-campo.md). |
 | `settings_profiles` | Un perfil por fila; `revision` sube en cada guardado para invalidar la caché de los ajustes efectivos. |
 | `shares`, `share_access` | Carpetas compartidas creadas desde la web (por perfil) y quién entra en cada una: todos, un usuario o un grupo, con lectura o escritura. Las de `config.json` no están aquí: se leen del fichero y se ven de solo lectura. Ver la [decisión 0018](decisiones/0018-carpetas-y-ubicaciones-como-entidades.md). |
 | `locations`, `location_options` | Ubicaciones de almacenamiento externo creadas desde la web y sus opciones (dependen del tipo); los secretos, cifrados. |
 | `settings` | Estado interno como documentos JSON: cuándo corrió cada tarea de mantenimiento (`maintenance_state`), permisos del último inicio de sesión de cada método SSO… |
 | `mfa_factors`, `mfa_recovery` | Verificación en dos pasos (migración 002): la semilla TOTP de cada cuenta, **cifrada** con la clave de los secretos (se vuelve a cifrar al rotarla o al restaurar una copia de otro servidor), si el alta está confirmada y el último paso aceptado (un código no vale dos veces); y el hash de sus códigos de recuperación, de un solo uso. |
+| `favorites` | Favoritos del explorador (migración 003): carpeta de StorageWeb (`home` es la personal de cada usuario) y ruta, por usuario. Se actualizan al renombrar, mover o borrar desde StorageWeb (web o unidad de red). *Recientes* no tiene tabla: sale de `audit_log` (índice por usuario y fecha). |
 | `uploads` | Subidas por partes en curso. El progreso **no** se guarda aquí: es el tamaño del `.part`. |
 
 `PRAGMA user_version` guarda la versión del esquema.

@@ -13,6 +13,7 @@
   "cfg.remoteFolder": "Carpeta de StorageWeb sincronizada con esta: `home/…` (tu carpeta personal) o el nombre de una carpeta compartida.",
   "cfg.autoSync": "Subir los cambios al guardar, crear, renombrar o borrar archivos. Desactivado: solo las sincronizaciones periódicas y manuales.",
   "cfg.pollSeconds": "Segundos entre sincronizaciones completas (para traer lo que cambió en el servidor).",
+  "cfg.refreshSeconds": "Segundos entre comprobaciones de los archivos del servidor abiertos en el editor o mostrados en el Explorador (`storageweb://`): si alguien los cambió en el servidor, el editor los recarga (si no tienen cambios sin guardar). `0` = nunca; como poco, 5. Solo con la ventana activa.",
   "cfg.exclude": "Más patrones que no se sincronizan (además de `.git`, `node_modules`, `.venv`, `__pycache__` y los temporales), solo en este equipo. Por ejemplo `dist/**` o `**/*.log`. Para compartirlos con los demás equipos, usa el fichero `.storagewebignore` de la carpeta.",
   "cfg.confirmDeletesOver": "Preguntar antes de borrar más de estos archivos en una sincronización (por si se vació una carpeta por error).",
   "cmd.addServer": "Añadir servidor…",

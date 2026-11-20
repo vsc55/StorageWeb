@@ -6,7 +6,9 @@ from datetime import datetime, timezone
 
 from flask import abort, flash, g, redirect, render_template, request, session, url_for
 
-from ....core import branding, maintenance
+from .... import siem
+from ....core import branding, maintenance, offsite
+from ....core.backup import BackupError
 from ....core.permissions import PERMISSION_LABELS, ROLE_LABELS
 from ....db.repositories import users
 from ....db.repositories import api_tokens as token_repo
@@ -24,12 +26,20 @@ from ...forms import split_list
 from .common import checked, form_int, network_context, save_partial
 
 
-SECTIONS = ("general", "storage", "permissions", "auth", "security", "clients", "ips", "sessions", "network", "preview",
-            "maintenance", "backups", "system")
+SECTIONS = ("general", "storage", "quotas", "permissions", "auth", "security", "clients", "ips", "sessions", "network",
+            "files", "preview", "audit_settings", "auto_backups", "monitoring", "backups", "system")
 SECTION_LABELS = {name: nav.PAGES[name].label for name in SECTIONS}
 SECTION_DESCRIPTIONS = {
     "general": _l("Name of the application, default language, logo and color."),
-    "storage": _l("Where personal folders live and upload limits."),
+    "storage": _l("Where personal folders live and how they are created."),
+    "quotas": _l("How much each personal folder can hold, whether what does not fit is blocked and how often the "
+                 "usage is measured again."),
+    "files": _l("What the file browser shows, what does not exist for anyone, the largest file and how folders "
+                "with many items are shown."),
+    "audit_settings": _l("How long the audit log is kept, from which level events are recorded and sending them to "
+                         "a SIEM or syslog."),
+    "auto_backups": _l("Backups made by the service itself and the copy outside the server."),
+    "monitoring": _l("Metrics for Prometheus: who can read them and how."),
     "permissions": _l("What the «User» role can do. Administrators always have every permission."),
     "auth": _l("How users sign in. Several methods can be enabled at the same time."),
     "security": _l("Protection against password guessing and automatic IP blocking."),
@@ -37,7 +47,6 @@ SECTION_DESCRIPTIONS = {
     "ips": _l("Addresses blocked by hand or automatically, and addresses that are never blocked."),
     "preview": _l("Which files open in the browser without downloading them, how large they can be and whether "
                   "Markdown diagrams are drawn."),
-    "maintenance": _l("How long the audit log is kept, how often backups are made and the metrics for monitoring."),
     "backups": _l("Backups, database size and cleanup tasks."),
     "sessions": _l("Who is signed in now and which API tokens exist. Closing a session signs that browser out on its "
                    "next request."),
@@ -46,7 +55,7 @@ SECTION_DESCRIPTIONS = {
     "system": _l("Startup settings and where each value comes from: default, web, config.json or environment."),
 }
 # Antiguas direcciones de secciones que ahora están en otra página
-MOVED = {"shares": "folders"}
+MOVED = {"shares": "folders", "maintenance": "auto_backups"}
 WIZARD_STEPS = (1, 2, 3, 4)
 
 
@@ -61,10 +70,25 @@ def _storage() -> dict:
     return {"storage": {
         "home_location": request.form.get("home_location", "").strip(),
         "home_template": request.form.get("home_template", "").strip(),
-        "create_home": checked("create_home"), "create_shares": checked("create_shares"), "show_hidden": checked("show_hidden"),
-        "max_file_size_mb": form_int("max_file_size_mb", "storage.max_file_size_mb", _("Maximum size per file")),
+        "create_home": checked("create_home"),
+    }}
+
+
+def _quotas() -> dict:
+    return {"storage": {
         "home_quota_mb": form_int("home_quota_mb", "storage.home_quota_mb", _("Quota of personal folders (MB)")),
         "quota_enforce": checked("quota_enforce"),
+        "quota_refresh_minutes": form_int("quota_refresh_minutes", "storage.quota_refresh_minutes",
+                                          _("Measure the quota usage again every (minutes)")),
+    }}
+
+
+def _files() -> dict:
+    return {"storage": {
+        "show_hidden": checked("show_hidden"), "create_shares": checked("create_shares"),
+        "max_file_size_mb": form_int("max_file_size_mb", "storage.max_file_size_mb", _("Maximum size per file")),
+        "page_size": form_int("page_size", "storage.page_size", _("Items shown at once")),
+        "listing_mode": request.form.get("listing_mode", "").strip(),
         "hidden": [line.strip() for line in request.form.get("hidden", "").splitlines() if line.strip()],
     }}
 
@@ -91,6 +115,8 @@ def _security() -> dict:
 def _clients() -> dict:
     return {"security": {
         "api_tokens": checked("api_tokens"),
+        "api_token_max_days": form_int("api_token_max_days", "security.api_token_max_days",
+                                       _("Longest API token lifetime (days)")),
         "webdav": checked("webdav"),
         "webdav_passwords": checked("webdav_passwords"),
     }}
@@ -100,6 +126,7 @@ def _preview() -> dict:
     return {"preview": {
         "enabled": checked("preview_enabled"),
         "diagrams": checked("preview_diagrams"),
+        "highlight": checked("preview_highlight"),
         "max_mb": form_int("preview_max_mb", "preview.max_mb", _("Largest file to view (MB)")),
         "extensions": _extensions("preview_extensions"),
         "blocked_extensions": _extensions("preview_blocked_extensions"),
@@ -111,22 +138,43 @@ def _extensions(name: str) -> list[str]:
     return [ext for item in split_list(request.form.get(name, "")) for ext in item.split()]
 
 
-def _maintenance() -> dict:
+def _auto_backups() -> dict:
     return {"maintenance": {
-        "audit_retention_days": form_int("audit_retention_days", "maintenance.audit_retention_days", _("Audit retention")),
         "backup_interval_hours": form_int("backup_interval_hours", "maintenance.backup_interval_hours",
                                       _("Automatic backups")),
         "backup_keep": form_int("backup_keep", "maintenance.backup_keep", _("Backups to keep")),
-    }, "metrics": {
+        "offsite_location": request.form.get("offsite_location", "").strip(),
+        "offsite_path": request.form.get("offsite_path", "").strip(),
+        "offsite_keep": form_int("offsite_keep", "maintenance.offsite_keep", _("Backups to keep in the location")),
+    }}
+
+
+def _audit_settings() -> dict:
+    return {"maintenance": {
+        "audit_retention_days": form_int("audit_retention_days", "maintenance.audit_retention_days", _("Audit retention")),
+    }, "audit": {
+        "min_level": request.form.get("audit_min_level", "debug"),
+        "forward_min_level": request.form.get("audit_forward_min_level", "info"),
+        "syslog": request.form.get("audit_syslog", "").strip(),
+        "syslog_format": request.form.get("audit_syslog_format", "rfc5424"),
+        "syslog_facility": request.form.get("audit_syslog_facility", "local0"),
+        "syslog_ca": request.form.get("audit_syslog_ca", "").strip(),
+        "tls_verify": checked("audit_tls_verify"),
+        "file": request.form.get("audit_file", "").strip(),
+    }}
+
+
+def _monitoring() -> dict:
+    return {"metrics": {
         "enabled": checked("metrics_enabled"),
         "token": request.form.get("metrics_token", "").strip(),  # vacío = conservar el que hay
         "allowed_networks": split_list(request.form.get("metrics_allowed_networks", "")),
     }}
 
 
-PARSERS = {"general": _general, "storage": _storage, "permissions": _permissions,
+PARSERS = {"general": _general, "storage": _storage, "quotas": _quotas, "files": _files, "permissions": _permissions,
            "auth": auth_forms.parse, "security": _security, "clients": _clients, "network": _network, "preview": _preview,
-           "maintenance": _maintenance}
+           "audit_settings": _audit_settings, "auto_backups": _auto_backups, "monitoring": _monitoring}
 
 
 def _display(draft: dict | None) -> dict:
@@ -185,10 +233,19 @@ def _render(section: str, cfg: dict, status: int = 200, error: ConfigError | Non
     if section == "ips":
         ctx.update(ip_bans=ip_repo.list_rules(get_db(), "ban"), ip_allows=ip_repo.list_rules(get_db(), "allow"),
                    my_ip=client_ip(), now=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    if section == "audit_settings":
+        ctx.update(forward_status=siem.FORWARDER.status())
     if section == "backups":
         boot = boot_config()
         ctx.update(db=maintenance.db_stats(get_db(), boot["database"]), backups=maintenance.list_backups(boot),
-                   backup_folder=str(maintenance.backup_dir(boot)), maint_state=maintenance.state(get_db()))
+                   backup_folder=str(maintenance.backup_dir(boot)), maint_state=maintenance.state(get_db()),
+                   offsite_where=offsite.where(settings()) if offsite.enabled(settings()) else "")
+        if offsite.enabled(settings()) and request.args.get("remote") == "1":
+            # Solo si se pide: listar la ubicación es una conexión (no cada vez que se abre la página)
+            try:
+                ctx.update(remote_backups=offsite.list_remote(settings()), remote_error="")
+            except BackupError as exc:
+                ctx.update(remote_backups=[], remote_error=str(exc))
     if section == "sessions":
         rows = session_repo.list_all(get_db())
         ctx.update(sessions=rows, current_sid=g.get("session_id"), all_tokens=token_repo.list_all(get_db()),

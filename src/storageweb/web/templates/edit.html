@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}{{ _("Editing %(name)s", name=name) }} · {{ app_name }}{% endblock %}
+{% block content %}
+{# Editor de texto (files.edit): solo con el permiso «edit», archivos de texto en UTF-8 que caben en el visor #}
+<form class="viewer editor" method="post" id="editor-form">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="version" value="{{ version }}">
+  <header class="viewer-head">
+    <div class="viewer-who">
+      <a class="btn btn-icon viewer-back" href="{{ view_url }}" aria-label="{{ _('Cancel') }}" title="{{ _('Cancel') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-left"></use></svg></a>
+      <div class="viewer-title">
+        <nav class="viewer-crumbs" aria-label="{{ _('Location') }}">
+          <a href="{{ url_for('files.browse', root=root.name, sub='') }}">{{ root.label }}</a>
+          {% for c in crumbs %}<span aria-hidden="true">/</span><a href="{{ url_for('files.browse', root=root.name, sub=c.rel) }}">{{ c.name }}</a>{% endfor %}
+        </nav>
+        <h1><svg class="icon icon-sm" aria-hidden="true"><use href="#i-rename"></use></svg><span>{{ name }}</span></h1>
+      </div>
+    </div>
+    <div class="viewer-actions">
+      <a class="btn" href="{{ view_url }}">{{ _("Cancel") }}</a>
+      <button type="submit" class="btn btn-primary" title="Ctrl+S">{{ _("Save") }}</button>
+    </div>
+  </header>
+  <div class="viewer-code editor-body">
+    {% if conflict %}
+    <div class="flash flash-error" role="alert">
+      <p>{{ _("Someone changed this file since you opened it (from the web, the network drive or VS Code). What you wrote is still here: saving now replaces their changes.") }}</p>
+      <p><a href="{{ view_url }}" target="_blank" rel="noopener">{{ _("Open the current version in another tab to compare") }}</a></p>
+    </div>
+    {% endif %}
+    {# Un solo cuadro: la barra de herramientas arriba (editor.js: formato en Markdown, comentar e indentar en el código),
+       el texto en medio y la barra de estado abajo (línea y columna, lenguaje, sangría, finales de línea) #}
+    <div class="editor-box">
+      <div class="editor-toolbar" role="toolbar" aria-label="{{ _('Editing tools') }}" aria-controls="editor-text">
+        <span class="editor-chip">{{ lang_label or _("Text") }}</span>
+        {% if is_markdown %}
+        <button type="button" class="editor-tool" data-cmd="bold" title="{{ _('Bold') }} (Ctrl+B)" aria-label="{{ _('Bold') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-bold"></use></svg></button>
+        <button type="button" class="editor-tool" data-cmd="italic" title="{{ _('Italic') }} (Ctrl+I)" aria-label="{{ _('Italic') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-italic"></use></svg></button>
+        <button type="button" class="editor-tool" data-cmd="strike" title="{{ _('Strikethrough') }}" aria-label="{{ _('Strikethrough') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-strike"></use></svg></button>
+        <button type="button" class="editor-tool" data-cmd="code" title="{{ _('Inline code') }}" aria-label="{{ _('Inline code') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-code"></use></svg></button>
+        <span class="editor-tool-sep" aria-hidden="true"></span>
+        <button type="button" class="editor-tool" data-cmd="heading" title="{{ _('Heading') }}" aria-label="{{ _('Heading') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-heading"></use></svg></button>
+        <button type="button" class="editor-tool" data-cmd="list" title="{{ _('List') }}" aria-label="{{ _('List') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-list"></use></svg></button>
+        <button type="button" class="editor-tool" data-cmd="numbered" title="{{ _('Numbered list') }}" aria-label="{{ _('Numbered list') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-numbered"></use></svg></button>
+        <button type="button" class="editor-tool" data-cmd="quote" title="{{ _('Quote') }}" aria-label="{{ _('Quote') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-quote"></use></svg></button>
+        <span class="editor-tool-sep" aria-hidden="true"></span>
+        <button type="button" class="editor-tool" data-cmd="link" title="{{ _('Link') }}" aria-label="{{ _('Link') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-link"></use></svg></button>
+        <button type="button" class="editor-tool" data-cmd="codeblock" title="{{ _('Code block') }}" aria-label="{{ _('Code block') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-codeblock"></use></svg></button>
+        {% elif comment[0] %}
+        <button type="button" class="editor-tool editor-tool-text" data-cmd="comment" title="{{ _('Comment or uncomment the lines') }} (Ctrl+/)"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-comment"></use></svg><span>{{ _("Comment") }}</span></button>
+        {% endif %}
+        <span class="editor-tool-spacer"></span>
+        <button type="button" class="editor-tool" data-cmd="indent" title="{{ _('Indent the lines') }} (Tab)" aria-label="{{ _('Indent the lines') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-indent"></use></svg></button>
+        <button type="button" class="editor-tool" data-cmd="outdent" title="{{ _('Unindent the lines') }} (Shift+Tab)" aria-label="{{ _('Unindent the lines') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-outdent"></use></svg></button>
+      </div>
+      {# Con colores (preview.highlight): el código coloreado debajo y el cuadro de texto encima, con el texto
+         transparente (editor.js). Sin JavaScript o sin colores, el cuadro de siempre #}
+      <div class="editor-wrap">
+        {# Números de línea (editor.js los escribe y los mueve con el texto); sin JavaScript no se ven #}
+        <div class="editor-gutter" id="editor-gutter" aria-hidden="true"><div class="editor-current" id="editor-current"></div><div class="editor-lines" id="editor-lines">1</div></div>
+        {% if lang %}<pre class="editor-colors" aria-hidden="true"><code id="editor-colors"></code></pre>{% endif %}
+        {# El salto de línea tras <textarea> lo descarta el navegador: así no se pierde uno con el que empiece el texto #}
+        <textarea name="text" id="editor-text" class="editor-text" spellcheck="false" autocapitalize="off" autocomplete="off"
+                  wrap="off" aria-label="{{ _('Contents of %(name)s', name=name) }}"
+                  data-comment="{{ comment[0] }}" data-comment-end="{{ comment[1] }}"{% if is_markdown %} data-markdown{% endif %}{% if conflict %} data-dirty{% endif %}{% if lang %} data-lang="{{ lang }}"{% endif %}>
+{{ text }}</textarea>
+      </div>
+      <div class="editor-status">
+        <span id="editor-position" aria-live="off">{{ _("Line %(line)s, column %(col)s", line=1, col=1) }}</span>
+        <span id="editor-state" class="editor-state" hidden>{{ _("Unsaved changes") }}</span>
+        <span class="editor-status-right">
+          <span title="{{ _('Ctrl+S saves. It is saved only if nobody changed the file in the meantime.') }}">Ctrl+S</span>
+          <button type="button" id="editor-numbers" aria-pressed="true" title="{{ _('Show or hide the line numbers (remembered in this browser)') }}">{{ _("Line numbers") }}</button>
+          <button type="button" id="editor-indent" title="{{ _('Indentation for Tab and the toolbar: click to change it') }}">{{ _("Spaces: %(num)s", num=4) }}</button>
+          <span>UTF-8</span>
+          <input type="hidden" name="eol" id="editor-eol-value" value="{{ 'crlf' if crlf else 'lf' }}">
+          <button type="button" id="editor-eol" title="{{ _('Line endings it is saved with: click to change them') }}">{{ "CRLF" if crlf else "LF" }}</button>
+        </span>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+{% if lang %}
+<script src="{{ url_for('static', filename='vendor/highlight/highlight.min.js') }}"></script>
+{% if needs_extra %}<script src="{{ url_for('static', filename='vendor/highlight/languages/' ~ lang ~ '.min.js') }}"></script>{% endif %}
+{% endif %}
+<script src="{{ url_for('static', filename='js/editor.js') }}"></script>
+{% endblock %}

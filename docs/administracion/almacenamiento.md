@@ -214,7 +214,7 @@ Como en S3, las carpetas son prefijos (una carpeta vacía es un blob `carpeta/`)
 
 ## Ocultar archivos para todos
 
-En *Acceso → Carpetas personales*, **Ocultos para todos** (`storage.hidden`, se aplica a **todas** las carpetas, también a las compartidas): patrones, uno por línea, como los de `.gitignore`. Lo que coincide **no existe para nadie**: no se lista, no se puede abrir ni descargar, y no se puede crear, subir ni renombrar con ese nombre. Vale para la web, la unidad de red (WebDAV) y la API. Los archivos que ya estaban **siguen en el disco**: se ven en cuanto se quita el patrón.
+En *Sistema → Archivos y explorador*, **Ocultos para todos** (`storage.hidden`, se aplica a **todas** las carpetas, también a las compartidas): patrones, uno por línea, como los de `.gitignore`. Lo que coincide **no existe para nadie**: no se lista, no se puede abrir ni descargar, y no se puede crear, subir ni renombrar con ese nombre. Vale para la web, la unidad de red (WebDAV) y la API. Los archivos que ya estaban **siguen en el disco**: se ven en cuanto se quita el patrón.
 
 ```text
 Thumbs.db          # ese nombre en cualquier carpeta (sin distinguir mayúsculas)
@@ -247,7 +247,7 @@ flowchart TD
     OK --> R[Se suma al uso guardado]
 ```
 
-- **Carpetas personales:** cuota por defecto en *Acceso → Carpetas personales* (`storage.home_quota_mb`, en MB; `0` = sin cuota).
+- **Carpetas personales:** cuota por defecto en *Acceso → Cuotas* (`storage.home_quota_mb`, en MB; `0` = sin cuota).
     - **Por grupo:** en la ficha de cada grupo (*Personas → Grupos*), la cuota de la carpeta personal de sus miembros (`storage.group_quotas`). Si alguien está en varios grupos con cuota se aplica la mayor (`0` = sin cuota gana).
     - **Por usuario:** en su ficha (*Personas → Usuarios*), y manda sobre la de sus grupos: vacío = la de sus grupos o la de por defecto, `0` = sin cuota. La ficha muestra también cuánto ocupa su carpeta.
 - **Carpetas compartidas:** cuota de cada una en su ficha (*Acceso → Carpetas compartidas*; `storage.shares[].quota_mb`). La ficha muestra cuánto ocupa.
@@ -260,7 +260,19 @@ Qué cuenta en cada operación:
 
 La unidad de red publica la cuota (propiedades `quota-used-bytes` y `quota-available-bytes` de WebDAV, RFC 4331), así que el Explorador de Windows muestra el espacio usado y libre de la unidad: lo que deja la cuota o, sin cuota, el espacio libre del disco del servidor.
 
-El uso se calcula sumando todo lo que hay en la carpeta (también lo oculto) y se guarda **10 minutos** en memoria, porque en almacenamiento remoto recorrerla es caro. Lo que se sube, borra, mueve o copia desde la web o por WebDAV lo actualiza al momento; lo que cambie por fuera de StorageWeb (directamente en el disco o en el bucket) tarda hasta esos 10 minutos en reflejarse. Si una carpeta es tan grande que no da tiempo a recorrerla (10 segundos o 500.000 elementos), se muestra como «≥» lo contado.
+### Cómo se mide el uso
+
+Recorrer una carpeta remota grande (S3, SMB, SFTP…) es caro, y otro programa puede estar cambiando los mismos archivos sin pasar por StorageWeb. Por eso, como Nextcloud u ownCloud:
+
+1. **Se lleva la cuenta** de lo que hace StorageWeb: lo que se sube, copia, mueve o edita desde la web, la API o la unidad de red suma o resta al momento.
+2. **Se reconcilia en segundo plano** con lo que hay de verdad: cuando la medida tiene más de `storage.quota_refresh_minutes` (60 por defecto, en *Acceso → Cuotas*), o algo la deja dudosa (borrar una carpeta, cuyo tamaño no se sabe), se vuelve a recorrer la carpeta en un hilo aparte (hasta 10 minutos o 10 millones de elementos, dos carpetas a la vez como mucho) mientras se sigue usando la medida anterior. Así aparece lo que otros cambien directamente en el disco o el bucket.
+3. **Nunca se recorre una carpeta mientras alguien espera**, salvo la primera vez desde que arranca el servicio (sin una medida no se podría aplicar la cuota; acotada a 10 segundos o 500.000 elementos). Las carpetas compartidas ya se miden al arrancar, en la tarea de monitorización.
+
+Junto a la barra de la cuota pone **«Medido hace X»** (o «Midiendo el uso otra vez…»). Si una carpeta es tan grande que no da tiempo a recorrerla, se muestra como «≥» lo contado.
+
+Si una ubicación SFTP, FTP o WebDAV apunta a un **servidor Windows**, marca **El servidor es Windows** (`windows_server`). Así se rechazan los nombres que Windows no toma tal cual (acabados en punto o espacio, con `:` o dispositivos como `CON`): allí `secreto.md.` o `secreto.md::$DATA` abrirían `secreto.md` saltándose los *ocultos para todos*, y `CON` colgaría la petición. En un servidor Linux déjala sin marcar: allí esos nombres son válidos (`Reunión 10:30.txt`). SMB lo hace siempre, y el disco local cuando StorageWeb corre en Windows.
+
+Si una ubicación ya tiene sus propios límites (un bucket con cuota del proveedor, un NAS con cuotas), márcala como **No cuenta para la cuota** (`quota_exempt` en `storage.locations`): sus carpetas no tienen cuota y su uso no se mide.
 
 El **espacio libre** del almacenamiento se muestra junto a la cuota cuando se sabe: en el disco del servidor (total y libre); S3 y Azure no tienen un tamaño fijo y se indican así; en SMB, SFTP, FTP y WebDAV remotos no se muestra.
 

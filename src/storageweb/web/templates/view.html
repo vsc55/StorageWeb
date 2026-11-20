@@ -1,6 +1,15 @@
 {% extends "base.html" %}
 {% block title %}{{ name }} · {{ app_name }}{% endblock %}
 {% block content %}
+{% macro window_nav() -%}
+<nav class="viewer-window-nav" aria-label="{{ _('Parts of the file') }}">
+        {% set here = url_for('files.view', root=root.name, sub=rel) %}
+        <a class="btn btn-small{% if window.at_start %} is-disabled{% endif %}" href="{{ here }}?from=0"{% if window.at_start %} aria-disabled="true" tabindex="-1"{% endif %}>{{ _("Beginning") }}</a>
+        <a class="btn btn-small{% if window.at_start %} is-disabled{% endif %}" href="{{ here }}?from={{ [window.start - window_step, 0]|max }}"{% if window.at_start %} aria-disabled="true" tabindex="-1"{% endif %}>{{ _("Previous part") }}</a>
+        <a class="btn btn-small{% if window.at_end %} is-disabled{% endif %}" href="{{ here }}?from={{ window.end }}"{% if window.at_end %} aria-disabled="true" tabindex="-1"{% endif %}>{{ _("Next part") }}</a>
+        <a class="btn btn-small{% if window.at_end %} is-disabled{% endif %}" href="{{ here }}"{% if window.at_end %} aria-disabled="true" tabindex="-1"{% endif %}>{{ _("End") }}</a>
+      </nav>
+{%- endmacro %}
 {# Visor de texto y Markdown (files.view). El HTML del Markdown lo genera core/markdown.py, con todo el texto
    escapado; el HTML y el SVG del usuario solo se ven como código #}
 {% set folder_url = url_for('files.browse', root=root.name, sub=parent) %}
@@ -18,8 +27,8 @@
         </nav>
         <h1><svg class="icon icon-sm" aria-hidden="true"><use href="#i-doc"></use></svg><span>{{ name }}</span></h1>
         <p class="muted small">
-          {%- if kind == 'markdown' %}Markdown{% elif kind == 'markup' %}{{ ext|upper }}{% else %}{{ _("Text") }}{% endif %}
-          {%- if content.text is not none and source %} · {{ 'UTF-8' if content.encoding == 'utf-8' else 'Windows-1252' }} · {{ ngettext("%(num)s line", "%(num)s lines", lines|length) }}{% endif %}
+          {%- if kind == 'markdown' %}Markdown{% elif kind == 'markup' %}{{ ext|upper }}{% elif lang_label %}{{ lang_label }}{% else %}{{ _("Text") }}{% endif %}
+          {%- if content.text is not none and source %} · {{ 'UTF-8' if content.encoding == 'utf-8' else 'Windows-1252' }} · {% if window %}{{ ngettext("%(num)s line in this part", "%(num)s lines in this part", lines|length) }}{% else %}{{ ngettext("%(num)s line", "%(num)s lines", lines|length) }}{% endif %}{% endif %}
           · {{ size }}{% if mtime %} · {{ _("modified %(when)s", when=mtime) }}{% endif %}</p>
       </div>
     </div>
@@ -37,6 +46,9 @@
       {% if lines %}
       <label class="btn viewer-js viewer-wrap"><input type="checkbox" id="viewer-wrap"> {{ _("Wrap lines") }}</label>
       <button type="button" class="btn viewer-js" id="viewer-copy"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-copy"></use></svg><span>{{ _("Copy all") }}</span></button>
+      {% endif %}
+      {% if can_edit %}
+      <a class="btn" href="{{ url_for('files.edit', root=root.name, sub=rel) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-rename"></use></svg>{{ _("Edit") }}</a>
       {% endif %}
       <a class="btn btn-primary" href="{{ download_url }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Download") }}</a>
     </div>
@@ -76,13 +88,29 @@
     <p class="flash viewer-note" role="note"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-shield"></use></svg>
       {{ _("Its code is shown, not the page: opening it here could run whatever it carries with your session.") }}</p>
     {% endif %}
+    {% if window %}
+    <div class="viewer-window" role="note">
+      <span>{{ _("Large file: you see a part of it, from %(start)s to %(end)s of %(size)s.", start=window.start|filesize, end=window.end|filesize, size=window.size|filesize) }}</span>
+      {{ window_nav() }}
+    </div>
+    {% endif %}
     {% if content.encoding != 'utf-8' %}
     <p class="muted small">{{ _("It is not in UTF-8: it is shown as Windows-1252 (Western European).") }}</p>
     {% endif %}
-    <ol class="code-lines" id="viewer-text">{{ lines_html }}</ol>
+    <ol class="code-lines{% if window %} no-numbers{% endif %}" id="viewer-text"{% if window and window.at_end %} data-scroll-end{% endif %}{% if lang %} data-lang="{{ lang }}"{% endif %}>{{ lines_html }}</ol>
+    {% if window %}<div class="viewer-window viewer-window-bottom">{{ window_nav() }}</div>{% endif %}
     <p class="muted small">{{ _("To search in the file, use your browser's search (Ctrl+F).") }}</p>
   </div>
   {% endif %}
 </div>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='js/viewer.js') }}"></script>{% endblock %}
+{% block scripts %}
+{# highlight.js (tools/vendor.py) solo si hay código que colorear: el archivo o los bloques de código de un .md #}
+{% if lang or highlight_md %}
+<script src="{{ url_for('static', filename='vendor/highlight/highlight.min.js') }}"></script>
+{% for extra in extra_languages if highlight_md or (needs_extra and extra == lang) %}
+<script src="{{ url_for('static', filename='vendor/highlight/languages/' ~ extra ~ '.min.js') }}"></script>
+{% endfor %}
+{% endif %}
+<script src="{{ url_for('static', filename='js/viewer.js') }}"></script>
+{% endblock %}

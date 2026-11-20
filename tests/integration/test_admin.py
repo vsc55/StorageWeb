@@ -179,19 +179,23 @@ def test_settings_sections_render(admin):
                           ("permissions", "Permisos del rol"), ("auth", "Entra ID"),
                           ("security", "Minutos de bloqueo"), ("clients", "Permitir tokens de API personales"),
                           ("ips", "IPs bloqueadas"),
-                          ("maintenance", "Copias que se conservan"), ("backups", "Copias y base de datos"),
+                          ("quotas", "Cuota de las carpetas personales (MB)"),
+                          ("files", "Ocultos para todos"), ("audit_settings", "Conservar la auditoría (días)"),
+                          ("auto_backups", "Copias que se conservan"), ("monitoring", "Publicar métricas para Prometheus"),
+                          ("backups", "Copias y base de datos"),
                           ("sessions", "Sesiones y tokens"), ("system", "Arranque")):
         resp = client.get(f"/admin/settings/{section}")
         assert resp.status_code == 200 and text in resp.get_data(as_text=True), section
     assert client.get("/admin/settings/nada").status_code == 404
     # La antigua sección de carpetas compartidas ahora está en Acceso
     assert client.get("/admin/settings/shares").location.endswith("/admin/access/folders")
+    assert client.get("/admin/settings/maintenance").location.endswith("/admin/settings/auto_backups")
     token = get_csrf(client, "/admin/settings/system")
     assert client.post("/admin/settings/system", data={"_csrf": token}).status_code == 405
 
 
-@pytest.mark.parametrize("section", ["general", "storage", "permissions", "auth", "security", "clients", "network",
-                                     "maintenance"])
+@pytest.mark.parametrize("section", ["general", "storage", "quotas", "files", "permissions", "auth", "security",
+                                     "clients", "network", "preview", "audit_settings", "auto_backups", "monitoring"])
 def test_settings_roundtrip_unchanged(app, admin, section):
     from storageweb.settings import runtime_view
     from storageweb.web.context import runtime

@@ -8,6 +8,10 @@
     <label class="check span2"><input{{ lock('security.api_tokens') }} type="checkbox" name="api_tokens" {% if sec.api_tokens %}checked{% endif %}>
       <span>{{ _("Allow personal API tokens") }} {{ origin('security.api_tokens') }}
         <small class="muted">{{ _("Users create them in their profile to list, download and upload files from scripts. Disabling this stops every existing token.") }}</small></span></label>
+    <label class="{{ err_class('security.api_token_max_days') }}"><span class="label-row">{{ _("Longest API token lifetime (days)") }} {{ origin('security.api_token_max_days') }}</span>
+      <input{{ lock('security.api_token_max_days') }} type="number" name="api_token_max_days" value="{{ sec.api_token_max_days }}" min="0" max="3650">
+      <small class="muted">{{ _("0 = no limit. With a limit, tokens cannot be created without expiry or for longer, and the ones that already exist stop working when they reach it.") }}</small>
+      {{ field_error('security.api_token_max_days') }}</label>
   </div>
 
   <div class="card form-grid section-gap">

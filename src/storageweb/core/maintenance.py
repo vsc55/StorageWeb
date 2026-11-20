@@ -17,11 +17,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from sqlite3 import Connection
 
-from .. import registry
+from .. import registry, siem
 from ..db.repositories import audit, sessions
 from ..db.repositories import settings as settings_repo
 from ..i18n import _, format_datetime
-from . import backup
+from . import backup, offsite
 from .alerts import alert, source
 
 STATE_KEY = "maintenance_state"
@@ -46,8 +46,12 @@ def state(conn: Connection) -> dict:
 
 
 def _mark(conn: Connection, task: str) -> None:
+    _put_state(conn, task, _iso(_now()))
+
+
+def _put_state(conn: Connection, key: str, value) -> None:
     current = state(conn)
-    current[task] = _iso(_now())
+    current[key] = value
     settings_repo.put(conn, STATE_KEY, current, "system")
 
 
@@ -99,6 +103,26 @@ def backup_path(cfg: dict, name: str) -> Path | None:
 def create_backup(cfg: dict, prune: bool = True) -> Path:
     keep = cfg["maintenance"]["backup_keep"] if prune else None
     return backup.create(cfg, backup_dir(cfg), keep=keep or None)
+
+
+def send_offsite(conn: Connection, cfg: dict, path: Path, actor: str) -> str | None:
+    """Envía la copia ``path`` fuera del servidor, si está configurado (``maintenance.offsite_location``), y
+    apunta el resultado (el aviso del *Resumen* y la página de copias lo leen). Devuelve el error o ``None``.
+    ``cfg`` son los ajustes efectivos (necesita las ubicaciones)."""
+    if not offsite.enabled(cfg):
+        return None
+    where = offsite.where(cfg)
+    try:
+        removed = offsite.send(cfg, path)
+    except backup.BackupError as exc:
+        _log.warning("Could not send the backup %s to %s: %s", path.name, where, exc)
+        _put_state(conn, "offsite", {"at": _iso(_now()), "ok": False, "name": path.name, "error": str(exc)[:300]})
+        audit.log(conn, "backup_offsite_failed", path.name, username=actor, detail=f"{where}: {exc}"[:300])
+        return str(exc)
+    _put_state(conn, "offsite", {"at": _iso(_now()), "ok": True, "name": path.name, "error": ""})
+    audit.log(conn, "backup_offsite", path.name, username=actor,
+              detail=where + (f" (-{len(removed)})" if removed else ""))
+    return None
 
 
 # --------------------------------------------------------------------------- restaurar con el servicio en marcha
@@ -228,6 +252,26 @@ def _automatic_backup(conn: Connection, cfg: dict) -> None:
         audit.log(conn, "backup_failed", None, username="system", detail=str(exc)[:200])
     else:
         audit.log(conn, "backup_created", path.name, username="system", detail="auto")
+        send_offsite(conn, cfg, path, "system")
+
+
+@source("audit_forward", order=35)
+def _audit_forward_failing(ctx):
+    """El reenvío de la auditoría al SIEM falla (lo último que se intentó no llegó)."""
+    status = siem.FORWARDER.status()
+    if not status["active"] or not status["failing"]:
+        return []
+    return [alert("warn", "audit_forward_failing", _("The audit log is not reaching the SIEM"),
+                  status["last_error"], "audit_settings", _("See the settings"), "siem-title")]
+
+
+@source("offsite_backup", order=31)
+def _offsite_failed(ctx):
+    last = ctx.maint_state.get("offsite")
+    if not offsite.enabled(ctx.cfg) or not isinstance(last, dict) or last.get("ok", True):
+        return []
+    return [alert("danger", "offsite_failed", _("The last backup could not be sent outside the server"),
+                  last.get("error") or "", "backups", _("See the backups"))]
 
 
 @source("backups", order=30)

@@ -92,7 +92,7 @@ Los parámetros (SHA-1, 6 dígitos, 30 segundos y medio minuto de tolerancia de 
 
 - *Personas → Sesiones y tokens* muestra quién ha iniciado sesión (navegador, IP, última actividad) y todos los tokens de API. Puedes cerrar una sesión, todas las de un usuario o todas menos la tuya, y revocar tokens. Desde el servidor: `storageweb-admin sessions-close <usuario>` o `--all`.
 - Cada usuario ve las suyas en *Mi perfil → Seguridad* y puede cerrar las demás. Cambiar la contraseña cierra las otras sesiones.
-- Los tokens de API se crean en *Mi perfil → Tokens de API*. Solo sirven para listar, descargar y subir archivos; nunca para la administración ni el perfil. Se desactivan para todos con `security.api_tokens = false` (también se desactiva entonces *conectar aplicaciones desde el navegador*, `/connect`, con el que la extensión de VS Code consigue su token). Cada aplicación conectada así deja en la auditoría `app_authorized` y `api_token_created`. Cada usuario puede **rotar** sus tokens (secreto nuevo, el anterior deja de valer; `api_token_rotated`); el administrador solo puede revocarlos, para no ver nunca el secreto de otro.
+- Los tokens de API se crean en *Mi perfil → Tokens de API*. Solo sirven para listar, descargar y subir archivos; nunca para la administración ni el perfil. Se desactivan para todos con `security.api_tokens = false` (también se desactiva entonces *conectar aplicaciones desde el navegador*, `/connect`, con el que la extensión de VS Code consigue su token). Cada aplicación conectada así deja en la auditoría `app_authorized` y `api_token_created`. Con `security.api_token_max_days` (*Seguridad → API y unidad de red*) los tokens duran como mucho esos días: no se pueden crear sin caducidad ni más largos, al rotarlos o conectar una aplicación se recortan, y los que ya existían dejan de valer al cumplir ese tiempo desde que se crearon. El *Resumen* avisa de los tokens que siguen valiendo pero nadie usa desde hace más de 90 días: es mejor revocarlos. Cada usuario puede **rotar** sus tokens (secreto nuevo, el anterior deja de valer; `api_token_rotated`); el administrador solo puede revocarlos, para no ver nunca el secreto de otro.
 
 ![Personas → Sesiones y tokens: sesiones abiertas y tokens de API](../img/admin/sesiones.webp)
 
@@ -103,13 +103,25 @@ curl -H "Authorization: Bearer $TOKEN" -O https://files.midominio.com/download/h
 curl -H "Authorization: Bearer $TOKEN" -F files=@informe.pdf https://files.midominio.com/upload/home/   # alcance de escritura
 ```
 
+## Reenviar la auditoría a un SIEM
+
+La auditoría se guarda en la base de datos (*Seguridad → Auditoría*, exportable a CSV). Para tenerla además en el SIEM de la empresa, o fuera del servidor donde nadie que entre en él pueda borrarla, en *Seguridad → Registro de auditoría*:
+
+- **Syslog** (`audit.syslog`): `udp://host:514`, `tcp://host:514` (un mensaje por línea) o `tls://host:6514` (RFC 5425, con la longitud delante). Con TLS se comprueba el certificado del colector (`audit.tls_verify`); si lo firma una CA propia, indica su fichero PEM en `audit.syslog_ca`.
+- **Formato** (`audit.syslog_format`), siempre con cabecera RFC 5424 (facilidad `audit.syslog_facility`, `local0` por defecto; severidad *warning* para fallos, bloqueos y rechazos —`login_failed`, `login_blocked`, `ip_banned`…— e *informational* para lo demás; `MSGID` = la acción):
+    - `rfc5424`: datos estructurados `[storageweb@32473 user="ana" ip="…" target="home:/informe.pdf" detail="…"]`.
+    - `json`: el evento en JSON (`ts`, `user`, `action`, `target`, `ip`, `detail`): Graylog, Logstash, Wazuh.
+    - `cef`: Common Event Format (`suser`, `src`, `fname`, `msg`): ArcSight, QRadar, Microsoft Sentinel.
+- **Fichero JSON** (`audit.file`): un evento por línea para un agente (Filebeat, Fluent Bit, Wazuh); se abre en cada escritura, así que se puede rotar con logrotate.
+
+Se envía desde una cola en segundo plano: un colector lento o caído nunca frena el servicio. Si la cola (10 000 eventos) se llena, los que no caben se pierden **solo para el SIEM** (en la base de datos están todos) y se cuentan en `storageweb_audit_forward_dropped_total`. Si los envíos fallan, la página lo dice, el *Resumen* avisa y se cuenta en `storageweb_audit_forward_errors_total`. **Enviar un evento de prueba** manda `audit_forward_test` con los ajustes guardados y muestra el error si no llega. La auditoría de la CLI (`storageweb-admin …`) también se reenvía.
+
 ## Lo que NO hace (todavía)
 
 Conviene saberlo para cubrirlo por otros medios:
 
 - **Antivirus:** no analiza los archivos subidos. Usa ClamAV sobre `/srv/storageweb` si lo necesitas.
 - **Cifrado en reposo de los archivos:** usa cifrado de disco (LUKS) o del sistema de ficheros. (Los secretos de los ajustes sí se cifran, ver arriba.)
-- **Cuotas:** no hay cuota por usuario; usa cuotas del sistema de ficheros o un tamaño máximo por archivo.
 - **Bloqueo de intentos por usuario en memoria:** se reinicia al reiniciar el servicio. El bloqueo de IPs sí se guarda en la base de datos.
 - **Expiración del cambio de rol:** un usuario desactivado pierde la sesión en su siguiente petición. Un cambio de rol se aplica también en la siguiente petición.
 

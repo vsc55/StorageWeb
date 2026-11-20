@@ -4,7 +4,7 @@ StorageWeb publica métricas en el formato de Prometheus en `/metrics`, para ver
 
 ## Activarlas
 
-En *Sistema → Mantenimiento → Métricas para monitorización*:
+En *Sistema → Monitorización*:
 
 | Ajuste | Para qué |
 |---|---|
@@ -41,6 +41,8 @@ scrape_configs:
 | `storageweb_upload_bytes_total{via}` | counter | Bytes subidos por la web, la API o la unidad de red (`web`, `api`, `webdav`). |
 | `storageweb_download_bytes_total{via}` | counter | Bytes descargados (`web`, `webdav`). |
 | `storageweb_quota_rejections_total` | counter | Escrituras rechazadas porque no cabían en la cuota. |
+| `storageweb_audit_forward_errors_total` | counter | Eventos de auditoría que no se pudieron reenviar al syslog o al fichero ([reenvío a un SIEM](seguridad.md#reenviar-la-auditoria-a-un-siem)). |
+| `storageweb_audit_forward_dropped_total` | counter | Eventos de auditoría no reenviados porque la cola estaba llena (en la base de datos sí están). |
 | `storageweb_users{source,state}` | gauge | Cuentas por origen y estado (`enabled`, `disabled`). |
 | `storageweb_sessions` | gauge | Sesiones web abiertas. |
 | `storageweb_api_tokens` | gauge | Tokens de API vigentes. |

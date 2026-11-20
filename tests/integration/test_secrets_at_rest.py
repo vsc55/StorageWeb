@@ -68,16 +68,16 @@ def test_secrets_saved_from_the_web_are_encrypted(make_app):
     add_user(app, "root", role="admin")
     admin = app.test_client()
     login(admin, "root")
-    form = {"_csrf": get_csrf(admin, "/admin/settings/maintenance"), "audit_retention_days": "0",
-            "backup_interval_hours": "0", "backup_keep": "7", "metrics_enabled": "on", "metrics_token": TOKEN,
+    form = {"_csrf": get_csrf(admin, "/admin/settings/monitoring"), "audit_retention_days": "0",
+            "backup_interval_hours": "0", "backup_keep": "7", "offsite_keep": "14", "metrics_enabled": "on", "metrics_token": TOKEN,
             "metrics_allowed_networks": ""}
-    admin.post("/admin/settings/maintenance", data=form)
+    admin.post("/admin/settings/monitoring", data=form)
     stored = _raw(app)["metrics"]["token"]
     assert stored.startswith("enc:v1:") and TOKEN not in json.dumps(_raw(app))
     with app.app_context():
         assert settings()["metrics"]["token"] == TOKEN                     # la aplicación lo ve en claro
     assert admin.get("/metrics", headers={"Authorization": f"Bearer {TOKEN}"}).status_code == 200
-    admin.post("/admin/settings/maintenance", data={**form, "metrics_token": ""})   # vacío = se conserva
+    admin.post("/admin/settings/monitoring", data={**form, "metrics_token": ""})   # vacío = se conserva
     with app.app_context():
         assert settings()["metrics"]["token"] == TOKEN
 
@@ -102,10 +102,10 @@ def test_backup_carries_the_key_and_another_server_re_encrypts(make_app, tmp_pat
     add_user(first, "root", role="admin")
     admin = first.test_client()
     login(admin, "root")
-    form = {"_csrf": get_csrf(admin, "/admin/settings/maintenance"), "audit_retention_days": "0",
-            "backup_interval_hours": "0", "backup_keep": "7", "metrics_enabled": "on", "metrics_token": TOKEN,
+    form = {"_csrf": get_csrf(admin, "/admin/settings/monitoring"), "audit_retention_days": "0",
+            "backup_interval_hours": "0", "backup_keep": "7", "offsite_keep": "14", "metrics_enabled": "on", "metrics_token": TOKEN,
             "metrics_allowed_networks": ""}
-    admin.post("/admin/settings/maintenance", data=form)
+    admin.post("/admin/settings/monitoring", data=form)
     with first.app_context():
         archive = maintenance.create_backup({**boot_config(), "maintenance": settings()["maintenance"]})
     import tarfile

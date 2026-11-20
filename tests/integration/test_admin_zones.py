@@ -49,7 +49,7 @@ def test_zone_subnav_and_page_kind(admin):
 def test_web_changes_badge_in_subnav(admin):
     client, _ = admin
     data = page_form(client, "/admin/settings/storage")
-    data["max_file_size_mb"] = ["50"]
+    data.pop("create_home", None)                      # Carpetas personales: no crearlas al entrar
     client.post("/admin/settings/storage", data=data)
     html = client.get("/admin/settings/permissions").get_data(as_text=True)
     assert 'id="f-permissions-user-upload"' in html  # ancla del buscador
@@ -64,8 +64,8 @@ def test_search_json(app, admin):
     kinds = {(r["kind"], r["title"]) for r in data["results"]}
     assert ("action", "Hacer una copia ahora") in kinds
     setting = next(r for r in data["results"] if r["kind"] == "setting" and "automática" in r["title"])
-    assert setting["url"] == "/admin/settings/maintenance#f-maintenance-backup_interval_hours"
-    assert setting["path"] == "Sistema → Mantenimiento"
+    assert setting["url"] == "/admin/settings/auto_backups#f-maintenance-backup_interval_hours"
+    assert setting["path"] == "Sistema → Copias automáticas"
     # Sin tildes ni mayúsculas, usuarios y carpetas
     titles = [r["title"] for r in client.get("/admin/search?format=json&q=MARTIN").get_json()["results"]]
     assert "Eva Martín" in titles
@@ -138,3 +138,30 @@ def test_folder_create_validate_and_delete(app, admin, tmp_path):
         assert [s["name"] for s in settings()["storage"]["shares"]] == ["software", "facturas"]
         assert audit.recent(get_db(), 1)[0]["action"] == "share_deleted"
     assert tmp_path.exists()  # los archivos no se tocan
+
+
+def test_locked_settings_are_marked(make_app, write_config):
+    """Los ajustes fijados en config.json o en el entorno: candado con cuántos en el menú de la zona y la lista
+    arriba de la página, con enlace a cada uno."""
+    import json
+    import os
+    from tests.helpers import add_user, login
+
+    app = make_app()
+    path = write_config({"storage": {"page_size": 300, "show_hidden": True}})   # config.json con dos ajustes fijos
+    data = json.loads(path.read_text(encoding="utf-8"))
+    path.write_text(json.dumps(data), encoding="utf-8")
+    os.environ["STORAGEWEB_STORAGE__MAX_FILE_SIZE_MB"] = "100"
+    try:
+        from storageweb import create_app
+        app = create_app(str(path))
+        app.testing = True
+        add_user(app, "root", role="admin")
+        client = app.test_client()
+        login(client, "root")
+        html = client.get("/admin/settings/files").get_data(as_text=True)
+    finally:
+        del os.environ["STORAGEWEB_STORAGE__MAX_FILE_SIZE_MB"]
+    assert 'class="pill pill-lock"' in html and "3 ajustes están fijados en config.json o en el entorno" in html
+    assert "3 ajustes de esta página están fijados fuera de la web" in html
+    assert 'href="#f-storage-page_size"' in html and "STORAGEWEB_STORAGE__MAX_FILE_SIZE_MB" in html

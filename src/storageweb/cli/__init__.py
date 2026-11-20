@@ -15,10 +15,11 @@ from __future__ import annotations
 import argparse
 import sys
 
-from .. import i18n, registry
+from .. import audit_levels, i18n, registry, siem
 from ..db import connect, init_db
 from ..i18n import _
 from ..settings import ConfigError, load_config
+from ..settings.runtime import open_runtime
 from .common import COMMANDS, Command
 
 def commands() -> list[Command]:
@@ -59,8 +60,20 @@ def _main(argv: list[str] | None) -> int:
         return 2
     init_db(cfg["database"])
     conn = connect(cfg["database"])
+    _forward_audit(args, conn)
     try:
         cmd.run(cfg, conn, args)
     finally:
         conn.close()
+        siem.FORWARDER.flush()     # que salga lo que la orden haya auditado antes de terminar
     return 0
+
+
+def _forward_audit(args, conn) -> None:
+    """La auditoría de la CLI (``username = cli``) también va al SIEM, con los ajustes guardados desde la web."""
+    try:
+        runtime, _boot = open_runtime(args.config, create_key=False)
+        siem.configure(runtime.current(conn)["audit"])
+        audit_levels.configure(runtime.current(conn)["audit"]["min_level"])
+    except Exception:  # noqa: BLE001 (la orden se hace igual)
+        pass

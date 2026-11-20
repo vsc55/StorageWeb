@@ -143,6 +143,7 @@ class WebDAVBackend(RemoteBackend):
     kind = "webdav"
     schema = LocationSchema(
         kind="webdav",
+        windows_option=True,
         label=_l("WebDAV (Nextcloud, ownCloud, SharePoint, NAS…)"),
         short_label="WebDAV",
         doc="Servidor WebDAV (Nextcloud, ownCloud, SharePoint, NAS). Sin dependencias.",
@@ -188,7 +189,7 @@ class WebDAVBackend(RemoteBackend):
         return self.client.url(self.base)
 
     def _p(self, rel: str) -> str:
-        return join_rel(self.base, clean_rel(rel))
+        return join_rel(self.base, self._clean(rel))
 
     def _propfind(self, rel: str, depth: str) -> list[tuple[str, Entry]] | None:
         resp = self.client.send("PROPFIND", self.client.url(self._p(rel)),

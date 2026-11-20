@@ -45,6 +45,12 @@
         <td class="actions">
           <a class="btn btn-small" href="{{ url_for('settings.backup_restore', name=b.name) }}">{{ _("Restore") }}</a>
           <a class="btn btn-small" href="{{ url_for('settings.backup_download', name=b.name) }}">{{ _("Download") }}</a>
+          {% if offsite_where %}
+          <form method="post" action="{{ url_for('settings.backup_send', name=b.name) }}" class="inline">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="btn btn-small" type="submit" title="{{ _('Send it to %(where)s', where=offsite_where) }}">{{ _("Send outside") }}</button>
+          </form>
+          {% endif %}
           <form method="post" action="{{ url_for('settings.backup_delete', name=b.name) }}" class="inline js-confirm"
                 data-confirm="{{ _('Delete the backup %(name)s?', name=b.name) }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
@@ -66,5 +72,57 @@
   </form>
   <p class="muted small">{{ _("Restore replaces the database with the one in the backup, with the service running (a copy of the current state is made first). An uploaded backup, for example from another server, is added to the list. From the command line, with the service stopped:") }}
     <code>sudo storageweb-admin restore {{ backup_folder }}/&lt;{{ _("file") }}&gt;</code></p>
+</section>
+
+<section class="card section-gap" id="offsite" aria-labelledby="offsite-title">
+  <div class="page-head">
+    <h3 class="card-title" id="offsite-title">{{ _("Outside the server") }}</h3>
+    {% if offsite_where and remote_backups is not defined %}
+    <a class="btn" href="{{ url_for('settings.section', name='backups', remote=1) }}#offsite">{{ _("See the backups there") }}</a>
+    {% endif %}
+  </div>
+  {% if not offsite_where %}
+  <p class="muted small">{{ _("Backups are only in this server. To also keep them somewhere else (S3, a NAS…), choose a storage location in") }}
+    <a href="{{ url_for('settings.section', name='auto_backups') }}#offsite-title">{{ _("Automatic backups") }}</a>.</p>
+  {% else %}
+  {% set last = maint_state.offsite if maint_state.offsite is mapping else none %}
+  <p class="small">{{ _("Each backup is also sent to %(where)s.", where=offsite_where) }}
+    {% if last %}{% if last.ok %}<span class="muted">{{ _("Last one sent: %(name)s, %(date)s.", name=last.name, date=last.at|datetime) }}</span>
+    {% else %}<strong class="text-danger">{{ _("The last one could not be sent (%(date)s): %(error)s", date=last.at|datetime, error=last.error) }}</strong>{% endif %}{% endif %}</p>
+  {% if remote_backups is defined %}
+    {% if remote_error %}
+    <p class="flash flash-error">{{ _("The location could not be read: %(error)s", error=remote_error) }}</p>
+    {% else %}
+    <div class="table-scroll">
+    <table class="files small">
+      <thead><tr><th>{{ _("File") }}</th><th>{{ _("Date") }}</th><th class="num">{{ _("Size") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr></thead>
+      <tbody>
+        {% set here = backups|map(attribute='name')|list %}
+        {% for b in remote_backups %}
+        <tr>
+          <td class="name"><code>{{ b.name }}</code></td>
+          <td class="nowrap">{{ b.created|datetime if b.created else '—' }}</td>
+          <td class="num">{{ b.size|filesize }}</td>
+          <td class="actions">
+            {% if b.name in here %}<span class="muted small">{{ _("Also in this server") }}</span>
+            {% else %}
+            <form method="post" action="{{ url_for('settings.backup_fetch') }}" class="inline">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <input type="hidden" name="name" value="{{ b.name }}">
+              <button class="btn btn-small" type="submit">{{ _("Bring to this server") }}</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="muted">{{ _("There are no backups there yet.") }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="muted small">{{ _("To restore one, bring it to this server first: it appears in the list above.") }}</p>
+    {% endif %}
+  {% endif %}
+  {% endif %}
 </section>
 {% endblock %}

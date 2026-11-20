@@ -10,8 +10,11 @@
       {% set here = nav_page and nav_page.key == p.key %}
       <li><a class="zone-link{% if here %} active{% endif %}" href="{{ p.url() }}"{% if here %} aria-current="page"{% endif %}>
         <span>{{ p.label }}</span>
+        <span class="zone-marks">
         {% if p.key in nav_alert_pages %}<span class="dot dot-danger" title="{{ _('Needs attention') }}"></span>
         {% elif nav_changed.get(p.key) %}<span class="pill pill-web" title="{{ ngettext('%(num)s setting does not have its default value', '%(num)s settings do not have their default value', nav_changed[p.key]) }}">{{ nav_changed[p.key] }}</span>{% endif %}
+        {% if nav_locked.get(p.key) %}{% set n = nav_locked[p.key]|length %}<span class="pill pill-lock" title="{{ ngettext('%(num)s setting is fixed in config.json or the environment: it cannot be changed here', '%(num)s settings are fixed in config.json or the environment: they cannot be changed here', n) }}"><svg class="icon icon-xs" aria-hidden="true"><use href="#i-lock"></use></svg>{{ n }}</span>{% endif %}
+        </span>
       </a></li>
       {% endfor %}
     </ul>

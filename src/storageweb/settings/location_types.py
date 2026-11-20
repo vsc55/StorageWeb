@@ -92,6 +92,8 @@ class LocationSchema:
     label_placeholder: object = ""
     name_placeholder: str = ""
     extra: str = ""               # dependencia opcional de pip (``storageweb[<extra>]``)
+    # Ofrece «El servidor es Windows» (windows_server): rechazar los nombres especiales de Windows en las rutas
+    windows_option: bool = False
     _by_name: dict = field(init=False, repr=False, compare=False)
 
     def __post_init__(self):

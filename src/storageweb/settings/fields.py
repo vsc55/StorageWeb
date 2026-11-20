@@ -86,13 +86,35 @@ FIELDS: dict[str, Field] = {
     "storage.create_shares": Field(
         doc="Crear las carpetas compartidas si no existen (útil en desarrollo y Docker).",
         label=_l("Create shared folders if they do not exist"),
-        page="storage",
+        page="files",
         words="compartidas crear shares"),
     "storage.show_hidden": Field(
         doc="Mostrar en la web los archivos y carpetas que empiezan por punto. La unidad de red (WebDAV) los muestra siempre.",
         label=_l("Show hidden files"),
-        page="storage",
+        page="files",
         words="ocultos punto hidden dotfiles"),
+    "storage.quota_refresh_minutes": Field(
+        doc="Cada cuántos minutos se vuelve a medir **en segundo plano** el uso de una carpeta con cuota (de 1 a "
+            "10080). Lo que escribe o borra StorageWeb se cuenta al momento; esto recoge lo que otros cambien "
+            "directamente en el almacenamiento (otro programa en el mismo bucket o NAS). Nunca se recorre una carpeta "
+            "mientras alguien espera, salvo la primera vez desde que arranca el servicio. Una ubicación marcada como "
+            "*No cuenta para la cuota* (`quota_exempt`) deja sin cuota las carpetas que estén en ella.",
+        label=_l("Measure the quota usage again every (minutes)"),
+        page="quotas",
+        words="cuota uso medir recalcular reconciliar minutos remoto"),
+    "storage.page_size": Field(
+        doc="Elementos de una carpeta que el explorador muestra de una vez (de 50 a 5000). Las carpetas con más se "
+            "ven según `storage.listing_mode`. La API y la unidad de red siempre listan la carpeta entera.",
+        label=_l("Items shown at once"),
+        page="files",
+        words="paginar paginación página miles elementos listado scroll"),
+    "storage.listing_mode": Field(
+        doc="Cómo se ve una carpeta con más de `storage.page_size` elementos: `scroll` (se cargan más al bajar), "
+            "`pages` (por páginas, con *Anterior* y *Siguiente*) o `search` (solo los primeros; el resto, con el "
+            "filtro). En los tres, el filtro de la carpeta busca entre todos sus elementos.",
+        label=_l("Folders with many items"),
+        page="files",
+        words="paginar paginación páginas scroll desplazamiento cargar más buscar filtro miles"),
     "storage.hidden": Field(
         doc="Archivos y carpetas **ocultos para todos**: no se listan ni se pueden abrir ni crear, ni en la web ni por "
             "WebDAV ni por la API (la extensión de VS Code tampoco los sincroniza). Patrones como los de `.gitignore`, "
@@ -101,13 +123,13 @@ FIELDS: dict[str, Field] = {
             "carpetas técnicas), no un control de acceso: para eso, los permisos de las carpetas. La lista no se envía a "
             "los clientes.",
         label=_l("Hidden for everyone"),
-        page="storage",
+        page="files",
         words="ocultar ocultos patrones ignorar gitignore excluir hidden"),
     "storage.home_quota_mb": Field(
         doc="Cuota por defecto de las **carpetas personales**, en MB; `0` = sin cuota. Cada usuario puede tener otra "
             "en su ficha, y cada grupo una para sus miembros (`storage.group_quotas`).",
         label=_l("Quota of personal folders (MB)"),
-        page="storage",
+        page="quotas",
         words="cuota espacio limite quota personal"),
     "storage.group_quotas": Field(
         doc="Cuota de la carpeta personal de los miembros de cada grupo, en MB: `{\"rrhh\": 5120}`. Si alguien está en "
@@ -115,18 +137,18 @@ FIELDS: dict[str, Field] = {
             "ficha de cada grupo (se guarda en el grupo); la de un grupo puesta aquí en config.json no se puede "
             "cambiar desde la web.",
         label=_l("Personal folder quota of the members (MB)"),
-        page="storage",
+        page="quotas",
         words="cuota grupo miembros quota group"),
     "storage.quota_enforce": Field(
         doc="Si las cuotas **impiden escribir**: lo que no quepa no se puede subir, copiar ni mover (web, API y "
             "unidad de red responden 507). `false` = solo avisan (a partir del 90 % y al superarla).",
         label=_l("Block uploads that do not fit in the quota"),
-        page="storage",
+        page="quotas",
         words="cuota bloquear impedir subir quota enforce block"),
     "storage.max_file_size_mb": Field(
         doc="Tamaño máximo por archivo en MB; `0` = sin límite.",
         label=_l("Maximum size per file (MB)"),
-        page="storage",
+        page="files",
         words="tamaño límite subida upload size limit"),
     "storage.home_location": Field(
         doc=("Ubicación de `storage.locations` donde están las carpetas personales. Vacía = el disco del servidor; "
@@ -186,6 +208,8 @@ FIELDS: dict[str, Field] = {
     "permissions.user.mkdir": Field(doc="El rol `user` puede crear carpetas.", page="permissions"),
     "permissions.user.rename": Field(doc="El rol `user` puede renombrar archivos y carpetas.", page="permissions"),
     "permissions.user.delete": Field(doc="El rol `user` puede eliminar archivos y carpetas.", page="permissions"),
+    "permissions.user.edit": Field(doc="El rol `user` puede editar archivos de texto en el navegador (desde el visor).",
+                                   page="permissions"),
     "security.max_login_failures": Field(
         doc="Intentos fallidos (por IP o por usuario) antes de bloquear temporalmente el login.",
         label=_l("Failed attempts before locking"),
@@ -228,6 +252,13 @@ FIELDS: dict[str, Field] = {
         label=_l("Network drive (WebDAV)"),
         page="clients",
         words="webdav unidad red network drive dav rclone mapear windows finder"),
+    "security.api_token_max_days": Field(
+        doc=("Días como mucho que puede durar un token de API; `0` = sin límite (se pueden crear sin caducidad). "
+             "Con un límite no se pueden crear sin caducidad ni más largos, al rotarlos o conectar una aplicación se "
+             "recortan, y los que ya existen dejan de valer al cumplir ese tiempo desde que se crearon."),
+        label=_l("Longest API token lifetime (days)"),
+        page="clients",
+        words="tokens caducidad máximo días política expiry lifetime"),
     "security.webdav_passwords": Field(
         doc=("Admitir también la contraseña de la cuenta (usuarios locales y PAM) en WebDAV. Desactivado: solo "
              "tokens, que se pueden revocar y limitar a lectura."),
@@ -254,6 +285,13 @@ FIELDS: dict[str, Field] = {
         label=_l("Draw Mermaid diagrams"),
         page="preview",
         words="diagramas mermaid gráficos diagrams"),
+    "preview.highlight": Field(
+        doc="Colorear el código (Python, PHP, JavaScript, SQL, YAML, PowerShell… y los bloques de código de los `.md`) "
+            "con highlight.js. Desactivado, se ve sin colores y highlight.js no se descarga. Los archivos de más de "
+            "1 MB se ven siempre sin colores.",
+        label=_l("Color the code"),
+        page="preview",
+        words="colores sintaxis resaltado highlight código syntax"),
     "preview.max_mb": Field(
         doc="Tamaño máximo, en MB, de un archivo para verse en el navegador (de 1 a 20); más grande, se descarga.",
         label=_l("Largest file to view (MB)"),
@@ -277,36 +315,103 @@ FIELDS: dict[str, Field] = {
     "maintenance.audit_retention_days": Field(
         doc="Días que se conserva la auditoría; `0` = siempre. La limpieza se hace una vez al día.",
         label=_l("Keep the audit log (days)"),
-        page="maintenance",
+        page="audit_settings",
         words="auditoría retención días borrar"),
     "maintenance.backup_interval_hours": Field(
         doc=("Cada cuántas horas hace el servicio una copia de seguridad en `<data_dir>/backups`; `0` = nunca "
          "(puedes usar el timer de systemd)."),
         label=_l("Automatic backup every (hours)"),
-        page="maintenance",
+        page="auto_backups",
         words="copia seguridad backup automática horas"),
     "maintenance.backup_keep": Field(
         doc="Copias que se conservan en `<data_dir>/backups`; las más antiguas se borran.",
         label=_l("Backups to keep"),
-        page="maintenance",
+        page="auto_backups",
         words="copias conservar backup retención"),
+    "maintenance.offsite_location": Field(
+        doc="Copia **fuera del servidor**: cada copia de seguridad (automática o desde la web) se envía también a "
+            "esta [ubicación de almacenamiento](../administracion/almacenamiento.md) (S3, SMB, SFTP…); vacío = no. "
+            "Si el servidor se pierde, desde *Copias y base de datos* de uno nuevo con la misma ubicación se traen "
+            "y se restauran.",
+        label=_l("Also send backups to"),
+        page="auto_backups",
+        words="copia fuera remota externa offsite nube s3 nas ubicación backup"),
+    "maintenance.offsite_path": Field(
+        doc="Carpeta dentro de la ubicación donde se guardan las copias (se crea si no existe).",
+        label=_l("Folder in the location"),
+        page="auto_backups",
+        words="copia remota carpeta offsite backup"),
+    "maintenance.offsite_keep": Field(
+        doc="Copias que se conservan en la ubicación; las más antiguas se borran (las de `antes-de-restaurar` y "
+            "las subidas a mano, no).",
+        label=_l("Backups to keep in the location"),
+        page="auto_backups",
+        words="copias conservar remota offsite retención"),
+    "audit.min_level": Field(
+        doc="Desde qué nivel se guarda cada evento en la auditoría: `debug` (todo: también listar carpetas, buscar, "
+            "abrir en el visor, favoritos, tema e idioma), `info` (lo normal: entrar, subir, descargar, cambios), "
+            "`warning` (intentos rechazados), `error` (fallos) o `critical` (incidentes de seguridad y cambios que no "
+            "se deshacen). Ver los niveles de cada acción en la [referencia de la auditoría](auditoria.md).",
+        label=_l("Record in the audit log from level"),
+        page="audit_settings",
+        words="auditoría nivel debug info warning error critical registrar guardar"),
+    "audit.forward_min_level": Field(
+        doc="Desde qué nivel se reenvía cada evento al syslog o al fichero JSON (`audit.syslog`, `audit.file`); por "
+            "defecto, desde `info`: lo de `debug` se guarda aquí pero no llena el SIEM.",
+        label=_l("Send to the SIEM from level"),
+        page="audit_settings",
+        words="siem syslog nivel reenviar debug info warning"),
+    "audit.syslog": Field(
+        doc="Reenviar cada evento de la auditoría a un **syslog o SIEM**: `udp://host:514`, `tcp://host:514` o "
+            "`tls://host:6514` (RFC 5425); vacío = no. Se envía desde una cola en segundo plano: un colector lento o "
+            "caído nunca frena el servicio (la auditoría sigue completa en la base de datos).",
+        label=_l("Send the audit log to syslog"),
+        page="audit_settings",
+        words="siem syslog auditoría reenviar rsyslog splunk sentinel wazuh graylog qradar elastic"),
+    "audit.syslog_format": Field(
+        doc="Formato del mensaje (siempre con cabecera RFC 5424): `rfc5424` (datos estructurados), `json` (el evento "
+            "en JSON) o `cef` (Common Event Format: ArcSight, QRadar, Microsoft Sentinel).",
+        label=_l("Message format"),
+        page="audit_settings",
+        words="siem syslog formato json cef rfc5424"),
+    "audit.syslog_facility": Field(
+        doc="Facilidad syslog: `local0` … `local7`, `auth`, `authpriv` o `user`.",
+        label=_l("Syslog facility"),
+        page="audit_settings",
+        words="siem syslog facility facilidad"),
+    "audit.syslog_ca": Field(
+        doc="Con `tls://`: fichero PEM con la CA del colector, si no la firma una de las del sistema.",
+        label=_l("CA of the collector (PEM)"),
+        page="audit_settings",
+        words="siem syslog tls certificado ca"),
+    "audit.tls_verify": Field(
+        doc="Con `tls://`: comprobar el certificado del colector. Desactivarlo solo para pruebas.",
+        label=_l("Check the certificate of the collector"),
+        page="audit_settings",
+        words="siem syslog tls certificado verificar"),
+    "audit.file": Field(
+        doc="Escribir también cada evento en este fichero, uno en JSON por línea, para que lo lea un agente (Filebeat, "
+            "Fluent Bit, Wazuh…); vacío = no. Se abre en cada escritura, así que se puede rotar con logrotate.",
+        label=_l("Also write the audit log to a JSON file"),
+        page="audit_settings",
+        words="siem auditoría fichero json filebeat fluent wazuh agente"),
     "metrics.enabled": Field(
         doc="Publicar métricas para Prometheus en `/metrics` (peticiones, subidas y descargas, inicios de sesión, IPs "
             "bloqueadas, espacio de las carpetas, ubicaciones remotas…).",
         label=_l("Publish metrics for Prometheus"),
-        page="maintenance",
+        page="monitoring",
         words="métricas prometheus grafana monitorización metrics monitoring"),
     "metrics.token": Field(
         doc="Token que tiene que enviar Prometheus (`Authorization: Bearer <token>`, `bearer_token` en su "
             "configuración); al menos 16 caracteres. Nunca se muestra en la web.",
         label=_l("Metrics token"),
-        page="maintenance",
+        page="monitoring",
         words="métricas token prometheus"),
     "metrics.allowed_networks": Field(
         doc="IPs o redes (CIDR) desde las que se puede leer `/metrics` sin token. Sin token ni redes, solo desde el "
             "propio servidor.",
         label=_l("Networks allowed to read the metrics"),
-        page="maintenance",
+        page="monitoring",
         words="métricas redes permitidas ip prometheus"),
     "branding.primary_color": Field(
         doc="Color principal de la interfaz (`#rrggbb`). Vacío = el de serie.",

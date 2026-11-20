@@ -90,7 +90,9 @@ def backend_for(location: dict | None, base: str, staging: Path) -> Backend:
         return LocalBackend(Path(base), staging)
     try:
         cls = type_of(location)
-        return cls.create(_client(location), location, base, staging)
+        backend = cls.create(_client(location), location, base, staging)
+        backend.windows_names = bool(location.get("windows_server"))
+        return backend
     except BackendError as exc:
         return UnavailableBackend(exc.message, staging)
     except Exception as exc:  # noqa: BLE001 (p. ej. no se puede abrir la sesión SMB)

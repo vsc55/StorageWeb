@@ -7,8 +7,8 @@ from pathlib import Path
 
 from flask import abort, flash, g, redirect, render_template, request, send_file, url_for
 
-from .... import providers
-from ....core import backends, backup, ipban, maintenance, monitoring, quota
+from .... import providers, siem
+from ....core import backends, backup, ipban, maintenance, monitoring, offsite, quota
 from ....core.backup import BackupError
 from ....core.permissions import ADMIN
 from ....db import connect, schema_version
@@ -54,6 +54,63 @@ def backup_create():
     else:
         audit_event("backup_created", path.name, "web")
         flash(_("Backup %(name)s created.", name=path.name), "info")
+        _send_offsite(path)
+    return redirect(url_for("settings.section", name="backups"))
+
+
+def _send_offsite(path: Path) -> None:
+    """Envía la copia fuera del servidor si está configurado, y dice cómo fue."""
+    if not offsite.enabled(settings()):
+        return
+    error = maintenance.send_offsite(get_db(), settings(), path, g.user["username"])
+    if error:
+        flash(_("It could not be sent outside the server: %(error)s", error=error), "error")
+    else:
+        flash(_("Also sent to %(where)s.", where=offsite.where(settings())), "info")
+
+
+@bp.route("/maintenance/audit-forward/test", methods=["POST"])
+@admin_required
+def audit_forward_test():
+    """Envía un evento de prueba al syslog o al fichero de ``audit.*`` (los ajustes guardados), sin la cola."""
+    options = settings()["audit"]
+    if not (options["syslog"] or options["file"]):
+        flash(_("Set a syslog address or a file first."), "error")
+    else:
+        error = siem.FORWARDER.test(options)
+        audit_event("audit_forward_test", options["syslog"] or options["file"], error or "ok")
+        if error:
+            flash(_("The test event could not be sent: %(error)s", error=error), "error")
+        else:
+            flash(_("Test event sent. Look for «audit_forward_test» in the SIEM or in the file."), "info")
+    return redirect(url_for("settings.section", name="audit_settings") + "#siem-title")
+
+
+@bp.route("/maintenance/backups/<name>/offsite", methods=["POST"])
+@admin_required
+def backup_send(name: str):
+    """Envía otra vez una copia de este servidor a la ubicación externa (p. ej. tras un fallo)."""
+    path = maintenance.backup_path(boot_config(), name)
+    if path is None or not offsite.enabled(settings()):
+        abort(404)
+    _send_offsite(path)
+    return redirect(url_for("settings.section", name="backups"))
+
+
+@bp.route("/maintenance/backups/offsite/fetch", methods=["POST"])
+@admin_required
+def backup_fetch():
+    """Trae una copia de la ubicación externa a este servidor, para restaurarla desde la lista."""
+    if not offsite.enabled(settings()):
+        abort(404)
+    name = request.form.get("name", "")
+    try:
+        path = offsite.fetch(settings(), name, maintenance.backup_dir(boot_config()))
+    except (BackupError, OSError) as exc:
+        flash(_("The backup could not be brought: %(error)s", error=exc), "error")
+        return redirect(url_for("settings.section", name="backups", remote=1) + "#offsite")
+    audit_event("backup_fetched", path.name, offsite.where(settings()))
+    flash(_("Backup %(name)s brought to this server. You can restore it from the list.", name=path.name), "info")
     return redirect(url_for("settings.section", name="backups"))
 
 

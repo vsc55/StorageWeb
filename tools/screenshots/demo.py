@@ -124,6 +124,32 @@ HOME_ANA = [
 
 # Contenido de los archivos que se ven en el visor (el resto son ceros del tamaño indicado)
 TEXTS = {
+    "publicar.py": '''"""Publica la web corporativa: genera las páginas y las sube al servidor."""
+from pathlib import Path
+import subprocess
+
+DESTINO = "web01.ejemplo.local:/srv/www"   # servidor de producción
+PAGINAS = Path("salida")
+
+
+def construir(borradores: bool = False) -> int:
+    """Genera las páginas en «salida/» y devuelve cuántas hay."""
+    args = ["hugo", "--minify"]
+    if borradores:
+        args.append("--buildDrafts")
+    subprocess.run(args, check=True)
+    return sum(1 for _ in PAGINAS.rglob("*.html"))
+
+
+def publicar() -> None:
+    total = construir()
+    print(f"Subiendo {total} páginas a {DESTINO}…")
+    subprocess.run(["rsync", "-az", "--delete", f"{PAGINAS}/", DESTINO], check=True)
+
+
+if __name__ == "__main__":
+    publicar()
+''',
     "Plan de proyecto.md": """# Plan de proyecto: web corporativa
 
 Renovación de la web de la empresa para el primer trimestre de 2027. Responsable: **Ana García**;
@@ -194,6 +220,7 @@ SHARES = {
         ("Web corporativa", None, 1), ("Web corporativa/Maquetas", None, 1),
         ("Web corporativa/Maquetas/Inicio v3.png", 1_800 * KB, 1),
         ("Web corporativa/Briefing web.pdf", 640 * KB, 20),
+        ("Web corporativa/publicar.py", 2 * KB, 1),
         ("Campaña primavera", None, 4), ("Campaña primavera/Carteles.psd", 210 * MB, 4),
         ("Catálogo 2026", None, 15), ("Catálogo 2026/Catálogo 2026.indd", 48 * MB, 15),
         ("Calendario de entregas.xlsx", 64 * KB, 0.5),
@@ -239,17 +266,21 @@ GROUPS = [
 ]
 AUDIT = [
     # (hace cuántos minutos, usuario, acción, objetivo, ip, detalle)
-    (4, "ana.garcia", "upload", "home:Presupuesto 2026.xlsx", "192.0.2.15", None),
+    (2, "ana.garcia", "download", "home:/Plan de proyecto.md", "192.0.2.15", "view"),
+    (7, "ana.garcia", "download", "home:/Registro de copias.log", "192.0.2.15", "view"),
+    (26, "ana.garcia", "download", "home:/Documentos/Informes/Informe ventas octubre.pdf", "192.0.2.15", None),
+    (70, "ana.garcia", "download", "proyectos:/Web corporativa/Briefing web.pdf", "192.0.2.15", None),
+    (4, "ana.garcia", "upload", "home:/Presupuesto 2026.xlsx", "192.0.2.15", None),
     (11, "marta.lopez@ejemplo.com", "login", None, "198.51.100.23", "entra"),
-    (12, "marta.lopez@ejemplo.com", "download", "contabilidad:Cierre trimestral T3.xlsx", "198.51.100.23", None),
-    (35, "luis.martin", "upload", "proyectos:Web corporativa/Maquetas/Inicio v3.png", "192.0.2.41", None),
+    (12, "marta.lopez@ejemplo.com", "download", "contabilidad:/Cierre trimestral T3.xlsx", "198.51.100.23", None),
+    (35, "luis.martin", "upload", "proyectos:/Web corporativa/Maquetas/Inicio v3.png", "192.0.2.41", None),
     (58, "ana.garcia", "share_updated", "proyectos", "192.0.2.15", None),
     (95, "carlos.diaz", "login_failed", None, "203.0.113.50", None),
     (96, "carlos.diaz", "login", None, "192.0.2.77", "local"),
     (140, "ana.garcia", "api_token_created", "Portátil (VS Code)", "192.0.2.15", "connect"),
     (300, "javier.moreno@ejemplo.com", "login", None, "198.51.100.40", "entra"),
     (420, "ana.garcia", "user_created", "elena.navarro", "192.0.2.15", None),
-    (600, "elena.navarro", "mkdir", "marketing:Redes sociales", "192.0.2.88", None),
+    (600, "elena.navarro", "mkdir", "marketing:/Redes sociales", "192.0.2.88", None),
     (1500, None, "ip_banned", "203.0.113.50", None, "automatic"),
     (2900, "ana.garcia", "backup_created", "storageweb-backup.tar.gz", "192.0.2.15", None),
     (4300, "ana.garcia", "settings_updated", "general", "192.0.2.15", None),
@@ -367,6 +398,11 @@ def build(base: Path, port: int) -> Path:
         mfa.enroll_confirm(conn, key, luis, totp.code_at(setup["secret"], totp.current_step()))
         mfa.enroll_begin(conn, key, ana, "StorageWeb")
 
+        from storageweb.db.repositories import favorites
+        for root, rel, is_dir in (("home", "Documentos/Informes", True), ("proyectos", "Web corporativa", True),
+                                  ("home", "Plan de proyecto.md", False)):
+            favorites.add(conn, ana["id"], root, rel, is_dir)
+
         ipban.allow(conn, "192.0.2.0/24", by="ana.garcia", reason="Oficina central")
         ipban.ban(conn, "203.0.113.0/24", by="ana.garcia", reason="Intentos de acceso repetidos")
 
@@ -396,9 +432,12 @@ def plan(uids: dict) -> list[dict]:
          "js": f"({select})(['Presupuesto 2026.xlsx', 'Notas reunión dirección.docx', 'Plan de proyecto.md'])"},
         {"file": "uso/compartida.webp", "path": "/f/proyectos/", "as": "ana.garcia"},
         {"file": "uso/buscar.webp", "path": "/search?q=presupuesto", "as": "ana.garcia"},
+        {"file": "uso/recientes.webp", "path": "/recent", "as": "ana.garcia"},
         {"file": "uso/visor-markdown.webp", "path": "/view/home/Plan%20de%20proyecto.md", "as": "ana.garcia",
          "wait": 2500},   # el diagrama se dibuja en su marco
         {"file": "uso/visor-texto.webp", "path": "/view/home/Registro%20de%20copias.log", "as": "ana.garcia"},
+        {"file": "uso/visor-codigo.webp", "path": "/view/proyectos/Web%20corporativa/publicar.py", "as": "ana.garcia"},
+        {"file": "uso/editor.webp", "path": "/edit/home/Plan%20de%20proyecto.md", "as": "ana.garcia"},
         {"file": "uso/perfil.webp", "path": "/profile/security", "as": "ana.garcia"},
         {"file": "uso/perfil-tokens.webp", "path": "/profile/tokens", "as": "ana.garcia"},
         {"file": "uso/mfa-alta.webp", "path": "/profile/mfa", "as": "ana.garcia"},

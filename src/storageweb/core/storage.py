@@ -73,6 +73,8 @@ def make_root(cfg: dict, name: str, label: str, location: str, path: str, **extr
             backend = backends.backend_for(loc, path, staging)
         except PathError:
             backend = backends.UnavailableBackend(_("Invalid path: %(path)s", path=path), staging)
+    if loc is not None and loc.get("quota_exempt"):
+        extra["quota_mb"] = 0     # «No cuenta para la cuota»: sus carpetas no tienen
     return {**extra, "name": name, "label": label, "location": location, "backend": backend,
             "path": None if location else Path(path), "where": f"{location}:{path}"}
 

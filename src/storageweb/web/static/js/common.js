@@ -95,7 +95,8 @@
 
   // Formularios con confirmación (class="js-confirm" data-confirm="…"): el botón de aceptar lleva el
   // texto del botón pulsado («Eliminar», «Revocar»…)
-  document.querySelectorAll("form.js-confirm").forEach(function (f) {
+  // (SW.confirmForm, para los que llegan después: las filas que carga el explorador)
+  function confirmForm(f) {
     f.addEventListener("submit", function (e) {
       if (f.dataset.confirmed === "1") { delete f.dataset.confirmed; return; }
       e.preventDefault();
@@ -109,7 +110,9 @@
         else f.submit();
       });
     });
-  });
+  }
+  window.SW.confirmForm = confirmForm;
+  document.querySelectorAll("form.js-confirm").forEach(confirmForm);
 
   // Avisos emergentes: cerrar, y los que no son de error se van solos (no mientras el ratón o el foco estén encima)
   document.querySelectorAll(".toast").forEach(function (toast) {

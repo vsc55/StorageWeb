@@ -1247,6 +1247,7 @@ function activate(context) {
   context.subscriptions.push(
     output, status, serversView, syncView,
     vscode.workspace.registerFileSystemProvider(SCHEME, fsProvider, { isCaseSensitive: true }),
+    fsProvider,
     vscode.window.registerUriHandler({ handleUri }),
     fsProvider.onDidChangeFile((events) => serversTree.changed(events)),
     command("storageweb.link", linkCommand),
@@ -1282,6 +1283,7 @@ function activate(context) {
     vscode.workspace.onDidChangeWorkspaceFolders(() => startAll().then(updatePausedContext)),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (!e.affectsConfiguration(SECTION)) return;
+      if (e.affectsConfiguration(`${SECTION}.refreshSeconds`)) fsProvider.schedule();
       for (const folder of vscode.workspace.workspaceFolders || []) {
         if (e.affectsConfiguration(SECTION, folder.uri)) startFolder(folder);
       }

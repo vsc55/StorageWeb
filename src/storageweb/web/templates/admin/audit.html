@@ -9,6 +9,7 @@
     <form method="get" class="inline small">
       {% if user_filter %}<input type="hidden" name="user" value="{{ user_filter }}">{% endif %}
       {% if action_filter %}<input type="hidden" name="action" value="{{ action_filter }}">{% endif %}
+      {% if level_filter %}<input type="hidden" name="level" value="{{ level_filter }}">{% endif %}
       <label class="inline">{{ _("Per page") }}
         <select name="per_page" class="js-autosubmit" aria-label="{{ _('Per page') }}">
           {% for n in PAGE_SIZES %}<option value="{{ n }}" {% if n == page_size %}selected{% endif %}>{{ n }}</option>{% endfor %}
@@ -38,24 +39,30 @@
 
 {% block admin_content %}
 <div class="page-head"><h1>{{ _("Audit") }}</h1>
-  <a class="small" href="{{ url_for('settings.section', name='maintenance') }}">{{ _("Retention and cleanup") }}</a></div>
+  <a class="small" href="{{ url_for('settings.section', name='audit_settings') }}">{{ _("Retention, levels and SIEM") }}</a></div>
 
 <form method="get" class="inline search">
   <input type="text" name="user" value="{{ user_filter }}" placeholder="{{ _('User') }}">
   <input type="text" name="action" value="{{ action_filter }}" placeholder="{{ _('Action (login, upload, delete…)') }}">
+  <label class="inline"><span class="sr-only">{{ _("Level") }}</span>
+    <select name="level" aria-label="{{ _('Level') }}">
+      <option value="">{{ _("All levels") }}</option>
+      {% for lv in audit_levels[1:] %}<option value="{{ lv }}" {% if level_filter == lv %}selected{% endif %}>{{ _("%(level)s and above", level=level_label(lv)) }}</option>{% endfor %}
+    </select></label>
   <button class="btn" type="submit">{{ _("Filter") }}</button>
-  {% if user_filter or action_filter %}<a class="btn btn-ghost" href="{{ url_for('admin.audit_log') }}">{{ _("Clear") }}</a>{% endif %}
-  <a class="btn btn-ghost" href="{{ url_for('admin.audit_export', user=user_filter or None, action=action_filter or None) }}">{{ _("Export CSV") }}</a>
+  {% if user_filter or action_filter or level_filter %}<a class="btn btn-ghost" href="{{ url_for('admin.audit_log') }}">{{ _("Clear") }}</a>{% endif %}
+  <a class="btn btn-ghost" href="{{ url_for('admin.audit_export', user=user_filter or None, action=action_filter or None, level=level_filter or None) }}">{{ _("Export CSV") }}</a>
 </form>
 
 {{ pager('top') }}
 <table class="files small">
-  <thead><tr><th>{{ _("Date") }}</th><th>{{ _("User") }}</th><th>{{ _("Action") }}</th><th>{{ _("Object") }}</th>
+  <thead><tr><th>{{ _("Date") }}</th><th>{{ _("Level") }}</th><th>{{ _("User") }}</th><th>{{ _("Action") }}</th><th>{{ _("Object") }}</th>
              <th>IP</th><th>{{ _("Detail") }}</th></tr></thead>
   <tbody>
     {% for r in rows %}
     <tr>
       <td class="nowrap" title="{{ r['ts'] }}">{{ r['ts']|datetime("medium") }}</td>
+      <td><span class="level level-{{ r['level'] }}">{{ level_label(r['level']) }}</span></td>
       <td>{{ r['username'] or '—' }}</td>
       <td><code>{{ r['action'] }}</code></td>
       <td class="name">{{ r['target'] or '' }}</td>
@@ -63,7 +70,7 @@
       <td class="muted">{{ r['detail'] or '' }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="6" class="muted">{{ _("No entries.") }}</td></tr>
+    <tr><td colspan="7" class="muted">{{ _("No entries.") }}</td></tr>
     {% endfor %}
   </tbody>
 </table>

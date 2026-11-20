@@ -25,7 +25,7 @@
     <input type="hidden" name="device" value="{{ device }}">
     <label>{{ _("Scope") }}<select name="scope">{% for k, v in SCOPE_LABELS.items() %}<option value="{{ k }}" {% if k == 'write' %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
     <label>{{ _("Expires") }}<select name="days">
-      {% for d in EXPIRY_DAYS %}<option value="{{ d }}" {% if d == 365 %}selected{% endif %}>{{ ngettext("in %(num)s day", "in %(num)s days", d) if d else _("never") }}</option>{% endfor %}
+      {% for d in EXPIRY_DAYS %}<option value="{{ d }}" {% if d == 365 or (365 not in EXPIRY_DAYS and loop.last) %}selected{% endif %}>{{ ngettext("in %(num)s day", "in %(num)s days", d) if d else _("never") }}</option>{% endfor %}
     </select></label>
     <div class="connect-actions">
       <button class="btn btn-primary" type="submit" name="action" value="allow">{{ _("Allow") }}</button>

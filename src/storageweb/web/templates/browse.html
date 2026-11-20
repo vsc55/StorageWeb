@@ -23,6 +23,31 @@
 <div class="explorer">
   {# ---------------------------------------------------------------- árbol de carpetas #}
   <aside class="tree" aria-label="{{ _('Folders') }}">
+    {% if favorites %}
+    <h2 class="panel-title">{{ _("Favorites") }}</h2>
+    <ul class="tree-list fav-list" id="fav-list">
+      {% for f in favorites %}
+      {% set f_here = f.root == root.name and f.rel == rel %}
+      <li><a class="tree-item{% if f_here %} active{% endif %}" title="{{ f.root_label }}{% if f.rel %} / {{ f.rel }}{% endif %}"
+             href="{{ url_for('files.browse', root=f.root, sub=f.rel) if f.is_dir else url_for('files.view' if viewable(f.name) else 'files.download', root=f.root, sub=f.rel) }}"
+             {% if f.is_dir %}data-drop-root="{{ f.root }}" data-drop-path="{{ f.rel }}"{% endif %}{% if f_here %} aria-current="page"{% endif %}>
+        <svg class="icon icon-sm {{ 'folder-icon' if f.is_dir else 'file-icon' }}" aria-hidden="true"><use href="#i-{{ 'folder' if f.is_dir else 'file' }}"></use></svg>
+        <span class="tree-name">{{ f.name }}</span></a>
+        {# La X para quitarlo de la lista: aparece al pasar el ratón o con el foco (app.js lo hace sin recargar) #}
+        <form method="post" action="{{ url_for('files.favorite_toggle') }}" class="fav-remove"{% if f_here %} data-here{% endif %}>
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="remove">
+          <input type="hidden" name="root" value="{{ f.root }}"><input type="hidden" name="path" value="{{ f.rel }}">
+          <input type="hidden" name="next" value="{{ request.full_path }}">
+          <button type="submit" class="fav-remove-button" title="{{ _('Remove «%(name)s» from favorites', name=f.name) }}"
+                  aria-label="{{ _('Remove «%(name)s» from favorites', name=f.name) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        </form></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <ul class="tree-list">
+      <li><a class="tree-item" href="{{ url_for('files.recent') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-clock"></use></svg><span class="tree-name">{{ _("Recent") }}</span></a></li>
+    </ul>
     <h2 class="panel-title">{{ _("Locations") }}</h2>
     <ul class="tree-list">
       {% for r in roots %}
@@ -63,12 +88,21 @@
           {% else %}<a href="{{ url_for('files.browse', root=root.name, sub=c.rel) }}">{{ c.name }}</a>{% endif %}
         {% endfor %}
       </nav>
+      {% set is_fav = (root.name, rel) in favorite_keys %}
+      <form method="post" action="{{ url_for('files.favorite_toggle') }}" class="inline">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="root" value="{{ root.name }}"><input type="hidden" name="path" value="{{ rel }}">
+        <button class="btn btn-icon fav-toggle{% if is_fav %} is-on{% endif %}" type="submit" aria-pressed="{{ 'true' if is_fav else 'false' }}"
+                title="{{ _('Remove from favorites') if is_fav else _('Add this folder to favorites') }}"
+                aria-label="{{ _('Remove from favorites') if is_fav else _('Add this folder to favorites') }}">
+          <svg class="icon icon-sm" aria-hidden="true"><use href="#i-star"></use></svg></button>
+      </form>
       <div class="toolbar-spacer"></div>
       <form class="filter-form" method="get" action="{{ url_for('files.search') }}" role="search">
         <label class="filter">
           <span class="sr-only">{{ _("Filter in this folder; Enter searches all your folders") }}</span>
           <svg class="icon icon-sm muted-icon" aria-hidden="true"><use href="#i-search"></use></svg>
-          <input id="filter-input" type="search" name="q" placeholder="{{ _('Filter or search…') }}"
+          <input id="filter-input" type="search" name="q" placeholder="{{ _('Filter or search…') }}" value="{{ listing.query }}"
                  autocomplete="off" title="{{ _('Filters this folder as you type. Press Enter to search by name in all your folders.') }}">
         </label>
       </form>
@@ -92,6 +126,11 @@
         <label class="btn btn-primary"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-upload"></use></svg>{{ _("Upload files") }}
           <input id="file-input" type="file" name="files" multiple hidden>
         </label>
+        {% if can_mkdir %}
+        <label class="btn js-upload-folder"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-folder"></use></svg>{{ _("Upload folder") }}
+          <input id="folder-input" type="file" webkitdirectory multiple hidden>
+        </label>
+        {% endif %}
         <noscript><button class="btn" type="submit">{{ _("Send") }}</button></noscript>
       </form>
       {% endif %}
@@ -138,59 +177,41 @@
           <tr class="row-up"><td></td><td colspan="4"><a href="{{ url_for('files.browse', root=root.name, sub=parent) }}">
             <svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-right"></use></svg>{{ _("Parent folder") }}</a></td></tr>
           {% endif %}
-          {% for e in entries %}
-          {% set download_href = url_for('files.download', root=root.name, sub=e.rel) if not e.is_dir and can_download else '' %}
-          {% set view_href = url_for('files.view', root=root.name, sub=e.rel) if can_download and viewable(e.name) else '' %}
-          {% set href = url_for('files.browse', root=root.name, sub=e.rel) if e.is_dir else (view_href or download_href) %}
-          <tr class="file-row" data-name="{{ e.name }}" data-dir="{{ '1' if e.is_dir else '0' }}" data-href="{{ href }}"
-              data-download="{{ download_href }}" data-view="{{ view_href }}"
-              data-rel="{{ e.rel }}" data-zip="{{ url_for('files.zip_folder', root=root.name, sub=e.rel) if can_download else '' }}"
-              {% if can_download or can_rename %}draggable="true"{% endif %}
-              data-kind="{{ _('Folder') if e.is_dir else (_('%(ext)s file', ext=e.ext) if e.ext else _('File')) }}"
-              data-size="{{ e.size or '—' }}" data-mtime="{{ e.mtime }}">
-            <td class="col-check"><input type="checkbox" class="row-check" aria-label="{{ _('Select %(name)s', name=e.name) }}"></td>
-            <td class="name">
-              <span class="name-cell">
-                <svg class="icon {{ 'folder-icon' if e.is_dir else 'file-icon' }}" aria-hidden="true"><use href="#i-{{ 'folder' if e.is_dir else 'file' }}"></use></svg>
-                {% if href %}<a href="{{ href }}">{{ e.name }}</a>{% else %}<span>{{ e.name }}</span>{% endif %}
-                {% if e.ext %}<span class="ext">{{ e.ext }}</span>{% endif %}
-              </span>
-            </td>
-            <td class="num">{{ e.size }}</td>
-            <td class="col-date">{{ e.mtime }}</td>
-            <td class="row-actions">
-              {% if not e.is_dir and can_download %}
-              <a class="btn btn-icon" href="{{ download_href }}" title="{{ _('Download') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg><span class="sr-only">{{ _("Download") }}</span></a>
-              {% elif can_download %}
-              <a class="btn btn-icon" href="{{ url_for('files.zip_folder', root=root.name, sub=e.rel) }}" title="{{ _('Download as ZIP') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg><span class="sr-only">{{ _("Download as ZIP") }}</span></a>
-              {% endif %}
-              {% if can_rename %}
-              <form method="post" action="{{ url_for('files.rename', root=root.name, sub=e.rel) }}" class="inline js-rename" data-name="{{ e.name }}">
-                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-                <input type="hidden" name="name" value="{{ e.name }}">
-                <button class="btn btn-icon" type="submit" title="{{ _('Rename') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-rename"></use></svg><span class="sr-only">{{ _("Rename") }}</span></button>
-              </form>
-              {% endif %}
-              {% if can_delete %}
-              <form method="post" action="{{ url_for('files.delete', root=root.name, sub=e.rel) }}" class="inline js-confirm js-delete"
-                    data-confirm="{{ _('Delete the folder «%(name)s» and all its contents?', name=e.name) if e.is_dir else _('Delete «%(name)s»?', name=e.name) }}">
-                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-                <button class="btn btn-icon btn-danger" type="submit" title="{{ _('Delete') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-delete"></use></svg><span class="sr-only">{{ _("Delete") }}</span></button>
-              </form>
-              {% endif %}
-            </td>
-          </tr>
-          {% else %}
-          <tr><td></td><td colspan="4" class="muted empty">{{ _("Empty folder") }}</td></tr>
-          {% endfor %}
+          {% include "_file_rows.html" %}
+          {% if not rows %}
+          <tr class="row-empty"><td></td><td colspan="4" class="muted empty">{{ _("No items match the filter.") if listing.query else _("Empty folder") }}</td></tr>
+          {% endif %}
         </tbody>
       </table>
       <p id="filter-empty" class="muted empty" hidden>{{ _("No items match the filter.") }}</p>
     </div>
 
+    {% if listing.partial %}
+    {# Carpeta con más elementos que storage.page_size: se pinta un trozo (files._listing). Sin JavaScript, el
+       paginador vale en los tres modos; con él, «scroll» carga más al bajar y el filtro pregunta al servidor #}
+    <div class="listing-foot" id="listing-foot" data-mode="{{ listing.mode }}" data-next="{{ listing.next_rows or '' }}"
+         data-filter="{{ listing.filter_rows }}" data-total="{{ listing.total }}" data-page="{{ listing.page if not listing.query else 1 }}">
+      <p class="muted small" id="listing-status">
+        {%- if listing.query %}{{ _("%(shown)s of %(total)s items match «%(query)s»", shown=listing.last, total=listing.total, query=listing.query) }}
+        {%- elif listing.mode == 'search' %}{{ _("Only the first %(shown)s of %(total)s items are shown: type in the filter to find the rest.", shown=listing.last, total=listing.total) }}
+        {%- elif listing.mode == 'pages' %}{{ _("Items %(first)s–%(last)s of %(total)s", first=listing.first, last=listing.last, total=listing.total) }}
+        {%- else %}{{ _("%(shown)s of %(total)s items", shown=listing.last, total=listing.total) }}{% endif %}</p>
+      {% if listing.pages > 1 and (listing.mode != 'search' or listing.query) %}
+      <nav class="listing-pager" id="listing-pager" aria-label="{{ _('Pages') }}">
+        {% if listing.prev_url %}<a class="btn btn-small" href="{{ listing.prev_url }}" rel="prev">{{ _("Previous") }}</a>
+        {% else %}<span class="btn btn-small is-disabled" aria-disabled="true">{{ _("Previous") }}</span>{% endif %}
+        <span class="muted small">{{ _("Page %(page)s of %(pages)s", page=listing.page, pages=listing.pages) }}</span>
+        {% if listing.next_url %}<a class="btn btn-small" href="{{ listing.next_url }}" rel="next">{{ _("Next") }}</a>
+        {% else %}<span class="btn btn-small is-disabled" aria-disabled="true">{{ _("Next") }}</span>{% endif %}
+      </nav>
+      {% endif %}
+      <button type="button" class="btn load-more" id="load-more" hidden>{{ _("Load more") }}</button>
+    </div>
+    {% endif %}
+
     {% if can_upload %}
     {% set limit = _("max. %(size)s MB per file", size=max_file_size_mb) if max_file_size_mb else _("no size limit") %}
-    <div id="dropzone" class="dropzone">{{ _("Drag files here to upload them (%(limit)s; interrupted uploads resume)", limit=limit) }}</div>
+    <div id="dropzone" class="dropzone">{{ _("Drag files or folders here to upload them (%(limit)s; interrupted uploads resume)", limit=limit) }}</div>
     {% endif %}
   </section>
 
@@ -220,6 +241,7 @@
       <div class="details-actions">
         <a class="btn btn-primary btn-block" id="details-open" href="#"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-open"></use></svg>{{ _("Open") }}</a>
         {% if can_download %}<a class="btn btn-primary btn-block" id="details-download" href="#"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Download") }}</a>{% endif %}
+        <button type="button" class="btn btn-block" id="details-fav" data-fav-url="{{ url_for('files.favorite_toggle') }}" data-root="{{ root.name }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-star"></use></svg><span>{{ _("Add to favorites") }}</span></button>
         {% if can_rename or (can_download and can_delete) %}<button type="button" class="btn btn-block" data-action="move"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-folder"></use></svg>{{ _("Move to…") }}</button>{% endif %}
         {% if can_download %}<button type="button" class="btn btn-block" data-action="copy"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-folder"></use></svg>{{ _("Copy to…") }}</button>{% endif %}
         {% if can_rename %}<button type="button" class="btn btn-block" data-action="rename"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-rename"></use></svg>{{ _("Rename") }}</button>{% endif %}

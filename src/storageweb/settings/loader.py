@@ -26,7 +26,9 @@ from .errors import ConfigError
 from .layers import _get, _set, merge_overrides
 from . import location_types
 from . import auth_methods
-from .defaults import DEFAULTS, LOGIN_ART_CHOICES, MFA_POLICIES, PERMISSIONS, RUNTIME_SECTIONS, SECRET_FIELDS
+from ..audit_levels import LEVELS as AUDIT_LEVELS
+from .defaults import (AUDIT_FORMATS, SYSLOG_FACILITIES, SYSLOG_PORTS, DEFAULTS, LISTING_MODES, LOGIN_ART_CHOICES, MFA_POLICIES, PAGE_SIZE_RANGE, PERMISSIONS,
+                       RUNTIME_SECTIONS, SECRET_FIELDS)
 
 SHARE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 PROFILE_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -81,7 +83,7 @@ def _resolve(base_dir: Path, value: str) -> Path:
 def _field_path(field: str) -> str | None:
     """Ruta completa del ajuste a partir del nombre que usan los mensajes («storage.shares»)."""
     if field.startswith(("storage.", "security.", "auth.", "network.", "server.", "maintenance.", "branding.",
-                         "metrics.", "preview.")):
+                         "metrics.", "preview.", "audit.")):
         return field
     return "storage.shares" if "." in field else None
 
@@ -139,6 +141,11 @@ def _locations(items) -> list[dict]:
             raise ConfigError(_("Storage location %(name)s: the type must be one of: %(values)s", name=repr(name),
                                 values=", ".join(location_types.kinds())), "storage.locations")
         loc = schema.normalize(item, name)
+        # Común a todos los tipos: sus carpetas no tienen cuota (p. ej. un bucket que ya limita el proveedor)
+        loc["quota_exempt"] = str(item.get("quota_exempt", False)).strip().lower() in ("1", "true", "yes", "on")
+        # El servidor es Windows (SFTP, FTP, WebDAV): sus rutas no admiten los nombres especiales de Windows
+        loc["windows_server"] = schema.windows_option and str(item.get("windows_server", False)).strip().lower() in (
+            "1", "true", "yes", "on")
         loc["origin"] = item.get("origin", "file")
         result.append(loc)
     return result
@@ -257,6 +264,15 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     storage["home_template"] = tmpl
     for key in ("create_home", "create_shares", "show_hidden"):
         storage[key] = bool(storage[key])
+    storage["page_size"] = _positive_int(storage.get("page_size"), "storage.page_size")
+    low, high = PAGE_SIZE_RANGE
+    if not low <= storage["page_size"] <= high:
+        raise ConfigError(_("storage.page_size must be between %(low)s and %(high)s", low=low, high=high),
+                          "storage.page_size")
+    storage["listing_mode"] = str(storage.get("listing_mode") or "scroll").strip().lower()
+    if storage["listing_mode"] not in LISTING_MODES:
+        raise ConfigError(_("storage.listing_mode must be one of: %(values)s", values=", ".join(LISTING_MODES)),
+                          "storage.listing_mode")
     try:
         storage["hidden"] = patterns.normalize(_str_list(storage.get("hidden") or [], "storage.hidden"))
     except patterns.PatternError as exc:
@@ -264,6 +280,11 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     storage["max_file_size_mb"] = _non_negative_int(storage["max_file_size_mb"], "storage.max_file_size_mb")
     storage["home_quota_mb"] = _non_negative_int(storage.get("home_quota_mb", 0), "storage.home_quota_mb")
     storage["quota_enforce"] = bool(storage.get("quota_enforce", True))
+    storage["quota_refresh_minutes"] = _positive_int(storage.get("quota_refresh_minutes", 60),
+                                                     "storage.quota_refresh_minutes")
+    if storage["quota_refresh_minutes"] > 7 * 24 * 60:
+        raise ConfigError(_("storage.quota_refresh_minutes cannot be more than %(num)s", num=7 * 24 * 60),
+                          "storage.quota_refresh_minutes")
     group_quotas = storage.get("group_quotas") or {}
     if not isinstance(group_quotas, dict):
         raise ConfigError(_("storage.group_quotas must be an object {group: MB}"), "storage.group_quotas")
@@ -332,6 +353,10 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     sec["api_tokens"] = bool(sec["api_tokens"])
     sec["webdav"] = bool(sec["webdav"])
     sec["webdav_passwords"] = bool(sec["webdav_passwords"])
+    sec["api_token_max_days"] = _non_negative_int(sec.get("api_token_max_days") or 0, "security.api_token_max_days")
+    if sec["api_token_max_days"] > 3650:
+        raise ConfigError(_("security.api_token_max_days cannot be more than %(num)s", num=3650),
+                          "security.api_token_max_days")
     sec["mfa_required"] = str(sec.get("mfa_required") or "off").strip().lower()
     if sec["mfa_required"] not in MFA_POLICIES:
         # Rechazado al guardar: un valor desconocido se leería como «nadie», que falla ABIERTO
@@ -344,11 +369,51 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     maint["backup_interval_hours"] = _non_negative_int(maint["backup_interval_hours"],
                                                        "maintenance.backup_interval_hours")
     maint["backup_keep"] = _positive_int(maint["backup_keep"], "maintenance.backup_keep")
+    maint["offsite_location"] = str(maint.get("offsite_location") or "").strip()
+    if maint["offsite_location"] and not any(loc["name"] == maint["offsite_location"]
+                                             for loc in cfg["storage"]["locations"]):
+        raise ConfigError(_("maintenance.offsite_location: there is no storage location named %(name)s",
+                            name=repr(maint["offsite_location"])), "maintenance.offsite_location")
+    maint["offsite_path"] = _inside_location(maint.get("offsite_path") or "", "maintenance.offsite_path")
+    if maint["offsite_location"] and not maint["offsite_path"]:
+        raise ConfigError(_("maintenance.offsite_path: choose a folder inside the location for the backups"),
+                          "maintenance.offsite_path")
+    maint["offsite_keep"] = _positive_int(maint.get("offsite_keep", 14), "maintenance.offsite_keep")
+
+    # --- reenvío de la auditoría (SIEM)
+    fwd = cfg["audit"]
+    for key, default in (("min_level", "debug"), ("forward_min_level", "info")):
+        fwd[key] = str(fwd.get(key) or default).strip().lower()
+        if fwd[key] not in AUDIT_LEVELS:
+            raise ConfigError(_("audit.%(key)s must be one of: %(values)s", key=key, values=", ".join(AUDIT_LEVELS)),
+                              f"audit.{key}")
+    fwd["syslog"] = str(fwd.get("syslog") or "").strip()
+    if fwd["syslog"]:
+        target = urllib.parse.urlsplit(fwd["syslog"])
+        try:
+            port_ok = target.port is None or 1 <= target.port <= 65535
+        except ValueError:
+            port_ok = False
+        if target.scheme not in SYSLOG_PORTS or not target.hostname or target.path not in ("", "/") or not port_ok:
+            raise ConfigError(_("audit.syslog must look like udp://host:514, tcp://host:514 or tls://host:6514"),
+                              "audit.syslog")
+    fwd["syslog_format"] = str(fwd.get("syslog_format") or "rfc5424").strip().lower()
+    if fwd["syslog_format"] not in AUDIT_FORMATS:
+        raise ConfigError(_("audit.syslog_format must be one of: %(values)s", values=", ".join(AUDIT_FORMATS)),
+                          "audit.syslog_format")
+    fwd["syslog_facility"] = str(fwd.get("syslog_facility") or "local0").strip().lower()
+    if fwd["syslog_facility"] not in SYSLOG_FACILITIES:
+        raise ConfigError(_("audit.syslog_facility must be one of: %(values)s", values=", ".join(SYSLOG_FACILITIES)),
+                          "audit.syslog_facility")
+    fwd["tls_verify"] = bool(fwd.get("tls_verify", True))
+    fwd["syslog_ca"] = str(_resolve(base_dir, fwd["syslog_ca"])) if str(fwd.get("syslog_ca") or "").strip() else ""
+    fwd["file"] = str(_resolve(base_dir, fwd["file"])) if str(fwd.get("file") or "").strip() else ""
 
     # --- visor
     view = cfg["preview"]
     view["enabled"] = bool(view.get("enabled"))
     view["diagrams"] = bool(view.get("diagrams"))
+    view["highlight"] = bool(view.get("highlight", True))
     view["max_mb"] = _positive_int(view.get("max_mb"), "preview.max_mb")
     if view["max_mb"] > PREVIEW_MAX_MB:
         raise ConfigError(_("preview.max_mb cannot be more than %(num)s", num=PREVIEW_MAX_MB), "preview.max_mb")

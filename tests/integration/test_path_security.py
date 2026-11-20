@@ -9,6 +9,7 @@ import json
 import pytest
 
 from storageweb.core import backends
+from storageweb.core.security import PathError
 
 from tests.fakes import FakeFTP, FakeS3, FakeSFTPSession, fake_webdav_client
 from tests.helpers import add_user, get_csrf, login
@@ -54,7 +55,7 @@ def world(make_app, tmp_path, monkeypatch):
                         lambda loc: fake_webdav_client(remotes["webdav"], {"url": "https://dav.example/dav/"}))
     backends.clear_clients()
     everyone = {"users": ["*"]}
-    app = make_app({"storage": {
+    app = make_app({"permissions": {"user": {"edit": True}}, "storage": {
         "create_shares": False,
         "locations": [
             {"name": "s3", "type": "s3", "bucket": "bucket", "prefix": "sw"},
@@ -106,12 +107,16 @@ def test_read_attacks(world, root):
     _app, client, _token, snapshot = world
     before = snapshot()
     for evil in EVIL_PATHS:
-        for url in (f"/f/{root}/{evil}", f"/download/{root}/{evil}", f"/f/{root}/docs/{evil}"):
+        for url in (f"/f/{root}/{evil}", f"/download/{root}/{evil}", f"/f/{root}/docs/{evil}", f"/view/{root}/{evil}",
+                    f"/view/{root}/{evil}?source=1", f"/view/{root}/{evil}?from=0", f"/edit/{root}/{evil}",
+                    f"/zip/{root}/{evil}", f"/f/{root}/{evil}?rows=1"):
             resp = client.get(url, headers={"Range": "bytes=0-"})
             _no_secret(resp, root)
             assert resp.status_code != 200 or url.startswith("/f/"), url
         resp = client.get(f"/f/{root}/{evil}", headers={"Accept": "application/json"})
         assert SECRET not in resp.get_data()
+        # El filtro de un listado busca en los nombres: nunca es una ruta
+        assert SECRET not in client.get(f"/f/{root}/docs?rows=1&q={evil}").get_data()
     assert snapshot() == before
 
 
@@ -125,6 +130,13 @@ def test_write_attacks(world, root):
         client.post(f"/mkdir/{root}/{evil}", data={"_csrf": token, "name": "nueva"})
         client.post(f"/rename/{root}/{evil}", data={"_csrf": token, "name": "renombrado"})
         client.post(f"/delete/{root}/{evil}", data={"_csrf": token})
+        client.post(f"/edit/{root}/{evil}", data={"_csrf": token, "text": "pisado", "version": "0-0"})
+        client.post("/favorites", data={"_csrf": token, "root": root, "path": evil})
+        for items, dest in (([evil], "docs"), (["docs"], evil)):
+            client.post("/transfer", data={"_csrf": token, "action": "copy", "root": root, "items": items,
+                                           "dest_root": root, "dest_path": dest}, headers={"Accept": "application/json"})
+        resp = client.post("/zip", data={"_csrf": token, "root": root, "items": [evil]})
+        assert SECRET not in resp.get_data()
     for name in EVIL_NAMES:
         client.post(f"/upload/{root}/docs", data={"_csrf": token, "files": (io.BytesIO(b"x"), name)},
                     content_type="multipart/form-data")
@@ -208,3 +220,92 @@ def test_malicious_server_names_are_hidden(world):
     names = [e["name"] for e in resp.get_json()["entries"]]
     assert "bien.txt" in names
     assert all(n not in (".", "..") and "\\" not in n and "\x01" not in n and "\n" not in n for n in names), names
+
+
+# Trucos de nombres de Windows: sin salir de la carpeta, abrirían otro archivo (los «ocultos para todos»), un flujo
+# de NTFS o un dispositivo que deja la petición colgada
+WINDOWS_TRICKS = ["secreto.md.", "secreto.md ", "secreto.md...", "secreto.md::$DATA", "secreto.md:otro", "SECRET~1.MD",
+                  "clave.key.", "clave.key::$DATA", "CON", "con.txt", "NUL", "nul.md", "AUX", "COM1", "LPT1",
+                  "docs/CON", "CONIN$"]
+
+
+def test_windows_name_tricks(make_app, home):
+    """En el disco de un servidor Windows (y siempre en SMB) no valen: ni se saltan storage.hidden ni cuelgan."""
+    import threading
+
+    app = make_app({"storage": {"hidden": ["secreto.md", "*.key"]}, "permissions": {"user": {"edit": True}}})
+    add_user(app, "ana")
+    client = app.test_client()
+    login(client, "ana")
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "secreto.md").write_bytes(SECRET)
+    (home / "clave.key").write_bytes(SECRET)
+    (home / "docs").mkdir()
+    for name in WINDOWS_TRICKS:
+        for route in ("download", "view", "edit", "f"):
+            result = {}
+            worker = threading.Thread(target=lambda: result.update(resp=client.get(f"/{route}/home/{name}")),
+                                      daemon=True)
+            worker.start()
+            worker.join(10)
+            assert "resp" in result, f"/{route}/home/{name} se quedó colgada"
+            resp = result["resp"]
+            assert SECRET not in resp.get_data(), (route, name)
+            assert resp.status_code in (302, 404), (route, name, resp.status_code)
+            if resp.status_code == 302:     # el visor manda a la descarga: que tampoco la dé
+                assert SECRET not in client.get(resp.location).get_data(), (route, name)
+
+
+def test_windows_rule_everywhere(monkeypatch, tmp_path):
+    """La regla, también donde no hay Windows (como si lo hubiera) y en SMB, que siempre la aplica."""
+    from storageweb.core import security
+    from storageweb.core.security import PathError, resolve_entry, resolve_inside, windows_reserved
+
+    assert all(windows_reserved(n) for n in WINDOWS_TRICKS if "/" not in n and "~" not in n)
+    assert not any(windows_reserved(n) for n in ("informe 10.30.pdf", "console.txt", "COM10", ".gitignore", "a b.txt"))
+    monkeypatch.setattr(security, "IS_WINDOWS", True)
+    (tmp_path / "a.txt").write_bytes(b"x")
+    for name in ("a.txt.", "a.txt ", "a.txt::$DATA", "CON", "docs/nul.txt"):
+        with pytest.raises(PathError):
+            resolve_inside(tmp_path, name)
+        with pytest.raises(PathError):
+            resolve_entry(tmp_path, name)
+    assert resolve_inside(tmp_path, "a.txt") == (tmp_path / "a.txt").resolve()
+    smb = backends.TYPES["smb"]
+    with pytest.raises(PathError):
+        smb._unc(type("B", (), {"base": "", "server": "nas", "share": "datos"})(), "a.txt::$DATA")   # noqa: SLF001
+
+
+@pytest.mark.parametrize("kind", ["sftp", "ftp", "webdav"])
+def test_windows_server_option(make_app, tmp_path, monkeypatch, kind):
+    """«El servidor es Windows» (windows_server) en SFTP, FTP y WebDAV: los nombres especiales de Windows no llegan
+    al servidor. Sin la opción (un Linux) son nombres válidos."""
+    remote = tmp_path / "remoto"
+    (remote / "srv" / "carpeta").mkdir(parents=True)
+    (remote / "srv" / "carpeta" / "nota.txt").write_bytes(b"x")
+    factories = {"sftp": lambda loc: FakeSFTPSession(remote),
+                 "ftp": lambda loc: backends.TYPES["ftp"].connect(loc).__class__(loc, ftp_class=FakeFTP(remote)),
+                 "webdav": lambda loc: fake_webdav_client(remote, {"url": "https://dav.example/dav/"})}
+    monkeypatch.setitem(backends.CLIENT_FACTORIES, kind, factories[kind])
+    base = {"sftp": {"type": "sftp", "host": "h", "username": "u", "path": "/srv"},
+            "ftp": {"type": "ftp", "host": "h", "path": "/srv", "tls": False},
+            "webdav": {"type": "webdav", "url": "https://dav.example/dav/", "path": "srv"}}[kind]
+    backends.clear_clients()
+    app = make_app({"storage": {"locations": [{"name": "loc", **base, "windows_server": True}],
+                                "shares": [{"name": "rem", "location": "loc", "path": "carpeta", "users": ["*"]}]}})
+    add_user(app, "ana")
+    client = app.test_client()
+    login(client, "ana")
+    assert client.get("/download/rem/nota.txt").status_code == 200
+    for name in ("nota.txt.", "nota.txt ", "nota.txt::$DATA", "CON", "nul.txt"):
+        for route in ("download", "view", "f"):
+            assert client.get(f"/{route}/rem/{name}").status_code == 404, (route, name)
+    # El backend: con la opción, PathError; sin ella (un Linux), el nombre pasa tal cual
+    loc = {"name": "loc", **base}
+    staging = tmp_path / "staging"
+    linux = backends.backend_for({**loc, "windows_server": False}, "carpeta", staging)
+    windows = backends.backend_for({**loc, "windows_server": True}, "carpeta", staging)
+    assert linux._p("docs/nota.txt.").endswith("nota.txt.")                    # noqa: SLF001
+    with pytest.raises(PathError):
+        windows._p("docs/nota.txt.")                                          # noqa: SLF001
+    backends.clear_clients()

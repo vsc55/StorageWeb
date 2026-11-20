@@ -1,0 +1,33 @@
+{% extends "admin/settings/_layout.html" %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
+{% block section %}
+{# Sistema → Copias automáticas: cada cuánto, cuántas se conservan y la copia fuera del servidor #}
+{% set m = cfg.maintenance %}
+{{ form_start() }}
+  <div class="card form-grid">
+    <label class="{{ err_class('maintenance.backup_interval_hours') }}"><span class="label-row">{{ _("Automatic backup every (hours)") }} {{ origin('maintenance.backup_interval_hours') }}</span>
+      <input{{ lock('maintenance.backup_interval_hours') }} type="number" name="backup_interval_hours" value="{{ m.backup_interval_hours }}" min="0">
+      <small class="muted">{{ _("0 = never from the service (the systemd timer storageweb-backup.timer can do it instead).") }}</small>{{ field_error('maintenance.backup_interval_hours') }}</label>
+    <label class="{{ err_class('maintenance.backup_keep') }}"><span class="label-row">{{ _("Backups to keep") }} {{ origin('maintenance.backup_keep') }}</span>
+      <input{{ lock('maintenance.backup_keep') }} type="number" name="backup_keep" value="{{ m.backup_keep }}" min="1">{{ field_error('maintenance.backup_keep') }}</label>
+  </div>
+
+  <section class="card form-grid section-gap" aria-labelledby="offsite-title">
+    <h2 class="card-title span2" id="offsite-title">{{ _("Copy outside the server") }}</h2>
+    <p class="muted small span2">{{ _("If the server is lost, so are the backups in its own disk. Each backup can also go to a storage location (S3, a NAS by SMB, SFTP…). They carry the database and the keys: use a location only the administrators can reach.") }}</p>
+    <label class="{{ err_class('maintenance.offsite_location') }}"><span class="label-row">{{ _("Also send backups to") }} {{ origin('maintenance.offsite_location') }}</span>
+      <select{{ lock('maintenance.offsite_location') }} name="offsite_location">
+        <option value="">{{ _("Nowhere else (only this server)") }}</option>
+        {% for loc in cfg.storage.locations %}<option value="{{ loc.name }}" {% if m.offsite_location == loc.name %}selected{% endif %}>{{ loc.label }} · {{ location_type(loc.type).short_label }}</option>{% endfor %}
+      </select>
+      {% if not cfg.storage.locations %}<small class="muted"><a href="{{ url_for('locations.index') }}">{{ _("Add a storage location") }}</a></small>{% endif %}
+      {{ field_error('maintenance.offsite_location') }}</label>
+    <label class="{{ err_class('maintenance.offsite_path') }}"><span class="label-row">{{ _("Folder in the location") }} {{ origin('maintenance.offsite_path') }}</span>
+      <input{{ lock('maintenance.offsite_path') }} type="text" name="offsite_path" value="{{ m.offsite_path }}" class="mono" placeholder="storageweb-backups">
+      {{ field_error('maintenance.offsite_path') }}</label>
+    <label class="{{ err_class('maintenance.offsite_keep') }}"><span class="label-row">{{ _("Backups to keep in the location") }} {{ origin('maintenance.offsite_keep') }}</span>
+      <input{{ lock('maintenance.offsite_keep') }} type="number" name="offsite_keep" value="{{ m.offsite_keep }}" min="1">{{ field_error('maintenance.offsite_keep') }}</label>
+  </section>
+  {{ save_bar() }}
+</form>
+{% endblock %}

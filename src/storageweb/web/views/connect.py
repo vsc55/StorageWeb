@@ -30,7 +30,8 @@ def token():
         return jsonify(error="tokens_disabled"), 403
     data = request.get_json(silent=True) or request.form
     try:
-        user, plain, name, days = connect.redeem(get_db(), data.get("code"), data.get("verifier"))
+        user, plain, name, days = connect.redeem(get_db(), data.get("code"), data.get("verifier"),
+                                                 max_days=settings()["security"]["api_token_max_days"])
     except connect.ConnectError:
         ipban.offense(get_db(), settings(), client_ip(), "bad_token")
         return jsonify(error="invalid_grant"), 400
@@ -57,8 +58,10 @@ def authorize(client: str):
                                    target=connect.back_url(redirect_uri, error="access_denied", state=state))
         try:
             scope = request.form.get("scope", "write")
-            days = int(request.form.get("days", "365"))
-            code = connect.issue(g.user["id"], app, device, values["challenge"], scope=scope, days=days)
+            max_days = settings()["security"]["api_token_max_days"]
+            days = tokens.clamp_days(int(request.form.get("days", "365")), max_days)
+            code = connect.issue(g.user["id"], app, device, values["challenge"], scope=scope, days=days,
+                                 max_days=max_days)
         except (ValueError, connect.ConnectError) as exc:
             abort(400, description=str(exc))
         audit_event("app_authorized", app.label, detail=device or None)
@@ -66,4 +69,5 @@ def authorize(client: str):
                                target=connect.back_url(redirect_uri, code=code, state=state))
     return render_template("connect.html", app=app, done=None, device=device, client=client,
                            redirect_uri=redirect_uri, state=state, challenge=values.get("challenge"),
-                           SCOPE_LABELS=tokens.SCOPE_LABELS, EXPIRY_DAYS=tokens.EXPIRY_DAYS)
+                           SCOPE_LABELS=tokens.SCOPE_LABELS,
+                           EXPIRY_DAYS=tokens.allowed_days(settings()["security"]["api_token_max_days"]))

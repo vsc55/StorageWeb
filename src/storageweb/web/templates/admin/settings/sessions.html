@@ -99,7 +99,7 @@
         <td>{{ t['name'] }} <code class="muted">{{ t['prefix'] }}…</code></td>
         <td>{{ t['scope'] }}</td>
         <td class="nowrap">{{ t['last_used_at']|datetime }}{% if t['last_ip'] %} <span class="muted">· {{ t['last_ip'] }}</span>{% endif %}</td>
-        <td class="nowrap">{{ t['expires_at']|datetime if t['expires_at'] else _("never") }}</td>
+        <td class="nowrap">{% set exp = token_expiry(t) %}{{ exp|datetime if exp else _("never") }}</td>
         <td class="actions">
           <form method="post" action="{{ url_for('settings.user_token_delete', user_uid=t['user_uid'], token_id=t['id']) }}" class="inline js-confirm"
                 data-confirm="{{ _('Revoke the token «%(name)s»?', name=t['name']) }}">

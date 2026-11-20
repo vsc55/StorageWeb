@@ -138,12 +138,12 @@ def test_invalid_profile_name(write_config):
 
 def test_reset_button_carries_the_default_and_messages_use_labels(app, admin):
     client, token = admin
-    data = page_form(client, "/admin/settings/storage")
+    data = page_form(client, "/admin/settings/files")
     data.pop("create_shares", None)
     data["create_shares"] = ["on"]
     data["max_file_size_mb"] = ["50"]
-    client.post("/admin/settings/storage", data=data)
-    html = client.get("/admin/settings/storage").get_data(as_text=True)
+    client.post("/admin/settings/files", data=data)
+    html = client.get("/admin/settings/files").get_data(as_text=True)
     # El JavaScript pone estos valores en el formulario sin guardar (se aplican con «Guardar»)
     assert 'value="storage.create_shares"' in html and 'data-default="false"' in html
     assert 'value="storage.max_file_size_mb"' in html and 'data-default="0"' in html

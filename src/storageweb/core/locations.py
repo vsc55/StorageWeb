@@ -48,6 +48,8 @@ def from_form(form: dict, original: dict | None) -> dict:
     loc = blank(kind)
     loc["name"] = original["name"] if original else str(form.get("name", "")).strip()
     loc["label"] = str(form.get("label", "")).strip()
+    loc["quota_exempt"] = form.get("quota_exempt") == "on"
+    loc["windows_server"] = schema(kind).windows_option and form.get("windows_server") == "on"
     for option in schema(kind).options:
         if option.kind == "bool":
             loc[option.name] = form.get(option.name) == "on"
@@ -76,6 +78,8 @@ def users_of(cfg: dict, name: str) -> list[str]:
     used = [s["label"] or s["name"] for s in cfg["storage"]["shares"] if s.get("location") == name]
     if cfg["storage"].get("home_location") == name:
         used.insert(0, str(_("Personal folders")))
+    if (cfg.get("maintenance") or {}).get("offsite_location") == name:
+        used.append(str(_("Copy of the backups outside the server")))
     return used
 
 

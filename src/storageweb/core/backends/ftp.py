@@ -124,6 +124,7 @@ class FTPBackend(RemoteBackend):
     kind = "ftp"
     schema = LocationSchema(
         kind="ftp",
+        windows_option=True,
         label=_l("FTP / FTPS"),
         short_label="FTP",
         doc="Servidor FTP o FTPS (FTP con TLS). Sin dependencias.",
@@ -180,7 +181,7 @@ class FTPBackend(RemoteBackend):
         return self.label
 
     def _p(self, rel: str) -> str:
-        joined = join_rel(self.base, clean_rel(rel))
+        joined = join_rel(self.base, self._clean(rel))
         return ("/" + joined) if self.absolute else joined
 
     def _dir(self, rel: str) -> str:

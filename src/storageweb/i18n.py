@@ -18,12 +18,13 @@ from __future__ import annotations
 import io
 import os
 from contextvars import ContextVar, Token
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 
 from babel import Locale
 from babel.dates import format_datetime as _babel_format_datetime
+from babel.dates import format_timedelta as _babel_format_timedelta
 from babel.messages.mofile import write_mo
 from babel.messages.pofile import read_po
 from babel.numbers import format_decimal
@@ -144,6 +145,11 @@ def format_datetime(value: datetime | str | None, fmt: str = "short") -> str:
         except ValueError:
             return value
     return _babel_format_datetime(value, fmt, locale=get_locale())
+
+
+def format_age(seconds: float) -> str:
+    """Hace cuánto, en el idioma activo: «hace 5 minutos»."""
+    return _babel_format_timedelta(timedelta(seconds=-max(seconds, 1)), add_direction=True, locale=get_locale())
 
 
 def locale_display_name(locale: str) -> str:

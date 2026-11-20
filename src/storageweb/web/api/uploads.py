@@ -1,6 +1,7 @@
 """API JSON de subidas por partes (la usa web/static/js/app.js).
 
-    POST   /api/uploads                {root, path, name, size}  -> 201 {id, chunk_size, received}
+    POST   /api/uploads                {root, path, name, size[, folders]}  -> 201 {id, chunk_size, received}
+                                       (folders: «a/b», subcarpetas bajo path que se crean si faltan)
     GET    /api/uploads/<id>                                     -> {id, name, size, received, chunk_size}
     PUT    /api/uploads/<id>?offset=N  cuerpo binario (una parte) -> {received}
     POST   /api/uploads/<id>/complete                            -> {name, size}
@@ -66,6 +67,43 @@ def _writable_dir(root_name: str, rel: str) -> tuple[dict, str]:
     return root, dir_rel
 
 
+MAX_DEPTH = 32   # subcarpetas como mucho en una subida de carpeta
+
+
+def _make_folders(root: dict, dir_rel: str, folders: str) -> str:
+    """Crea (si faltan) las subcarpetas ``a/b/c`` bajo ``dir_rel`` y devuelve la última. Cada nombre pasa por
+    las mismas reglas que una carpeta nueva; hace falta el permiso de crear carpetas."""
+    cfg = settings()
+    perms = tokens.restrict(effective_for_root(permissions_for(g.user, cfg), root), g.get("api_token"))
+    parts = [p for p in folders.split("/") if p]
+    if len(parts) > MAX_DEPTH:
+        abort(400, description=_("Too many nested folders."))
+    current = dir_rel
+    for part in parts:
+        try:
+            current = backends.join_rel(current, safe_filename(part))
+            storage.check_visible_name(cfg, current)
+        except ValueError as exc:
+            abort(400, description=str(exc))
+        try:
+            if root["backend"].is_dir(current):
+                continue
+            if "mkdir" not in perms:
+                abort(403, description=_("You are not allowed to create folders here"))
+            try:
+                root["backend"].mkdir(current)
+            except (FileExistsError, backends.BackendError):
+                if not root["backend"].is_dir(current):   # otra subida de la misma carpeta pudo crearla antes
+                    raise
+            audit.log(get_db(), "mkdir", f"{root['name']}:/{current}", username=g.user["username"],
+                      ip=client_ip(), detail=with_token("upload"))
+        except backends.BackendError as exc:
+            abort(502, description=exc.message)
+        except FileExistsError:
+            abort(409, description=_("«%(name)s» already exists and is not a folder.", name=part))
+    return current
+
+
 def _owned(upload_id: str):
     row = repo.get(get_db(), upload_id)
     if row is None or row["user_id"] != g.user["id"]:
@@ -90,6 +128,9 @@ def _cleanup_stale() -> None:
 def init():
     data = request.get_json(silent=True) or {}
     root, dir_rel = _writable_dir(str(data.get("root", "")), str(data.get("path", "")))
+    folders = str(data.get("folders") or "").strip("/")
+    if folders:  # subir una carpeta entera: las subcarpetas que traiga el archivo se crean si faltan
+        dir_rel = _make_folders(root, dir_rel, folders)
     try:
         filename = safe_filename(str(data.get("name", "")))
         storage.check_visible_name(settings(), backends.join_rel(dir_rel, filename))
@@ -99,6 +140,8 @@ def init():
     try:
         quota.check(root, settings(), size)  # al empezar: no se sube lo que no va a caber
     except quota.QuotaExceeded as exc:
+        audit.log(get_db(), "quota_exceeded", f"{root['name']}:/{backends.join_rel(dir_rel, filename)}",
+                  username=g.user["username"], ip=client_ip(), detail=with_token(f"api:{size}"))
         raise core.UploadError(exc.message, 507) from exc
     core.check_space(root["backend"], dir_rel, size)
     _cleanup_stale()
@@ -108,6 +151,8 @@ def init():
     core.part_path(staging, upload_id).touch(exist_ok=False)
     repo.create(get_db(), upload_id=upload_id, user_id=g.user["id"], root=root["name"],
                 dir_rel=dir_rel, dir_path=str(staging), filename=filename, size=size)
+    audit.log(get_db(), "upload_started", f"{root['name']}:/{backends.join_rel(dir_rel, filename)}",
+              username=g.user["username"], ip=client_ip(), detail=with_token(str(size)))
     return {"id": upload_id, "chunk_size": _chunk_size(), "received": 0}, 201
 
 

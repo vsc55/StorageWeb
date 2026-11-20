@@ -11,6 +11,23 @@
     <p class="muted small">{{ description }}</p>
   </div>
   {% if error %}<div class="flash flash-error" role="alert">{{ _("The changes were not saved: %(error)s", error=error) }}</div>{% endif %}
+  {# Los ajustes de esta página fijados fuera de la web: se ven, pero no se cambian aquí #}
+  {% set here_locked = nav_locked.get(section, []) %}
+  {% if here_locked %}
+  <div class="locked-summary" role="note">
+    <svg class="icon icon-sm" aria-hidden="true"><use href="#i-lock"></use></svg>
+    <div>
+      <p><strong>{{ ngettext("%(num)s setting of this page is fixed outside the web", "%(num)s settings of this page are fixed outside the web", here_locked|length) }}</strong>
+        <span class="muted">· {{ _("They are shown, but they can only be changed in config.json or the environment variables (and restarting the service).") }}</span></p>
+      <ul>
+        {% for f in here_locked %}
+        <li><a href="#f-{{ f.path|replace('.', '-') }}">{{ f.label }}</a>
+          <span class="muted small">{% if f.origin == 'env' %}<code>{{ env_name(f.path) }}</code>{% else %}config.json{% endif %}</span></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  {% endif %}
   {% block section %}{% endblock %}
 </section>
 

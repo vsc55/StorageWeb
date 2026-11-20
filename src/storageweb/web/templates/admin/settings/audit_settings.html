@@ -1,0 +1,70 @@
+{% extends "admin/settings/_layout.html" %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
+{% block section %}
+{# Seguridad → Registro de auditoría: cuánto se guarda, desde qué nivel y el envío a un SIEM #}
+{% set m = cfg.maintenance %}
+{{ form_start() }}
+  <div class="card form-grid">
+    <label class="{{ err_class('maintenance.audit_retention_days') }}"><span class="label-row">{{ _("Keep the audit log (days)") }} {{ origin('maintenance.audit_retention_days') }}</span>
+      <input{{ lock('maintenance.audit_retention_days') }} type="number" name="audit_retention_days" value="{{ m.audit_retention_days }}" min="0">
+      <small class="muted">{{ _("0 = forever. Older entries are removed once a day.") }}</small>{{ field_error('maintenance.audit_retention_days') }}</label>
+    <label class="{{ err_class('audit.min_level') }}"><span class="label-row">{{ _("Record in the audit log from level") }} {{ origin('audit.min_level') }}</span>
+      <select{{ lock('audit.min_level') }} name="audit_min_level">
+        {% for lv in audit_levels %}<option value="{{ lv }}" {% if cfg.audit.min_level == lv %}selected{% endif %}>{{ level_label(lv) }}</option>{% endfor %}
+      </select>
+      <small class="muted">{{ _("Debug records everything, also listing folders, searching, opening files in the viewer and favorites.") }}</small>
+      {{ field_error('audit.min_level') }}</label>
+  </div>
+
+  {% set au = cfg.audit %}
+  <section class="card form-grid section-gap" aria-labelledby="siem-title">
+    <h2 class="card-title span2" id="siem-title">{{ _("Send the audit log to a SIEM") }}</h2>
+    <p class="muted small span2">{{ _("Each audit event also goes to a syslog collector or SIEM (rsyslog, Graylog, Wazuh, Splunk, Microsoft Sentinel, QRadar…) and/or to a file for an agent. It is sent in the background: a slow or stopped collector never slows the service, and the audit log stays complete here.") }}</p>
+    <label class="{{ err_class('audit.forward_min_level') }}"><span class="label-row">{{ _("Send to the SIEM from level") }} {{ origin('audit.forward_min_level') }}</span>
+      <select{{ lock('audit.forward_min_level') }} name="audit_forward_min_level">
+        {% for lv in audit_levels %}<option value="{{ lv }}" {% if cfg.audit.forward_min_level == lv %}selected{% endif %}>{{ level_label(lv) }}</option>{% endfor %}
+      </select>{{ field_error('audit.forward_min_level') }}</label>
+    <label class="span2 {{ err_class('audit.syslog') }}"><span class="label-row">{{ _("Send the audit log to syslog") }} {{ origin('audit.syslog') }}</span>
+      <input{{ lock('audit.syslog') }} type="text" name="audit_syslog" value="{{ au.syslog }}" class="mono" placeholder="tls://siem.example.com:6514">
+      <small class="muted">{{ _("udp://host:514, tcp://host:514 or tls://host:6514. Empty = do not send.") }}</small>
+      {{ field_error('audit.syslog') }}</label>
+    <label class="{{ err_class('audit.syslog_format') }}"><span class="label-row">{{ _("Message format") }} {{ origin('audit.syslog_format') }}</span>
+      <select{{ lock('audit.syslog_format') }} name="audit_syslog_format">
+        <option value="rfc5424" {% if au.syslog_format == 'rfc5424' %}selected{% endif %}>RFC 5424 ({{ _("structured data") }})</option>
+        <option value="json" {% if au.syslog_format == 'json' %}selected{% endif %}>JSON</option>
+        <option value="cef" {% if au.syslog_format == 'cef' %}selected{% endif %}>CEF (ArcSight, QRadar, Sentinel)</option>
+      </select>{{ field_error('audit.syslog_format') }}</label>
+    <label class="{{ err_class('audit.syslog_facility') }}"><span class="label-row">{{ _("Syslog facility") }} {{ origin('audit.syslog_facility') }}</span>
+      <select{{ lock('audit.syslog_facility') }} name="audit_syslog_facility">
+        {% for f in ('local0', 'local1', 'local2', 'local3', 'local4', 'local5', 'local6', 'local7', 'auth', 'authpriv', 'user') %}
+        <option value="{{ f }}" {% if au.syslog_facility == f %}selected{% endif %}>{{ f }}</option>{% endfor %}
+      </select>{{ field_error('audit.syslog_facility') }}</label>
+    <label class="{{ err_class('audit.syslog_ca') }}"><span class="label-row">{{ _("CA of the collector (PEM)") }} {{ origin('audit.syslog_ca') }}</span>
+      <input{{ lock('audit.syslog_ca') }} type="text" name="audit_syslog_ca" value="{{ au.syslog_ca }}" class="mono" placeholder="/etc/storageweb/siem-ca.pem">
+      <small class="muted">{{ _("Only with tls:// and a CA that is not among the system ones.") }}</small>
+      {{ field_error('audit.syslog_ca') }}</label>
+    <label class="check"><input{{ lock('audit.tls_verify') }} type="checkbox" name="audit_tls_verify" {% if au.tls_verify %}checked{% endif %}>
+      <span>{{ _("Check the certificate of the collector") }} {{ origin('audit.tls_verify') }}</span></label>
+    <label class="span2 {{ err_class('audit.file') }}"><span class="label-row">{{ _("Also write the audit log to a JSON file") }} {{ origin('audit.file') }}</span>
+      <input{{ lock('audit.file') }} type="text" name="audit_file" value="{{ au.file }}" class="mono" placeholder="/var/log/storageweb/audit.jsonl">
+      <small class="muted">{{ _("One event per line, for Filebeat, Fluent Bit or the Wazuh agent. It can be rotated with logrotate.") }}</small>
+      {{ field_error('audit.file') }}</label>
+    {% if forward_status.active %}
+    <p class="small span2">
+      {% if forward_status.failing %}<strong class="text-danger">{{ _("Not arriving: %(error)s", error=forward_status.last_error) }}</strong>
+      {% else %}<span class="muted">{{ ngettext("%(num)s event sent since the service started.", "%(num)s events sent since the service started.", forward_status.sent) }}</span>{% endif %}
+      {% if forward_status.dropped %}<span class="muted">{{ ngettext("%(num)s event was lost because the queue was full.", "%(num)s events were lost because the queue was full.", forward_status.dropped) }}</span>{% endif %}
+    </p>
+    {% endif %}
+    <div class="span2">
+      <button class="btn" type="submit" form="siem-test-form"{% if not (au.syslog or au.file) %} disabled{% endif %}>{{ _("Send a test event") }}</button>
+      <small class="muted">{{ _("With the saved settings: save first if you changed them.") }}</small>
+    </div>
+  </section>
+  {{ save_bar() }}
+</form>
+{# Fuera del formulario de ajustes (los botones de dentro lo señalan con form=): no se guarda nada al probar #}
+<form id="siem-test-form" method="post" action="{{ url_for('settings.audit_forward_test') }}" hidden>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+</form>
+{% endblock %}

@@ -84,21 +84,21 @@ def test_content_and_format(app, tmp_path):
     assert 'storageweb_alerts{level="danger"}' in body and "storageweb_database_size_bytes" in body
 
 
-def test_settings_in_the_maintenance_page(app):
+def test_settings_in_the_monitoring_page(app):
     add_user(app, "root", role="admin")
     admin = app.test_client()
     login(admin, "root")
-    page = admin.get("/admin/settings/maintenance").get_data(as_text=True)
+    page = admin.get("/admin/settings/monitoring").get_data(as_text=True)
     assert 'name="metrics_enabled"' in page and "/metrics" in page
-    form = {"_csrf": get_csrf(admin, "/admin/settings/maintenance"), "audit_retention_days": "0",
-            "backup_interval_hours": "0", "backup_keep": "7", "metrics_enabled": "on", "metrics_token": TOKEN,
+    form = {"_csrf": get_csrf(admin, "/admin/settings/monitoring"), "audit_retention_days": "0",
+            "backup_interval_hours": "0", "backup_keep": "7", "offsite_keep": "14", "metrics_enabled": "on", "metrics_token": TOKEN,
             "metrics_allowed_networks": "10.0.0.5, 192.168.10.0/24"}
-    admin.post("/admin/settings/maintenance", data=form)
+    admin.post("/admin/settings/monitoring", data=form)
     with app.app_context():
         cfg = settings()["metrics"]
     assert cfg == {"enabled": True, "token": TOKEN, "allowed_networks": ["10.0.0.5/32", "192.168.10.0/24"]}
-    admin.post("/admin/settings/maintenance", data={**form, "metrics_token": ""})    # vacío = se conserva
+    admin.post("/admin/settings/monitoring", data={**form, "metrics_token": ""})    # vacío = se conserva
     with app.app_context():
         assert settings()["metrics"]["token"] == TOKEN
-    html = admin.post("/admin/settings/maintenance", data={**form, "metrics_allowed_networks": "no-es-una-red"})
+    html = admin.post("/admin/settings/monitoring", data={**form, "metrics_allowed_networks": "no-es-una-red"})
     assert "no es una dirección IP ni una red" in html.get_data(as_text=True)

@@ -15,10 +15,13 @@
   </div>
 
   <div class="card form-grid section-gap">
-    <h3 class="card-title span2">{{ _("Diagrams") }}</h3>
+    <h3 class="card-title span2">{{ _("Diagrams and code colors") }}</h3>
     <label class="check span2"><input{{ lock('preview.diagrams') }} type="checkbox" name="preview_diagrams" {% if pv.diagrams %}checked{% endif %}>
       <span>{{ _("Draw Mermaid diagrams") }} {{ origin('preview.diagrams') }}
         <small class="muted">{{ _("The mermaid blocks of a .md are drawn with Mermaid, inside a frame isolated from the page and the session. Disabled, their code is shown and Mermaid is never sent to the browser.") }}</small></span></label>
+    <label class="check span2"><input{{ lock('preview.highlight') }} type="checkbox" name="preview_highlight" {% if pv.highlight %}checked{% endif %}>
+      <span>{{ _("Color the code") }} {{ origin('preview.highlight') }}
+        <small class="muted">{{ _("Python, PHP, JavaScript, SQL, YAML, PowerShell… and the code blocks of a .md, with highlight.js in the browser. Files over 1 MB are shown without colors. Disabled, highlight.js is never sent to the browser.") }}</small></span></label>
   </div>
 
   <div class="card form-grid section-gap">

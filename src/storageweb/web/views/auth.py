@@ -18,7 +18,7 @@ from ...i18n import normalize as normalize_locale
 from ...providers import SSOError
 from ...settings import ConfigError, runtime_view
 from ..context import external_url, get_db, invalidate_settings, runtime, settings, throttle
-from ..guards import client_ip, end_session, safe_next, start_session
+from ..guards import audit_event, client_ip, end_session, safe_next, start_session
 from . import mfa as mfa_views
 
 bp = Blueprint("auth", __name__)
@@ -85,6 +85,7 @@ def change_locale():
         session["locale"] = locale
         if g.get("user") is not None:
             users.update(get_db(), g.user["id"], locale=locale)
+        audit_event("preference_changed", None, f"locale={locale}")
     return redirect(safe_next(request.form.get("next")))
 
 

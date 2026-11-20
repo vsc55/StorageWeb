@@ -171,6 +171,15 @@ def _fold(text: str) -> str:
     return "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
 
 
+def filter_by_name(entries: list[dict], query: str) -> list[dict]:
+    """Las entradas de un listado cuyo nombre contiene todas las palabras de ``query`` (como :func:`search`, sin
+    distinguir mayúsculas ni tildes); el filtro del explorador en una carpeta que no se muestra entera."""
+    words = [_fold(w) for w in query.split() if w.strip()]
+    if not words:
+        return entries
+    return [e for e in entries if all(w in _fold(e["name"]) for w in words)]
+
+
 @dataclass
 class SearchResult:
     items: list[dict] = field(default_factory=list)

@@ -80,6 +80,7 @@ summary.avatar { box-shadow: 0 0 0 2px var(--rail-bg); }
 .profile-inline-form { display: flex; gap: 8px 12px; flex-wrap: wrap; align-items: flex-end; }
 .profile-inline-form label { flex: 1 1 140px; }
 .profile-inline-form label.grow { flex: 2 1 220px; }
+.profile-inline-form > .profile-form-note { flex: 1 0 100%; margin: 0; }
 .profile-copy { margin: 0; }
 .profile-facts { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; }
 .profile-facts dt { color: var(--muted); }

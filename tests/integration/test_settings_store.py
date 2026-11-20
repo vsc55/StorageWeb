@@ -37,9 +37,9 @@ def test_one_row_per_field_with_who_and_when(make_app):
     _save_general(ana, "Archivos")
     rows = _rows(app)
     assert json.loads(rows["app_name"]["value"]) == "Archivos" and rows["app_name"]["updated_by"] == "ana"
-    form = {"_csrf": get_csrf(eva, "/admin/settings/maintenance"), "audit_retention_days": "30",
-            "backup_interval_hours": "0", "backup_keep": "7", "metrics_allowed_networks": ""}
-    eva.post("/admin/settings/maintenance", data=form)
+    form = {"_csrf": get_csrf(eva, "/admin/settings/audit_settings"), "audit_retention_days": "30",
+            "backup_interval_hours": "0", "backup_keep": "7", "offsite_keep": "14", "metrics_allowed_networks": ""}
+    eva.post("/admin/settings/audit_settings", data=form)
     rows = _rows(app)
     assert rows["app_name"]["updated_by"] == "ana"                            # no lo tocó quien guardó otra cosa
     assert rows["maintenance.audit_retention_days"]["updated_by"] == "eva"

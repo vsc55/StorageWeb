@@ -234,6 +234,65 @@
 .md .md-blocked { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 6px 12px; border: 1px dashed var(--line);
                   border-radius: 8px; color: var(--muted); font-size: 13px; }
 .md .md-blocked-url { color: var(--fg); overflow-wrap: anywhere; }
+/* Editor de texto (edit.html): ocupa la ventana entera y el cuadro, lo que queda. Con colores, el código
+   coloreado (.editor-colors) va debajo del cuadro, con la misma letra, márgenes y desplazamiento (editor.js), y
+   el texto del cuadro se vuelve transparente cuando ya están pintados (.is-colored) */
+.viewer.editor { height: 100vh; height: 100dvh; min-height: 420px; }
+.editor-body { flex: 1 1 auto; min-height: 0; padding-bottom: 20px; }
+.editor-body .flash p { margin: 0; }
+.editor-body .flash p + p { margin-top: 6px; }
+/* Un solo cuadro (.editor-box): barra de herramientas arriba, texto y barra de estado abajo */
+.editor-box { flex: 1 1 auto; min-height: 280px; display: flex; flex-direction: column; border: 1px solid var(--line-soft);
+              border-radius: 10px; background: var(--bg-soft); overflow: hidden; }
+.editor-box:focus-within { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.editor-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 4px 6px;
+                  background: var(--surface-head); border-bottom: 1px solid var(--line-soft); }
+.editor-chip { font-size: 12px; font-weight: 600; color: var(--primary-ink); background: var(--primary-soft);
+               border-radius: 999px; padding: 2px 10px; margin-right: 6px; white-space: nowrap; }
+.editor-tool { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; min-width: 30px;
+               padding: 0 7px; border: 0; border-radius: 6px; background: none; color: var(--fg); font: inherit;
+               font-size: 13px; cursor: pointer; }
+.editor-tool:hover { background: var(--bg-hover); }
+.editor-tool:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.editor-tool-sep { width: 1px; height: 18px; margin: 0 4px; background: var(--line); }
+.editor-tool-spacer { flex: 1 1 auto; }
+html:not(.js) .editor-tool, html:not(.js) .editor-tool-sep { display: none; }   /* sin JavaScript no hacen nada */
+/* --gutter: el ancho de los números de línea (editor.js lo ajusta a las cifras); el texto empieza después */
+.editor-wrap { position: relative; flex: 1 1 auto; min-height: 200px; --gutter: 4.4ch;
+               font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, "Liberation Mono", monospace;
+               font-size: 13px; }
+.editor-gutter { position: absolute; top: 0; bottom: 0; left: 0; width: var(--gutter); overflow: hidden;
+                 border-right: 1px solid var(--line-soft); background: var(--surface-head); pointer-events: none; }
+.editor-lines { padding: 12px 10px 40px 0; text-align: right; white-space: pre; line-height: 1.7; color: var(--muted);
+                opacity: .75; font-variant-numeric: tabular-nums; position: relative; }
+.editor-current { position: absolute; left: 0; right: 0; top: 12px; background: var(--primary-soft); }
+html:not(.js) .editor-gutter, .editor-wrap.no-numbers .editor-gutter { display: none; }
+html:not(.js) .editor-wrap, .editor-wrap.no-numbers { --gutter: 0px !important; }
+.editor-status button[aria-pressed="false"] { text-decoration: line-through; opacity: .7; }
+.editor-status { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; padding: 4px 12px; font-size: 12px;
+                 color: var(--muted); background: var(--surface-head); border-top: 1px solid var(--line-soft);
+                 font-variant-numeric: tabular-nums; }
+.editor-status-right { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; }
+.editor-status button { font: inherit; color: inherit; background: none; border: 0; padding: 2px 5px; border-radius: 4px;
+                        cursor: pointer; }
+.editor-status button:hover { background: var(--bg-hover); color: var(--fg); }
+html:not(.js) .editor-status button { pointer-events: none; }
+.editor-text, .editor-colors { position: absolute; top: 0; right: 0; bottom: 0; left: var(--gutter); margin: 0; padding: 12px 16px; border: 0; tab-size: 4;
+               white-space: pre; overflow-wrap: normal; word-break: normal; letter-spacing: normal;
+               font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, "Liberation Mono", monospace;
+               font-size: 13px; line-height: 1.7; }
+.editor-text { resize: none; background: transparent; color: var(--fg); overflow: auto;
+               outline: none; }
+/* Debajo: sin barras ni ratón; más margen abajo y a la derecha para llegar tan lejos como el cuadro con sus barras */
+.editor-colors { overflow: hidden; pointer-events: none; color: var(--fg); padding-bottom: 40px; padding-right: 40px;
+                 visibility: hidden; }
+.editor-colors code { font: inherit; background: none; padding: 0; }
+.editor-wrap.is-colored .editor-colors { visibility: visible; }
+.editor-wrap.is-colored .editor-text { color: transparent; caret-color: var(--fg); }
+.editor-wrap.is-colored .editor-text::selection { color: transparent; background: rgba(37, 99, 235, .28); }
+.editor-state { color: #b54708; font-weight: 600; }
+[data-theme="dark"] .editor-state { color: #f2c14e; }
+@media (prefers-color-scheme: dark) { [data-theme="system"] .editor-state { color: #f2c14e; } }
 
 @media (max-width: 900px) {
   .viewer-toc { display: none; }
@@ -254,3 +313,74 @@
 .md .md-diagram.is-drawn .md-diagram-frame { visibility: visible; }
 .md .md-diagram.is-drawn pre { display: none; }
 .md .md-diagram-error { margin: 0 0 6px; color: var(--muted); font-size: 13px; }
+
+/* Texto grande (un log) por trozos: qué parte se ve y cómo moverse; sin números de línea (no se sabe cuáles son) */
+.viewer-window { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between;
+                 padding: 10px 14px; border-radius: var(--radius); background: var(--primary-soft); color: var(--fg); }
+.viewer-window-nav { display: flex; flex-wrap: wrap; gap: 6px; }
+.btn.is-disabled { opacity: .45; pointer-events: none; }
+/* Carpetas que no caben en la página (browse.html, listing-foot): estado, paginador y «Cargar más» */
+.listing-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px;
+                padding: 10px 16px 4px; }
+.listing-foot p { margin: 0; }
+.listing-pager { display: flex; align-items: center; gap: 8px; }
+.listing-foot .load-more { margin: 0 auto; }
+.listing-foot [hidden] { display: none; }
+.code-lines.no-numbers li { grid-template-columns: minmax(0, 1fr); padding-left: 16px; }
+.code-lines.no-numbers li::before { content: none; }
+.viewer-window-bottom { justify-content: flex-end; }
+
+/* «Subir carpeta» solo con JavaScript (sin él, el formulario clásico sube archivos sueltos) */
+.js-upload-folder { display: none; }
+.js .js-upload-folder { display: inline-flex; }
+
+/* Favoritos: la estrella (rellena si está marcada) y los accesos de la página Recientes */
+.fav-toggle .icon, #details-fav .icon { fill: none; }
+.fav-toggle.is-on .icon, #details-fav.is-on .icon { fill: #f5b301; stroke: #d99a00; }
+.fav-list { margin-bottom: 6px; }
+/* La X de cada favorito: a la derecha, al pasar el ratón por la fila o con el foco dentro */
+.fav-list li { position: relative; }
+.fav-list .tree-item { padding-right: 30px; }
+.fav-remove { position: absolute; top: 50%; right: 4px; transform: translateY(-50%); margin: 0; opacity: 0; }
+.fav-list li:hover .fav-remove, .fav-remove:focus-within { opacity: 1; }
+.fav-remove-button { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px;
+                     padding: 0; border: 0; border-radius: 5px; background: none; color: var(--muted); cursor: pointer; }
+.fav-remove-button:hover { background: var(--bg-hover); color: var(--danger); }
+.fav-remove-button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+@media (hover: none) { .fav-remove { opacity: 1; } }   /* en pantallas táctiles, siempre a la vista */
+.fav-chips { list-style: none; margin: 0 0 18px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.fav-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--line);
+            border-radius: 999px; background: var(--surface); color: var(--fg); font-size: 13px; }
+.fav-chip:hover { text-decoration: none; border-color: var(--primary); }
+
+/* Colores del código en el visor (viewer.js con highlight.js, preview.highlight): paleta propia, clara y oscura
+   según el tema; highlight.js solo pone las clases hljs-* */
+:root, [data-theme="light"] {
+  --hl-keyword: #cf222e; --hl-string: #0a3069; --hl-number: #0550ae; --hl-comment: #6e7781; --hl-title: #8250df;
+  --hl-builtin: #953800; --hl-name: #116329; --hl-del: #82071e; --hl-del-bg: #ffebe9; --hl-add: #116329;
+  --hl-add-bg: #dafbe1;
+}
+[data-theme="dark"] {
+  --hl-keyword: #ff7b72; --hl-string: #a5d6ff; --hl-number: #79c0ff; --hl-comment: #8b949e; --hl-title: #d2a8ff;
+  --hl-builtin: #ffa657; --hl-name: #7ee787; --hl-del: #ffa198; --hl-del-bg: #490202; --hl-add: #aff5b4;
+  --hl-add-bg: #033a16;
+}
+@media (prefers-color-scheme: dark) {
+  [data-theme="system"] {
+    --hl-keyword: #ff7b72; --hl-string: #a5d6ff; --hl-number: #79c0ff; --hl-comment: #8b949e; --hl-title: #d2a8ff;
+    --hl-builtin: #ffa657; --hl-name: #7ee787; --hl-del: #ffa198; --hl-del-bg: #490202; --hl-add: #aff5b4;
+    --hl-add-bg: #033a16;
+  }
+}
+.hljs-keyword, .hljs-doctag, .hljs-meta .hljs-keyword, .hljs-template-tag, .hljs-type { color: var(--hl-keyword); }
+.hljs-string, .hljs-regexp, .hljs-meta .hljs-string, .hljs-char.escape_ { color: var(--hl-string); }
+.hljs-number, .hljs-literal, .hljs-attr, .hljs-attribute, .hljs-operator, .hljs-property, .hljs-variable.language_,
+.hljs-symbol, .hljs-link, .hljs-selector-attr, .hljs-selector-class, .hljs-selector-id { color: var(--hl-number); }
+.hljs-comment, .hljs-code, .hljs-formula, .hljs-quote { color: var(--hl-comment); font-style: italic; }
+.hljs-title, .hljs-title.class_, .hljs-title.function_, .hljs-section, .hljs-selector-pseudo { color: var(--hl-title); }
+.hljs-built_in, .hljs-variable, .hljs-template-variable, .hljs-params, .hljs-meta { color: var(--hl-builtin); }
+.hljs-name, .hljs-tag, .hljs-selector-tag, .hljs-bullet { color: var(--hl-name); }
+.hljs-section, .hljs-strong { font-weight: 600; }
+.hljs-emphasis { font-style: italic; }
+.hljs-deletion { color: var(--hl-del); background: var(--hl-del-bg); }
+.hljs-addition { color: var(--hl-add); background: var(--hl-add-bg); }

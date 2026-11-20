@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from storageweb.db.repositories import audit, sessions, users
+from storageweb.db.repositories import api_tokens, audit, sessions, users
 from storageweb.web.context import get_db
 from tests.helpers import PASSWORD, add_user, get_csrf, login, U
 
@@ -244,3 +244,63 @@ def test_rotate_token(app, client, user_token):
     assert other.post(f"/profile/tokens/{after['id']}/rotate",
                       data={"_csrf": get_csrf(other, "/profile")}).status_code == 404
     assert api.get("/f/home/", headers=_bearer(new)).status_code == 200
+
+
+# --------------------------------------------------------------------------- política de caducidad
+
+def test_token_policy_helpers():
+    from storageweb.core import tokens
+    assert tokens.allowed_days(0) == [30, 90, 365, 0] and tokens.allowed_days(90) == [30, 90]
+    assert tokens.allowed_days(60) == [30, 60] and tokens.clamp_days(0, 90) == 90 and tokens.clamp_days(30, 90) == 30
+    token = {"created_at": "2026-01-01T00:00:00+00:00", "expires_at": None}
+    assert tokens.effective_expiry(token, 0) is None
+    assert tokens.effective_expiry(token, 10) == "2026-01-11T00:00:00+00:00"
+    assert tokens.effective_expiry({**token, "expires_at": "2026-01-05T00:00:00+00:00"}, 10) == "2026-01-05T00:00:00+00:00"
+
+
+def test_token_policy_limits_new_and_existing_tokens(make_app):
+    """security.api_token_max_days: no se crean sin caducidad ni más largos, y los que ya existen dejan de valer al
+    cumplir ese tiempo desde que se crearon (aunque se crearan sin caducidad)."""
+    from storageweb.core import tokens
+    app = make_app()
+    add_user(app, "ana")
+    with app.app_context():
+        ana = users.get_by_username(get_db(), "ana")
+        old_plain, old_id = tokens.create(get_db(), ana, name="viejo", scope="read", days=0)
+        get_db().execute("UPDATE api_tokens SET created_at = '2020-01-01T00:00:00+00:00' WHERE id = ?", (old_id,))
+        get_db().commit()
+    api = app.test_client()
+    assert api.get("/f/home/", headers=_bearer(old_plain)).status_code == 200      # sin política: vale
+
+    limited = make_app({"security": {"api_token_max_days": 60}})
+    api = limited.test_client()
+    assert api.get("/f/home/", headers=_bearer(old_plain)).status_code == 401      # con política: caducado
+    client = limited.test_client()
+    login(client, "ana")
+    page = client.get("/profile/tokens").get_data(as_text=True)
+    assert '<option value="60" selected>' in page and 'value="0"' not in page and "60 días" in page
+    csrf = get_csrf(client, "/profile/tokens")
+    client.post("/profile/tokens", data={"_csrf": csrf, "name": "para siempre", "scope": "read", "days": "0"})
+    with limited.app_context():
+        names = [t["name"] for t in api_tokens.list_for_user(get_db(), users.get_by_username(get_db(), "ana")["id"])]
+    assert "para siempre" not in names                                             # rechazado
+    client.post("/profile/tokens", data={"_csrf": csrf, "name": "corto", "scope": "read", "days": "30"})
+    with limited.app_context():
+        assert any(t["name"] == "corto" for t in api_tokens.list_for_user(get_db(), users.get_by_username(get_db(), "ana")["id"]))
+    with limited.app_context():
+        assert tokens.rotate(get_db(), users.get_by_username(get_db(), "ana"),
+                             api_tokens.get(get_db(), old_id), 60)[0].startswith("sw_")   # rotar recorta a 60
+
+
+def test_unused_tokens_alert(make_app):
+    from storageweb.core import alerts, tokens
+    app = make_app()
+    add_user(app, "ana")
+    with app.app_context():
+        ana = users.get_by_username(get_db(), "ana")
+        _plain, token_id = tokens.create(get_db(), ana, name="olvidado", scope="read", days=0)
+        get_db().execute("UPDATE api_tokens SET created_at = '2020-01-01T00:00:00+00:00' WHERE id = ?", (token_id,))
+        get_db().commit()
+        from storageweb.web.context import settings
+        found = [a for a in alerts.collect(settings(), app.config["SW"], {}) if a["key"] == "tokens_unused"]
+    assert found and found[0]["level"] == "info"

@@ -169,7 +169,7 @@ def test_permissions_normalized(tmp_path):
     cfg = load_config(_cfg(tmp_path, {"permissions": {"user": {"delete": 1, "otro": True}}}))
     # Los permisos no indicados toman el valor por defecto; las claves desconocidas se ignoran
     assert cfg["permissions"]["user"] == {"upload": True, "download": True, "mkdir": True,
-                                          "rename": False, "delete": True}
+                                          "rename": False, "delete": True, "edit": False}
 
 
 def test_default_user_permissions(tmp_path):

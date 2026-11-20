@@ -34,6 +34,10 @@ jobs:
 
       - name: Pytest
         run: python -m pytest -q
+        env:
+          # Tests de navegador (tests/browser, con Chrome sin ventana): en Linux son obligatorios, así que si
+          # faltan Node o Chrome falla en vez de omitirlos; en Windows y macOS se hacen si están (suelen estar)
+          STORAGEWEB_REQUIRE_BROWSER: ${{ matrix.os == 'ubuntu-latest' && '1' || '' }}
 
   scripts:
     name: Scripts de despliegue

@@ -61,7 +61,13 @@
       {% for r in ROLES %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}
     </select>
   </label>
+  {% if user and user['id'] == current_user['id'] %}
+  {# La propia cuenta siempre activa: la casilla se ve bloqueada y el valor va oculto (una casilla desactivada no se envía) #}
+  <input type="hidden" name="enabled" value="on">
+  <label class="check" title="{{ _('You cannot disable your own account.') }}"><input type="checkbox" checked disabled> {{ _("Account enabled") }}</label>
+  {% else %}
   <label class="check"><input type="checkbox" name="enabled" {% if form.enabled %}checked{% endif %}> {{ _("Account enabled") }}</label>
+  {% endif %}
   {% if user and not user['enabled'] and user['disabled_reason'] == 'directory' %}
   <p class="muted small span2">{{ _("Disabled automatically because %(source)s removed or disabled the account, or it is no longer in the allowed groups. It is enabled again on its own when %(source)s lets it in.", source=SOURCE_LABELS[user['source']]) }}</p>
   {% endif %}
@@ -172,6 +178,17 @@
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
       <button class="btn btn-danger" type="submit">{{ _("Delete user") }}</button>
     </form>
+  </div>
+</section>
+{% elif user %}
+{# La propia cuenta: se ve que existe, pero no se puede (nadie se queda fuera desactivándose a sí mismo) #}
+<section class="danger-zone" aria-label="{{ _('Access') }}">
+  <div class="danger-row">
+    <div>
+      <strong>{{ _("Disable access") }}</strong>
+      <p class="muted small">{{ _("You cannot disable or delete your own account: another administrator has to do it. This way nobody locks themselves out.") }}</p>
+    </div>
+    <button class="btn btn-danger" type="button" disabled title="{{ _('You cannot disable your own account.') }}">{{ _("Disable user") }}</button>
   </div>
 </section>
 {% endif %}

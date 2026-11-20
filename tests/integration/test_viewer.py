@@ -155,7 +155,7 @@ def test_preview_settings(make_app, home):
     listing = c.get("/f/home/docs/").get_data(as_text=True)
     assert 'data-href="/download/home/docs/app.log"' in listing and 'data-view="/view/home/docs/medidas.dat"' in listing
     (docs / "mediano.txt").write_text("y" * (1024 * 1024 + 5), encoding="utf-8")
-    assert "más de 1 MB" in c.get("/view/home/docs/mediano.txt").get_data(as_text=True)
+    assert "Archivo grande" in c.get("/view/home/docs/mediano.txt").get_data(as_text=True)   # por partes
 
 
 def test_preview_settings_page(app, admin):
@@ -175,3 +175,60 @@ def test_preview_settings_page(app, admin):
     bad = client.post("/admin/settings/preview", data={"_csrf": token, "preview_enabled": "on", "preview_max_mb": "2",
                                                        "preview_extensions": "md, a/b"})
     assert "a/b no es una extensión de archivo" in bad.get_data(as_text=True)
+
+
+def test_large_text_is_shown_by_parts(make_app, home):
+    """Un texto más grande que preview.max_mb se ve por trozos (de entrada, el final) con líneas enteras."""
+    app = make_app({"preview": {"max_mb": 1}})
+    add_user(app, "ana")
+    c = app.test_client()
+    login(c, "ana")
+    docs = home / "docs"
+    docs.mkdir(parents=True)
+    lines = [f"2026-11-20 linea {i:06d} INFO todo bien" for i in range(60000)]   # ~2,2 MB
+    (docs / "grande.log").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    tail = c.get("/view/home/docs/grande.log").get_data(as_text=True)
+    assert "linea 059999" in tail and "linea 000000" not in tail and "Archivo grande" in tail
+    assert 'class="code-lines no-numbers"' in tail and "?from=0" in tail
+    head = c.get("/view/home/docs/grande.log?from=0").get_data(as_text=True)
+    assert "<li>2026-11-20 linea 000000 INFO todo bien</li>" in head and "linea 059999" not in head
+    middle = c.get("/view/home/docs/grande.log?from=1000001").get_data(as_text=True)
+    first = middle.split('id="viewer-text">', 1)[1].split("</li>", 1)[0]
+    assert first.startswith("<li>2026-11-20 linea ")                               # empieza en una línea entera
+    (docs / "grande.md").write_text("x" * (1024 * 1024 + 10), encoding="utf-8")
+    assert "demasiado grande" in c.get("/view/home/docs/grande.md").get_data(as_text=True)   # el Markdown, no
+
+
+def test_code_colors(make_app, home):
+    """preview.highlight: el código lleva su lenguaje y la página carga highlight.js (con el lenguaje extra si hace
+    falta); los logs, los archivos grandes y el ajuste desactivado, sin colores."""
+    app = make_app()
+    add_user(app, "ana")
+    c = app.test_client()
+    login(c, "ana")
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "app.py").write_text("def f():\n    return 1\n", encoding="utf-8")
+    (home / "deploy.ps1").write_text("Get-Item .\n", encoding="utf-8")
+    (home / "Dockerfile").write_text("FROM python:3\n", encoding="utf-8")
+    (home / "app.log").write_text("2026 ERROR mal\n", encoding="utf-8")
+    (home / "notas.txt").write_text("hola\n", encoding="utf-8")
+    (home / "guia.md").write_text("# G\n\n```python\nx = 1\n```\n", encoding="utf-8")
+    (home / "grande.py").write_text("x = 1\n" * 200_000, encoding="utf-8")          # ~1,2 MB
+    page = c.get("/view/home/app.py").get_data(as_text=True)
+    assert 'data-lang="python"' in page and "vendor/highlight/highlight.min.js" in page
+    assert "languages/powershell.min.js" not in page
+    page = c.get("/view/home/deploy.ps1").get_data(as_text=True)
+    assert 'data-lang="powershell"' in page and "languages/powershell.min.js" in page
+    assert 'data-lang="dockerfile"' in c.get("/view/home/Dockerfile").get_data(as_text=True)
+    for name in ("app.log", "notas.txt"):
+        page = c.get(f"/view/home/{name}").get_data(as_text=True)
+        assert "data-lang" not in page and "highlight.min.js" not in page
+    md = c.get("/view/home/guia.md").get_data(as_text=True)
+    assert 'class="language-python"' in md and "highlight.min.js" in md
+    assert 'data-lang="markdown"' in c.get("/view/home/guia.md?source=1").get_data(as_text=True)
+    assert "data-lang" not in c.get("/view/home/grande.py").get_data(as_text=True)
+    off = make_app({"preview": {"highlight": False}})
+    c2 = off.test_client()
+    login(c2, "ana")
+    page = c2.get("/view/home/app.py").get_data(as_text=True)
+    assert "data-lang" not in page and "highlight.min.js" not in page

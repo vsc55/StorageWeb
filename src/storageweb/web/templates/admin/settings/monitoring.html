@@ -1,21 +1,10 @@
 {% extends "admin/settings/_layout.html" %}
 {% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
 {% block section %}
-{% set m = cfg.maintenance %}
+{# Sistema → Monitorización: métricas para Prometheus #}
 {{ form_start() }}
-  <div class="card form-grid">
-    <label class="{{ err_class('maintenance.audit_retention_days') }}"><span class="label-row">{{ _("Keep the audit log (days)") }} {{ origin('maintenance.audit_retention_days') }}</span>
-      <input{{ lock('maintenance.audit_retention_days') }} type="number" name="audit_retention_days" value="{{ m.audit_retention_days }}" min="0">
-      <small class="muted">{{ _("0 = forever. Older entries are removed once a day.") }}</small>{{ field_error('maintenance.audit_retention_days') }}</label>
-    <label class="{{ err_class('maintenance.backup_interval_hours') }}"><span class="label-row">{{ _("Automatic backup every (hours)") }} {{ origin('maintenance.backup_interval_hours') }}</span>
-      <input{{ lock('maintenance.backup_interval_hours') }} type="number" name="backup_interval_hours" value="{{ m.backup_interval_hours }}" min="0">
-      <small class="muted">{{ _("0 = never from the service (the systemd timer storageweb-backup.timer can do it instead).") }}</small>{{ field_error('maintenance.backup_interval_hours') }}</label>
-    <label class="{{ err_class('maintenance.backup_keep') }}"><span class="label-row">{{ _("Backups to keep") }} {{ origin('maintenance.backup_keep') }}</span>
-      <input{{ lock('maintenance.backup_keep') }} type="number" name="backup_keep" value="{{ m.backup_keep }}" min="1">{{ field_error('maintenance.backup_keep') }}</label>
-  </div>
-
   {% set mt = cfg.metrics %}
-  <section class="card form-grid section-gap" aria-labelledby="metrics-title">
+  <section class="card form-grid" aria-labelledby="metrics-title">
     <h2 class="card-title span2" id="metrics-title">{{ _("Metrics for monitoring") }}</h2>
     <label class="check span2"><input{{ lock('metrics.enabled') }} type="checkbox" name="metrics_enabled" {% if mt.enabled %}checked{% endif %}>
       <span>{{ _("Publish metrics for Prometheus") }} {{ origin('metrics.enabled') }}

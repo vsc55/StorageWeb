@@ -54,6 +54,14 @@
     <label><span class="label-row">{{ _("Name") }}</span>
       <input type="text" name="name" value="{{ loc.name }}" required pattern="[A-Za-z0-9_\-]+" maxlength="64" placeholder="{{ schema.name_placeholder }}"{% if original %} readonly{% endif %}>
       <small class="muted">{{ _("Letters, digits, _ and -. It cannot be changed later: folders refer to it.") }}</small></label>
+    <label class="check span2"><input type="checkbox" name="quota_exempt" {% if loc.quota_exempt %}checked{% endif %}>
+      <span>{{ _("Does not count for the quota") }}
+        <small class="muted">{{ _("Folders in this location have no quota, for example a bucket whose provider already limits it or a NAS with its own quotas. Their usage is not measured.") }}</small></span></label>
+    {% if schema.windows_option %}
+    <label class="check span2"><input type="checkbox" name="windows_server" {% if loc.windows_server %}checked{% endif %}>
+      <span>{{ _("The server is Windows") }}
+        <small class="muted">{{ _("Rejects the names Windows does not take as they are (ending in a dot or a space, with «:» or devices such as CON): there they would open another file, bypassing «Hidden for everyone», or hang the request. Leave it unchecked for Linux servers, where those are valid names.") }}</small></span></label>
+    {% endif %}
   </div>
 
   {% for section, options in schema.sections() %}

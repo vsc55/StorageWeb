@@ -265,3 +265,45 @@ def test_download_is_streamed(logged, home):
     assert resp.status_code == 200 and resp.is_streamed
     assert int(resp.headers["Content-Length"]) == 3 * core.MB
     resp.close()
+
+
+# --------------------------------------------------------------------------- subir una carpeta entera
+
+def test_folder_upload_creates_the_subfolders(app, logged, home):
+    """Cada archivo de una carpeta lleva sus subcarpetas (folders): se crean si faltan, también en paralelo."""
+    client, token = logged
+    for name, folders in (("a.txt", "Viaje"), ("b.txt", "Viaje/Fotos/2026"), ("c.txt", "Viaje/Fotos/2026")):
+        resp = api(client, token, "POST", API, {"root": "home", "path": "", "folders": folders, "name": name, "size": 2})
+        assert resp.status_code == 201, resp.get_json()
+        uid = resp.get_json()["id"]
+        api(client, token, "PUT", f"{API}/{uid}?offset=0", b"ok")
+        assert api(client, token, "POST", f"{API}/{uid}/complete").status_code == 200
+    assert (home / "Viaje" / "a.txt").read_bytes() == b"ok"
+    assert (home / "Viaje" / "Fotos" / "2026" / "b.txt").exists() and (home / "Viaje" / "Fotos" / "2026" / "c.txt").exists()
+    with app.app_context():
+        from storageweb.db.repositories import audit
+        made = [r["target"] for r in audit.recent(get_db(), 50, action="mkdir")]
+    assert {"home:/Viaje", "home:/Viaje/Fotos", "home:/Viaje/Fotos/2026"} <= set(made)
+
+
+@pytest.mark.parametrize("folders", ["../fuera", "Viaje/../../fuera", "a/" * 40])
+def test_folder_upload_rejects_bad_paths(logged, home, folders):
+    client, token = logged
+    resp = api(client, token, "POST", API, {"root": "home", "path": "", "folders": folders, "name": "x.txt", "size": 1})
+    assert resp.status_code == 400
+    assert not (home.parent / "fuera").exists()
+
+
+def test_folder_upload_needs_mkdir_and_respects_hidden(make_app, home):
+    app = make_app({"permissions": {"user": {"mkdir": False}}, "storage": {"hidden": ["secreto"]}})
+    add_user(app, "ana")
+    client = app.test_client()
+    login(client, "ana")
+    token = get_csrf(client, "/f/home/")
+    body = {"root": "home", "path": "", "name": "x.txt", "size": 1}
+    assert api(client, token, "POST", API, {**body, "folders": "Nueva"}).status_code == 403   # sin crear carpetas
+    (home / "Existe").mkdir(parents=True, exist_ok=True)
+    assert api(client, token, "POST", API, {**body, "folders": "Existe"}).status_code == 201  # ya estaba: vale
+    assert api(client, token, "POST", API, {**body, "folders": "Existe/secreto"}).status_code == 400   # oculta
+    (home / "Existe" / "archivo").write_bytes(b"x")
+    assert api(client, token, "POST", API, {**body, "folders": "Existe/archivo"}).status_code in (403, 409)

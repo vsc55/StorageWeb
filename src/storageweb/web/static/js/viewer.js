@@ -30,6 +30,71 @@
     }
   }
 
+  // Un log grande se abre por el final: se baja hasta la última línea (después de ajustar las líneas)
+  if (box && box.hasAttribute("data-scroll-end") && box.lastElementChild) {
+    box.lastElementChild.scrollIntoView({ block: "end" });
+  }
+
+  // ------------------------------------------------------------------ colores del código (highlight.js)
+  // Solo si la página lo cargó (preview.highlight). highlight.js escapa el texto y solo añade <span class="hljs-…">
+
+  /** Parte el HTML coloreado en líneas, cerrando al final de cada una los <span> abiertos y abriéndolos en la
+   * siguiente (un comentario o una cadena de varias líneas). */
+  function splitLines(html) {
+    var lines = [], open = [], line = "", last = 0, m;
+    var re = /<span[^>]*>|<\/span>|\n/g;
+    while ((m = re.exec(html))) {
+      line += html.slice(last, m.index);
+      last = re.lastIndex;
+      if (m[0] === "\n") {
+        lines.push(line + "</span>".repeat(open.length));
+        line = open.join("");
+      } else if (m[0] === "</span>") {
+        open.pop();
+        line += m[0];
+      } else {
+        open.push(m[0]);
+        line += m[0];
+      }
+    }
+    lines.push(line + html.slice(last));
+    return lines;
+  }
+
+  function colorize(text, lang) {
+    try {
+      return window.hljs.highlight(text, { language: lang, ignoreIllegals: true }).value;
+    } catch (e) {
+      return null;   // un lenguaje raro o un fallo de la biblioteca: se queda sin colores
+    }
+  }
+
+  var hljs = window.hljs;
+  if (hljs && box && box.dataset.lang && hljs.getLanguage(box.dataset.lang)) {
+    var items = box.children;
+    var source = Array.prototype.map.call(items, function (li) { return li.textContent; }).join("\n");
+    var colored = colorize(source, box.dataset.lang);
+    var lines = colored === null ? [] : splitLines(colored);
+    if (lines.length === items.length) {
+      // Cada línea es una rejilla (número | texto): el texto coloreado va en un solo elemento
+      for (var i = 0; i < items.length; i++) items[i].innerHTML = '<span class="code-text">' + lines[i] + "</span>";
+      box.classList.add("hljs");
+    }
+  }
+  if (hljs) {
+    // Los bloques de código de un .md (```python…); los de Mermaid son diagramas y no se tocan
+    document.querySelectorAll("article.md pre > code[class*='language-']").forEach(function (code) {
+      if (code.closest(".md-diagram")) return;
+      var lang = (code.className.match(/language-([\w+#.-]+)/) || [])[1];
+      if (!lang || !hljs.getLanguage(lang)) return;
+      var html = colorize(code.textContent, lang);
+      if (html !== null) {
+        code.innerHTML = html;
+        code.classList.add("hljs");
+      }
+    });
+  }
+
   // ------------------------------------------------------------------ diagramas
   var article = document.querySelector("article.md[data-diagram-frame]");
   if (!article) return;

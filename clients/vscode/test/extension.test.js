@@ -101,6 +101,32 @@ test("panel Servidores y archivos storageweb:// contra un StorageWeb real", { sk
   await provider.writeFile(uri(`${dir}/a ñ.txt`), Buffer.from("dos"), { create: false, overwrite: true });
   assert.equal(Buffer.from(await provider.readFile(uri(`${dir}/a ñ.txt`))).toString(), "dos");
   assert.deepEqual(await provider.readDirectory(uri(dir)), [["a ñ.txt", vscode.FileType.File]]);
+
+  // Lo abierto se vigila: lo que cambie otro en el servidor llega como evento (el editor lo recarga)
+  const watchFile = provider.watch(uri(`${dir}/a ñ.txt`), { recursive: false, excludes: [] });
+  const watchDir = provider.watch(uri(dir), { recursive: false, excludes: [] });
+  await provider.poll();                                     // la primera vez solo toma nota
+  events.length = 0;
+  await provider.poll();
+  assert.deepEqual(events, [], "sin cambios, sin avisos");
+  await new Promise((r) => setTimeout(r, 1100));             // otra fecha de modificación
+  await provider.remote.writeFile("a1b2c3", `${dir}/a ñ.txt`, Buffer.from("de otro"), { create: false, overwrite: true });
+  await provider.remote.writeFile("a1b2c3", `${dir}/otro.txt`, Buffer.from("x"), { create: true, overwrite: false });
+  await provider.poll();
+  const changed = events.map((e) => `${e.type}:${e.uri.path}`).sort();
+  assert.deepEqual(changed, [`${vscode.FileChangeType.Changed}:${dir}`, `${vscode.FileChangeType.Changed}:${dir}/a ñ.txt`]);
+  events.length = 0;
+  await provider.writeFile(uri(`${dir}/a ñ.txt`), Buffer.from("dos"), { create: false, overwrite: true });
+  await provider.poll();                                     // lo guardado desde aquí ya se avisó: no se repite
+  assert.deepEqual(events.filter((e) => e.type === vscode.FileChangeType.Changed && e.uri.path === `${dir}/a ñ.txt`),
+    [{ type: vscode.FileChangeType.Changed, uri: uri(`${dir}/a ñ.txt`) }]);
+  await provider.remote.delete("a1b2c3", `${dir}/otro.txt`);
+  events.length = 0;
+  await provider.poll();
+  assert.deepEqual(events.map((e) => e.uri.path), [dir]);
+  watchFile.dispose();
+  watchDir.dispose();
+  assert.equal(provider.watched.size, 0);
   await assert.rejects(provider.readDirectory(uri(`${dir}/a ñ.txt`)), code("FileNotADirectory"));
   await assert.rejects(provider.readFile(uri(dir)), code("FileIsADirectory"));
   await assert.rejects(provider.stat(uri(`${dir}/no.txt`)), code("FileNotFound"));

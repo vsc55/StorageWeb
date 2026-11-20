@@ -31,7 +31,7 @@ from werkzeug.exceptions import HTTPException
 
 from ... import patterns
 from ... import metrics
-from ...core import backends, quota, storage, tokens
+from ...core import backends, favorites, quota, storage, tokens
 from ...core.permissions import effective_for_root, permissions_for
 from ...core.security import UPLOAD_TMP_PREFIX, PathError, safe_filename
 from ...core.uploads import UploadError, check_space
@@ -136,11 +136,12 @@ def _preconditions(entry) -> None:
             abort(412)
 
 
-def _check_quota(root: dict, incoming: int, freed: int = 0) -> None:
+def _check_quota(root: dict, rel: str, incoming: int, freed: int = 0) -> None:
     """507 (Insufficient Storage, RFC 4918) con el motivo si no cabe en la cuota de la carpeta."""
     try:
         quota.check(root, settings(), incoming, freed)
     except quota.QuotaExceeded as exc:
+        _audit("quota_exceeded", root, rel, f"webdav:{incoming}")
         raise InsufficientStorage(exc.message) from exc
 
 
@@ -353,7 +354,7 @@ def _put(root: dict, rel: str) -> Response:
     if limit and length and length > limit:
         abort(413)
     old_size = entry.size if entry is not None else 0  # sobrescribir libera lo anterior
-    _check_quota(root, length or 0, old_size)
+    _check_quota(root, rel, length or 0, old_size)
     try:
         if length:
             check_space(backend, parent, length)
@@ -372,7 +373,7 @@ def _put(root: dict, rel: str) -> Response:
                     abort(413)
                 out.write(block)
         if not length:
-            _check_quota(root, received, old_size)  # sin Content-Length: ahora se sabe cuánto es
+            _check_quota(root, rel, received, old_size)  # sin Content-Length: ahora se sabe cuánto es
         backend.store(tmp, rel)
     except backends.BackendError:
         abort(502)
@@ -419,6 +420,7 @@ def _delete(root: dict, rel: str) -> Response:
     except (backends.BackendError, OSError):
         abort(502)
     quota.invalidate(root)
+    favorites.deleted(get_db(), g.user, root["name"], rel)
     _audit("delete", root, rel)
     return _empty(204)
 
@@ -472,7 +474,7 @@ def _copy_move(root: dict, rel: str, move: bool) -> Response:
             freed = quota.size_of(dst_root["backend"], dst_rel) if existing is not None else 0
         except backends.BackendError:
             abort(502)
-        _check_quota(dst_root, size, freed)
+        _check_quota(dst_root, dst_rel, size, freed)
     try:
         if existing is not None:
             dst_root["backend"].delete(dst_rel)
@@ -489,6 +491,8 @@ def _copy_move(root: dict, rel: str, move: bool) -> Response:
     except (backends.BackendError, OSError):
         abort(502)
     quota.invalidate(root, dst_root)
+    if move:
+        favorites.moved(get_db(), g.user, root["name"], rel, dst_root["name"], dst_rel)
     target = f"{dst_root['name']}:/{dst_rel}"
     _audit("rename" if move else "upload", root, rel, f"webdav:{'move' if move else 'copy'}:{target}")
     return _empty(204 if existing is not None else 201)

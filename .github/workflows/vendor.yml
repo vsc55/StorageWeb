@@ -1,0 +1,48 @@
+name: Bibliotecas copiadas
+
+# Cada lunes mira si las bibliotecas de static/vendor/ (Mermaid) tienen una versión nueva con al menos dos
+# semanas o avisos de seguridad que afecten a la fijada (tools/vendor.py --outdated). Si hay algo, abre un aviso
+# (issue) o, si ya hay uno abierto, le añade un comentario. No cambia nada: la actualización se hace a mano.
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  outdated:
+    name: Versiones nuevas y avisos de seguridad
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Consultar el registro de npm
+        id: check
+        run: |
+          set +e
+          python tools/vendor.py --outdated > report.md
+          status=$?
+          cat report.md
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          # 0 = al día, 3 = hay algo que mirar; cualquier otro (red, registro) hace fallar la tarea
+          if [ "$status" != "0" ] && [ "$status" != "3" ]; then exit "$status"; fi
+
+      - name: Abrir o actualizar el aviso
+        if: steps.check.outputs.status == '3'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Bibliotecas copiadas: versión nueva o aviso de seguridad"
+          number=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body-file report.md
+          else
+            gh issue create --title "$title" --body-file report.md
+          fi

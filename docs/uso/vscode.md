@@ -86,7 +86,7 @@ Puedes añadir varios: servidores distintos, o el mismo con otra cuenta. Con cli
 
 Al guardar **no se pisan cambios ajenos**: si el archivo cambió en el servidor desde que lo abriste, VS Code avisa y te deja comparar o sobrescribir; y si cambia justo mientras se guarda, el servidor rechaza la escritura (`If-Match`) y te pide que lo vuelvas a abrir. Borrar en el servidor **no se puede deshacer** (StorageWeb no tiene papelera): la extensión pregunta antes.
 
-Los cambios que hagan otros no aparecen solos en el panel: pulsa *Actualizar* (el botón de la sección o el de cada carpeta).
+**Lo que cambien otros en el servidor llega solo** a lo que tienes abierto: cada 30 segundos (`storageweb.refreshSeconds`, solo con la ventana de VS Code activa y enseguida al volver a ella) la extensión comprueba los archivos abiertos y las carpetas desplegadas en el *Explorador* (una consulta por cada uno). Si un archivo abierto cambió y no tienes cambios sin guardar, el editor lo recarga; si los tienes, VS Code te avisa al guardar. Las carpetas del *Explorador* muestran lo que se haya creado o borrado. En el panel *Servidores*, pulsa *Actualizar* (el botón de la sección o el de cada carpeta).
 
 ## Sincronizar una carpeta
 
@@ -152,6 +152,7 @@ En el panel *Sincronización*, el botón de pausa de cada carpeta (o el de arrib
 | `storageweb.server`, `storageweb.username`, `storageweb.remoteFolder` | | Los pone *Sincronizar*, en los ajustes de la carpeta (`.vscode/settings.json`) |
 | `storageweb.autoSync` | `true` | Subir al guardar, crear, renombrar o borrar |
 | `storageweb.pollSeconds` | `60` | Segundos entre sincronizaciones completas (mínimo 15) |
+| `storageweb.refreshSeconds` | `30` | Segundos entre comprobaciones de los archivos del servidor abiertos (`storageweb://`); `0` = nunca, mínimo 5 |
 | `storageweb.exclude` | `[]` | Más patrones que no se sincronizan, solo en este equipo |
 | `storageweb.useGitignore` | `true` | No sincronizar lo que ignora el `.gitignore` de la raíz de la carpeta |
 | `storageweb.confirmDeletesOver` | `10` | Preguntar antes de borrar más de estos archivos de una vez |

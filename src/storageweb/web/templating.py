@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from flask import Flask, g
 
-from .. import __version__, i18n
-from ..core import branding
+from .. import __version__, audit_levels, i18n
+from ..i18n import _l
+from ..core import branding, tokens
 from ..core.permissions import ROLE_LABELS, is_admin
 from .. import providers
 from ..settings import env_name, location_types
@@ -13,6 +14,10 @@ from .context import admin_alerts, get_db, runtime, settings
 from .guards import csrf_token
 from .views.profile import THEME_ICONS, THEME_LABELS, THEMES, current_theme
 
+
+
+LEVEL_LABELS = {"debug": _l("Debug"), "info": _l("Information"), "warning": _l("Warning"), "error": _l("Error"),
+                "critical": _l("Critical")}
 
 def ua_summary(user_agent: str | None) -> str:
     """«Chrome · Windows» a partir del User-Agent (para la lista de sesiones)."""
@@ -30,7 +35,7 @@ def _admin_nav(user) -> dict:
     if not is_admin(user):
         return {"nav_zones": (), "nav_zone": None, "nav_page": None, "admin_alert_count": 0, "banner_alert": None}
     found = [a for a in admin_alerts() if a["level"] != "info"]
-    return {**nav.context(runtime().modified_paths(get_db())), "admin_alert_count": len(found),
+    return {**nav.context(runtime().modified_paths(get_db()), runtime().locked()), "admin_alert_count": len(found),
             "nav_alert_pages": {a["page"] for a in found},
             # El secreto de Entra ID se avisa en todas las páginas (en el Resumen ya sale en la lista)
             "banner_alert": next((a for a in found if a["key"].startswith("secret_")), None)}
@@ -55,8 +60,14 @@ def init_templating(app: Flask) -> None:
     app.jinja_env.filters["filesize"] = i18n.format_size
     app.jinja_env.filters["ua_summary"] = ua_summary
     app.jinja_env.globals["env_name"] = env_name
+    # Niveles de la auditoría (audit_levels): la lista y su nombre en el idioma de la página
+    app.jinja_env.globals["audit_levels"] = audit_levels.LEVELS
+    app.jinja_env.globals["level_label"] = lambda level: str(LEVEL_LABELS.get(level, level))
     app.jinja_env.globals["location_type"] = location_types.get  # esquema de un tipo de ubicación (S3, SMB…)
     app.jinja_env.globals["auth_method"] = providers.get  # método de inicio de sesión de un origen (local, entra…)
+    # Cuándo deja de valer un token: su fecha o, con la política security.api_token_max_days, antes
+    app.jinja_env.globals["token_expiry"] = lambda t: tokens.effective_expiry(
+        t, settings()["security"]["api_token_max_days"])
 
     @app.context_processor
     def inject_globals():

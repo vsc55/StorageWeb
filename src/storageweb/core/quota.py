@@ -5,28 +5,57 @@ La cuota de una carpeta es ``root["quota_mb"]`` (0 = sin cuota): la personal sal
 ``storage.shares[].quota_mb``. Avisan a partir del 90 % y, con ``storage.quota_enforce`` (por defecto), además
 **impiden escribir** lo que no quepa: :func:`check` antes de cada subida, copia o traslado a otra carpeta.
 
-El uso se calcula sumando lo que hay en la carpeta (todo, también lo oculto: ocupa espacio igual) y se guarda en
-memoria unos minutos, porque en un almacenamiento remoto recorrerlo es caro. Las escrituras desde la web y por
-WebDAV lo invalidan (``invalidate``) para que el aviso salga en cuanto se pasa del límite. Si la carpeta es tan
-grande que no da tiempo a recorrerla, el uso es «al menos» lo contado (``complete = False``).
+El uso se mide sumando lo que hay en la carpeta (todo, también lo oculto: ocupa espacio igual) y se guarda en
+memoria. Como hacen otros (Nextcloud, ownCloud), **se lleva la cuenta** de lo que escribe y borra StorageWeb
+(:func:`record`: subidas, copias, ediciones por la web, la API y WebDAV) y **se reconcilia en segundo plano**: si
+la medida tiene más de ``storage.quota_refresh_minutes`` (o algo la dejó dudosa, :func:`invalidate`, p. ej. al
+borrar una carpeta), se vuelve a medir en un hilo aparte, con más tiempo que en una petición, mientras se sigue
+usando la anterior. Así se ve lo que otros cambien directamente en el almacenamiento (otro programa en el mismo
+bucket o NAS) sin recorrer nunca una carpeta remota grande mientras alguien espera. Solo la primera medida de una
+carpeta desde que arranca el servicio se hace en el momento (acotada a :data:`MAX_SECONDS`; la tarea
+``monitoring`` ya mide las compartidas al arrancar): sin ella no se podría aplicar la cuota. Si no da tiempo a
+recorrerla entera, el uso es «al menos» lo contado (``complete = False``).
 """
 from __future__ import annotations
 
 import threading
 import time
+from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from .. import metrics
-from ..i18n import _, format_size
+from ..i18n import _, format_age, format_size
 from . import backends
 
 MB = 1024 * 1024
-CACHE_SECONDS = 600
 WARN_PERCENT = 90        # a partir de aquí se avisa
-MAX_SECONDS = 10.0       # tiempo máximo para recorrer una carpeta
+MAX_SECONDS = 10.0       # la primera medida, en la petición
 MAX_ENTRIES = 500_000
+BACKGROUND_SECONDS = 600.0   # las de segundo plano: nadie espera
+BACKGROUND_ENTRIES = 10_000_000
+BACKGROUND_WORKERS = 2       # recorridos a la vez como mucho
 
-_cache: dict[str, tuple[float, int, bool]] = {}   # dónde → (cuándo, bytes, completo)
+
+@dataclass
+class _Usage:
+    measured: float      # time.monotonic() de la medida
+    at: float            # time.time() de la medida (para «medido hace X»)
+    used: int
+    complete: bool
+    stale: bool = False  # hay que volver a medirla (se usa mientras tanto)
+
+
+_cache: dict[str, _Usage] = {}
+_running: set[str] = set()
 _lock = threading.Lock()
+_workers = threading.BoundedSemaphore(BACKGROUND_WORKERS)
+_refresh_seconds = 60 * 60.0
+
+
+def configure(refresh_minutes: int) -> None:
+    """``storage.quota_refresh_minutes``: cada cuánto se vuelve a medir una carpeta en segundo plano."""
+    global _refresh_seconds  # noqa: PLW0603 (ajuste del proceso)
+    _refresh_seconds = max(int(refresh_minutes or 0), 1) * 60.0
 
 
 def _key(root: dict) -> str:
@@ -71,7 +100,7 @@ def record(root: dict, delta: int) -> None:
     with _lock:
         hit = _cache.get(_key(root))
         if hit is not None:
-            _cache[_key(root)] = (hit[0], max(hit[1] + delta, 0), hit[2])
+            hit.used = max(hit.used + delta, 0)
 
 
 def size_of(backend, rel: str) -> int:
@@ -88,14 +117,19 @@ def peek(root: dict) -> tuple[int, bool] | None:
     """El uso guardado, sin recorrer nada (las métricas no pueden esperar a un recorrido)."""
     with _lock:
         hit = _cache.get(_key(root))
-    return (hit[1], hit[2]) if hit and time.monotonic() - hit[0] < CACHE_SECONDS * 3 else None
+    return (hit.used, hit.complete) if hit and time.monotonic() - hit.measured < _refresh_seconds * 3 else None
 
 
 def invalidate(*roots: dict) -> None:
-    """Algo cambió en esas carpetas: el próximo aviso vuelve a calcular su uso."""
-    with _lock:
-        for root in roots:
-            _cache.pop(_key(root), None)
+    """Algo cambió en esas carpetas y no se sabe cuánto (borrar una carpeta): se vuelven a medir en segundo plano;
+    mientras, vale la medida anterior (por arriba: nunca deja escribir de más)."""
+    for root in roots:
+        with _lock:
+            hit = _cache.get(_key(root))
+            if hit is not None:
+                hit.stale = True
+        if hit is not None:
+            _schedule(root)
 
 
 def clear() -> None:
@@ -103,16 +137,48 @@ def clear() -> None:
         _cache.clear()
 
 
-def _measure(root: dict) -> tuple[int, bool]:
-    return _walk(root["backend"], "")
+def _measure(root: dict, seconds: float = MAX_SECONDS, max_entries: int = MAX_ENTRIES) -> tuple[int, bool]:
+    return _walk(root["backend"], "", seconds, max_entries)
 
 
-def _walk(backend, start: str) -> tuple[int, bool]:
+def _store(root: dict, used: int, complete: bool) -> None:
+    with _lock:
+        _cache[_key(root)] = _Usage(time.monotonic(), time.time(), used, complete)
+
+
+def _schedule(root: dict) -> None:
+    """Mide la carpeta en un hilo aparte (una vez a la vez por carpeta)."""
+    key = _key(root)
+    with _lock:
+        if key in _running:
+            return
+        _running.add(key)
+
+    def work():
+        try:
+            with _workers:
+                used, complete = _measure(root, BACKGROUND_SECONDS, BACKGROUND_ENTRIES)
+            _store(root, used, complete)
+        except Exception:  # noqa: BLE001 (se reintentará en la siguiente)
+            pass
+        finally:
+            with _lock:
+                _running.discard(key)
+
+    threading.Thread(target=work, name=f"storageweb-quota-{root.get('name')}", daemon=True).start()
+
+
+def measuring(root: dict) -> bool:
+    with _lock:
+        return _key(root) in _running
+
+
+def _walk(backend, start: str, seconds: float = MAX_SECONDS, max_entries: int = MAX_ENTRIES) -> tuple[int, bool]:
     total, entries, complete = 0, 0, True
-    deadline = time.monotonic() + MAX_SECONDS
+    deadline = time.monotonic() + seconds
     pending = [start]
     while pending:
-        if time.monotonic() > deadline or entries >= MAX_ENTRIES:
+        if time.monotonic() > deadline or entries >= max_entries:
             complete = False
             break
         rel = pending.pop()
@@ -132,17 +198,24 @@ def _walk(backend, start: str) -> tuple[int, bool]:
 
 
 def usage(root: dict, *, refresh: bool = False) -> tuple[int, bool]:
-    """(bytes usados, si se ha podido contar todo). De la caché si es reciente."""
-    key = _key(root)
-    now = time.monotonic()
+    """(bytes usados, si se ha podido contar todo). La medida guardada; si es vieja o dudosa, se vuelve a medir
+    en segundo plano y se devuelve la que hay. ``refresh``: medir ya (la tarea ``monitoring``, en su hilo)."""
     with _lock:
-        hit = _cache.get(key)
-    if hit and not refresh and now - hit[0] < CACHE_SECONDS:
-        return hit[1], hit[2]
-    used, complete = _measure(root)
-    with _lock:
-        _cache[key] = (time.monotonic(), used, complete)
+        hit = _cache.get(_key(root))
+    if hit is not None and not refresh:
+        if hit.stale or time.monotonic() - hit.measured >= _refresh_seconds:
+            _schedule(root)
+        return hit.used, hit.complete
+    used, complete = _measure(root, *((BACKGROUND_SECONDS, BACKGROUND_ENTRIES) if refresh else ()))
+    _store(root, used, complete)
     return used, complete
+
+
+def measured_at(root: dict) -> float | None:
+    """Cuándo se midió (``time.time()``), o ``None``."""
+    with _lock:
+        hit = _cache.get(_key(root))
+    return hit.at if hit else None
 
 
 def status(root: dict) -> dict | None:
@@ -154,5 +227,8 @@ def status(root: dict) -> dict | None:
     used, complete = usage(root)
     percent = round(used * 100 / limit)
     level = "over" if used > limit else "warn" if percent >= WARN_PERCENT else "ok"
+    at = measured_at(root)
     return {"used": used, "limit": limit, "percent": percent, "level": level, "complete": complete,
-            "used_text": format_size(used), "limit_text": format_size(limit)}
+            "used_text": format_size(used), "limit_text": format_size(limit), "measuring": measuring(root),
+            "measured_at": datetime.fromtimestamp(at, timezone.utc).isoformat(timespec="seconds") if at else None,
+            "measured_text": format_age(time.time() - at) if at else ""}

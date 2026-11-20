@@ -1,0 +1,23 @@
+{% extends "admin/settings/_layout.html" %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
+{% block section %}
+{# Acceso → Cuotas: la de las carpetas personales, aplicarlas y cada cuánto se mide el uso #}
+{% set st = cfg.storage %}
+{{ form_start() }}
+  <div class="card form-grid">
+    <label class="{{ err_class('storage.home_quota_mb') }}"><span class="label-row">{{ _("Quota of personal folders (MB)") }} {{ origin('storage.home_quota_mb') }}</span>
+      <input{{ lock('storage.home_quota_mb') }} type="number" name="home_quota_mb" value="{{ st.home_quota_mb }}" min="0">
+      <small class="muted">{{ _("0 = no quota. Each user can have another one in their profile, and each group one for its members (in the group).") }}</small>
+      {{ field_error('storage.home_quota_mb') }}</label>
+    <label class="check span2"><input{{ lock('storage.quota_enforce') }} type="checkbox" name="quota_enforce" {% if st.quota_enforce %}checked{% endif %}>
+      <span>{{ _("Block uploads that do not fit in the quota") }} {{ origin('storage.quota_enforce') }}
+        <small class="muted">{{ _("Personal and shared folders: what does not fit cannot be uploaded, copied or moved there (web, API, network drive). Unchecked, quotas only warn from 90%%.") }}</small></span></label>
+    <label class="{{ err_class('storage.quota_refresh_minutes') }}"><span class="label-row">{{ _("Measure the quota usage again every (minutes)") }} {{ origin('storage.quota_refresh_minutes') }}</span>
+      <input{{ lock('storage.quota_refresh_minutes') }} type="number" name="quota_refresh_minutes" value="{{ st.quota_refresh_minutes }}" min="1" max="10080">
+      <small class="muted">{{ _("What StorageWeb writes counts at once; this picks up what others change directly in the storage, in the background.") }}</small>
+      {{ field_error('storage.quota_refresh_minutes') }}</label>
+  </div>
+  <p class="muted small section-gap">{{ _("The quota of each shared folder is set in its page (Shared folders); the one of a group, in the group; the one of a user, in the user.") }}</p>
+  {{ save_bar() }}
+</form>
+{% endblock %}

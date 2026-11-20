@@ -2,9 +2,17 @@
 from __future__ import annotations
 
 ROLES = ("admin", "user")
-PERMISSIONS = ("upload", "download", "mkdir", "rename", "delete")
+PERMISSIONS = ("upload", "download", "mkdir", "rename", "delete", "edit")
 # Quién debe tener la verificación en dos pasos (security.mfa_required)
 MFA_POLICIES = ("off", "admins", "all")
+# Cómo se ve una carpeta con más elementos que storage.page_size (storage.listing_mode): cargando más al bajar,
+# por páginas, o solo los primeros y el resto buscando con el filtro
+LISTING_MODES = ("scroll", "pages", "search")
+# Reenvío de la auditoría (audit.*, storageweb/siem.py): formatos del mensaje syslog, facilidades y transportes
+AUDIT_FORMATS = ("rfc5424", "json", "cef")
+SYSLOG_FACILITIES = {"user": 1, "auth": 4, "authpriv": 10, **{f"local{i}": 16 + i for i in range(8)}}
+SYSLOG_PORTS = {"udp": 514, "tcp": 514, "tls": 6514}
+PAGE_SIZE_RANGE = (50, 5000)
 # Ilustraciones de serie del inicio de sesión (web/static/img/login-<clave>.svg)
 LOGIN_ARTS = ("classic", "sync", "waves", "mosaic", "layers")
 # Valores de branding.login_art: una de ellas o «random» (una distinta en cada carga)
@@ -30,7 +38,7 @@ PREVIEW_EXTENSIONS = tuple(sorted({
 PREVIEW_BLOCKED = ("asc", "env", "key", "pem", "ppk")
 
 RUNTIME_SECTIONS = ("app_name", "default_locale", "branding", "network", "storage", "permissions", "auth", "security",
-                    "maintenance", "metrics", "preview")
+                    "maintenance", "metrics", "preview", "audit")
 
 # Campos secretos: nunca se muestran en la web; si se guardan vacíos se conserva el valor anterior.
 # Los de cada método de inicio de sesión los añade su proveedor (settings/auth_methods.py).
@@ -87,6 +95,9 @@ DEFAULTS: dict = {
         # Crea las carpetas de los shares si no existen (útil en desarrollo)
         "create_shares": False,
         "show_hidden": False,
+        # Elementos de una carpeta que el explorador pinta de una vez, y qué hace con el resto (LISTING_MODES)
+        "page_size": 200,
+        "listing_mode": "scroll",
         # Patrones (como .gitignore) de lo que no existe para nadie: ni se lista ni se abre ni se crea
         "hidden": [],
         # Tamaño máximo por archivo en MB (0 = sin límite). Las subidas se hacen por partes,
@@ -100,6 +111,9 @@ DEFAULTS: dict = {
         "group_quotas": {},
         # True: lo que no quepa en la cuota no se puede subir, copiar ni mover (HTTP 507). False: solo avisa
         "quota_enforce": True,
+        # Cada cuántos minutos se vuelve a medir en segundo plano el uso de una carpeta con cuota (lo que escribe
+        # StorageWeb se cuenta al momento; esto recoge lo que cambien otros directamente en el almacenamiento)
+        "quota_refresh_minutes": 60,
         # [{"name", "label", "path", "read_only", "users": ["*"], "read_only_users": [],
         #   "groups": [], "read_only_groups": []}]
         "shares": [],
@@ -113,7 +127,8 @@ DEFAULTS: dict = {
     },
     # Permisos del rol "user" (el rol "admin" los tiene todos)
     "permissions": {
-        "user": {"upload": True, "download": True, "mkdir": True, "rename": False, "delete": False},
+        # edit: editar archivos de texto en el navegador (visor → Editar)
+        "user": {"upload": True, "download": True, "mkdir": True, "rename": False, "delete": False, "edit": False},
     },
     # Un apartado por método de inicio de sesión (local, pam, entra…): sus valores los declara cada
     # proveedor en providers/<método>/ y se añaden aquí al registrarlo (settings/auth_methods.py)
@@ -128,6 +143,9 @@ DEFAULTS: dict = {
         "ipban_minutes": 60,
         # Tokens de API personales (Authorization: Bearer sw_…)
         "api_tokens": True,
+        # Días como mucho que puede durar un token; 0 = sin límite (se pueden crear sin caducidad). También se
+        # aplica a los que ya existen: dejan de valer al cumplir ese tiempo desde que se crearon
+        "api_token_max_days": 0,
         # Unidad de red (WebDAV en /dav/): se entra con el usuario y un token de API como contraseña
         "webdav": True,
         # Admitir también la contraseña de la cuenta (usuarios locales y PAM) en WebDAV
@@ -140,6 +158,8 @@ DEFAULTS: dict = {
         "enabled": True,
         # Diagramas ```mermaid``` de los .md, dibujados en un marco aislado; desactivado, se ve su código
         "diagrams": True,
+        # Colores del código (Python, PHP, JavaScript, SQL…) con highlight.js; desactivado, se ve sin colores
+        "highlight": True,
         # Tamaño máximo para verse en el navegador; más grande, se descarga
         "max_mb": 2,
         # Las extensiones (sin el punto) que se abren en el visor: la lista entera, editable. Las de Markdown se
@@ -155,6 +175,24 @@ DEFAULTS: dict = {
         # 0 = sin copias automáticas desde el servicio (se puede usar el timer de systemd)
         "backup_interval_hours": 0,
         "backup_keep": 7,
+        # Copia fuera del servidor: cada copia se envía también a esta ubicación de almacenamiento ("" = no),
+        # a la carpeta offsite_path dentro de ella, que conserva las últimas offsite_keep
+        "offsite_location": "",
+        "offsite_path": "storageweb-backups",
+        "offsite_keep": 14,
+    },
+    # Reenvío de la auditoría a un SIEM (storageweb/siem.py): syslog (udp://, tcp:// o tls://host:puerto) y/o un
+    # fichero con un evento JSON por línea. Vacíos = no se reenvía (la auditoría sigue en la base de datos)
+    "audit": {
+        # Niveles (storageweb/audit_levels.py): lo que se guarda (debug = todo) y lo que se reenvía al SIEM
+        "min_level": "debug",
+        "forward_min_level": "info",
+        "syslog": "",
+        "syslog_format": "rfc5424",     # rfc5424 | json | cef
+        "syslog_facility": "local0",
+        "syslog_ca": "",                # CA del colector (tls://); vacío = las del sistema
+        "tls_verify": True,
+        "file": "",
     },
     # Métricas para Prometheus en /metrics: con el token (Authorization: Bearer …) o desde las redes permitidas;
     # sin ninguno de los dos, solo desde el propio servidor

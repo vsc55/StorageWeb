@@ -42,18 +42,19 @@ Las capas y el porqué de esta organización están en [Arquitectura](../arquite
 - **Textos e idiomas:** todo texto visible pasa por `_()` y está escrito **en inglés** (es la clave del catálogo); la traducción al español va en `locale/es/LC_MESSAGES/messages.po`. Más detalle en [Textos y traducciones](extender.md#textos-y-traducciones). Los logs se escriben en inglés y no se traducen. La documentación está en español.
 - **Compatibilidad:** Python 3.9+ (`from __future__ import annotations`) y Linux, Windows y macOS (`pathlib`, nada de rutas con `/` a mano).
 - **Estilo:** líneas de hasta 100–110 caracteres, docstrings en los módulos y en las funciones no evidentes.
-- **JavaScript de terceros:** solo Mermaid (diagramas del visor), copiado en `src/storageweb/web/static/vendor/` con `python tools/vendor.py`. El script descarga una versión fija del registro de npm, comprueba su huella SHA-512 y extrae solo los ficheros que se usan, sin npm ni pnpm y sin ejecutar nada del paquete. Las huellas de los ficheros extraídos están en el script: `tools/vendor.py --check` (también lo hace un test) avisa si alguien los cambia a mano. Para actualizarlo, cambia la versión y la huella del paquete en el script y ejecútalo.
+- **JavaScript de terceros:** solo Mermaid (diagramas del visor), copiado en `src/storageweb/web/static/vendor/` con `python tools/vendor.py`. El script descarga una versión fija del registro de npm, comprueba su huella SHA-512 y extrae solo los ficheros que se usan, sin npm ni pnpm y sin ejecutar nada del paquete. Las huellas de los ficheros extraídos están en el script: `tools/vendor.py --check` (también lo hace un test) avisa si alguien los cambia a mano. Para actualizarlo, cambia la versión y la huella del paquete en el script y ejecútalo. **Avisos de versiones nuevas:** `python tools/vendor.py --outdated` consulta el registro de npm y dice si hay una versión estable más nueva con al menos dos semanas o avisos de seguridad que afecten a la fijada (con lo que hay que poner en el script para actualizar; sale con `3` si hay algo). Lo ejecuta cada lunes la CI (`.github/workflows/vendor.yml`), que abre un aviso en GitHub o comenta en el que ya esté abierto. El servidor nunca consulta nada fuera.
 
 ## Tests
 
 ```bash
-python -m pytest -q                # todos (~330 tests, ~2 min)
+python -m pytest -q                # todos (~1000 tests, ~10 min)
 python -m pytest -q tests/unit     # unitarios, ~3 s
 python -m pytest -q -k uploads     # filtrar
 ```
 
 - **`tests/unit/`:** lógica pura con SQLite directo (fixture `db_conn`): settings, migraciones, cuentas, OAuth2, subidas, copias, i18n, empaquetado y documentación.
 - **`tests/integration/`:** la aplicación con el cliente de pruebas de Flask. Fixtures `make_app(overrides)`, `logged` (usuario `ana`) y `admin` (usuario `root`). Entra ID se simula sustituyendo `oauth2._http_post` (fixture `token_endpoint`).
+- **`tests/browser/`:** tests en un **navegador de verdad** (Edge o Chrome sin ventana, `*.test.mjs` con `node --test`), lanzados por `tests/integration/test_browser.py` contra un servidor real con sus datos: explorador y selección, el modal propio, cargar más al bajar y el filtro del servidor, el diagrama Mermaid en su marco aislado, el editor con Ctrl+S, el buscador Ctrl+K y la barra de guardar de los ajustes. **Cualquier error de la consola** (JavaScript o una violación de la CSP) los hace fallar. Manejan el navegador con `tools/cdp.mjs` (el mismo que usan las capturas de la documentación; sin dependencias, sin npm). Necesitan Node 18+ y Edge o Chrome (`STORAGEWEB_BROWSER` para elegir otro); sin ellos se omiten, salvo con `STORAGEWEB_REQUIRE_BROWSER=1`, que lo exige (la CI en Linux).
 - **CI:** los tests se ejecutan en Ubuntu, Windows y macOS con la última versión de Python (3.14). Las anteriores que admite el proyecto (desde 3.9) no se prueban en el CI: ojo con sintaxis o bibliotecas que no existan en ellas. Los tests con symlinks se omiten donde el sistema no permite crearlos.
 
 Siguiente: [Extender StorageWeb](extender.md) · [Documentación](documentacion.md) · [Releases](releases.md).

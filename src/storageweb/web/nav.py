@@ -74,9 +74,11 @@ ZONES: tuple[Zone, ...] = (
              words="matriz accesos grupos carpetas"),
         _settings("permissions", _l("Role permissions"), hint=_l("What the «User» role can do"),
                   words="permisos rol subir descargar borrar renombrar upload delete rename"),
-        _settings("storage", _l("Personal folders"), hint=_l("Where personal folders live and upload limits"),
-                  words="almacenamiento home carpeta personal tamaño límite storage size limit"),
-    ), _l("Who sees each folder. Groups are created in People → Groups.")),
+        _settings("storage", _l("Personal folders"), hint=_l("Where personal folders live and how they are created"),
+                  words="almacenamiento home carpeta personal plantilla crear storage"),
+        _settings("quotas", _l("Quotas"), hint=_l("Space of personal folders, blocking and measuring the usage"),
+                  words="cuota cuotas espacio límite bloquear medir uso quota"),
+    ), _l("Who sees each folder and how much fits in it. Groups are created in People → Groups.")),
     Zone("security", _l("Security"), "shield", (
         _settings("auth", _l("Sign-in"), hint=_l("Local users, PAM and Microsoft Entra ID"),
                   also=("settings.entra_*",), words="inicio sesión login entra microsoft pam sso secreto secret"),
@@ -88,24 +90,30 @@ ZONES: tuple[Zone, ...] = (
                   words="ip bloqueadas desbloquear ban unban lista permitidas allow"),
         Page("audit", _l("Audit"), "admin.audit_log", kind="info", hint=_l("Who did what and when"),
              also=("admin.audit_export",), words="auditoría registro eventos log"),
+        _settings("audit_settings", _l("Audit log"), hint=_l("Retention, levels and sending it to a SIEM"),
+                  words="auditoría retención nivel debug siem syslog wazuh splunk sentinel graylog reenviar"),
     ), _l("How users sign in and how the server defends itself.")),
     Zone("system", _l("System"), "settings", (
         _settings("general", _l("General and branding"), hint=_l("Name, default language, logo and color"),
                   words="nombre idioma logo color marca branding language"),
-        _settings("preview", _l("File preview"), hint=_l("Text and Markdown viewer, diagrams and which files open"),
-                  words="vista previa visor ver markdown texto diagramas mermaid extensiones preview viewer"),
         _settings("network", _l("Network and HTTPS"), hint=_l("Public address, reverse proxy and HTTPS"),
                   words="red https proxy fqdn dominio url pública public certificate"),
         Page("locations", _l("Storage locations"), "locations.index",
              hint=_l("External storage for the folders, without mounting it"), also=("locations.*",),
              words="almacenamiento externo remoto ubicaciones s3 minio bucket smb cifs samba nas storage remote"),
-        _settings("maintenance", _l("Maintenance"), hint=_l("Audit retention, automatic backups and metrics"),
-                  words="mantenimiento retención copias automáticas retention métricas prometheus grafana metrics"),
-        _settings("backups", _l("Backups and database"), "op", _l("Create, download and delete backups"),
+        _settings("files", _l("Files and browser"), hint=_l("Hidden files, largest file and folders with many items"),
+                  words="archivos explorador ocultos hidden tamaño máximo paginar scroll miles listado"),
+        _settings("preview", _l("File preview"), hint=_l("Text and Markdown viewer, diagrams and which files open"),
+                  words="vista previa visor ver markdown texto diagramas mermaid colores extensiones preview viewer"),
+        _settings("auto_backups", _l("Automatic backups"), hint=_l("How often, how many and the copy outside the server"),
+                  words="copias automáticas backup cada horas conservar fuera servidor offsite s3 nas mantenimiento"),
+        _settings("backups", _l("Backups and database"), "op", _l("Create, download, restore and delete backups"),
                   words="copias seguridad backup restaurar base datos compactar vacuum"),
+        _settings("monitoring", _l("Monitoring"), hint=_l("Metrics for Prometheus"),
+                  words="monitorización métricas prometheus grafana metrics token"),
         _settings("system", _l("Information"), "info", _l("Startup settings and where each value comes from"),
                   words="sistema información versión config.json system info"),
-    ), _l("The server itself: name, network, external storage, maintenance and backups.")),
+    ), _l("The server itself: name, network, storage, files, backups and monitoring.")),
 )
 
 PAGES: dict[str, Page] = {p.key: p for z in ZONES for p in z.pages}
@@ -130,12 +138,20 @@ def current() -> tuple[Zone | None, Page | None]:
     return None, None
 
 
-def context(modified_paths) -> dict:
-    """Variables de plantilla: zona y página actuales y valores no predeterminados por página."""
+def context(modified_paths, locked: dict[str, str] | None = None) -> dict:
+    """Variables de plantilla: zona y página actuales, valores no predeterminados por página y los ajustes
+    bloqueados (fijados en config.json o en el entorno) de cada página: ``{página: [{path, label, origin}]}``."""
     zone, page = current()
     per_page: dict[str, int] = {}
     for path in modified_paths:
+        if path in (locked or {}):
+            continue        # bloqueado: su valor web no se usa (manda config.json o el entorno); va en el candado
         key = page_for_path(path)
         per_page[key] = per_page.get(key, 0) + 1
+    locked_fields: dict[str, list[dict]] = {}
+    for path, origin in sorted((locked or {}).items()):
+        key = page_for_path(path)
+        if key in PAGES:
+            locked_fields.setdefault(key, []).append({"path": path, "label": fields.label(path), "origin": origin})
     return {"nav_zones": ZONES, "nav_zone": zone, "nav_page": page, "nav_overview": OVERVIEW,
-            "nav_changed": per_page, "KIND_LABELS": KIND_LABELS}
+            "nav_changed": per_page, "nav_locked": locked_fields, "KIND_LABELS": KIND_LABELS}

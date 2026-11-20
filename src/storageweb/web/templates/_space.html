@@ -14,6 +14,8 @@
     {% if q.level == 'over' %}{{ _("Quota exceeded (%(percent)s%%): free some space.", percent=q.percent) }}
     {% elif q.level == 'warn' %}{{ _("%(percent)s%% of the quota used: almost full.", percent=q.percent) }}
     {% else %}{{ _("%(percent)s%% of the quota used", percent=q.percent) }}{% endif %}</p>
+  {% if q.measuring %}<p class="small muted">{{ _("Measuring the usage again…") }}</p>
+  {% elif q.measured_text %}<p class="small muted" title="{{ q.measured_at|datetime }}">{{ _("Measured %(when)s", when=q.measured_text) }}</p>{% endif %}
 </div>
 {% endif %}
 {%- endmacro %}

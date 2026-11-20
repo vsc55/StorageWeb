@@ -99,7 +99,7 @@ def test_vacuum_purge_and_csv(app, admin):
     assert "Define antes la retención" in html
     resp = client.get("/admin/audit/export.csv?action=login")
     text = resp.data.decode("utf-8-sig")
-    assert resp.mimetype == "text/csv" and text.splitlines()[0] == "ts,username,action,target,ip,detail"
+    assert resp.mimetype == "text/csv" and text.splitlines()[0] == "ts,level,username,action,target,ip,detail"
     assert ",root,login," in text and "db_vacuum" not in text
 
 

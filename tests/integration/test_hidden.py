@@ -128,11 +128,11 @@ def test_validation_and_admin_form(admin, tmp_path):
     assert exc.value.field == "storage.hidden"
     assert normalize({"storage": {"hidden": [" a.tmp ", "a.tmp", "# c"]}}, tmp_path / "config.json")["storage"]["hidden"] == ["a.tmp"]
     client, _ = admin
-    data = settings_form(client, "storage")
+    data = settings_form(client, "files")
     data["hidden"] = ["Thumbs.db\n\n*.tmp\n# comentario\n.git/"]
-    assert client.post("/admin/settings/storage", data=data).status_code in (200, 302)
-    form = settings_form(client, "storage")
+    assert client.post("/admin/settings/files", data=data).status_code in (200, 302)
+    form = settings_form(client, "files")
     assert form["hidden"][0].split("\n") == ["Thumbs.db", "*.tmp", ".git/"]
     data["hidden"] = ["*"]
-    resp = client.post("/admin/settings/storage", data=data)
+    resp = client.post("/admin/settings/files", data=data)
     assert resp.status_code == 400 and "storage.hidden" not in resp.headers.get("Location", "")

@@ -94,9 +94,10 @@ def _purge(now: float) -> None:
         del _PENDING[code]
 
 
-def issue(user_id: int, client: Client, device: str, challenge: str, *, scope: str, days: int) -> str:
+def issue(user_id: int, client: Client, device: str, challenge: str, *, scope: str, days: int,
+          max_days: int = 0) -> str:
     """El usuario aceptó: devuelve el código de un solo uso para la vuelta."""
-    if scope not in tokens.SCOPES or days not in tokens.EXPIRY_DAYS:
+    if scope not in tokens.SCOPES or days not in tokens.allowed_days(max_days):
         raise ConnectError(_("Invalid scope or expiry."))
     code = secrets.token_urlsafe(32)
     now = time.monotonic()
@@ -116,7 +117,7 @@ def challenge_of(verifier: str) -> str:
     return base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).rstrip(b"=").decode("ascii")
 
 
-def redeem(conn: Connection, code: str | None, verifier: str | None):
+def redeem(conn: Connection, code: str | None, verifier: str | None, max_days: int = 0):
     """Canjea el código (una sola vez, se acierte o no). Devuelve (usuario, token en claro, nombre, días)."""
     with _LOCK:
         grant = _PENDING.pop(code or "", None)
@@ -130,8 +131,9 @@ def redeem(conn: Connection, code: str | None, verifier: str | None):
         raise ConnectError("invalid_grant")
     label = CLIENTS[grant.client].label
     name = f"{label} ({grant.device})" if grant.device else label
-    plain, _token_id = tokens.create(conn, user, name=name[:80], scope=grant.scope, days=grant.days)
-    return user, plain, name[:80], grant.days
+    days = tokens.clamp_days(grant.days, max_days)   # la política pudo cambiar entre medias
+    plain, _token_id = tokens.create(conn, user, name=name[:80], scope=grant.scope, days=days, max_days=max_days)
+    return user, plain, name[:80], days
 
 
 def clear() -> None:

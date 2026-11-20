@@ -174,7 +174,7 @@
               <td><strong>{{ t['name'] }}</strong> <code class="muted">{{ t['prefix'] }}…</code></td>
               <td>{{ SCOPE_LABELS[t['scope']] }}</td>
               <td class="muted">{{ t['last_used_at']|datetime if t['last_used_at'] else '—' }}</td>
-              <td class="muted">{{ t['expires_at']|datetime if t['expires_at'] else _("never") }}</td>
+              <td class="muted">{% set exp = token_expiry(t) %}{{ exp|datetime if exp else _("never") }}</td>
               <td class="cell-end"><div class="token-actions">
                 <form method="post" action="{{ url_for('profile.token_rotate', token_id=t['id']) }}" class="inline js-confirm"
                       data-confirm="{{ _('Rotate the token «%(name)s»? You get a new secret with the same name, scope and expiry, and the current one stops working at once: whatever uses it (scripts, network drive, VS Code) needs the new one.', name=t['name']) }}">
@@ -198,9 +198,10 @@
         <label class="grow">{{ _("New token") }}<input type="text" name="name" maxlength="80" required placeholder="{{ _('e.g. nightly backup') }}"></label>
         <label>{{ _("Scope") }}<select name="scope">{% for k, v in SCOPE_LABELS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
         <label>{{ _("Expires") }}<select name="days">
-          {% for d in EXPIRY_DAYS %}<option value="{{ d }}" {% if d == 90 %}selected{% endif %}>{{ ngettext("in %(num)s day", "in %(num)s days", d) if d else _("never") }}</option>{% endfor %}
+          {% for d in EXPIRY_DAYS %}<option value="{{ d }}" {% if d == 90 or (90 not in EXPIRY_DAYS and loop.last) %}selected{% endif %}>{{ ngettext("in %(num)s day", "in %(num)s days", d) if d else _("never") }}</option>{% endfor %}
         </select></label>
         <button class="btn btn-primary" type="submit">{{ _("Create token") }}</button>
+      {% if token_max_days %}<p class="muted small profile-form-note">{{ ngettext("Tokens can last at most %(num)s day: set by the administrator.", "Tokens can last at most %(num)s days: set by the administrator.", token_max_days) }}</p>{% endif %}
       </form>
 
 {% elif section == 'drive' %}
