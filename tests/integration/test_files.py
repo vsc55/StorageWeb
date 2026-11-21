@@ -334,3 +334,20 @@ def test_folder_tree_shows_siblings_on_every_level(logged, home):
     states = {name: cls for _lvl, cls, name in names}
     assert states["src"] == "active" and states["Codigo"] == "on-path" and states["Prueba"] == ""
     assert "suelto.txt" not in tree, "solo carpetas"
+
+
+def test_the_browser_page_loads_the_upload_script_only_where_one_can_upload(make_app):
+    """El bloque de scripts no ve los {% set %} del contenido: con can_upload ahí, upload.js no se cargaba nunca."""
+    app = make_app({"permissions": {"user": {"upload": True}}})
+    add_user(app, "ana")
+    client = app.test_client()
+    login(client, "ana")
+    page = client.get("/f/home/").get_data(as_text=True)
+    for script in ("js/app.js", "js/files/upload.js", "js/files/transfer.js", "js/files/listing.js"):
+        assert script in page, script
+    app = make_app({"permissions": {"user": {"upload": False}}})
+    add_user(app, "luis")
+    client = app.test_client()
+    login(client, "luis")
+    page = client.get("/f/home/").get_data(as_text=True)
+    assert "js/app.js" in page and "js/files/upload.js" not in page

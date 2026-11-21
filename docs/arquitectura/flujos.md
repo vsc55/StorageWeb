@@ -53,7 +53,7 @@ Reglas del alta (`core.accounts.login_with_claims`):
 
 ```mermaid
 sequenceDiagram
-    participant N as Navegador (app.js)
+    participant N as Navegador (files/upload.js)
     participant S as API /api/uploads
     participant D as Disco
     N->>S: POST {root, path, name, size, folders?}

@@ -82,3 +82,21 @@ test("ficha de usuario: la barra de guardar sale al cambiar algo y se va al desc
   assert.equal(await page.evaluate("document.querySelector('input[name=display_name]').value"), "Nombre desde el navegador");
   noErrors();
 });
+
+test("vista previa: las extensiones son etiquetas; añadir una avisa y Descartar la quita", async () => {
+  // Sin borradores de los tests de antes: con ellos, Descartar pregunta primero (descarta los de todas las páginas)
+  await page.go(`${BASE}/admin/settings/preview`);
+  await page.evaluate("localStorage.clear()");
+  await page.go(`${BASE}/admin/settings/preview`);
+  await page.waitFor("document.querySelectorAll('.tags .tag').length > 5");
+  const hasZzz = "[...document.querySelectorAll('.tags .tag')].some((t) => t.firstChild.textContent === 'zzz')";
+  await page.evaluate(`(() => { const i = document.querySelector('.tags-input'); i.value = 'zzz';
+                               i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()`);
+  await page.waitFor(hasZzz);
+  await page.waitFor("!document.querySelector('[data-save-bar]').classList.contains('is-idle')");
+  // Descartar (forms.js) vuelve el campo a lo de antes y las etiquetas se repintan (swRenderTags de tag-list.js)
+  await page.evaluate("document.querySelector('[data-save-bar] button[type=reset]').click()");
+  await page.waitFor(`!(${hasZzz})`);
+  await page.waitFor("document.querySelector('[data-save-bar]').classList.contains('is-idle')");
+  noErrors();
+});

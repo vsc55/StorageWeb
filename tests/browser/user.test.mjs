@@ -53,10 +53,13 @@ test("favoritos: la X aparece al pasar el ratón y lo quita sin recargar", async
     body: new URLSearchParams({ _csrf: document.querySelector('input[name=_csrf]').value, root: 'home', path: 'Muchos' }) })`);
   await page.go(`${BASE}/f/home/`);
   const x = "document.querySelector('#fav-list .fav-remove')";
-  assert.equal(await page.evaluate(`getComputedStyle(${x}).opacity`), "0", "sin el ratón encima no se ve");
-  const box = await page.evaluate(`(() => { const r = document.querySelector('#fav-list li').getBoundingClientRect();
-                                           return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
-  await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x, y: box.y });
+  // Sin ratón (hover: none, como el navegador sin ventana de algunas CI) la X se ve siempre: es para pantallas táctiles
+  if (await page.evaluate("matchMedia('(hover: hover)').matches")) {
+    assert.equal(await page.evaluate(`getComputedStyle(${x}).opacity`), "0", "sin el ratón encima no se ve");
+    const box = await page.evaluate(`(() => { const r = document.querySelector('#fav-list li').getBoundingClientRect();
+                                             return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+    await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x, y: box.y });
+  }
   await page.waitFor(`getComputedStyle(${x}).opacity === "1"`);
   await page.evaluate("window.sinRecargar = true");
   await page.evaluate(`${x}.querySelector('button').click()`);
@@ -204,5 +207,44 @@ test("editor: Ctrl+S guarda y vuelve al visor", async () => {
   assert.equal(await page.evaluate("location.pathname"), "/view/home/texto.txt",
     await page.evaluate("(document.querySelector('.flashes, .flash, .toast') || {}).textContent || document.title"));
   assert.match(await page.evaluate("document.getElementById('viewer-text').textContent"), /añadida desde el navegador/);
+  noErrors();
+});
+
+test("mover: el selector de destino enseña las carpetas y no deja ponerlo donde ya está", async () => {
+  await page.go(`${BASE}/f/home/`);
+  await page.evaluate("document.querySelector('tr.file-row[data-name=\"texto.txt\"] input.row-check').click()");
+  await page.evaluate("document.querySelector('#selection-bar [data-action=move]').click()");
+  await page.waitFor("document.getElementById('pick-dest').open");
+  const muchos = "[...document.querySelectorAll('#pick-list button')].find((b) => b.textContent.includes('Muchos'))";
+  await page.waitFor(`!!${muchos}`);
+  assert.equal(await page.evaluate("document.getElementById('pick-ok').disabled"), true, "ya está en esta carpeta");
+  await page.evaluate(`${muchos}.click()`);
+  await page.waitFor("!document.getElementById('pick-ok').disabled");
+  await page.evaluate("document.getElementById('pick-cancel').click()");
+  await page.waitFor("!document.getElementById('pick-dest').open");
+  noErrors();
+});
+
+test("subir: un archivo elegido sube por partes y aparece en la carpeta", async () => {
+  await page.go(`${BASE}/f/home/`);
+  await page.evaluate(`(() => {
+    window.antesDeSubir = true;
+    const dt = new DataTransfer();
+    dt.items.add(new File(["subido desde el navegador\\n"], "subido.txt", { type: "text/plain" }));
+    const input = document.getElementById("file-input");
+    input.files = dt.files;
+    input.dispatchEvent(new Event("change"));
+  })()`);
+  // Al acabar recarga la página. Si algo falla, un aviso espera un clic: que el test diga cuál, no que se cuelgue
+  try {
+    await page.waitFor("!window.antesDeSubir && !!document.querySelector('tr.file-row[data-name=\"subido.txt\"]')", 15000);
+  } catch (e) {
+    const state = await page.evaluate(`JSON.stringify({
+      modal: document.querySelector('dialog.sw-modal[open]')?.textContent.trim() || '',
+      panel: document.getElementById('upload-panel')?.hidden, still: !!window.antesDeSubir,
+      progress: document.querySelector('#upload-panel .label')?.textContent || '',
+      detail: document.querySelector('#upload-panel .detail')?.textContent || '' })`);
+    assert.fail(`no se subió: ${state} ${JSON.stringify(page.errors)} ${e.message}`);
+  }
   noErrors();
 });

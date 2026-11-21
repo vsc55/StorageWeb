@@ -29,5 +29,5 @@ Los usuarios necesitan subir archivos de varios GB.
 ## Consecuencias
 
 - Sin límite práctico de tamaño, y reanudable tras cortes o recargas de la página.
-- Más código, en el cliente (`app.js`) y en el servidor (`core/uploads.py`), cubierto por tests unitarios y de integración.
+- Más código, en el cliente (`files/upload.js`) y en el servidor (`core/uploads.py`), cubierto por tests unitarios y de integración.
 - Los ficheros `.part` ocupan espacio hasta que se completan o se limpian.

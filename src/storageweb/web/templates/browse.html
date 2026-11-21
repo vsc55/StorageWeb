@@ -251,7 +251,7 @@
   </aside>
 </div>
 
-{# Mover / copiar: elegir la carpeta de destino (static/js/app.js) #}
+{# Mover / copiar: elegir la carpeta de destino (static/js/files/transfer.js) #}
 <dialog id="pick-dest" class="sw-modal pick-dialog" aria-labelledby="pick-title"
         data-roots="{{ url_for('files.roots_json') }}" data-browse="{{ url_for('files.browse', root='ROOTNAME', sub='') }}">
   <form method="dialog">
@@ -279,4 +279,9 @@
   <input type="hidden" name="root" value="{{ root.name }}">
 </form>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='js/app.js') }}"></script>{% endblock %}
+{# El núcleo primero (app.js crea SW.files); los módulos de js/files/ lo usan. Subir, solo si se puede (con
+   «perms» y no con can_upload: un {% set %} de otro bloque no se ve aquí) #}
+{% block scripts %}<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% if 'upload' in perms %}<script src="{{ url_for('static', filename='js/files/upload.js') }}"></script>{% endif %}
+<script src="{{ url_for('static', filename='js/files/transfer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/files/listing.js') }}"></script>{% endblock %}

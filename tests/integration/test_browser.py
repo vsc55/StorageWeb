@@ -91,3 +91,4 @@ def test_in_a_real_browser(make_app, home):
     assert result.returncode == 0, output
     assert "fail 0" in result.stdout and "skipped 0" in result.stdout, output   # nada se omite
     assert (home / "texto.txt").read_text(encoding="utf-8") == "primera línea\nañadida desde el navegador\n"
+    assert (home / "subido.txt").read_text(encoding="utf-8") == "subido desde el navegador\n"   # files/upload.js

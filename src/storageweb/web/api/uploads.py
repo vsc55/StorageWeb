@@ -1,4 +1,4 @@
-"""API JSON de subidas por partes (la usa web/static/js/app.js).
+"""API JSON de subidas por partes (la usa web/static/js/files/upload.js).
 
     POST   /api/uploads                {root, path, name, size[, folders]}  -> 201 {id, chunk_size, received}
                                        (folders: «a/b», subcarpetas bajo path que se crean si faltan)

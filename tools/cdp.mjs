@@ -21,7 +21,7 @@ export async function launch(browser, options = {}) {
   const args = [
     "--headless=new", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run",
     "--no-default-browser-check", "--disable-extensions", "--disable-sync", "--hide-scrollbars",
-    `--lang=${options.lang || "es-ES"}`, "--force-color-profile=srgb",
+    `--lang=${options.lang || "es-ES"}`, "--force-color-profile=srgb",   // y Emulation más abajo (Linux, macOS)
     // Solo habla con el servidor local: sin buscar un proxy (en Windows, la detección automática retrasa la
     // primera página unos 30 segundos)
     "--no-proxy-server",
@@ -136,6 +136,12 @@ export async function launch(browser, options = {}) {
   await send("Page.enable");
   await send("Runtime.enable");
   await send("Log.enable");
+  // --lang solo vale en Windows: en Linux el navegador mira LANGUAGE/LANG y en macOS las preferencias del sistema.
+  // Así el idioma de las páginas (Accept-Language) y el de navigator/Intl es el pedido en cualquier sistema.
+  const lang = options.lang || "es-ES";
+  const userAgent = await evaluate("navigator.userAgent");
+  await send("Emulation.setUserAgentOverride", { userAgent, acceptLanguage: `${lang},${lang.split("-")[0]}` });
+  await send("Emulation.setLocaleOverride", { locale: lang.replace("_", "-") });
   return { send, next, evaluate, waitFor, go, navigating, login, press, errors, close };
 }
 

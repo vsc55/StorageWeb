@@ -40,6 +40,7 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 
 - **La auditoría dice con qué token** se hizo cada acción con archivos: el detalle termina en `token=<nombre>`. Así se distingue un cambio desde VS Code («Visual Studio Code (equipo)»), desde la unidad de red de un equipo o desde un script. Vale para WebDAV, la API de archivos y las subidas por partes.
 - ***Mi perfil* por secciones**, con el mismo menú lateral que la administración: *Cuenta* (`/profile`), *Seguridad* (contraseña, verificación en dos pasos y sesiones, `/profile/security`), *Tokens de API* (`/profile/tokens`), *Unidad de red* (`/profile/drive`) y *Espacio* (`/profile/space`); las que el administrador ha desactivado no aparecen. Cada ajuste es una fila con su acción a la derecha y el formulario se despliega debajo, en vez de tarjetas de alturas distintas con huecos.
+- **El JavaScript de la web, partido por funciones** (sin cambios para quien lo usa): el explorador es `app.js` (selección, detalle, borrar, descargar) más `files/upload.js` (solo si se puede subir), `files/transfer.js` (mover y copiar) y `files/listing.js` (filtro y carpetas grandes), que se comunican por `SW.files`. Las listas como etiquetas y el modal de *Restablecer* salen de `admin/forms.js` a `admin/tag-list.js`, que solo carga la página que las usa: el resto de la administración baja de 30 a 22 KB. Un test avisa si un JS queda sin cargar o una página usa etiquetas sin su script; los tests del navegador cubren ahora también mover, subir y las etiquetas.
 
 ### Corregido
 
@@ -47,7 +48,8 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 
 - **Seguridad en servidores Windows:** pedir un archivo con un punto o un espacio al final (`secreto.md.`) o con un flujo de NTFS (`secreto.md::$DATA`) descargaba un archivo de los «ocultos para todos» (`storage.hidden`), y pedir `CON` dejaba la petición colgada. Ahora esos nombres (y los demás dispositivos de Windows y los nombres cortos de 8.3) se rechazan en el disco de un servidor Windows, siempre en SMB y en las ubicaciones SFTP, FTP o WebDAV marcadas con la opción nueva **El servidor es Windows** (`windows_server`). Salir de la carpeta (`..\`, `../`, codificados…) ya era imposible; los tests de ataques cubren ahora también el visor, el editor, el ZIP, mover y copiar, favoritos y el filtro de las carpetas grandes.
 - **El editor no guardaba desde el navegador** (error 400): el formulario no llevaba bien el token CSRF. Lo encontraron los tests de navegador.
-- **Cargar más al bajar** se paraba si, tras cargar un trozo, el botón seguía a la vista.
+- **Cargar más al bajar** se paraba si, tras cargar un trozo, el botón seguía a la vista, o si se llegaba a él antes de que el navegador viera que las filas nuevas lo habían apartado (bajando deprisa). Ahora el botón se vuelve a observar tras cada trozo.
+- Los tests de navegador fallaban en la CI de Linux y macOS: el navegador pedía las páginas en inglés (`--lang` solo vale en Windows; ahora el idioma se fija por el protocolo de depuración en cualquier sistema) y, sin ratón, la X de los favoritos se ve siempre (como en una pantalla táctil).
 
 - En *Mi perfil*, el espacio de la carpeta personal ya no desaparece cuando la unidad de red está desactivada.
 - En las páginas más altas que la ventana, la barra lateral ya no se corta al bajar: su color sigue hasta el final.
