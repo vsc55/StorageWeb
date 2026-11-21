@@ -1,0 +1,20 @@
+{% extends "admin/settings/_layout.html" %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
+{% block section %}
+{# Seguridad → Vulnerabilidades: el ajuste de la comprobación automática y la comprobación (botón, barra de progreso
+   y resultado: _advisories.html, admin/advisories.js) #}
+{{ form_start() }}
+  <div class="card form-grid">
+    <h3 class="card-title span2">{{ _("Automatic check") }}</h3>
+    <label class="{{ err_class('security.dependency_check_hours') }}"><span class="label-row">{{ _("Check the libraries automatically every (hours)") }} {{ origin('security.dependency_check_hours') }}</span>
+      <input{{ lock('security.dependency_check_hours') }} type="number" name="dependency_check_hours" value="{{ cfg.security.dependency_check_hours }}" min="0" max="720">
+      <small class="muted">{{ _("24 = once a day (the default). 0 = only with the button: for a server without access to the internet. It goes out to the internet, like the button; if vulnerabilities are found, the Overview warns.") }}</small>
+      {{ field_error('security.dependency_check_hours') }}</label>
+  </div>
+  {{ save_bar() }}
+</form>
+
+{% include "admin/settings/_advisories.html" %}
+{% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/sortable.js') }}"></script>
+<script src="{{ url_for('static', filename='js/admin/advisories.js') }}"></script>{% endblock %}

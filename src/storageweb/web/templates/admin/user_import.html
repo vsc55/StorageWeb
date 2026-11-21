@@ -1,0 +1,44 @@
+{% extends "admin/_layout.html" %}
+{% block title %}{{ _("Import from %(method)s", method=method.label) }} · {{ app_name }}{% endblock %}
+{% block admin_content %}
+{# Personas → Importar: buscar en el directorio del método (AuthMethod.search_people) y dar de alta a quien se elija
+   (core/accounts.import_account), antes de que entre. Lo que manda el navegador es solo el identificador #}
+<div class="page-head">
+  <div>
+    <h1>{{ _("Import from %(method)s", method=method.label) }}</h1>
+    <p class="muted small">{{ _("Search for people in the directory and create their account now, before they sign in: the same account their first sign-in would create (user name, role from the mapping and their groups), so you can give them folders and quotas already.") }}</p>
+  </div>
+  <a class="btn btn-ghost" href="{{ url_for('admin.users_index') }}">← {{ _("Back") }}</a>
+</div>
+
+<form method="get" action="{{ url_for('admin.user_import') }}" class="card import-search" id="import-search"
+      data-results="{{ url_for('admin.user_import') }}">
+  {% if methods|length > 1 %}
+  <select name="source" aria-label="{{ _('Sign-in method') }}">
+    {% for m in methods %}<option value="{{ m.key }}" {% if m.key == method.key %}selected{% endif %}>{{ m.label }}</option>{% endfor %}
+  </select>
+  {% else %}<input type="hidden" name="source" value="{{ method.key }}">{% endif %}
+  <input type="search" name="q" value="{{ query }}" minlength="2" autofocus autocomplete="off"
+         placeholder="{{ _('Name, user name or email (at least 2 letters)') }}" aria-label="{{ _('Search') }}">
+  <button class="btn btn-primary" type="submit"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-search"></use></svg>{{ _("Search") }}</button>
+  <a class="btn" id="import-all" href="{{ url_for('admin.user_import', source=method.key, all=1) }}">{{ _("Show all") }}</a>
+</form>
+
+{# Importar varias a la vez: las casillas de los resultados son de este formulario (form="import-bulk"); con JavaScript,
+   la selección se conserva entre búsquedas (admin/user-import.js añade aquí las que no están a la vista) #}
+<form method="post" action="{{ url_for('admin.user_import') }}" id="import-bulk" class="import-bulk section-gap">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="source" value="{{ method.key }}"><input type="hidden" name="q" value="{{ query }}">
+  {% if show_all %}<input type="hidden" name="all" value="1">{% endif %}
+  <div id="import-kept" hidden></div>
+  <span class="muted small" id="import-count" data-template="{{ _('%(num)s selected', num='%(num)s') }}"></span>
+  <button class="btn btn-small" type="button" id="import-clear" hidden>{{ _("Clear the selection") }}</button>
+  <button class="btn btn-primary btn-small" type="submit" id="import-selected">{{ _("Import the selected") }}</button>
+</form>
+
+<div id="import-results" aria-live="polite">
+{% include "admin/_user_import_results.html" %}
+</div>
+{% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/sortable.js') }}"></script>
+<script src="{{ url_for('static', filename='js/admin/user-import.js') }}"></script>{% endblock %}

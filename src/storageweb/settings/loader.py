@@ -26,12 +26,16 @@ from .errors import ConfigError
 from .layers import _get, _set, merge_overrides
 from . import location_types
 from . import auth_methods
+from . import server_paths
 from ..audit_levels import LEVELS as AUDIT_LEVELS
-from .defaults import (AUDIT_FORMATS, SYSLOG_FACILITIES, SYSLOG_PORTS, DEFAULTS, LISTING_MODES, LOGIN_ART_CHOICES, MFA_POLICIES, PAGE_SIZE_RANGE, PERMISSIONS,
+from .defaults import (AUDIT_FORMATS, SYSLOG_FACILITIES, SYSLOG_PORTS, DEFAULTS, LISTING_MODES, LOGIN_ART_CHOICES, MFA_POLICIES, PAGE_SIZE_RANGE, PASSWORD_KINDS, PERMISSIONS,
                        RUNTIME_SECTIONS, SECRET_FIELDS)
 
 SHARE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 PROFILE_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+# Límites de los ajustes numéricos de storage: (mínimo, máximo)
+STORAGE_RANGES = {"quota_warn_percent": (50, 99), "search_max_results": (10, 5000), "search_seconds": (1, 120),
+                  "search_max_folders": (100, 1_000_000), "upload_stale_hours": (1, 720)}
 PREVIEW_MAX_MB = 20         # preview.max_mb: el visor lee el archivo entero en memoria y lo pinta en la página
 
 
@@ -159,6 +163,93 @@ def _str_list(value, field: str) -> list[str]:
     return [str(x).strip() for x in value if str(x).strip()]
 
 
+def _lines(value, field: str) -> list[str]:
+    """Una lista de textos o un texto con uno por línea (pueden tener espacios), sin vacíos."""
+    if isinstance(value, str):
+        value = value.splitlines()
+    if not isinstance(value, list):
+        raise ConfigError(_("%(field)s must be a list", field=field), field)
+    return [str(x).strip() for x in value if str(x).strip()]
+
+
+def _allowed_folders(value, base_dir: Path) -> list[str]:
+    """``storage.allowed_folders``: rutas absolutas (las relativas, respecto al config.json), sin repetir. Una lista
+    o un texto con una por línea (una ruta puede tener espacios)."""
+    field = "storage.allowed_folders"
+    found: list[str] = []
+    for text in _lines(value, field):
+        if re.search(r"[\x00-\x1f\x7f]", text) or "{" in text:
+            raise ConfigError(_("%(field)s: %(path)s is not a valid folder", field=field, path=repr(text)), field)
+        path = text if server_paths.network_path(text) else str(_resolve(base_dir, os.path.expanduser(text)))
+        if server_paths.real(path) not in {server_paths.real(p) for p in found}:
+            found.append(path)
+    return found
+
+
+def _check_allowed(path: str, allowed: list[str], field: str, what: str) -> None:
+    """Una carpeta en el disco del servidor tiene que estar dentro de ``storage.allowed_folders`` (si hay); una ruta
+    de red, siempre dentro de una de ellas (:func:`server_paths.permitted`)."""
+    if server_paths.permitted(path, allowed):
+        return
+    if server_paths.network_path(path):
+        raise ConfigError(_("%(what)s (%(path)s) is a network path: it is only accepted inside an allowed server "
+                            "folder (System → Server folders). For a NAS, use a storage location of type SMB.",
+                            what=what[:1].upper() + what[1:], path=path), field)
+    raise ConfigError(_("%(what)s (%(path)s) is outside the allowed server folders: %(allowed)s. Change its path "
+                        "or add its folder in System → Server folders.",
+                        what=what[:1].upper() + what[1:], path=path, allowed=", ".join(allowed)), field)
+
+
+def password_settings(sec: dict) -> dict:
+    """Valida y deja en su forma las reglas de las contraseñas (``security.password_*``), en el sitio. La usan
+    :func:`normalize` y el probador de *Seguridad → Contraseñas* (con lo que hay en la página, sin guardar)."""
+    sec["password_check"] = bool(sec.get("password_check", True))
+    sec["password_min_length"] = _positive_int(sec.get("password_min_length"), "security.password_min_length")
+    if not 10 <= sec["password_min_length"] <= 128:
+        raise ConfigError(_("security.password_min_length must be between 10 and 128"), "security.password_min_length")
+    sec["password_min_distinct"] = _int_range(sec.get("password_min_distinct", 4), 1, 20,
+                                              "security.password_min_distinct")
+    require = _str_list(sec.get("password_require") or [], "security.password_require")
+    unknown = [k for k in require if k not in PASSWORD_KINDS]
+    if unknown:
+        raise ConfigError(_("security.password_require: %(values)s; only %(allowed)s", values=", ".join(unknown),
+                            allowed=", ".join(PASSWORD_KINDS)), "security.password_require")
+    sec["password_require"] = [k for k in PASSWORD_KINDS if k in require]
+    sec["password_reject_username"] = bool(sec.get("password_reject_username", True))
+    sec["password_breach_check"] = bool(sec.get("password_breach_check", False))
+    words = []
+    for word in _lines(sec.get("password_blocklist") or [], "security.password_blocklist"):
+        word = word.lower()
+        if len(word) < 4:
+            raise ConfigError(_("security.password_blocklist: «%(word)s» is too short (4 characters at least)",
+                                word=word), "security.password_blocklist")
+        if word not in words:
+            words.append(word)
+    sec["password_blocklist"] = words
+    urls = _lines(sec.get("password_list_urls") or [], "security.password_list_urls")
+    for url in urls:
+        if not url.lower().startswith("https://") or any(c.isspace() for c in url):
+            raise ConfigError(_("security.password_list_urls: %(url)s is not an https:// address", url=url),
+                              "security.password_list_urls")
+    sec["password_list_urls"] = urls
+    return sec
+
+
+def _check_audit_file(path: str, cfg: dict, cfg_path: Path) -> None:
+    r"""``audit.file``: el servidor AÑADE líneas a ese fichero, así que no puede ser cualquiera. Dentro de
+    ``storage.allowed_folders`` (si hay); nunca una ruta de red que no esté en ellas (escribir en ``\\equipo\x``
+    es conectarse a ese equipo con la cuenta del servicio); nunca en la carpeta de datos ni el config.json
+    (añadir líneas a la base de datos o a ``secrets.key`` los estropea)."""
+    field = "audit.file"
+    allowed = cfg["storage"]["allowed_folders"]
+    _check_allowed(path, allowed, field, _("the audit log file"))
+    own = server_paths.real(path)
+    data = server_paths.real(cfg["data_dir"])
+    if own == server_paths.real(str(cfg_path)) or own == data or own.startswith(data.rstrip("/\\") + os.sep):
+        raise ConfigError(_("audit.file cannot be in the data folder of StorageWeb (%(data)s) nor be its config.json: "
+                            "use a folder for logs.", data=cfg["data_dir"]), field)
+
+
 def _non_negative_int(value, field: str) -> int:
     try:
         number = int(value)
@@ -166,6 +257,19 @@ def _non_negative_int(value, field: str) -> int:
         raise ConfigError(_("%(field)s must be an integer", field=field), _field_path(field)) from exc
     if number < 0:
         raise ConfigError(_("%(field)s cannot be negative", field=field), _field_path(field))
+    return number
+
+
+def _int_range(value, low: int, high: int, field: str) -> int:
+    """Un entero entre ``low`` y ``high`` (ambos incluidos), o :class:`ConfigError` en ``field``."""
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        raise ConfigError(_("%(field)s must be a whole number between %(low)s and %(high)s", field=field, low=low,
+                            high=high), field) from None
+    if not low <= number <= high:
+        raise ConfigError(_("%(field)s must be a whole number between %(low)s and %(high)s", field=field, low=low,
+                            high=high), field)
     return number
 
 
@@ -252,6 +356,7 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     if storage["home_location"] and storage["home_location"] not in location_names:
         raise ConfigError(_("storage.home_location: there is no storage location named %(name)s",
                             name=repr(storage["home_location"])), "storage.home_location")
+    storage["allowed_folders"] = _allowed_folders(storage.get("allowed_folders") or [], base_dir)
     tmpl = str(storage["home_template"]).strip()
     if "{username}" not in tmpl:
         raise ConfigError(_("storage.home_template must contain {username}"), "storage.home_template")
@@ -262,6 +367,9 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
             tmpl = str(base_dir / tmpl)
         tmpl = os.path.expanduser(tmpl)
     storage["home_template"] = tmpl
+    if not storage["home_location"]:
+        _check_allowed(tmpl.split("{username}")[0] or tmpl, storage["allowed_folders"], "storage.home_template",
+                       _("the personal folders"))
     for key in ("create_home", "create_shares", "show_hidden"):
         storage[key] = bool(storage[key])
     storage["page_size"] = _positive_int(storage.get("page_size"), "storage.page_size")
@@ -285,6 +393,8 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     if storage["quota_refresh_minutes"] > 7 * 24 * 60:
         raise ConfigError(_("storage.quota_refresh_minutes cannot be more than %(num)s", num=7 * 24 * 60),
                           "storage.quota_refresh_minutes")
+    for key, (low, high) in STORAGE_RANGES.items():
+        storage[key] = _int_range(storage.get(key, DEFAULTS["storage"][key]), low, high, f"storage.{key}")
     group_quotas = storage.get("group_quotas") or {}
     if not isinstance(group_quotas, dict):
         raise ConfigError(_("storage.group_quotas must be an object {group: MB}"), "storage.group_quotas")
@@ -307,6 +417,9 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
         if not share.get("path") and not location:
             raise ConfigError(_("Shared folder %(name)s has no path", name=repr(name)), "storage.shares")
         raw_path = str(share.get("path") or "").strip()
+        if not location:
+            _check_allowed(str(_resolve(base_dir, raw_path)), storage["allowed_folders"], "storage.shares",
+                           _("the shared folder %(name)s", name=name))
         shares.append({
             "name": name,
             "label": str(share.get("label") or name).strip(),
@@ -354,10 +467,16 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     sec["webdav"] = bool(sec["webdav"])
     sec["webdav_passwords"] = bool(sec["webdav_passwords"])
     sec["api_token_max_days"] = _non_negative_int(sec.get("api_token_max_days") or 0, "security.api_token_max_days")
+    sec["api_token_unused_days"] = _int_range(sec.get("api_token_unused_days", 90), 0, 3650,
+                                              "security.api_token_unused_days")
+    sec["dependency_check_hours"] = _int_range(sec.get("dependency_check_hours", 24), 0, 720,
+                                               "security.dependency_check_hours")
     if sec["api_token_max_days"] > 3650:
         raise ConfigError(_("security.api_token_max_days cannot be more than %(num)s", num=3650),
                           "security.api_token_max_days")
     sec["passkeys"] = bool(sec.get("passkeys", True))
+    sec["passkey_login"] = bool(sec.get("passkey_login", False))
+    password_settings(sec)
     sec["mfa_required"] = str(sec.get("mfa_required") or "off").strip().lower()
     if sec["mfa_required"] not in MFA_POLICIES:
         # Rechazado al guardar: un valor desconocido se leería como «nadie», que falla ABIERTO
@@ -409,12 +528,16 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     fwd["tls_verify"] = bool(fwd.get("tls_verify", True))
     fwd["syslog_ca"] = str(_resolve(base_dir, fwd["syslog_ca"])) if str(fwd.get("syslog_ca") or "").strip() else ""
     fwd["file"] = str(_resolve(base_dir, fwd["file"])) if str(fwd.get("file") or "").strip() else ""
+    if fwd["file"]:
+        _check_audit_file(fwd["file"], cfg, cfg_path)
 
     # --- visor
     view = cfg["preview"]
     view["enabled"] = bool(view.get("enabled"))
     view["diagrams"] = bool(view.get("diagrams"))
     view["highlight"] = bool(view.get("highlight", True))
+    for key in ("images", "pdf", "video", "audio"):
+        view[key] = bool(view.get(key, True))
     view["max_mb"] = _positive_int(view.get("max_mb"), "preview.max_mb")
     if view["max_mb"] > PREVIEW_MAX_MB:
         raise ConfigError(_("preview.max_mb cannot be more than %(num)s", num=PREVIEW_MAX_MB), "preview.max_mb")

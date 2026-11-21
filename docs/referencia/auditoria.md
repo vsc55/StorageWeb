@@ -54,6 +54,7 @@ Cada evento tiene un nivel, según su acción (columna *Nivel* de la tabla de ac
 | `access_denied` | `warning` | Alguien con sesión pidió algo sin permiso (escribir en una carpeta de solo lectura, una acción que su rol no tiene, la administración sin ser administrador). *target* = la ruta pedida | Método y motivo |
 | `user_provisioned` | `info` | Usuario de Entra creado automáticamente | `entra:<rol>` |
 | `user_linked` | `info` | Usuario de Entra dado de alta antes, vinculado en su primer login | |
+| `user_imported` | `info` | Persona importada del directorio (*Personas → Usuarios → Importar de Microsoft Entra ID*) antes de que entre, o enlazada con la cuenta que se dio de alta antes a mano | `<método>:<rol> created` o `<método>:<rol> linked` |
 | `role_changed` | `info` | Rol recalculado en el login o en la revisión periódica a partir de `role_mappings` | `anterior->nuevo (entra)` o `(entra:directory)` |
 | `user_renamed` | `info` | Cuenta de Entra renombrada al entrar porque cambió su UPN | `anterior -> nuevo`, y `home moved` (carpeta personal renombrada) o `home kept` (se conserva la antigua como ruta propia) |
 | `user_rename_failed` | `warning` | No se pudo renombrar: el nombre nuevo ya es de otra cuenta, o las carpetas compartidas que la nombran están fijadas en `config.json` | Motivo |
@@ -101,6 +102,8 @@ ecurso`) |
 | `ip_unbanned` | `info` | IP desbloqueada (web o `ip-unban`) |  |
 | `ip_allowed` | `info` | IP o red añadida a la lista blanca | Nota |
 | `ip_allow_removed` | `info` | IP o red quitada de la lista blanca |  |
+| `password_list_updated` | `info` | Nueva lista propia de contraseñas comunes (*Seguridad → Contraseñas* o `password-list`) | `download` o `upload` |
+| `password_list_reset` | `info` | Se borró la lista propia de contraseñas comunes: vuelve la de serie |  |
 | `audit_purged` | `critical` | Entradas de auditoría borradas por la retención | Número de entradas |
 | `audit_exported` | `info` | Auditoría exportada a CSV | Número de filas |
 | `db_vacuum` | `info` | Base de datos compactada | Tamaño antes→después (bytes) |
@@ -121,6 +124,8 @@ ecurso`) |
 | `branding_login_image_removed` | `info` | Imagen propia del inicio de sesión quitada (vuelve la de serie) |  |
 | `settings_field_reset` | `info` | Un ajuste vuelve a su valor predeterminado (*Restablecer*) | Ruta del ajuste |
 | `settings_reset` | `critical` | Ajustes web descartados (web o `settings-reset`) | |
+| `system_report` | `info` | Informe de *Sistema → Información* descargado (versión, máquina, base de datos, carpetas y componentes; sin secretos) | Formato: `txt` o `json` |
+| `dependencies_checked` | `info` | Comprobadas las bibliotecas instaladas contra PyPI, npm y OSV.dev (*Seguridad → Vulnerabilidades*: el botón *Comprobar ahora* o la comprobación automática, con *usuario* `system`; sale a internet) | `packages=N vulnerable=N advisories=N behind=N`, y `error=…` si OSV.dev no contestó |
 | `upload` | `info` | Archivo subido (también al copiar por la unidad de red) | Tamaño en bytes; por la unidad de red, `webdav:<bytes>` o `webdav:copy:<destino>` |
 | `download` | `info` (`debug` en el visor) | Archivo descargado | Por la unidad de red, `webdav`; abierto en el visor, `view` |
 | `edit` | `info` | Archivo de texto editado y guardado desde el navegador (permiso *Editar archivos de texto*) | Tamaño nuevo en bytes |
@@ -131,6 +136,9 @@ ecurso`) |
 | `search` | `debug` | Búsqueda por nombre (*target* = `raíz:/carpeta` o `*:/` en todas) | Lo buscado y cuántos resultados |
 | `favorite_added` | `debug` | Archivo o carpeta añadido a favoritos |  |
 | `favorite_removed` | `debug` | Quitado de favoritos (con la estrella, el panel de detalle o la X de la lista) | `list` si fue con la X de la lista |
+| `favorite_added_by_admin` | `info` | Un administrador añade un favorito a otra persona (ficha del usuario); *objetivo* = la persona | `carpeta:/ruta` |
+| `favorite_removed_by_admin` | `info` | Un administrador quita un favorito de otra persona; *objetivo* = la persona | `carpeta:/ruta` |
+| `favorites_cleared_by_admin` | `info` | Un administrador quita todos los favoritos de otra persona; *objetivo* = la persona | `removed=N` |
 | `upload_started` | `debug` | Empezó una subida por partes (la API o el explorador); al terminar, `upload` | Tamaño en bytes |
 | `quota_exceeded` | `warning` | Algo no se subió, copió, movió o guardó porque no cabía en la cuota de la carpeta | Tamaño en bytes; `api:`, `edit:`, `copy:`, `move:` o `webdav:` delante según por dónde |
 | `backup` | `info` | Copia de seguridad creada | |

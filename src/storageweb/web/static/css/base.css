@@ -9,7 +9,7 @@
   --surface: #ffffff; --surface-head: #f4f6f9; --surface-hover: #f5f8ff;
   --primary: #2563eb; --primary-fg: #ffffff; --primary-soft: #e8efff; --primary-ink: #1e3a8a;
   --danger: #b42318; --danger-line: #f3d3d3;
-  --ok-bg: #e7f5ec; --err-bg: #fdecec;
+  --ok-bg: #e7f5ec; --ok-fg: #1f7a45; --err-bg: #fdecec;
   --rail-bg: #111827; --rail-fg: #c3cad5; --rail-active: #1f2937;
   --folder-fill: #fde7b0; --folder-stroke: #c98a0b;
   --badge-admin-bg: #fde7c7; --badge-admin-fg: #7a4100;
@@ -22,7 +22,7 @@
   --line: #363f4f; --line-soft: #2b323e;
   --surface: #1c212b; --surface-head: #252c38; --surface-hover: #262f3d;
   --primary: #4f8af7; --primary-soft: #1c2a47; --primary-ink: #c7d7fb;
-  --danger: #f97066; --danger-line: #5b2622; --ok-bg: #16301f; --err-bg: #3a1a1a;
+  --danger: #f97066; --danger-line: #5b2622; --ok-bg: #16301f; --ok-fg: #5fd38d; --err-bg: #3a1a1a;
   --rail-bg: #0b0e13; --rail-active: #1f2633; --folder-fill: #5c4614; --folder-stroke: #f2c14e;
   --badge-admin-bg: #4a3313; --badge-admin-fg: #ffd8a0;
   --shadow: 0 10px 30px rgba(0, 0, 0, .5);
@@ -34,7 +34,7 @@
     --line: #363f4f; --line-soft: #2b323e;
     --surface: #1c212b; --surface-head: #252c38; --surface-hover: #262f3d;
     --primary: #4f8af7; --primary-soft: #1c2a47; --primary-ink: #c7d7fb;
-    --danger: #f97066; --danger-line: #5b2622; --ok-bg: #16301f; --err-bg: #3a1a1a;
+    --danger: #f97066; --danger-line: #5b2622; --ok-bg: #16301f; --ok-fg: #5fd38d; --err-bg: #3a1a1a;
     --rail-bg: #0b0e13; --rail-active: #1f2633; --folder-fill: #5c4614; --folder-stroke: #f2c14e;
     --badge-admin-bg: #4a3313; --badge-admin-fg: #ffd8a0;
     --shadow: 0 10px 30px rgba(0, 0, 0, .5);
@@ -96,6 +96,7 @@ label.btn-primary { color: var(--primary-fg); }
          background: var(--line); color: var(--fg); vertical-align: middle; }
 .badge-admin { background: var(--badge-admin-bg); color: var(--badge-admin-fg); }
 .badge-ok { background: var(--ok-bg); }
+.badge-err { background: var(--err-bg); }
 .pill { margin-left: auto; font-size: 10px; padding: 1px 6px; border-radius: 999px; background: var(--line);
         color: var(--muted); font-weight: 500; }
 .flashes { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px 0; }

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from .. import registry
 from ..settings import auth_methods
-from .base import (AuthDenied, AuthMethod, DirectoryUser, GroupDirectory, Identity, LoginButton, Notice,
+from .base import (AuthDenied, AuthMethod, DirectoryPerson, DirectoryUser, GroupDirectory, Identity, LoginButton, Notice,
                    SSOError, SSOProvider)
 
 _METHODS: dict[str, AuthMethod] = {}
@@ -56,5 +56,5 @@ def get(key: str) -> AuthMethod | None:
 
 discover()
 
-__all__ = ["AuthDenied", "AuthMethod", "DirectoryUser", "GroupDirectory", "Identity", "LoginButton", "Notice", "SSOError",
+__all__ = ["AuthDenied", "AuthMethod", "DirectoryPerson", "DirectoryUser", "GroupDirectory", "Identity", "LoginButton", "Notice", "SSOError",
            "SSOProvider", "discover", "get", "methods", "register"]

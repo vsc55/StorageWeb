@@ -34,6 +34,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 VENDOR = ROOT / "src" / "storageweb" / "web" / "static" / "vendor"
+# Qué hay copiado, para el propio StorageWeb (Sistema → Información, core/diagnostics.vendored): nombre, versión, el
+# ajuste que lo usa y la huella de cada fichero. Lo escribe este programa y --check lo compara
+MANIFEST = VENDOR / "vendor.json"
 REGISTRY = "https://registry.npmjs.org"
 MIN_AGE_DAYS = 14
 OUTDATED = 3       # código de salida de --outdated cuando hay algo que mirar
@@ -41,6 +44,7 @@ OUTDATED = 3       # código de salida de --outdated cuando hay algo que mirar
 PACKAGES = {
     # Diagramas de los .md en el visor; se ejecuta solo dentro de un marco aislado (web/views/files.py, diagram)
     "mermaid": {
+        "setting": "preview.diagrams",
         "version": "12.3.0",
         "tarball": "https://registry.npmjs.org/mermaid/-/mermaid-12.3.0.tgz",
         "integrity": "sha512-4113TdXeLAsMruJ79OpFL5O8+LTFXhQqZ260rF3tgUmiNAtRm4Uume04I+65PRN6yZ69J4f8rVYWW8zRk65UYw==",
@@ -52,6 +56,9 @@ PACKAGES = {
     # y unos pocos más que suelen estar en un servidor de archivos
     "highlight.js": {
         "registry": "@highlightjs/cdn-assets",
+        # Los avisos de seguridad (OSV, npm) se publican para «highlight.js», el mismo código
+        "advisories": "highlight.js",
+        "setting": "preview.highlight",
         "version": "11.12.0",
         "tarball": "https://registry.npmjs.org/@highlightjs/cdn-assets/-/cdn-assets-11.12.0.tgz",
         "integrity": "sha512-KvOKXODaiFmId9xaq3xc5xCL66wVLUuOngDbO9B/kewbFTqdGbn2nJxNhN3H5R1cgDTVj6R8vH0zgiNDEGjpDw==",
@@ -76,9 +83,20 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def manifest() -> str:
+    """El contenido de vendor.json para lo fijado aquí (estable: claves en orden y salto de línea final)."""
+    data = {name: {"package": pkg.get("registry", name), "advisories": pkg.get("advisories", pkg.get("registry", name)),
+                   "version": pkg["version"], "setting": pkg.get("setting", ""),
+                   "files": dict(sorted(pkg["sha256"].items()))}
+            for name, pkg in sorted(PACKAGES.items())}
+    return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+
+
 def check() -> list[str]:
-    """Ficheros que faltan o no coinciden con su huella."""
+    """Ficheros que faltan o no coinciden con su huella, y vendor.json si no dice lo fijado aquí."""
     problems = []
+    if not MANIFEST.is_file() or MANIFEST.read_text(encoding="utf-8") != manifest():
+        problems.append("vendor.json no coincide con lo fijado en tools/vendor.py")
     for name, pkg in PACKAGES.items():
         for out in pkg["files"].values():
             path = VENDOR / out
@@ -184,6 +202,7 @@ def main() -> int:
         for name, pkg in PACKAGES.items():
             if any(p.startswith(f"{name}:") for p in check()):
                 fetch(name, pkg)
+        MANIFEST.write_text(manifest(), encoding="utf-8", newline="\n")
     problems = check()
     for problem in problems:
         print(problem, file=sys.stderr)

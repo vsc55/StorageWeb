@@ -10,8 +10,8 @@
         <a class="btn btn-small{% if window.at_end %} is-disabled{% endif %}" href="{{ here }}"{% if window.at_end %} aria-disabled="true" tabindex="-1"{% endif %}>{{ _("End") }}</a>
       </nav>
 {%- endmacro %}
-{# Visor de texto y Markdown (files.view). El HTML del Markdown lo genera core/markdown.py, con todo el texto
-   escapado; el HTML y el SVG del usuario solo se ven como código #}
+{# Visor (files.view): texto y Markdown, imágenes, PDF, vídeo y audio. El HTML del Markdown lo genera core/markdown.py,
+   con todo el texto escapado; el HTML y el SVG del usuario solo se ven como código #}
 {% set folder_url = url_for('files.browse', root=root.name, sub=parent) %}
 {% set download_url = url_for('files.download', root=root.name, sub=rel) %}
 {% set folder_name = crumbs[-1].name if crumbs else root.label %}
@@ -27,8 +27,9 @@
         </nav>
         <h1><svg class="icon icon-sm" aria-hidden="true"><use href="#i-doc"></use></svg><span>{{ name }}</span></h1>
         <p class="muted small">
-          {%- if kind == 'markdown' %}Markdown{% elif kind == 'markup' %}{{ ext|upper }}{% elif lang_label %}{{ lang_label }}{% else %}{{ _("Text") }}{% endif %}
-          {%- if content.text is not none and source %} · {{ 'UTF-8' if content.encoding == 'utf-8' else 'Windows-1252' }} · {% if window %}{{ ngettext("%(num)s line in this part", "%(num)s lines in this part", lines|length) }}{% else %}{{ ngettext("%(num)s line", "%(num)s lines", lines|length) }}{% endif %}{% endif %}
+          {%- if media == 'image' %}{{ _("Image") }} · {{ ext|upper }}{% elif media == 'pdf' %}PDF{% elif media == 'video' %}{{ _("Video") }} · {{ ext|upper }}{% elif media == 'audio' %}{{ _("Audio") }} · {{ ext|upper }}
+          {%- elif kind == 'markdown' %}Markdown{% elif kind == 'markup' %}{{ ext|upper }}{% elif lang_label %}{{ lang_label }}{% else %}{{ _("Text") }}{% endif %}
+          {%- if content and content.text is not none and source %} · {{ 'UTF-8' if content.encoding == 'utf-8' else 'Windows-1252' }} · {% if window %}{{ ngettext("%(num)s line in this part", "%(num)s lines in this part", lines|length) }}{% else %}{{ ngettext("%(num)s line", "%(num)s lines", lines|length) }}{% endif %}{% endif %}
           · {{ size }}{% if mtime %} · {{ _("modified %(when)s", when=mtime) }}{% endif %}</p>
       </div>
     </div>
@@ -37,7 +38,7 @@
          aria-label="{{ _('Previous: %(name)s', name=previous.name) }}" title="{{ _('Previous: %(name)s', name=previous.name) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-left"></use></svg></a>{% endif %}
       {% if following %}<a class="btn btn-icon" href="{{ url_for('files.view', root=root.name, sub=following.rel) }}"
          aria-label="{{ _('Next: %(name)s', name=following.name) }}" title="{{ _('Next: %(name)s', name=following.name) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-right"></use></svg></a>{% endif %}
-      {% if kind == 'markdown' and content.text is not none %}
+      {% if kind == 'markdown' and content and content.text is not none %}
       <div class="segmented viewer-mode" role="group" aria-label="{{ _('How to see it') }}">
         <a class="segment{% if not source %} active{% endif %}" href="{{ url_for('files.view', root=root.name, sub=rel) }}"{% if not source %} aria-current="page"{% endif %}>{{ _("View") }}</a>
         <a class="segment{% if source %} active{% endif %}" href="{{ url_for('files.view', root=root.name, sub=rel, source=1) }}"{% if source %} aria-current="page"{% endif %}>{{ _("Code") }}</a>
@@ -54,7 +55,27 @@
     </div>
   </header>
 
-  {% if content.text is none %}
+  {% if media %}
+  {# Imagen, PDF, vídeo o audio: con lo que trae el navegador; el contenido llega de files.inline, con el tipo que
+     fija el servidor (preview.MEDIA_TYPES). Si el navegador no sabe abrirlo, el aviso de debajo (viewer.js) #}
+  <div class="viewer-media viewer-media-{{ media }}">
+    {% if media == 'image' %}
+    <button type="button" class="viewer-image" id="viewer-image" aria-pressed="false" title="{{ _('Actual size') }}">
+      <img src="{{ inline_url }}" alt="{{ name }}"></button>
+    {% elif media == 'pdf' %}
+    <iframe class="viewer-pdf" src="{{ inline_url }}" title="{{ name }}"></iframe>
+    {% elif media == 'video' %}
+    <video controls preload="metadata" src="{{ inline_url }}"></video>
+    {% else %}
+    <audio controls preload="metadata" src="{{ inline_url }}"></audio>
+    {% endif %}
+    <div class="viewer-empty card" id="viewer-media-error" hidden>
+      <p>{{ _("Your browser cannot open this file here. Download it to open it on your computer.") }}</p>
+      <a class="btn btn-primary" href="{{ download_url }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Download") }}</a>
+    </div>
+  </div>
+
+  {% elif content.text is none %}
   <div class="viewer-empty card">
     <svg class="icon icon-xl" aria-hidden="true"><use href="#i-doc"></use></svg>
     {% if content.reason == 'too_large' %}

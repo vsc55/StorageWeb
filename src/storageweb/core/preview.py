@@ -8,12 +8,15 @@ convierte a HTML en ``core/markdown.py``; aquí solo se decide qué es cada arch
 - ``text``: texto o código, con números de línea.
 - ``markup``: HTML y SVG. **Siempre como código**: abrirlos como página ejecutaría lo que lleven dentro
   con la sesión del usuario.
+- ``image``, ``pdf``, ``video``, ``audio``: no se leen aquí; el visor los pone en un ``<img>``, un marco con el visor
+  de PDF del navegador, un ``<video>`` o un ``<audio>`` servidos por ``files.inline`` (:data:`MEDIA_TYPES`).
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 from . import backends
 from ..settings import DEFAULTS
@@ -71,7 +74,52 @@ LANGUAGE_NAMES = {"dockerfile": "dockerfile", "containerfile": "dockerfile", "ma
                   ".bashrc": "bash", ".profile": "bash", ".zshrc": "bash", ".gitconfig": "ini", ".editorconfig": "ini"}
 # Lenguajes que no trae highlight.min.js (los comunes): su fichero aparte, en static/vendor/highlight/languages/
 EXTRA_LANGUAGES = frozenset({"apache", "dockerfile", "dos", "nginx", "powershell", "vbscript"})
-IMAGES = frozenset({"png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif"})
+IMAGES = frozenset({"png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif"})   # las imágenes de un .md
+
+# Imágenes, PDF, vídeo y audio: se ven en el visor con lo que trae el navegador (<img>, <video>, <audio> y su visor de
+# PDF), servidos por files.inline con el tipo de media_types.json, nunca el que diga el archivo ni el sistema. Solo
+# formatos que no ejecutan nada con la sesión del usuario: el SVG no está (es un documento con scripts; se ve como
+# código), y un PDF lo abre el visor del navegador en un documento aislado. Cada tipo se enciende en preview.<ajuste>.
+MEDIA_FILE = Path(__file__).with_name("media_types.json")
+TEXT_KINDS = frozenset({"markdown", "text", "markup"})
+_NEVER_INLINE = MARKUP | {"js", "mjs", "xml", "xsl", "xslt"}     # documentos que ejecutan código: nunca en línea
+
+
+def load_media(path: Path = MEDIA_FILE) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
+    """Lee ``media_types.json`` y lo comprueba (un error aquí para el arranque: mejor que servir algo mal).
+    Devuelve ``(tipos, kind_de, ajustes)``: extensión → MIME, extensión → tipo, tipo → ajuste ``preview.*``."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    types: dict[str, str] = {}
+    kinds: dict[str, str] = {}
+    settings: dict[str, str] = {}
+    for kind, spec in data.items():
+        if kind.startswith("$"):
+            continue
+        setting = spec.get("setting")
+        if kind in TEXT_KINDS or not isinstance(setting, str) or not isinstance(DEFAULTS["preview"].get(setting), bool):
+            raise ValueError(f"{path.name}: {kind}: «setting» must name a preview.* on/off setting")
+        settings[kind] = setting
+        for ext, mime in spec.get("types", {}).items():
+            if (not re.fullmatch(r"[a-z0-9]{1,10}", ext) or ext in _NEVER_INLINE or ext in kinds
+                    or not re.fullmatch(r"(image|video|audio|application)/[a-z0-9.+-]+", str(mime))
+                    or mime in ("image/svg+xml", "text/html", "application/xhtml+xml")):
+                raise ValueError(f"{path.name}: {kind}: {ext} → {mime} is not allowed")
+            types[ext] = mime
+            kinds[ext] = kind
+    return types, kinds, settings
+
+
+MEDIA_TYPES, _MEDIA_KIND, MEDIA_SETTINGS = load_media()
+
+
+def media_kind(ext: str) -> str:
+    """``image``, ``pdf``, ``video``, ``audio`` o ``""`` según la extensión (sin mirar los ajustes)."""
+    return _MEDIA_KIND.get(ext, "")
+
+
+def mime_of(name: str) -> str:
+    """El tipo con el que files.inline sirve un archivo de imagen, PDF, vídeo o audio (``""``: no se sirve)."""
+    return MEDIA_TYPES.get(extension(name), "")
 
 
 def extension(name: str) -> str:
@@ -79,9 +127,9 @@ def extension(name: str) -> str:
 
 
 def kind_of(name: str, options: dict | None = None) -> str | None:
-    """``markdown``, ``text`` o ``markup`` si el visor lo abre; si no, ``None`` (se descarga). ``options`` es
-    ``cfg["preview"]`` (sin ellos, los de serie): el visor desactivado, la lista de extensiones que se abren y
-    la de las que nunca."""
+    """``markdown``, ``text`` o ``markup`` (texto), ``image``, ``pdf``, ``video`` o ``audio`` si el visor lo abre; si
+    no, ``None`` (se descarga). ``options`` es ``cfg["preview"]`` (sin ellos, los de serie): el visor desactivado,
+    cada tipo de archivo multimedia, la lista de extensiones de texto que se abren y la de las que nunca."""
     options = options if options is not None else DEFAULTS["preview"]
     ext = extension(name)
     blocked = options.get("blocked_extensions", ())
@@ -89,6 +137,9 @@ def kind_of(name: str, options: dict | None = None) -> str | None:
     dotname = name.lower()[1:] if not ext and name.startswith(".") else ""
     if not options.get("enabled", True) or ext in blocked or (dotname and dotname in blocked):
         return None
+    media = media_kind(ext)
+    if media:
+        return media if options.get(MEDIA_SETTINGS[media], True) else None
     if ext not in options.get("extensions", ()):
         return "text" if not ext and name.lower() in TEXT_NAMES else None
     if ext in MARKDOWN:

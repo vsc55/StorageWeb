@@ -49,7 +49,7 @@ def config_leaves(tree: dict, prefix: str = "") -> list[tuple[str, object]]:
 LOCATION_KEYS = [f"storage.locations[].{f}" for f in ("name", "label", "type")]
 OPTION_KIND_NAMES = {"text": "texto", "path": "ruta relativa", "server_path": "ruta en el servidor", "url": "URL",
                      "secret": "texto (secreto)", "multiline": "texto de varias líneas (secreto)", "bool": "booleano",
-                     "port": "puerto"}
+                     "port": "puerto", "seconds": "segundos (1-600)"}
 
 
 def location_keys() -> list[str]:

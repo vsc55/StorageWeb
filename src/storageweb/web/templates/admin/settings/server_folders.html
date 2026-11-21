@@ -1,0 +1,40 @@
+{% extends "admin/settings/_layout.html" %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
+{% block section %}
+{# Sistema → Carpetas del servidor: en qué carpetas del disco puede haber carpetas compartidas y personales #}
+{% set st = cfg.storage %}
+{{ form_start() }}
+  <div class="card form-grid">
+    <label class="span2 {{ err_class('storage.allowed_folders') }}"><span class="label-row">{{ _("Allowed server folders") }} {{ origin('storage.allowed_folders') }}</span>
+      <textarea{{ lock('storage.allowed_folders') }} name="allowed_folders" rows="5" class="mono" spellcheck="false" placeholder="D:\Datos&#10;/srv/storageweb">{{ st.allowed_folders|join('\n') }}</textarea>
+      <small class="muted">{{ _("One absolute path per line. Shared and personal folders on the server disk (without a storage location) must be inside one of them, and Browse only lists what is inside them. Empty = any folder of the server.") }}</small>
+      {{ field_error('storage.allowed_folders') }}</label>
+    <p class="muted small span2">{{ _("The real path is compared: a symbolic link that leads outside them is outside. A folder that is already outside stops opening («not available») until it is moved or its folder is added. So that only whoever manages the server can widen the list, set it in config.json or in an environment variable: then it cannot be changed here.") }}</p>
+  </div>
+
+  <div class="card stack section-gap">
+    <h3 class="card-title">{{ _("Folders of the server disk in use") }}</h3>
+    {% if disk_folders %}
+    <table class="files small">
+      <thead><tr><th>{{ _("What") }}</th><th>{{ _("Folder") }}</th><th>{{ _("Status") }}</th></tr></thead>
+      <tbody>
+        {% for f in disk_folders %}
+        <tr>
+          <td>{% if f.kind == 'share' %}<a href="{{ url_for('access.folder', name=f.name) }}">{{ _("Shared folder «%(name)s»", name=f.label) }}</a>
+              {% elif f.kind == 'user' %}<a href="{{ url_for('admin.user_edit', user_uid=f.name) }}">{{ _("Own personal folder of %(name)s", name=f.label) }}</a>
+              {% else %}<a href="{{ url_for('settings.section', name='storage') }}">{{ f.label }}</a>{% endif %}</td>
+          <td class="mono">{{ f.path }}</td>
+          <td>{% if f.base is none %}<span class="badge badge-err">{{ _("outside") }}</span>
+              {% elif f.base %}<span class="badge badge-ok">{{ _("inside %(folder)s", folder=f.base) }}</span>
+              {% else %}<span class="muted">{{ _("no restriction") }}</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">{{ _("No folder uses the server disk: they are all in storage locations.") }}</p>
+    {% endif %}
+  </div>
+  {{ save_bar() }}
+</form>
+{% endblock %}

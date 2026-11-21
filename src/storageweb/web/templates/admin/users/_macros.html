@@ -120,3 +120,111 @@
 {% endif %}
 <a class="small" href="{{ url_for('admin.audit_log', user=user['username']) }}">{{ _("See it in the audit log") }}</a>
 {%- endmacro %}
+
+{# Los favoritos de una persona (core/favorites.for_admin): la ficha y la pestaña de los paneles. Las acciones vuelven
+   a ``next`` #}
+{% macro favorites_list(user, favorites, favorite_roots, next) -%}
+  <p class="muted small">{{ _("The links at the top of their file browser. Removing one does not touch the file or the folder.") }}</p>
+  <ul class="access-list">
+    {% for f in favorites %}
+    <li><svg class="icon" aria-hidden="true"><use href="#i-{{ 'folder' if f.is_dir else 'file' }}"></use></svg>
+      <span class="access-text"><strong>{{ f.name }}</strong>
+        <span class="muted small">{{ f.root_label }} · <code>/{{ f.rel }}</code>
+          {% if f.state == 'no_access' %} · <span class="badge badge-err">{{ _("no access any more") }}</span>
+          {% elif f.state == 'hidden' %} · <span class="badge badge-err">{{ _("hidden") }}</span>{% endif %}</span></span>
+      <form method="post" action="{{ url_for('admin.user_favorite_remove', user_uid=user['uid']) }}" class="inline">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ next }}">
+        <input type="hidden" name="root" value="{{ f.root }}"><input type="hidden" name="rel" value="{{ f.rel }}">
+        <button class="link-btn small" type="submit">{{ _("Remove") }}</button></form></li>
+    {% else %}
+    <li class="muted small">{{ _("No favorites.") }}</li>
+    {% endfor %}
+  </ul>
+  {% if user['enabled'] and favorite_roots %}
+  <form method="post" action="{{ url_for('admin.user_favorite_add', user_uid=user['uid']) }}" class="favorite-add">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ next }}">
+    <select name="root" aria-label="{{ _('Folder') }}">
+      {% for name, label in favorite_roots %}<option value="{{ name }}">{{ label }}</option>{% endfor %}
+    </select>
+    <input type="text" name="path" class="mono" placeholder="{{ _('Folder/Subfolder') }}"
+           title="{{ _('Folder/Subfolder (empty = the whole folder)') }}"
+           aria-label="{{ _('Path') }}" autocomplete="off" spellcheck="false" data-files="1" data-root-from="select[name=root]"
+           data-browse="{{ url_for('admin.browse', scope='root', user=user['uid']) }}" data-pick-title="{{ _('Add a favorite') }}">
+    <button class="btn btn-primary" type="submit" title="{{ _('Add a favorite') }}" aria-label="{{ _('Add a favorite') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("Add") }}</button>
+  </form>
+  {% endif %}
+{%- endmacro %}
+
+{# Origen, alta y último acceso de la cuenta: la cabecera de la ficha y la de los paneles #}
+{% macro user_facts(user) -%}
+{% set method = auth_method(user['source']) %}
+<div class="inline small muted user-facts">
+  <span>{{ SOURCE_LABELS[user['source']] }}{% if method and method.sso and not user['external_id'] %} ({{ _("will be linked on first sign-in") }}){% endif %}</span>
+  <span>· {{ _("Created %(when)s.", when=user['created_at']|datetime) }}</span>
+  <span>· {{ _("last sign-in %(when)s", when=user['last_login']|datetime) }}</span>
+</div>
+{%- endmacro %}
+
+{# Inicio de sesión y seguridad de una persona: verificación en dos pasos (y quitarla), sesiones y tokens. La ficha y
+   la pestaña de los paneles; las acciones vuelven a ``next`` #}
+{% macro signin_security(user, mfa, mfa_applies, mfa_required, user_sessions, user_tokens, next) -%}
+  {% if not (auth_method(user['source']) and auth_method(user['source']).stores_password) %}
+  <p class="muted small">{{ _("Signs in with %(source)s: the password is managed there.", source=SOURCE_LABELS[user['source']]) }}
+    {% if user['external_id'] %}<code>{{ user['external_id'] }}</code>{% endif %}</p>
+  {% endif %}
+  {% if not user['enabled'] and user['disabled_reason'] == 'directory' %}
+  <p class="muted small">{{ _("Disabled automatically because %(source)s removed or disabled the account, or it is no longer in the allowed groups. It is enabled again on its own when %(source)s lets it in.", source=SOURCE_LABELS[user['source']]) }}</p>
+  {% endif %}
+
+  {% if mfa_applies %}
+  <div class="user-row">
+    <div>
+      <strong>{{ _("Two-step verification") }}</strong>
+      {% if mfa.enrolled %}<span class="badge badge-ok">{{ _("On") }}</span>{% else %}<span class="badge">{{ _("Off") }}</span>{% endif %}
+      <p class="muted small">
+        {% if mfa.enrolled %}{% if mfa.totp %}{{ _("authenticator app since %(date)s", date=mfa.since|datetime) }} · {% endif %}{% if mfa.passkeys %}{{ ngettext("%(num)s passkey", "%(num)s passkeys", mfa.passkeys|length) }} · {% endif %}{{ ngettext("%(num)s recovery code left", "%(num)s recovery codes left", mfa.recovery_left) }}
+        {% elif mfa_required %}{{ _("required: they will set it up on their next sign-in") }}{% endif %}</p>
+    </div>
+    {% if mfa.enrolled and user['id'] != current_user['id'] %}
+    <form method="post" action="{{ url_for('admin.user_mfa_reset', user_uid=user['uid']) }}" class="inline js-confirm"
+          data-confirm="{{ _('Remove the two-step verification of «%(name)s»?', name=user['username']) }}"
+          title="{{ _('For someone who lost their phone, their passkeys and their recovery codes. It removes all of them: they will sign in with just their password (or set it up again if it is required). Only they can turn it on again: nobody can set it up for someone else.') }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ next }}">
+      <button class="btn btn-small btn-danger" type="submit">{{ _("Remove two-step verification") }}</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div>
+    <div class="user-row">
+      <strong>{{ _("Sessions and API tokens") }}</strong>
+      {% if user_sessions %}
+      <form method="post" action="{{ url_for('settings.user_sessions_close', user_uid=user['uid']) }}" class="inline">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ next }}">
+        <button class="btn btn-small" type="submit">{{ _("Close all their sessions") }}</button></form>
+      {% endif %}
+    </div>
+    <ul class="access-list">
+      {% for s in user_sessions %}
+      <li><svg class="icon" aria-hidden="true"><use href="#i-monitor"></use></svg>
+        <span class="access-text"><strong>{{ s['user_agent']|ua_summary }}</strong>
+          <span class="muted small">{{ s['ip'] or '—' }} · {{ _("active %(when)s", when=s['last_seen']|datetime) }}</span></span>
+        <form method="post" action="{{ url_for('settings.session_close', sid=s['id']) }}" class="inline">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ next }}">
+          <button class="link-btn small" type="submit">{{ _("Close") }}</button></form></li>
+      {% else %}
+      <li class="muted small">{{ _("No open sessions.") }}</li>
+      {% endfor %}
+      {% for t in user_tokens %}
+      <li><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg>
+        <span class="access-text"><strong>{{ t['name'] }}</strong>
+          <span class="muted small"><code>{{ t['prefix'] }}…</code> · {{ t['scope'] }} · {{ _("last used %(when)s", when=t['last_used_at']|datetime) }}</span></span>
+        <form method="post" action="{{ url_for('settings.user_token_delete', user_uid=user['uid'], token_id=t['id']) }}" class="inline js-confirm"
+              data-confirm="{{ _('Revoke the token «%(name)s»?', name=t['name']) }}">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ next }}">
+          <button class="link-btn small" type="submit">{{ _("Revoke") }}</button></form></li>
+      {% endfor %}
+    </ul>
+  </div>
+{%- endmacro %}

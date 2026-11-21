@@ -1,0 +1,29 @@
+{# Las filas de Personas → Importar: en los resultados y solas (?rows=1), las de la página siguiente al bajar #}
+      {% for row in people %}{% set p = row.person %}
+      <tr>
+        <td class="check-col">{% if not row.imported and not row.conflict %}<input type="checkbox" name="ids" value="{{ p.external_id }}"
+               form="import-bulk" class="import-pick" data-name="{{ p.display_name or p.username }}" aria-label="{{ _('Select %(name)s', name=p.display_name or p.username) }}">{% endif %}</td>
+        <td><strong>{{ p.display_name or p.username }}</strong>{% if p.detail %}<br><span class="muted small">{{ p.detail }}</span>{% endif %}</td>
+        <td><code>{{ p.username }}</code></td>
+        <td>{{ p.email }}</td>
+        <td>{% if not p.enabled %}<span class="badge badge-err">{{ _("disabled in the directory") }}</span>
+          {% elif row.imported %}<span class="badge badge-ok">{{ _("already imported") }}</span>
+          {% elif row.conflict %}<span class="badge badge-err">{{ _("the name is taken") }}</span>
+          {% elif not p.warning %}<span class="muted">—</span>{% endif %}
+          {% if p.warning %}<span class="badge posture-badge-warn" title="{{ p.warning }}">{{ _("cannot sign in") }}</span>
+          <br><span class="muted small">{{ p.warning }}</span>{% endif %}</td>
+        <td class="actions">
+          {% if row.imported %}<a class="btn btn-small" href="{{ url_for('admin.user_edit', user_uid=row.imported['uid']) }}">{{ _("Open") }}</a>
+          {% elif row.conflict %}<a class="btn btn-small" href="{{ url_for('admin.user_edit', user_uid=row.conflict['uid']) }}"
+               title="{{ _('There is already an account called «%(name)s» from another sign-in method.', name=p.username) }}">{{ _("See that account") }}</a>
+          {% else %}
+          <form method="post" action="{{ url_for('admin.user_import') }}" class="inline">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="source" value="{{ method.key }}"><input type="hidden" name="q" value="{{ query }}">
+            <input type="hidden" name="external_id" value="{{ p.external_id }}">
+            <button class="btn btn-small btn-primary" type="submit">{{ _("Import") }}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}

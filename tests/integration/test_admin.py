@@ -380,7 +380,9 @@ def test_settings_origin_and_field_reset(app, make_app, admin):
     client.post("/admin/settings/security", data=data)
     with app.app_context():
         saved = runtime().overrides(get_db())
-        assert saved["app_name"] == "Desde la web" and saved["security"] == {"lockout_minutes": 30}
+        # (dependency_check_hours: el 0 que ponen los tests para no salir a internet, no es de este test)
+        security = {k: v for k, v in saved["security"].items() if k != "dependency_check_hours"}
+        assert saved["app_name"] == "Desde la web" and security == {"lockout_minutes": 30}
     html = client.get("/admin/settings/general").get_data(as_text=True)
     assert 'value="app_name"' in html and "Restablecer" in html and "modificado" in html
     assert "Volver al valor predeterminado: StorageWeb" in html

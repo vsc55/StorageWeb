@@ -40,7 +40,8 @@ def test_openapi_matches_routes(app):
 
 
 def test_audit_actions_are_documented():
-    pattern = re.compile(r"""(?:audit\.log\(\s*[\w()]+,\s*|_audit\(\s*)["']([a-z_]+)["']""")
+    # audit.log(conn, "x"), _audit("x") y audit_event("x") (las vistas): las tres formas de registrar una acción
+    pattern = re.compile(r"""(?:audit\.log\(\s*[\w()]+,\s*|_audit\(\s*|audit_event\(\s*)["']([a-z_]+)["']""")
     in_code = set()
     for path in (ROOT / "src" / "storageweb").rglob("*.py"):
         in_code |= set(pattern.findall(path.read_text(encoding="utf-8")))

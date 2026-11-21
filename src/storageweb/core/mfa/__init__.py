@@ -228,14 +228,23 @@ def spend_challenge(challenge: str, expires_at: float) -> bool:
         return True
 
 
-def registration_options(conn: Connection, user, *, rp_id: str, rp_name: str, challenge: str) -> dict:
-    """Lo que necesita ``navigator.credentials.create()``. El ``user.id`` es el uid de la cuenta (no el nombre: un
-    cambio de nombre no puede soltar la passkey) y ``exclude`` evita registrar dos veces el mismo autenticador."""
+def _user_handle(uid) -> str:
+    """El ``user.id`` de las passkeys de una cuenta: su uid (no el nombre: un cambio de nombre no puede soltarlas)."""
+    return webauthn.b64u_encode(str(uid).encode())
+
+
+def registration_options(conn: Connection, user, *, rp_id: str, rp_name: str, challenge: str,
+                         resident: bool = False) -> dict:
+    """Lo que necesita ``navigator.credentials.create()``. ``exclude`` evita registrar dos veces el mismo
+    autenticador. ``resident`` (entrar sin contraseña encendido): pedir que la passkey se guarde en el dispositivo
+    (credencial residente), que es lo que deja al navegador ofrecerla sin escribir el usuario; si no, se desaconseja
+    (las llaves de seguridad tienen pocos huecos)."""
     return {"challenge": challenge, "rp": {"id": rp_id, "name": rp_name},
-            "user": {"id": webauthn.b64u_encode(str(user["uid"]).encode()), "name": user["username"],
+            "user": {"id": _user_handle(user["uid"]), "name": user["username"],
                      "displayName": user["display_name"] or user["username"]},
             "algorithms": list(cose.SUPPORTED), "timeout": CHALLENGE_SECONDS * 1000,
-            "exclude": [k["credential_id"] for k in repo.passkeys(conn, user["id"])]}
+            "exclude": [k["credential_id"] for k in repo.passkeys(conn, user["id"])],
+            "residentKey": "preferred" if resident else "discouraged"}
 
 
 def register_passkey(conn: Connection, user, *, attestation_object: bytes, client_data_json: bytes, challenge: str,
@@ -288,6 +297,58 @@ def verify_passkey(conn: Connection, user, *, credential_id: str, auth_data: byt
     if not repo.note_passkey_use(conn, row["id"], row["sign_count"], out["sign_count"]):
         raise PasskeyError("concurrent use of the same credential")
     return row["name"]
+
+
+# --------------------------------------------------------------------------- entrar solo con una passkey
+
+def passwordless_on(cfg: dict) -> bool:
+    """Si este servidor ofrece entrar solo con una passkey: ``security.passkey_login`` y passkeys disponibles."""
+    return bool(cfg["security"].get("passkey_login")) and bool(passkey_scope(cfg)[0])
+
+
+def passwordless_allowed(cfg: dict, user) -> bool:
+    """Si ESTA cuenta puede entrar solo con su passkey: activa, de un método con contraseña encendido que la guarda
+    aquí (las locales). En las demás (PAM) el sistema decide si la cuenta sigue valiendo, y eso solo se sabe
+    comprobando su contraseña: una passkey no puede saltárselo."""
+    method = providers.get(user["source"])
+    return (bool(user["enabled"]) and method is not None and method.password and method.stores_password
+            and not method.sso and method.enabled(cfg))
+
+
+def passwordless_options(*, rp_id: str, challenge: str) -> dict:
+    """``navigator.credentials.get()`` sin cuenta: lista vacía (el navegador ofrece las passkeys guardadas para este
+    sitio) y verificación de la persona obligatoria (PIN, huella o cara), porque vale por los dos pasos."""
+    return {"challenge": challenge, "rpId": rp_id, "timeout": CHALLENGE_SECONDS * 1000, "allow": [],
+            "userVerification": "required"}
+
+
+def passkey_owner(conn: Connection, credential_id: str) -> int | None:
+    """El id de la cuenta de esa passkey, o ``None`` (para contar los fallos en ella antes de comprobarla)."""
+    row = repo.passkey_by_credential(conn, str(credential_id or ""))
+    return row["user_id"] if row is not None else None
+
+
+def verify_passwordless(conn: Connection, *, credential_id: str, user_handle: bytes, auth_data: bytes,
+                        client_data_json: bytes, signature: bytes, challenge: str, rp_id: str, origin: str) -> int:
+    """Comprueba una aserción sin cuenta previa y apunta su uso. Devuelve el id de la cuenta dueña de la passkey o
+    lanza :class:`PasskeyError`. Además de lo de siempre: el ``userHandle`` que devuelve el autenticador tiene que ser
+    el de esa cuenta (WebAuthn §7.2, paso 6) y la persona tiene que haberse verificado (flag UV)."""
+    row = repo.passkey_by_credential(conn, str(credential_id or ""))
+    if row is None:
+        raise PasskeyError("unknown credential")
+    # Los bytes que se dieron como user.id al registrarla (los de _user_handle, ya decodificados): el uid de la cuenta
+    if not user_handle or bytes(user_handle) != str(row["user_uid"]).encode():
+        raise PasskeyError("user handle does not match")
+    try:
+        key = cbor.decode(webauthn.b64u_decode(row["public_key"]))
+        out = webauthn.verify_assertion(auth_data=auth_data, client_data_json=client_data_json, signature=signature,
+                                        challenge=challenge, rp_id=rp_id, origin=origin, public_key=key,
+                                        alg=row["alg"], last_sign_count=row["sign_count"], require_uv=True)
+    except (webauthn.CeremonyError, cbor.CborError) as exc:
+        raise PasskeyError(str(exc)) from exc
+    if not repo.note_passkey_use(conn, row["id"], row["sign_count"], out["sign_count"]):
+        raise PasskeyError("concurrent use of the same credential")
+    return row["user_id"]
 
 
 def clean_name(name: str) -> str:

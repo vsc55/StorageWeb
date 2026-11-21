@@ -88,6 +88,11 @@ def _secret_expires(date_text: str) -> str:
     return date_text
 
 
+def _secret_months() -> int:
+    """Cuántos meses vale un secreto que crea StorageWeb (``auth.entra.secret_months``)."""
+    return settings()["auth"]["entra"]["secret_months"]
+
+
 @auth_forms.form_parser("entra")
 def _form(method) -> dict:
     f = request.form
@@ -114,6 +119,9 @@ def _form(method) -> dict:
         "logout_url": f.get("entra_logout_url", "").strip(),
         "timeout_seconds": form_int("entra_timeout_seconds", "auth.entra.timeout_seconds", _("Timeout")),
         "secret_expires": _secret_expires(f.get("entra_secret_expires", "").strip()),
+        "secret_months": form_int("entra_secret_months", "auth.entra.secret_months", _("New secrets last (months)")),
+        "secret_warn_days": form_int("entra_secret_warn_days", "auth.entra.secret_warn_days",
+                                     _("Warn before the secret expires (days)")),
     }
 
 
@@ -395,7 +403,7 @@ def entra_register_poll():
     token = body["access_token"]
     if kind == "rotate":
         try:
-            result = entra_register.rotate_secret(token, options["client_id"])
+            result = entra_register.rotate_secret(token, options["client_id"], secret_months=_secret_months())
         except entra_register.RegisterError as exc:
             audit_event("entra_app_register_failed", options["client_id"], f"rotate:{exc}"[:200])
             return answer("error", _("The secret could not be renewed: %(error)s", error=exc))
@@ -413,7 +421,8 @@ def entra_register_poll():
         try:
             result = entra_register.repair_app(token, options["client_id"], redirect_uri=options["redirect_uri"],
                                                new_secret=options["new_secret"],
-                                               logout_url=options.get("logout_url", ""))
+                                               logout_url=options.get("logout_url", ""),
+                                               secret_months=_secret_months())
         except entra_register.RegisterError as exc:
             audit_event("entra_app_register_failed", options["client_id"], f"repair:{exc}"[:200])
             return answer("error", _("The application could not be repaired: %(error)s", error=exc))
@@ -446,7 +455,7 @@ def entra_register_poll():
                       url_for("settings.section", name="auth"))
 
     try:
-        result = entra_register.register_app(token, **options)
+        result = entra_register.register_app(token, **options, secret_months=_secret_months())
     except entra_register.RegisterError as exc:
         audit_event("entra_app_register_failed", None, str(exc)[:200])
         return answer("error", _("The application could not be registered: %(error)s", error=exc))

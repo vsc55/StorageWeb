@@ -41,7 +41,8 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 storageweb = ["web/templates/*.html", "web/templates/**/*.html", "web/static/**/*",
-              "db/migrations/*.sql", "locale/*/LC_MESSAGES/*.po"]
+              "db/migrations/*.sql", "locale/*/LC_MESSAGES/*.po", "core/*.json",
+              "providers/local/*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

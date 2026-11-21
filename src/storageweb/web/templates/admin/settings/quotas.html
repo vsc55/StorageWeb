@@ -11,11 +11,15 @@
       {{ field_error('storage.home_quota_mb') }}</label>
     <label class="check span2"><input{{ lock('storage.quota_enforce') }} type="checkbox" name="quota_enforce" {% if st.quota_enforce %}checked{% endif %}>
       <span>{{ _("Block uploads that do not fit in the quota") }} {{ origin('storage.quota_enforce') }}
-        <small class="muted">{{ _("Personal and shared folders: what does not fit cannot be uploaded, copied or moved there (web, API, network drive). Unchecked, quotas only warn from 90%%.") }}</small></span></label>
+        <small class="muted">{{ _("Personal and shared folders: what does not fit cannot be uploaded, copied or moved there (web, API, network drive). Unchecked, quotas only warn.") }}</small></span></label>
     <label class="{{ err_class('storage.quota_refresh_minutes') }}"><span class="label-row">{{ _("Measure the quota usage again every (minutes)") }} {{ origin('storage.quota_refresh_minutes') }}</span>
       <input{{ lock('storage.quota_refresh_minutes') }} type="number" name="quota_refresh_minutes" value="{{ st.quota_refresh_minutes }}" min="1" max="10080">
       <small class="muted">{{ _("What StorageWeb writes counts at once; this picks up what others change directly in the storage, in the background.") }}</small>
       {{ field_error('storage.quota_refresh_minutes') }}</label>
+    <label class="{{ err_class('storage.quota_warn_percent') }}"><span class="label-row">{{ _("Warn from (percent of the quota)") }} {{ origin('storage.quota_warn_percent') }}</span>
+      <input{{ lock('storage.quota_warn_percent') }} type="number" name="quota_warn_percent" value="{{ st.quota_warn_percent }}" min="50" max="99">
+      <small class="muted">{{ _("From that much used, the bar turns amber and the Overview warns. From 50 to 99.") }}</small>
+      {{ field_error('storage.quota_warn_percent') }}</label>
   </div>
   <p class="muted small section-gap">{{ _("The quota of each shared folder is set in its page (Shared folders); the one of a group, in the group; the one of a user, in the user.") }}</p>
   {{ save_bar() }}

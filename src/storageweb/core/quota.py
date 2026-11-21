@@ -28,7 +28,7 @@ from ..i18n import _, format_age, format_size
 from . import backends
 
 MB = 1024 * 1024
-WARN_PERCENT = 90        # a partir de aquí se avisa
+WARN_PERCENT = 90        # a partir de aquí se avisa (storage.quota_warn_percent; este, sin ajustes)
 MAX_SECONDS = 10.0       # la primera medida, en la petición
 MAX_ENTRIES = 500_000
 BACKGROUND_SECONDS = 600.0   # las de segundo plano: nadie espera
@@ -50,12 +50,15 @@ _running: set[str] = set()
 _lock = threading.Lock()
 _workers = threading.BoundedSemaphore(BACKGROUND_WORKERS)
 _refresh_seconds = 60 * 60.0
+_warn_percent = WARN_PERCENT
 
 
-def configure(refresh_minutes: int) -> None:
-    """``storage.quota_refresh_minutes``: cada cuánto se vuelve a medir una carpeta en segundo plano."""
-    global _refresh_seconds  # noqa: PLW0603 (ajuste del proceso)
+def configure(refresh_minutes: int, warn_percent: int = WARN_PERCENT) -> None:
+    """``storage.quota_refresh_minutes``: cada cuánto se vuelve a medir una carpeta en segundo plano;
+    ``storage.quota_warn_percent``: desde qué porcentaje se avisa."""
+    global _refresh_seconds, _warn_percent  # noqa: PLW0603 (ajustes del proceso)
     _refresh_seconds = max(int(refresh_minutes or 0), 1) * 60.0
+    _warn_percent = int(warn_percent or WARN_PERCENT)
 
 
 def _key(root: dict) -> str:
@@ -226,7 +229,7 @@ def status(root: dict) -> dict | None:
         return None
     used, complete = usage(root)
     percent = round(used * 100 / limit)
-    level = "over" if used > limit else "warn" if percent >= WARN_PERCENT else "ok"
+    level = "over" if used > limit else "warn" if percent >= _warn_percent else "ok"
     at = measured_at(root)
     return {"used": used, "limit": limit, "percent": percent, "level": level, "complete": complete,
             "used_text": format_size(used), "limit_text": format_size(limit), "measuring": measuring(root),

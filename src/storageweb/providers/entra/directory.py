@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import threading
 import time
 import urllib.parse
@@ -172,6 +173,149 @@ def user_state(ecfg: dict, oid: str) -> dict | None:
     return {"exists": True, "enabled": enabled, "groups": member_groups(ecfg, oid) if enabled else None}
 
 
+USER_SELECT = "id,displayName,userPrincipalName,mail,accountEnabled,jobTitle,department"
+
+
+def search_users(ecfg: dict, text: str, limit: int = 25) -> list[dict] | None:
+    """Cuentas cuyo nombre, UPN o correo empieza por ``text`` (``User.Read.All``). ``None`` si no se puede leer el
+    directorio (sin permiso, sin red…); ``[]`` si no hay ninguna."""
+    text = (text or "").strip()
+    if not configured(ecfg):
+        return None
+    if len(text) < 2:
+        return []
+    value = urllib.parse.quote(text.replace("'", "''"))
+    query = (f"startswith(displayName,'{value}') or startswith(userPrincipalName,'{value}') "
+             f"or startswith(mail,'{value}')")
+    try:
+        status, data = _request("GET", f"{GRAPH}/users?$filter={query}&$select={USER_SELECT}&$top={int(limit)}",
+                                token=_app_token(ecfg))
+    except RegisterError as exc:
+        _log.info("Entra user search failed: %s", exc)
+        return None
+    if status != 200:
+        _log.info("Entra user search failed: %s", _message(data) or status)
+        return None
+    return sorted(data.get("value", []), key=lambda u: str(u.get("displayName") or "").lower())
+
+
+_SKIPTOKEN_RE = re.compile(r"^[A-Za-z0-9_\-.~!*'()%+=/]{1,4096}$")
+
+
+def list_users(ecfg: dict, skiptoken: str = "", page_size: int = 50) -> tuple[list[dict], str] | None:
+    """Una página de todas las cuentas, por nombre: ``(cuentas, marcador de la siguiente o "")``. ``None`` si no se
+    puede leer el directorio. El marcador es el ``$skiptoken`` de Graph y NADA más: la dirección de la página
+    siguiente la compone esto, nunca la que llegue de fuera (con ella el servidor mandaría su token a cualquier
+    sitio)."""
+    if not configured(ecfg):
+        return None
+    if skiptoken and not _SKIPTOKEN_RE.match(skiptoken):
+        return None
+    url = f"{GRAPH}/users?$select={USER_SELECT}&$top={max(1, min(int(page_size), 999))}&$orderby=displayName"
+    if skiptoken:
+        url += "&$skiptoken=" + urllib.parse.quote(skiptoken, safe="")
+    try:
+        status, data = _request("GET", url, token=_app_token(ecfg))
+    except RegisterError as exc:
+        _log.info("Entra user list failed: %s", exc)
+        return None
+    if status != 200:
+        _log.info("Entra user list failed: %s", _message(data) or status)
+        return None
+    following = ""
+    link = str(data.get("@odata.nextLink") or "")
+    if link:
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(link).query)
+        following = (query.get("$skiptoken") or [""])[0]
+    return data.get("value", []), following
+
+
+def get_user(ecfg: dict, oid: str) -> dict | None:
+    """Una cuenta por su Object ID, o ``None`` (no existe o no se puede leer)."""
+    if not configured(ecfg) or not _looks_like_guid(str(oid or "")):
+        return None
+    try:
+        status, data = _request("GET", f"{GRAPH}/users/{urllib.parse.quote(oid, safe='')}?$select={USER_SELECT}",
+                                token=_app_token(ecfg))
+    except RegisterError as exc:
+        _log.info("Entra user %s could not be read: %s", oid, exc)
+        return None
+    return data if status == 200 and data.get("id") else None
+
+
+ASSIGNMENT_TTL = 60          # si la aplicación exige asignación y a quién: se lee una vez por minuto como mucho
+_assignments: dict[str, tuple[float, dict | None]] = {}
+
+
+def assignment(ecfg: dict) -> dict | None:
+    """Si la aplicación empresarial exige asignación («Asignación requerida», ``appRoleAssignmentRequired``) y quién
+    puede entrar por ella: ``{"required": bool, "users": {oid}}`` con las cuentas asignadas directamente y los
+    miembros DIRECTOS de los grupos asignados (Entra ID no aplica la asignación a los grupos anidados). ``None`` si no
+    se puede leer (falta ``Application.Read.All``, sin red…): entonces no se sabe, y no se avisa de nada."""
+    if not configured(ecfg):
+        return None
+    key = f"{ecfg['tenant_id']}|{ecfg['client_id']}"
+    with _lock:
+        cached = _assignments.get(key)
+        if cached and cached[0] > time.monotonic():
+            return cached[1]
+    info = _read_assignment(ecfg)
+    with _lock:
+        _assignments[key] = (time.monotonic() + ASSIGNMENT_TTL, info)
+    return info
+
+
+def _read_assignment(ecfg: dict) -> dict | None:
+    client = urllib.parse.quote(str(ecfg["client_id"]).replace("'", "''"))
+    try:
+        token = _app_token(ecfg)
+        status, data = _request("GET", f"{GRAPH}/servicePrincipals?$filter=appId eq '{client}'"
+                                       f"&$select=id,appRoleAssignmentRequired", token=token)
+        if status != 200 or not data.get("value"):
+            _log.info("Entra application could not be read: %s", _message(data) or status)
+            return None
+        sp = data["value"][0]
+        if not sp.get("appRoleAssignmentRequired"):
+            return {"required": False, "users": set()}
+        users_, groups_ = set(), set()
+        assigned_to = _all_pages(f"{GRAPH}/servicePrincipals/{sp['id']}/appRoleAssignedTo"
+                                 f"?$select=principalId,principalType&$top=999", token)
+        if assigned_to is None:
+            return None
+        for item in assigned_to:
+            (groups_ if item.get("principalType") == "Group" else users_).add(str(item.get("principalId") or "").lower())
+        for group in sorted(groups_):
+            members = _all_pages(f"{GRAPH}/groups/{urllib.parse.quote(group, safe='')}/members?$select=id&$top=999",
+                                 token)
+            if members is None:
+                return None
+            users_.update(str(m.get("id") or "").lower() for m in members)
+        return {"required": True, "users": users_}
+    except RegisterError as exc:
+        _log.info("Entra application could not be read: %s", exc)
+        return None
+
+
+def _all_pages(url: str, token: str, pages: int = 20) -> list[dict] | None:
+    """Los ``value`` de una consulta de Graph siguiendo ``@odata.nextLink`` (``pages`` como mucho); ``None`` si falla."""
+    out: list[dict] = []
+    for _page in range(pages):
+        status, data = _request("GET", url, token=token)
+        if status != 200:
+            _log.info("Entra directory could not be read: %s", _message(data) or status)
+            return None
+        out.extend(data.get("value", []))
+        url = data.get("@odata.nextLink")
+        if not url:
+            break
+    return out
+
+
+def assigned(oid: str, info: dict) -> bool:
+    """Si la cuenta puede entrar según la asignación (``info`` de :func:`assignment`)."""
+    return not info["required"] or str(oid).lower() in info["users"]
+
+
 def can_read_users(access_token: str) -> tuple[bool, str]:
     """(True, "") si el token puede leer el estado de las cuentas; si no, (False, motivo)."""
     try:
@@ -188,5 +332,6 @@ def _looks_like_guid(value: str) -> bool:
 
 def clear_cache() -> None:
     with _lock:
+        _assignments.clear()
         _tokens.clear()
         _info.clear()

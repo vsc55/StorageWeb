@@ -5,12 +5,13 @@ from flask import Flask, g
 
 from .. import __version__, audit_levels, i18n
 from ..i18n import _l
-from ..core import branding, tokens
+from ..core import branding, diagnostics, tokens
 from ..core.permissions import ROLE_LABELS, is_admin
 from .. import providers
+from ..providers import local
 from ..settings import env_name, location_types
 from . import js_messages, nav
-from .context import admin_alerts, get_db, runtime, settings
+from .context import admin_alerts, boot_config, get_db, runtime, settings
 from .guards import csrf_token
 from .views.profile import THEME_ICONS, THEME_LABELS, THEMES, current_theme
 
@@ -58,6 +59,7 @@ def init_templating(app: Flask) -> None:
     app.jinja_env.install_gettext_callables(i18n.raw_gettext, i18n.raw_ngettext, newstyle=True)
     app.jinja_env.filters["datetime"] = i18n.format_datetime
     app.jinja_env.filters["filesize"] = i18n.format_size
+    app.jinja_env.filters["duration"] = i18n.format_duration
     app.jinja_env.filters["ua_summary"] = ua_summary
     app.jinja_env.globals["env_name"] = env_name
     # Niveles de la auditoría (audit_levels): la lista y su nombre en el idioma de la página
@@ -68,6 +70,16 @@ def init_templating(app: Flask) -> None:
     # Cuándo deja de valer un token: su fecha o, con la política security.api_token_max_days, antes
     app.jinja_env.globals["token_expiry"] = lambda t: tokens.effective_expiry(
         t, settings()["security"]["api_token_max_days"])
+    # Dónde empieza el selector de rutas (admin/path-picker.js) en el disco del servidor, y dónde viven las carpetas
+    # personales: {"home": base de las carpetas personales, "home_location": su ubicación o "", "data": data_dir}
+    app.jinja_env.globals["pick_start"] = lambda: {
+        "home": diagnostics.home_base(settings()["storage"]["home_template"]),
+        "home_location": settings()["storage"].get("home_location", ""),
+        "data": boot_config()["data_dir"]}
+    # La longitud mínima de una contraseña nueva (security.password_min_length), para el minlength de los formularios
+    app.jinja_env.globals["password_min_length"] = lambda: settings()["security"]["password_min_length"]
+    # Lo que se pide a una contraseña nueva, en una frase (el title de esos campos): «Al menos 12 caracteres, con…»
+    app.jinja_env.globals["password_rules_text"] = lambda: local.describe(local.rules(settings()))
 
     @app.context_processor
     def inject_globals():

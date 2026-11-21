@@ -84,10 +84,11 @@
               <label class="span2">{{ _("Current password") }}
                 <input type="password" name="current_password" autocomplete="current-password" required></label>
               <label>{{ _("New password") }}
-                <input type="password" name="new_password" autocomplete="new-password" minlength="10" required
-                       placeholder="{{ _('At least 10 characters') }}"></label>
+                <input type="password" name="new_password" autocomplete="new-password" minlength="{{ password_min_length() }}" required
+                       placeholder="{{ _('At least %(num)s characters', num=password_min_length()) }}">
+             <small class="muted">{{ password_rules_text() }}</small></label>
               <label>{{ _("Repeat the new password") }}
-                <input type="password" name="repeat_password" autocomplete="new-password" minlength="10" required></label>
+                <input type="password" name="repeat_password" autocomplete="new-password" minlength="{{ password_min_length() }}" required></label>
               <div class="span2"><button class="btn btn-primary" type="submit">{{ _("Change password") }}</button></div>
             </form>
           </details>
@@ -170,6 +171,7 @@
           <div class="profile-row-info">
             <strong>{{ _("Passkeys") }}</strong> <span class="muted">· {{ mfa.passkeys|length }}</span>
             <p class="muted small">{{ _("Windows Hello, Touch ID, your phone or a security key: you confirm with your fingerprint, face or PIN instead of typing a code.") }}</p>
+            {% if passwordless %}<p class="muted small">{{ _("With them you can also sign in without your password: «Sign in with a passkey» on the sign-in page. Passkeys added before this was turned on may not be offered there; add them again if so.") }}</p>{% endif %}
             {% if not passkeys_on %}<p class="muted small">{{ _("Passkeys are not available on this server.") }}{% if mfa.passkeys %} {{ _("Sign in with the authenticator app or a recovery code.") }}{% endif %}</p>{% endif %}
             {% if mfa.passkeys %}
             <ul class="passkey-list">

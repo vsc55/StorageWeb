@@ -155,7 +155,7 @@ def test_secret_expiry_banner_and_rotation(entra_admin, monkeypatch):
     app, client, token = entra_admin
     html = client.get("/f/home/").get_data(as_text=True)
     assert "El secreto de Entra ID ha caducado" in html and "Renovar el secreto" in html
-    monkeypatch.setattr(entra_register, "rotate_secret", lambda tok, cid: {
+    monkeypatch.setattr(entra_register, "rotate_secret", lambda tok, cid, **kw: {
         "client_secret": "nuevo", "secret_expires": "2099-01-01T00:00:00+00:00"})
     client.post("/admin/settings/entra/rotate", data={"_csrf": token})
     assert 'value="CODE-1"' in client.get("/admin/settings/entra/register").get_data(as_text=True)
@@ -250,7 +250,7 @@ def test_repair_flow_fixes_and_saves_a_new_secret(entra_admin, monkeypatch):
     client.post("/admin/settings/entra/test", data={"_csrf": token})
     calls = []
 
-    def repair(tok, client_id, *, redirect_uri, new_secret, logout_url):
+    def repair(tok, client_id, *, redirect_uri, new_secret, logout_url, **kw):
         calls.append((client_id, redirect_uri, new_secret, logout_url))
         return {"fixed": ["Redirect URI añadida", "Secreto nuevo"], "warnings": [],
                 "signin_consent": ["openid", "profile", "email", "User.Read"],

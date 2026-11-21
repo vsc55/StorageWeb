@@ -55,6 +55,15 @@ def is_secret(path: str) -> bool:
 # (Los de los métodos de inicio de sesión, como auth.entra.role_mappings, los añade su proveedor.)
 LEAF_PATHS: list[tuple[str, ...]] = [("storage", "group_quotas")]
 
+# Tipos de caracteres que se pueden exigir en una contraseña (security.password_require)
+PASSWORD_KINDS = ("lower", "upper", "digit", "symbol")
+# La lista de contraseñas comunes de SecLists (licencia MIT), la misma de la que sale la de serie, en su versión actual
+PASSWORD_LIST_URLS = (
+    "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/"
+    "Pwdb_top-1000000.txt",
+    "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/"
+    "Language-Specific/Spanish_Pwdb_common-password-list-top-150.txt",
+)
 DEFAULTS: dict = {
     "app_name": "StorageWeb",
     # Idioma por defecto de la interfaz y de la CLI (en | es)
@@ -92,6 +101,9 @@ DEFAULTS: dict = {
         # {username} se sustituye por el nombre de usuario (saneado)
         "home_template": "data/homes/{username}",
         "create_home": True,
+        # Carpetas del disco del servidor en las que puede haber carpetas compartidas y personales (y lo único que
+        # enseña el selector de rutas en el disco). [] = cualquiera (settings/server_paths.py)
+        "allowed_folders": [],
         # Crea las carpetas de los shares si no existen (útil en desarrollo)
         "create_shares": False,
         "show_hidden": False,
@@ -114,6 +126,14 @@ DEFAULTS: dict = {
         # Cada cuántos minutos se vuelve a medir en segundo plano el uso de una carpeta con cuota (lo que escribe
         # StorageWeb se cuenta al momento; esto recoge lo que cambien otros directamente en el almacenamiento)
         "quota_refresh_minutes": 60,
+        # Desde qué porcentaje de la cuota se avisa (barra en ámbar, Resumen)
+        "quota_warn_percent": 90,
+        # Búsqueda por nombre (/search, y la API): para al llegar a tantos resultados, segundos o carpetas recorridas
+        "search_max_results": 200,
+        "search_seconds": 8,
+        "search_max_folders": 20000,
+        # Horas sin actividad tras las que se descarta una subida por partes a medias (y su .part)
+        "upload_stale_hours": 24,
         # [{"name", "label", "path", "read_only", "users": ["*"], "read_only_users": [],
         #   "groups": [], "read_only_groups": []}]
         "shares": [],
@@ -146,6 +166,8 @@ DEFAULTS: dict = {
         # Días como mucho que puede durar un token; 0 = sin límite (se pueden crear sin caducidad). También se
         # aplica a los que ya existen: dejan de valer al cumplir ese tiempo desde que se crearon
         "api_token_max_days": 0,
+        # Aviso del Resumen: tokens que siguen valiendo pero nadie usa desde hace tantos días (0 = sin aviso)
+        "api_token_unused_days": 90,
         # Unidad de red (WebDAV en /dav/): se entra con el usuario y un token de API como contraseña
         "webdav": True,
         # Admitir también la contraseña de la cuenta (usuarios locales y PAM) en WebDAV
@@ -155,15 +177,44 @@ DEFAULTS: dict = {
         # Passkeys (WebAuthn) como segundo paso, además de la app de códigos. Necesitan network.public_url con un
         # nombre (no una IP) y HTTPS, salvo en localhost
         "passkeys": True,
+        # Entrar solo con una passkey, sin escribir la contraseña (cuentas que guardan aquí su contraseña: las locales).
+        # La passkey tiene que verificar a la persona (PIN, huella o cara): vale por los dos pasos
+        "passkey_login": False,
+        # Rechazar, al ponerlas, las contraseñas más comunes (una lista local, sin consultar nada fuera: la de serie o
+        # la propia de <data_dir>/common_passwords.txt, core/passwords.py)
+        "password_check": True,
+        # Longitud mínima de una contraseña nueva de las cuentas locales: de 10 (nunca menos) a 128
+        "password_min_length": 10,
+        # Caracteres distintos como mínimo («aaaaaaaaaa»): de 1 (sin comprobar) a 20
+        "password_min_distinct": 4,
+        # Tipos de caracteres obligatorios (PASSWORD_KINDS): lower, upper, digit, symbol
+        "password_require": [],
+        # Rechazar las que contienen el nombre de usuario
+        "password_reject_username": True,
+        # Palabras propias que no puede contener (el nombre de la empresa, la ciudad…), sin distinguir mayúsculas
+        "password_blocklist": [],
+        # Rechazar las que aparecen en filtraciones (Have I Been Pwned, k-anonimato): sale a internet
+        "password_breach_check": False,
+        # De dónde se descarga la lista propia de contraseñas comunes (Descargar ahora, CLI password-list)
+        "password_list_urls": list(PASSWORD_LIST_URLS),
+        # Cada cuántas horas se comprueban solas las bibliotecas instaladas contra OSV.dev, PyPI y npm (sale a
+        # internet): de serie, una vez al día; 0 = solo con el botón (un servidor sin salida a internet)
+        "dependency_check_hours": 24,
     },
-    # Visor de archivos de texto y Markdown en el navegador (/view/…, core/preview.py)
+    # Visor de archivos en el navegador (/view/…, core/preview.py): texto, Markdown, imágenes, PDF, vídeo y audio
     "preview": {
         "enabled": True,
         # Diagramas ```mermaid``` de los .md, dibujados en un marco aislado; desactivado, se ve su código
         "diagrams": True,
         # Colores del código (Python, PHP, JavaScript, SQL…) con highlight.js; desactivado, se ve sin colores
         "highlight": True,
-        # Tamaño máximo para verse en el navegador; más grande, se descarga
+        # Imágenes, PDF, vídeo y audio en el visor (core/preview.MEDIA_TYPES), cada tipo por separado; apagado, se
+        # descargan. Sin límite de tamaño: el navegador los pide por partes
+        "images": True,
+        "pdf": True,
+        "video": True,
+        "audio": True,
+        # Tamaño máximo de un texto para verse en el navegador; más grande, se descarga
         "max_mb": 2,
         # Las extensiones (sin el punto) que se abren en el visor: la lista entera, editable. Las de Markdown se
         # ven con formato; html, htm, xhtml y svg, siempre como código

@@ -57,7 +57,7 @@ Si entras con Microsoft, la verificación en dos pasos la gestiona tu organizaci
 - **Ubicaciones:** *Mi carpeta*, solo tuya, y las carpetas compartidas que te haya asignado el administrador. Las marcadas *(lectura)* solo permiten descargar. Bajo la ubicación abierta se ven la ruta actual y sus subcarpetas.
 - **Lista:** pulsa el nombre de una carpeta para entrar en ella, o el de un archivo para descargarlo. Pulsa los títulos *Nombre*, *Tamaño* o *Modificado* para ordenar; la segunda pulsación invierte el orden. El cuadro *Filtrar o buscar…* oculta lo que no coincide mientras escribes; con **Intro** busca en todas tus carpetas (ver *Buscar archivos*).
 - **Carpetas con muchos elementos:** de una vez se muestran 200 (el administrador puede cambiarlo, de 50 a 5000). Según cómo lo haya configurado, el resto **se carga al bajar** (lo normal), se ve **por páginas** (*Anterior* / *Siguiente*) o **solo con el filtro**. Debajo de la lista pone cuántos se ven de cuántos. En estas carpetas el filtro busca entre **todos** sus elementos, no solo los que ya se ven, sin distinguir mayúsculas ni tildes.
-- **Detalle (derecha):** sin nada seleccionado, muestra la carpeta, su **cuota** si tiene (cuánto lleva usado y qué porcentaje; a partir del 90 % y al superarla aparece además un aviso encima de la lista; lo que no quepa en la cuota no se puede subir, copiar ni mover a esa carpeta, salvo que el administrador haya dejado las cuotas solo como aviso) y el **espacio libre** de su almacenamiento, con una barra del espacio usado (naranja a partir del 80 %, roja del 95 %). En S3 y Azure no hay un tamaño fijo y lo dice; en otros almacenamientos remotos no se muestra. Al pulsar una fila (fuera del nombre) se selecciona y se muestran su tipo, tamaño, fecha y acciones. En pantallas estrechas el detalle aparece debajo de la lista, y en el móvil los paneles se apilan.
+- **Detalle (derecha):** sin nada seleccionado, muestra la carpeta, su **cuota** si tiene (cuánto lleva usado y qué porcentaje; a partir del 90 % (el administrador puede cambiarlo) y al superarla aparece además un aviso encima de la lista; lo que no quepa en la cuota no se puede subir, copiar ni mover a esa carpeta, salvo que el administrador haya dejado las cuotas solo como aviso) y el **espacio libre** de su almacenamiento, con una barra del espacio usado (naranja a partir del 80 %, roja del 95 %). En S3 y Azure no hay un tamaño fijo y lo dice; en otros almacenamientos remotos no se muestra. Al pulsar una fila (fuera del nombre) se selecciona y se muestran su tipo, tamaño, fecha y acciones. En pantallas estrechas el detalle aparece debajo de la lista, y en el móvil los paneles se apilan.
 
 ![Una carpeta compartida: sin selección, el detalle muestra la cuota y el espacio libre](../img/uso/compartida.webp)
 
@@ -67,14 +67,17 @@ Si entras con Microsoft, la verificación en dos pasos la gestiona tu organizaci
   <img src="../img/uso/explorador-oscuro.webp" alt="El explorador con el tema oscuro" width="560">
 </p>
 
-## Ver archivos de texto y Markdown
+## Ver archivos en el navegador
 
-Los archivos de texto se abren en el navegador, sin descargarlos: con **doble clic**, pulsando su nombre o con **Abrir** en el panel de detalle. El resto (PDF, imágenes, Office…) se descarga como siempre.
+Los archivos de texto, las imágenes, los PDF, los vídeos y el audio se abren en el navegador, sin descargarlos: con **doble clic**, pulsando su nombre o con **Abrir** en el panel de detalle. El resto (Office, comprimidos…) se descarga como siempre.
 
 - **Markdown** (`.md`): se ve con formato (títulos, listas, tablas, código, citas, diagramas `mermaid`, enlaces e imágenes de la misma carpeta) y, en pantallas anchas, con un índice a la derecha. **Código** muestra el texto tal cual. Los enlaces a otros `.md` se abren también en el visor.
 - **Texto y código** (`.txt`, `.log`, `.csv`, `.json`, `.yml`, `.ini`, `.py`, `.js`, `.ps1`, `.sql` y muchos más): con números de línea, **Ajustar líneas** para las largas y **Copiar todo**. En los `.log`, los avisos salen en ámbar y los errores en rojo. Para buscar dentro, la búsqueda del navegador (Ctrl+F).
 - **Colores del código:** Python, PHP, JavaScript, TypeScript, SQL, YAML, JSON, PowerShell, Bash, C#, Java, Go… se ven coloreados, y también los bloques de código de los `.md` (con su lenguaje: ```` ```python ````). La cabecera dice el lenguaje. Los archivos de más de 1 MB y los `.log` (que tienen sus propios colores) se ven sin ellos.
 - **HTML y SVG**: se ve su código, nunca la página. Abrirla aquí podría ejecutar lo que lleve dentro con tu sesión; para verla, descárgala.
+- **Imágenes** (`.png`, `.jpg`, `.gif`, `.webp`, `.bmp`, `.ico`, `.avif`): entera en la ventana, sobre un fondo de cuadros donde es transparente; al pulsarla se ve a su tamaño real (y otra vez, de vuelta).
+- **PDF**: con el visor de PDF de tu navegador (páginas, zoom, buscar, imprimir…). Si el navegador no tiene, se descarga.
+- **Vídeo** (`.mp4`, `.m4v`, `.webm`, `.ogv`) y **audio** (`.mp3`, `.wav`, `.ogg`, `.opus`, `.m4a`, `.aac`, `.flac`, `.weba`): con su reproductor; puedes saltar a cualquier punto sin esperar a que baje entero. Si tu navegador no sabe reproducirlo (un formato que no tiene), lo dice y ofrece la descarga.
 - Con las flechas de arriba pasas al archivo anterior o al siguiente de la carpeta que también se pueda ver.
 
 ![El visor con un documento Markdown: formato, un diagrama, el índice, Vista y Código](../img/uso/visor-markdown.webp)
@@ -83,9 +86,9 @@ Los archivos de texto se abren en el navegador, sin descargarlos: con **doble cl
 
 ![Un archivo de Python en el visor, con los colores del código](../img/uso/visor-codigo.webp)
 
-Se ven enteros los archivos de hasta 2 MB (el administrador puede cambiarlo). Un texto más grande, como un log, se ve **por partes**: de entrada la última, con los botones *Principio*, *Anterior*, *Siguiente* y *Final* para moverse; solo se lee esa parte, también en almacenamiento remoto. Un Markdown más grande, o un archivo que no es texto, se descarga. Si no está en UTF-8, se muestra como Windows-1252 (lo habitual en archivos antiguos de Windows) y lo avisa. Las imágenes de otras webs no se cargan dentro de un documento, para que nadie sepa quién lo está leyendo; queda un enlace para abrirlas. Los diagramas `mermaid` se dibujan (sin JavaScript se ve su código). Ver un archivo cuenta en la auditoría como una descarga (detalle `view`).
+Se ven enteros los archivos de texto de hasta 2 MB (el administrador puede cambiarlo; las imágenes, los PDF, el vídeo y el audio no tienen límite). Un texto más grande, como un log, se ve **por partes**: de entrada la última, con los botones *Principio*, *Anterior*, *Siguiente* y *Final* para moverse; solo se lee esa parte, también en almacenamiento remoto. Un Markdown más grande, o un archivo que no es texto, se descarga. Si no está en UTF-8, se muestra como Windows-1252 (lo habitual en archivos antiguos de Windows) y lo avisa. Las imágenes de otras webs no se cargan dentro de un documento, para que nadie sepa quién lo está leyendo; queda un enlace para abrirlas. Los diagramas `mermaid` se dibujan (sin JavaScript se ve su código). Ver un archivo cuenta en la auditoría como una descarga (detalle `view`), una vez aunque saltes de un punto a otro de un vídeo.
 
-El administrador decide en *Sistema → Vista previa* si hay visor, si se dibujan los diagramas, el tamaño máximo, la lista de extensiones que se abren y las que no se abren nunca. De serie no se abren los archivos de texto que suelen guardar secretos o claves (`.env`, `.pem`, `.key`, `.ppk`, `.asc`): se descargan. *Restablecer* devuelve una lista a la de serie y, antes, dice qué extensiones se añaden y cuáles se quitan. Ver `preview.*` en la [referencia de configuración](../referencia/configuracion.md).
+El administrador decide en *Sistema → Vista previa* si hay visor, qué tipos multimedia se ven (imágenes, PDF, vídeo y audio, cada uno aparte), si se dibujan los diagramas, el tamaño máximo, la lista de extensiones que se abren y las que no se abren nunca. De serie no se abren los archivos de texto que suelen guardar secretos o claves (`.env`, `.pem`, `.key`, `.ppk`, `.asc`): se descargan. *Restablecer* devuelve una lista a la de serie y, antes, dice qué extensiones se añaden y cuáles se quitan. Ver `preview.*` en la [referencia de configuración](../referencia/configuracion.md).
 
 ### Editar un archivo de texto
 
@@ -149,7 +152,7 @@ Escribe en *Filtrar o buscar…*: mientras escribes, filtra la carpeta en la que
 
 ![Resultados de buscar «presupuesto» en todas las carpetas](../img/uso/buscar.webp)
 
-Para no tardar demasiado, la búsqueda se para a los 200 resultados o si recorre demasiadas carpetas (sobre todo en almacenamiento remoto: S3, SMB…); entonces lo avisa y conviene afinar las palabras. Con un token de API, `GET /search?q=…` devuelve los resultados en JSON.
+Para no tardar demasiado, la búsqueda se para a los 200 resultados, a los 8 segundos o si recorre demasiadas carpetas (el administrador puede cambiar los tres límites) (sobre todo en almacenamiento remoto: S3, SMB…); entonces lo avisa y conviene afinar las palabras. Con un token de API, `GET /search?q=…` devuelve los resultados en JSON.
 
 En *Mi perfil → Espacio* ves lo mismo para tu carpeta personal.
 

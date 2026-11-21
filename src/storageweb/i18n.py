@@ -152,5 +152,10 @@ def format_age(seconds: float) -> str:
     return _babel_format_timedelta(timedelta(seconds=-max(seconds, 1)), add_direction=True, locale=get_locale())
 
 
+def format_duration(seconds: float) -> str:
+    """Cuánto tiempo, sin dirección, en el idioma activo: «3 días», «5 minutos»."""
+    return _babel_format_timedelta(timedelta(seconds=max(seconds, 1)), locale=get_locale())
+
+
 def locale_display_name(locale: str) -> str:
     return LOCALE_NAMES.get(locale) or Locale.parse(locale).get_display_name(locale)

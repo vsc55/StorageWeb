@@ -50,11 +50,14 @@ SIGN_IN_SCOPES = {
     "User.Read": "e1fe6dd8-ba31-4d61-89e7-88639da4683d",
 }
 ADMIN_ROLE, USER_ROLE = "StorageWeb.Admin", "StorageWeb.User"
-# Permisos de aplicación de Graph (ids fijos en todos los tenants): nombres de los grupos, y estado y grupos de
-# cada cuenta (revisión periódica de las cuentas y usuarios con más de 200 grupos)
+# Permisos de aplicación de Graph (ids fijos en todos los tenants): nombres de los grupos, estado y grupos de cada
+# cuenta (revisión periódica, usuarios con más de 200 grupos, importar personas) y leer la propia aplicación (si
+# exige asignación y a quién está asignada: el aviso de Personas → Importar). Solo lectura
 GROUP_READ_ALL = "5b567255-7703-4780-807c-7be8301ae99b"
 USER_READ_ALL = "df021288-bdef-4463-88db-98f22de89214"
-DIRECTORY_ROLES = {"Group.Read.All": GROUP_READ_ALL, "User.Read.All": USER_READ_ALL}
+APPLICATION_READ_ALL = "9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30"
+DIRECTORY_ROLES = {"Group.Read.All": GROUP_READ_ALL, "User.Read.All": USER_READ_ALL,
+                   "Application.Read.All": APPLICATION_READ_ALL}
 # Claims opcionales del id_token: el email de las cuentas de la organización (sin él solo llega el de los
 # invitados) y la sesión (sid), para el cierre de sesión de canal frontal
 ID_TOKEN_CLAIMS = ("email", "sid")
@@ -72,7 +75,7 @@ def _optional_claims(current: dict | None, groups: bool = False) -> dict | None:
         return None
     id_token += [{"name": name, "essential": False} for name in missing]
     return claims
-SECRET_MONTHS = 24
+SECRET_MONTHS = 24       # sin auth.entra.secret_months (el de serie)
 TIMEOUT = 20
 
 
@@ -166,7 +169,7 @@ def device_poll(device_code: str) -> dict:
 
 def register_app(access_token: str, *, name: str, redirect_uri: str, app_roles: bool = True,
                  group_claims: bool = False, require_assignment: bool = False, group_read: bool = True,
-                 logout_url: str = "") -> dict:
+                 logout_url: str = "", secret_months: int = SECRET_MONTHS) -> dict:
     """Crea la aplicación y devuelve tenant_id, client_id, client_secret, secret_expires y avisos."""
     claims = _claims(access_token)
     tenant_id, admin_oid = claims.get("tid", ""), claims.get("oid", "")
@@ -200,18 +203,23 @@ def register_app(access_token: str, *, name: str, redirect_uri: str, app_roles: 
     try:
         return _finish_registration(access_token, app_body, roles, tenant_id, admin_oid, object_id, client_id,
                                     name=name, app_roles=app_roles, require_assignment=require_assignment,
-                                    group_read=group_read, warnings=warnings)
+                                    group_read=group_read, warnings=warnings, secret_months=secret_months)
     except RegisterError as exc:
         raise RegisterError(_("The application %(client)s was created in Entra ID, but setting it up failed: "
                               "%(error)s. Delete it in the Entra admin center (App registrations) and try again.",
                               client=client_id, error=exc)) from exc
 
 
+def _secret_end(months: int) -> datetime:
+    """Cuándo caduca un secreto nuevo (``auth.entra.secret_months``; las directivas del tenant pueden pedir menos)."""
+    return (datetime.now(timezone.utc) + timedelta(days=30 * int(months or SECRET_MONTHS))).replace(microsecond=0)
+
+
 def _finish_registration(access_token: str, app_body: dict, roles: list, tenant_id: str, admin_oid: str,
                          object_id: str, client_id: str, *, name: str, app_roles: bool, require_assignment: bool,
-                         group_read: bool, warnings: list[str]) -> dict:
+                         group_read: bool, warnings: list[str], secret_months: int = SECRET_MONTHS) -> dict:
     """Lo que va después de crear la aplicación: secreto, service principal, consentimiento y rol de admin."""
-    expires = (datetime.now(timezone.utc) + timedelta(days=30 * SECRET_MONTHS)).replace(microsecond=0)
+    expires = _secret_end(secret_months)
     secret = _graph("POST", f"/applications/{object_id}/addPassword", access_token,
                     {"passwordCredential": {"displayName": name, "endDateTime": expires.isoformat()}})
 
@@ -293,10 +301,10 @@ def _application(access_token: str, client_id: str) -> dict:
     return found[0]
 
 
-def rotate_secret(access_token: str, client_id: str) -> dict:
+def rotate_secret(access_token: str, client_id: str, *, secret_months: int = SECRET_MONTHS) -> dict:
     """Crea un secreto nuevo en la aplicación existente. El anterior sigue valiendo hasta que caduque."""
     app = _application(access_token, client_id)
-    expires = (datetime.now(timezone.utc) + timedelta(days=30 * SECRET_MONTHS)).replace(microsecond=0)
+    expires = _secret_end(secret_months)
     secret = _graph("POST", f"/applications/{app['id']}/addPassword", access_token,
                     {"passwordCredential": {"displayName": f"{app.get('displayName') or 'StorageWeb'} "
                                                            f"{datetime.now(timezone.utc):%Y-%m-%d}",
@@ -306,7 +314,7 @@ def rotate_secret(access_token: str, client_id: str) -> dict:
 
 
 def repair_app(access_token: str, client_id: str, *, redirect_uri: str = "", new_secret: bool = False,
-               group_read: bool = True, logout_url: str = "") -> dict:
+               group_read: bool = True, logout_url: str = "", secret_months: int = SECRET_MONTHS) -> dict:
     """Revisa la aplicación existente y arregla lo que falte, sin tocar lo que ya está bien:
 
     - la Redirect URI de StorageWeb, si no está, y la URL de cierre de sesión de canal frontal (``logout_url``);
@@ -411,7 +419,7 @@ def repair_app(access_token: str, client_id: str, *, redirect_uri: str = "", new
 
     if new_secret:
         def secret() -> None:
-            result.update(rotate_secret(access_token, client_id))
+            result.update(rotate_secret(access_token, client_id, secret_months=secret_months))
             fixed.append(_("New client secret created"))
         step(_("Client secret"), secret)
     return result

@@ -30,6 +30,29 @@
     }
   }
 
+  // ------------------------------------------------------------------ imágenes, PDF, vídeo y audio
+  // Una imagen se ve entera en la ventana; pulsarla la pone a su tamaño real (y otra vez, de vuelta)
+  var imageButton = document.getElementById("viewer-image");
+  if (imageButton) {
+    imageButton.addEventListener("click", function () {
+      var zoomed = imageButton.classList.toggle("is-zoomed");
+      imageButton.setAttribute("aria-pressed", zoomed ? "true" : "false");
+    });
+  }
+  // Si el navegador no sabe abrirlo (un códec que no tiene, una imagen rota), el aviso con la descarga. El error
+  // puede llegar antes que este script: se mira también cómo quedó
+  var media = document.querySelector(".viewer-media img, .viewer-media video, .viewer-media audio");
+  var mediaError = document.getElementById("viewer-media-error");
+  if (media && mediaError) {
+    var failed = function () {
+      media.hidden = true;
+      if (imageButton) imageButton.hidden = true;
+      mediaError.hidden = false;
+    };
+    media.addEventListener("error", failed);
+    if (media.tagName === "IMG" ? (media.complete && media.naturalWidth === 0) : media.error) failed();
+  }
+
   // Un log grande se abre por el final: se baja hasta la última línea (después de ajustar las líneas)
   if (box && box.hasAttribute("data-scroll-end") && box.lastElementChild) {
     box.lastElementChild.scrollIntoView({ block: "end" });

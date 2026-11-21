@@ -235,7 +235,7 @@ def recent():
                            favorites=favorites.listing(get_db(), g.user, settings()), viewable=_viewable)
 
 
-# --------------------------------------------------------------------------- visor (texto y Markdown)
+# --------------------------------------------------------------------------- visor
 
 def _md_link(root: dict, rel: str):
     """Dirección de un enlace del documento: http(s) y mailto tal cual; una ruta de la misma raíz, al visor o
@@ -291,11 +291,56 @@ def diagram_frame():
     return rv
 
 
+def _neighbours(r: dict, rel: str, options: dict) -> tuple[dict | None, dict | None]:
+    """El archivo que se puede ver anterior y siguiente en su carpeta (las flechas del visor)."""
+    try:
+        siblings = storage.list_directory(r, "/".join(rel.split("/")[:-1]), settings()["storage"]["show_hidden"],
+                                          hidden=patterns.of(settings()))
+    except (PermissionError, backends.BackendError):
+        siblings = []
+    return preview.neighbours(siblings, rel, options)
+
+
+# Cómo se sirve cada tipo en línea: siempre aislado (``sandbox``, un origen opaco), por si alguien abre la dirección
+# suelta; dentro de un <img>, <video> o <audio> la política del archivo no cuenta. El PDF va en un marco del visor, así
+# que además solo se puede enmarcar desde aquí; los visores de PDF de Edge/Chrome y Firefox lo abren aislado (probado
+# con los dos). El tipo lo fija el servidor y va con ``nosniff``: el navegador nunca lo trata como una página.
+_INLINE_CSP = {"pdf": f"{SANDBOX}; default-src 'none'; frame-ancestors 'self'"}
+
+
+@bp.route("/inline/<root>/<path:sub>")
+@login_required
+def inline(root, sub):
+    """El contenido de una imagen, un PDF, un vídeo o un audio para el visor, en línea y con rangos (saltar en un
+    vídeo). Solo lo que el visor abre con los ajustes de ahora (``preview.*``) y con el tipo de
+    ``preview.MEDIA_TYPES``; cualquier otra cosa, 404 (los demás archivos se descargan, como adjunto)."""
+    r = _root(root)
+    _require(r, "download")
+    rel = _rel(sub)
+    entry = _stat(r, rel)
+    if entry is None or entry.is_dir:
+        abort(404)
+    name = backends.name_of(rel)
+    kind = preview.kind_of(name, settings()["preview"])
+    if kind not in preview.MEDIA_SETTINGS:
+        abort(404)
+    # Una vez por vista: el reproductor pide el vídeo por trozos (y al saltar, otros); solo cuenta la primera petición
+    first = request.range is None or not request.range.ranges or request.range.ranges[0][0] == 0
+    if first and request.method != "HEAD":
+        _audit("download", r, rel, "view")
+    rv = send_entry(r, rel, entry, mimetype=preview.mime_of(name), csp=_INLINE_CSP.get(kind, SANDBOX))
+    if kind == "pdf":
+        rv.headers["X-Frame-Options"] = "SAMEORIGIN"     # el visor lo pone en un marco (el resto: DENY)
+    rv.headers["Cross-Origin-Resource-Policy"] = "same-origin"   # ninguna otra web lo incrusta
+    return rv
+
+
 @bp.route("/view/<root>/<path:sub>")
 @login_required
 def view(root, sub):
-    """El archivo en el navegador: Markdown renderizado (o su código) y texto con números de línea. Nunca HTML
-    del usuario: el Markdown pasa por ``core/markdown.py`` y el HTML y el SVG se ven como código."""
+    """El archivo en el navegador: Markdown renderizado (o su código), texto con números de línea, y la página que
+    pone una imagen, un PDF, un vídeo o un audio en su elemento (el contenido llega de :func:`inline`). Nunca HTML del
+    usuario: el Markdown pasa por ``core/markdown.py`` y el HTML y el SVG se ven como código."""
     r = _root(root)
     _require(r, "download")
     rel = _rel(sub)
@@ -307,6 +352,17 @@ def view(root, sub):
     kind = preview.kind_of(name, options)
     if kind is None:     # visor desactivado, extensión fuera de la lista o bloqueada: se descarga
         return redirect(url_for("files.download", root=root, sub=rel))
+    if kind not in preview.TEXT_KINDS:
+        # Imagen, PDF, vídeo o audio: la página solo los pone en su sitio; el contenido lo sirve files.inline
+        previous, following = _neighbours(r, rel, options)
+        return render_template(
+            "view.html", root=r, rel=rel, name=name, parent="/".join(rel.split("/")[:-1]),
+            crumbs=storage.breadcrumbs("/".join(rel.split("/")[:-1])), kind=kind, media=kind,
+            ext=preview.extension(name), size=format_size(entry.size),
+            mtime=format_datetime(datetime.fromtimestamp(entry.mtime)) if entry.mtime else "",
+            content=None, source=False, lines=[], html=None, toc=[], diagrams=0, lang="", lang_label="",
+            highlight_md=False, previous=previous, following=following, window=None, can_edit=False,
+            inline_url=url_for("files.inline", root=r["name"], sub=rel))
     source = kind != "markdown" or request.args.get("source") == "1"
     try:
         content = preview.read_text(r["backend"], rel, entry.size, limit=options["max_mb"] * 1024 * 1024)
@@ -333,12 +389,7 @@ def view(root, sub):
                 current_app.logger.exception("Could not render %s:/%s as Markdown", r["name"], rel)
                 source = True
     parent = "/".join(rel.split("/")[:-1])
-    try:
-        siblings = storage.list_directory(r, parent, settings()["storage"]["show_hidden"],
-                                          hidden=patterns.of(settings()))
-    except (PermissionError, backends.BackendError):
-        siblings = []
-    previous, following = preview.neighbours(siblings, rel, options)
+    previous, following = _neighbours(r, rel, options)
     is_log = preview.extension(name) in preview.LOG
     # Colores del código (highlight.js en el navegador): no en los logs (tienen los suyos), ni por partes, ni en
     # archivos grandes (colorear varios MB bloquea la página un buen rato)
@@ -387,7 +438,7 @@ def edit(root, sub):
     options = settings()["preview"]
     name = backends.name_of(rel)
     view_url = url_for("files.view", root=root, sub=rel)
-    if preview.kind_of(name, options) is None:
+    if preview.kind_of(name, options) not in preview.TEXT_KINDS:     # no se abre, o no es texto (una imagen…)
         return redirect(view_url)
     limit = options["max_mb"] * 1024 * 1024
     try:
@@ -715,9 +766,6 @@ def zip_selection():
 
 # --------------------------------------------------------------------------- buscar
 
-SEARCH_LIMIT = 200
-
-
 @bp.route("/search")
 @login_required
 def search():
@@ -732,7 +780,9 @@ def search():
         r = _root(scope_root)
         path = _rel(request.args.get("path", ""))
         places, scope = [(r, path)], {"root": r, "path": path}
-    result = files_core.search(cfg, places, query, limit=SEARCH_LIMIT) if query else files_core.SearchResult()
+    st = cfg["storage"]
+    result = (files_core.search(cfg, places, query, limit=st["search_max_results"], seconds=st["search_seconds"],
+                                max_folders=st["search_max_folders"]) if query else files_core.SearchResult())
     if query:
         _audit("search", scope["root"] if scope else {"name": "*"}, scope["path"] if scope else "",
                f"{query} ({len(result.items)})")
@@ -743,4 +793,4 @@ def search():
             for i in result.items])
     perms = {r["name"]: _perms(r) for r in roots}
     return render_template("search.html", query=query, result=result, scope=scope, perms=perms, viewable=_viewable,
-                           limit=SEARCH_LIMIT)
+                           limit=st["search_max_results"])

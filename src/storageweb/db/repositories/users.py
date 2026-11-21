@@ -83,6 +83,12 @@ def list_all(conn: Connection, search: str = "", *, status: str | None = None, s
     return conn.execute(sql, params).fetchall()  # noqa: S608 (condiciones fijas, valores parametrizados)
 
 
+def with_own_home(conn: Connection) -> list:
+    """Las cuentas con carpeta personal propia (``home_path``), por nombre."""
+    return conn.execute("SELECT * FROM users WHERE home_path IS NOT NULL AND home_path <> '' "
+                        "ORDER BY username COLLATE NOCASE").fetchall()
+
+
 def count_by_source(conn: Connection) -> dict:
     return {r[0]: r[1] for r in conn.execute("SELECT source, COUNT(*) FROM users GROUP BY source")}
 

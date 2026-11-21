@@ -20,6 +20,7 @@ from ..db.repositories import settings as settings_repo
 from ..i18n import _
 from ..providers import AuthDenied, AuthMethod, Identity
 from ..providers.local import burn_time, hash_password
+from ..settings import server_paths
 from ..settings.defaults import ROLES
 from . import groups as group_core
 from . import maintenance
@@ -118,6 +119,49 @@ def authenticate_password(conn: Connection, cfg: dict, username: str, password: 
 
 
 # --------------------------------------------------------------------------- SSO
+
+# --------------------------------------------------------------------------- importar del directorio
+
+def import_methods(cfg: dict) -> list:
+    """Los métodos de los que se pueden importar personas ahora (``AuthMethod.can_import``): Personas → Importar."""
+    return [m for m in providers.methods() if m.enabled(cfg) and m.can_import(m.section(cfg))]
+
+
+def import_account(conn: Connection, cfg: dict, key: str, external_id: str) -> tuple[dict, str, str]:
+    """Da de alta (o enlaza) a una persona del directorio de ``key`` antes de que entre: la misma cuenta que le daría
+    su primer inicio de sesión (nombre, identificador externo, rol según ``role_mappings`` y sus grupos, si se
+    saben). Devuelve ``(cuenta, "created" | "linked", aviso)`` o lanza :class:`AccountError`; ``aviso`` es por qué
+    no podría entrar aún (``DirectoryPerson.warning``: p. ej. sin asignar a la aplicación), o ``""``.
+
+    La persona se vuelve a leer del directorio por su identificador: nunca se crea con lo que mande el navegador."""
+    method = providers.get(key)
+    if method is None or method not in import_methods(cfg):
+        raise AccountError(_("People cannot be imported from that sign-in method now."), "not_importable")
+    section = method.section(cfg)
+    person = method.get_person(section, external_id)
+    if person is None:
+        raise AccountError(_("That person was not found in the directory (or it could not be read)."), "not_found")
+    if users.get_by_external(conn, key, person.external_id) is not None:
+        raise AccountError(_("«%(name)s» is already imported.", name=person.username), "exists")
+    allowed = {x.lower() for x in section.get("allowed_groups") or []}
+    if allowed and person.groups is not None and not allowed & set(person.groups):
+        raise AccountError(_("«%(name)s» is not in the groups allowed to sign in (%(method)s), so they could not "
+                             "enter.", name=person.username, method=method.label), "not_allowed")
+    existing = users.get_by_username(conn, person.username)
+    if existing is not None:
+        if existing["source"] == key and not existing["external_id"]:
+            # Dada de alta antes a mano (sin identificador): se enlaza, como haría su primer inicio de sesión
+            users.update(conn, existing["id"], external_id=person.external_id)
+            return users.get_by_id(conn, existing["id"]), "linked", person.warning
+        raise AccountError(_("There is already an account called «%(name)s».", name=person.username), "conflict")
+    groups = person.groups or []
+    uid = users.create(conn, username=person.username, source=key, external_id=person.external_id,
+                       role=resolve_role(section, groups), display_name=person.display_name or None,
+                       email=person.email or None, enabled=person.enabled)
+    if method.external_groups and person.groups is not None:
+        group_core.sync_external(conn, uid, key, person.groups)
+    return users.get_by_id(conn, uid), "created", person.warning
+
 
 def resolve_role(section: dict, groups: list[str] | set[str], current_role: str | None = None) -> str:
     """Rol para un usuario SSO según ``role_mappings`` de su método.
@@ -365,7 +409,9 @@ def _guard_last_admin(conn: Connection, user, new_role: str, new_enabled: bool) 
 def create_account(conn: Connection, *, username: str, source: str, role: str = USER, password: str | None = None,
                    display_name: str | None = None, email: str | None = None,
                    groups: list[str] | None = None, home_path: str | None = None,
-                   enabled: bool = True) -> int:
+                   enabled: bool = True, password_rules: dict | None = None, cfg: dict | None = None) -> int:
+    """Da de alta una cuenta. ``password_rules``: las de los ajustes (``local.rules(cfg)``); sin ellas, las de serie.
+    ``cfg`` (los ajustes efectivos): la carpeta personal propia tiene que estar en las carpetas permitidas."""
     username = (username or "").strip()
     m = providers.get(source)
     if m is None:
@@ -375,12 +421,13 @@ def create_account(conn: Connection, *, username: str, source: str, role: str = 
     if not USERNAME_RE.match(username):
         raise AccountError(_("Invalid user name (letters, digits and . _ @ + -)."))
     _check_role(role)
+    check_home_path(cfg, home_path)
     if users.get_by_username(conn, username) is not None:
         raise AccountError(_("A user with that name already exists."))
     password_hash = None
     if m.stores_password:
         try:
-            password_hash = hash_password(password or "")
+            password_hash = hash_password(password or "", username=username, **(password_rules or {}))
         except ValueError as exc:
             raise AccountError(str(exc)) from exc
     uid = users.create(conn, username=username, source=source, role=role, password_hash=password_hash,
@@ -401,9 +448,23 @@ def _set_groups(conn: Connection, user_id: int, groups: list[str]) -> None:
 KEEP = object()  # parámetro que no se cambia
 
 
+def check_home_path(cfg: dict | None, home_path: str | None) -> None:
+    """Una carpeta personal propia en el disco del servidor (sin ``storage.home_location``) tiene que estar dentro
+    de ``storage.allowed_folders``, si hay; una ruta de red, siempre dentro de una de ellas. Sin ``cfg``, nada."""
+    if not cfg or not home_path or cfg["storage"].get("home_location"):
+        return
+    allowed = cfg["storage"].get("allowed_folders") or []
+    if not server_paths.permitted(home_path, allowed) and server_paths.network_path(home_path):
+        raise AccountError(_("The personal folder %(path)s is a network path: it is only accepted inside an allowed "
+                             "server folder (System → Server folders).", path=home_path))
+    if not server_paths.permitted(home_path, allowed):
+        raise AccountError(_("The personal folder %(path)s is outside the allowed server folders: %(allowed)s.",
+                             path=home_path, allowed=", ".join(allowed)))
+
+
 def update_account(conn: Connection, user, actor, *, role: str, enabled: bool, display_name: str | None,
                    email: str | None, home_path: str | None, groups: list[str] | None = None,
-                   quota_mb=KEEP) -> None:
+                   quota_mb=KEEP, cfg: dict | None = None) -> None:
     """Edita la cuenta. ``groups`` (si se pasa) son sus grupos manuales; los sincronizados no cambian. El nombre y
     el email de las cuentas cuyo proveedor los pone (Entra ID) no se tocan."""
     _check_role(role)
@@ -413,6 +474,8 @@ def update_account(conn: Connection, user, actor, *, role: str, enabled: bool, d
         if not enabled:
             raise AccountError(_("You cannot disable your own account."))
     _guard_last_admin(conn, user, role, enabled)
+    if (home_path or None) != user["home_path"]:
+        check_home_path(cfg, home_path)     # la que ya tenía no se vuelve a mirar: se puede editar lo demás
     fields = {"role": role, "enabled": enabled, "home_path": home_path or None}
     if bool(enabled) != bool(user["enabled"]):
         fields["disabled_reason"] = None  # lo decide un admin: el directorio ya no la reactiva sola
@@ -429,7 +492,7 @@ def update_account(conn: Connection, user, actor, *, role: str, enabled: bool, d
         sessions.delete_for_user(conn, user["id"])  # fuera las sesiones abiertas
 
 
-def set_password(conn: Connection, user, actor, password: str) -> int:
+def set_password(conn: Connection, user, actor, password: str, *, password_rules: dict | None = None) -> int:
     """Pone una contraseña nueva a OTRA cuenta que la guarda aquí (un administrador a otra persona) y cierra todas sus
     sesiones abiertas. Devuelve cuántas cerró.
 
@@ -442,7 +505,7 @@ def set_password(conn: Connection, user, actor, password: str) -> int:
     if m is None or not m.stores_password:
         raise AccountError(_("Only local users have a password that can be changed."))
     try:
-        password_hash = hash_password(password or "")
+        password_hash = hash_password(password or "", username=user["username"], **(password_rules or {}))
     except ValueError as exc:
         raise AccountError(str(exc)) from exc
     users.update(conn, user["id"], password_hash=password_hash)

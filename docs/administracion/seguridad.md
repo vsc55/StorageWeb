@@ -9,10 +9,13 @@
 - [ ] `/etc/storageweb/config.json` en `root:storageweb 0640`. Si pones secretos en él (el `client_secret`, contraseñas de ubicaciones), cífralos con `storageweb-admin encrypt-secret` o pásalos por variables de entorno.
 - [ ] `<data_dir>/secrets.key` y `<data_dir>/secret_key` solo legibles por el servicio (`0600`, los crea así).
 - [ ] Al menos un admin con una contraseña larga y **verificación en dos pasos** (`security.mfa_required = admins`), o solo admins de Entra ID con el MFA de Microsoft.
+- [ ] *Rechazar las contraseñas comunes* activado (`security.password_check`, de serie).
+- [ ] *Seguridad → Estado de la seguridad* sin nada «A corregir», y la comprobación automática de *Seguridad → Vulnerabilidades* encendida (de serie, cada 24 horas) o, en un servidor sin salida a internet, *Comprobar ahora* de vez en cuando desde otro que la tenga, y actualizar lo que salga con avisos.
 - [ ] Entra ID: *Assignment required* y App Roles; anota la caducidad del `client_secret`.
 - [ ] Copias programadas y [restauración probada](copias-seguridad.md).
 - [ ] La auditoría se revisa periódicamente (*Seguridad → Auditoría* o `storageweb-admin audit`).
 - [ ] Actualizaciones del sistema y de StorageWeb al día.
+- [ ] *Sistema → Carpetas del servidor* con las carpetas de datos, fijadas en el `config.json`: así un administrador de la web no puede publicar otras carpetas del servidor ni recorrerlas con *Examinar*.
 - [ ] Límites ajustados: `storage.max_file_size_mb`, `security.max_login_failures`, `client_max_body_size`.
 
 ## Qué protege StorageWeb
@@ -26,6 +29,7 @@
 | Scripts con la contraseña | Tokens de API personales (`sw_…`) con alcance de lectura o de lectura y escritura, caducidad y revocación; solo se guarda su hash |
 | Robo de la base de datos | Contraseñas y tokens de API solo como hash; los secretos de los ajustes, **cifrados** (ver abajo) |
 | Salir de la carpeta asignada | Se rechazan `..`, rutas absolutas y symlinks que salen de la raíz; se comprueba en cada petición |
+| Publicar o recorrer cualquier carpeta del servidor | *Carpetas del servidor permitidas* (`storage.allowed_folders`): las carpetas en el disco y el selector *Examinar* solo dentro de ellas; el selector nunca lista rutas de red y solo contesta a la propia página (token CSRF) |
 | Nombres de archivo maliciosos | Saneado, que conserva acentos, rechaza nombres reservados de Windows y limita a 255 bytes |
 | XSS / clickjacking | Plantillas con escape automático, CSP sin `unsafe-inline`, `X-Frame-Options: DENY`, `nosniff` |
 | Escalada en el servidor | Usuario sin privilegios, systemd con `NoNewPrivileges`, `ProtectSystem=strict`, `PrivateTmp` y `UMask=0007` |
@@ -58,6 +62,64 @@ La clave de cifrado es, por orden, la variable de entorno `STORAGEWEB_SECRETS_KE
 
 ![Seguridad → IPs bloqueadas: una red bloqueada y la lista blanca de la oficina](../img/admin/ips.webp)
 
+## Contraseñas
+
+Las reglas de las contraseñas de las cuentas locales están en *Seguridad → Contraseñas*. Se aplican al ponerlas
+(crear la cuenta, cambiarla en *Mi perfil*, un administrador a otra persona o `storageweb-admin user-add`/
+`user-passwd`); las que ya existen no se tocan. Se guardan con el hash scrypt de Werkzeug. Quien la escribe ve
+debajo del campo lo que se le pide («Al menos 12 caracteres, con una mayúscula, un número.»).
+
+| Regla | Ajuste | De serie |
+|---|---|---|
+| Longitud mínima (de 10 a 128; nunca menos de 10) | `security.password_min_length` | 10 |
+| Caracteres distintos como mínimo (`aaaaaaaaaa`, `abababababab`) | `security.password_min_distinct` | 4 |
+| Tipos obligatorios: minúscula, mayúscula, número, símbolo | `security.password_require` | ninguno |
+| No contener el nombre de usuario (si tiene 4 letras o más; si no, no ser igual) | `security.password_reject_username` | sí |
+| No contener ninguna **palabra prohibida** (la empresa, el servicio, la ciudad…) | `security.password_blocklist` | ninguna |
+| No ser una de las **más comunes** | `security.password_check` | sí |
+| No aparecer en **filtraciones conocidas** (Have I Been Pwned) | `security.password_breach_check` | no |
+
+*Probar una contraseña*, en la misma página, dice regla por regla si una contraseña (y, si se
+escribe, un nombre de usuario) se aceptaría con las reglas guardadas, sin guardarla en ningún sitio.
+
+Lo que más protege es la longitud. Obligar a mezclar tipos de caracteres las hace más difíciles de recordar más que
+de adivinar (así lo dice NIST SP 800-63B): por eso viene apagado.
+
+### La lista de contraseñas comunes
+
+De serie, unas 19 000 de 10 caracteres o más (`1234567890`, `qwertyuiop`, `password123`, `contraseña`…), de
+[SecLists](https://github.com/danielmiessler/SecLists) (licencia MIT). Viaja con StorageWeb y **no se consulta nada
+fuera**; la genera `tools/common_passwords.py` desde un commit fijo y con su huella.
+
+Se puede cambiar por una **lista propia** del servidor (`<data_dir>/common_passwords.txt`), desde la misma página o
+con la CLI:
+
+- **Descargar ahora** la junta de las direcciones de `security.password_list_urls` (de serie, la versión actual de
+  las mismas listas de SecLists: el millón de las más usadas, de las que se quedan las de 10 caracteres o más). Solo
+  `https://`, con un tope de 64 MB.
+- **Subir una lista**: un fichero de texto con una por línea (la de tu organización, o una descargada en otro
+  equipo para un servidor sin internet).
+- **Volver a la de serie** borra la propia.
+
+De cualquier lista solo se guardan las de 10 caracteres o más (las más cortas ya las rechaza la longitud), en
+minúsculas y sin repetir. Para añadir unas pocas palabras propias, mejor *Palabras prohibidas*, que además rechaza
+las contraseñas que las **contienen**.
+
+```bash
+sudo storageweb-admin password-list                 # cuál se usa y cuántas tiene
+sudo storageweb-admin password-list --download      # de security.password_list_urls (o --url …)
+sudo storageweb-admin password-list --file lista.txt
+sudo storageweb-admin password-list --reset         # vuelve la de serie
+```
+
+### Filtraciones conocidas
+
+Con *Rechazar las contraseñas que aparecen en filtraciones conocidas* se pregunta a
+[Pwned Passwords](https://haveibeenpwned.com/Passwords), con más de 900 millones de contraseñas filtradas, al
+ponerla. Solo se envían los **5 primeros caracteres de su SHA-1** (k-anonimato, con relleno en la respuesta): ni la
+contraseña ni su hash completo salen del servidor. Necesita salida a `api.pwnedpasswords.com`; si no contesta, la
+contraseña se acepta (las demás reglas siguen valiendo) y queda un aviso en el log.
+
 ## Verificación en dos pasos
 
 Además de la contraseña, un código de seis dígitos de una aplicación de autenticación del móvil (TOTP, RFC 6238: Microsoft Authenticator, Google Authenticator, FreeOTP…) o una **passkey** (WebAuthn: Windows Hello, Touch ID, el móvil o una llave de seguridad). Una cuenta puede tener la app, una o varias passkeys o las dos, y cualquiera completa el segundo paso. Es para las cuentas que entran con contraseña, **locales y del sistema (PAM)**; quien entra con **Microsoft Entra ID** usa el segundo factor de Microsoft y StorageWeb no le pide otro.
@@ -82,6 +144,7 @@ flowchart TD
 - **Quién debe tenerla:** *Seguridad → Inicio de sesión → Verificación en dos pasos obligatoria para* (`security.mfa_required`): *nadie* (`off`, por defecto: opcional), *administradores* (`admins`) o *todas las cuentas que entran con contraseña* (`all`). Activarlo **no deja fuera a nadie**: quien debe tenerla y no la tiene la configura en ese momento, al iniciar sesión. Y quien la tiene la usa siempre, valga lo que valga el ajuste.
 - **Sin sesión hasta el código:** con la contraseña correcta solo queda una nota en la cookie que caduca a los **5 minutos**; los códigos equivocados cuentan como contraseñas equivocadas (`security.max_login_failures` y el bloqueo de IPs), y acertar la contraseña no reinicia la cuenta. Cada código vale **una sola vez** (también los de recuperación), aunque siga dentro de sus 30 segundos.
 - **Passkeys** (`security.passkeys`, activado por defecto, en *Seguridad → Inicio de sesión*): necesitan que la dirección pública (`network.public_url`, *Sistema → Red y HTTPS*) tenga **un nombre** (no una IP) y **HTTPS**, salvo `localhost`. La passkey queda atada a ese nombre (el *RP ID*) y **no se puede mover**: si un día cambia, las passkeys dejan de valer y esas cuentas entran con la app o un código de recuperación. Por eso el nombre sale de `network.public_url` y nunca de la petición (detrás de un proxy, la petición dice lo que diga el proxy). La página avisa si aún no están disponibles. Se comprueban el challenge (de un solo uso, 5 minutos, apuntado como gastado en el servidor: reenviar una cookie de antes no lo devuelve), el tipo de ceremonia, el origen exacto, el nombre, que alguien tocó la llave y el **contador de firmas** (si la llave lleva uno y no avanza, ni siquiera volviendo a 0, la credencial se ha clonado); no se comprueba de qué fabricante es la llave (*attestation*). Algoritmos: ES256, EdDSA y RS256 (de 2048 bits o más). De cada passkey se guarda solo la clave pública.
+- **Entrar solo con una passkey** (`security.passkey_login`, apagado de serie, en *Seguridad → Inicio de sesión*): la página de inicio de sesión ofrece *Entrar con una passkey*, sin escribir el usuario ni la contraseña. El navegador enseña las passkeys guardadas para este sitio, la elegida dice de quién es y StorageWeb comprueba que es de esa cuenta. Vale por **los dos pasos** porque la persona **tiene que verificarse** en el dispositivo (PIN, huella o cara; un simple toque no basta). Solo para las **cuentas locales**: en las de PAM decide el sistema si la cuenta sigue valiendo, y eso solo se sabe con su contraseña, así que siguen entrando con ella. Para que el navegador las ofrezca, la passkey tiene que estar **guardada en el dispositivo** (credencial residente): con el ajuste encendido se piden así al añadirlas; Windows Hello, el llavero de Apple o Google y las llaves FIDO2 lo hacen, pero una añadida antes puede no estarlo y entonces hay que añadirla otra vez. Los intentos fallidos cuentan como contraseñas equivocadas: por IP mientras no se sabe la cuenta y por IP y cuenta cuando se sabe. En la auditoría, `login` con el detalle `local+passkey-only`; los rechazos, `login_failed` con `passkey error=…`.
 - **La unidad de red** (WebDAV) no pide códigos: a una cuenta con la verificación activada (u obligada a tenerla) no se le admite la contraseña aunque esté `security.webdav_passwords`, solo **tokens de API**. Los tokens y la extensión de VS Code siguen igual (el token se crea con la sesión iniciada, código incluido).
 - **Si alguien pierde el móvil (o sus passkeys) y los códigos:** un administrador la quita entera en la ficha del usuario (*Quitar la verificación en dos pasos*; `mfa_reset_by_admin` en la auditoría) y esa persona vuelve a entrar con su contraseña (y la configura otra vez si es obligatoria). Nadie puede activarla por otro. Desde el servidor, cuando ya no queda nadie que pueda entrar: `storageweb-admin mfa-reset <usuario>`; `mfa-status` lista quién la tiene.
 - **Dónde se ve:** la lista de usuarios tiene la columna *2FA*, la ficha de cada usuario su estado y *Inicio de sesión* cuántas cuentas la tienen.
@@ -116,6 +179,48 @@ La auditoría se guarda en la base de datos (*Seguridad → Auditoría*, exporta
 - **Fichero JSON** (`audit.file`): un evento por línea para un agente (Filebeat, Fluent Bit, Wazuh); se abre en cada escritura, así que se puede rotar con logrotate.
 
 Se envía desde una cola en segundo plano: un colector lento o caído nunca frena el servicio. Si la cola (10 000 eventos) se llena, los que no caben se pierden **solo para el SIEM** (en la base de datos están todos) y se cuentan en `storageweb_audit_forward_dropped_total`. Si los envíos fallan, la página lo dice, el *Resumen* avisa y se cuenta en `storageweb_audit_forward_errors_total`. **Enviar un evento de prueba** manda `audit_forward_test` con los ajustes guardados y muestra el error si no llega. La auditoría de la CLI (`storageweb-admin …`) también se reenvía.
+
+## Estado de la seguridad
+
+*Seguridad → Estado de la seguridad* es el tablero de la seguridad, de solo lectura:
+
+- **Cifras de un vistazo:** vulnerabilidades conocidas de las bibliotecas (y la peor), IPs bloqueadas ahora (y cuántas
+  automáticamente), intentos fallidos de inicio de sesión en las últimas 24 horas (y bloqueos), sesiones abiertas (y
+  de administradores), cuentas con contraseña que tienen la verificación en dos pasos y tokens de API vigentes. Cada
+  cifra lleva a su página.
+- **Lista de comprobación:** HTTPS y la dirección pública, la verificación en dos pasos de los administradores y de
+  los usuarios, las reglas de las contraseñas, la protección contra quien prueba contraseñas, los tokens de API (sin
+  caducidad o sin usar), la unidad de red (si admite la contraseña de la cuenta), las copias (automáticas, recientes y
+  fuera del servidor), la auditoría (si sale a un SIEM), la clave de los secretos y las vulnerabilidades de las
+  bibliotecas. Cada punto dice **A corregir**, **A revisar**, **Bien** o **Para tu información** (lo que depende de la
+  organización, como tener un SIEM), por qué, y lleva a la página donde se cambia. Lo grave sale arriba.
+- **Últimos sucesos de seguridad:** lo último de la auditoría con nivel *warning* o más grave (contraseñas y códigos
+  equivocados, bloqueos, IPs bloqueadas, accesos denegados…), con un enlace a la auditoría filtrada.
+
+## Vulnerabilidades en las bibliotecas
+
+*Seguridad → Vulnerabilidades* pregunta por cada biblioteca instalada, las de Python (todo el entorno, también las
+dependencias de las dependencias) y las de JavaScript que viajan con StorageWeb (Mermaid y highlight.js):
+
+- a [OSV.dev](https://osv.dev) si tiene **vulnerabilidades conocidas** (CVE, avisos de GitHub, PYSEC), con su gravedad
+  (la publicada por la base de datos o, si no hay, la puntuación CVSS 3.x de su vector) y un enlace a cada aviso. Un
+  mismo fallo con varios nombres (GHSA, PYSEC, CVE) cuenta una vez;
+- a PyPI y npm si hay una **versión más nueva**.
+
+La tabla dice el **tipo** de cada biblioteca (Python o JavaScript) y se ordena por cualquier columna. **Comprobar
+ahora** la hace en segundo plano con una barra de progreso: *Seguir en segundo plano* cierra la barra y la
+comprobación sigue en el servidor (también si sales de la página); *Ver el progreso* la vuelve a abrir, y el botón no
+se puede pulsar otra vez hasta que acaba. **Comprobación automática** (`security.dependency_check_hours`, de serie
+**cada 24 horas**): la hace sola la tarea de mantenimiento; si ya hay una en marcha, esa vez no empieza otra. En un
+servidor sin salida a internet, ponla a `0` (solo con el botón).
+
+**Sale a internet** (`pypi.org`, `registry.npmjs.org` y `api.osv.dev`, por el proxy del sistema si lo hay:
+`HTTPS_PROXY`), así que solo se hace al pulsar el botón o con la comprobación automática: nunca al arrancar ni al
+abrir una página. De este servidor solo se envían los nombres y las versiones de las bibliotecas, y la lista la
+decide el servidor (no la petición). Queda en la auditoría (`dependencies_checked`; la automática, con el usuario
+`system`). El resultado se guarda: la página lo enseña hasta la siguiente comprobación y, si encontró
+vulnerabilidades, el **Resumen** y el *Estado de la seguridad* lo avisan (en rojo si alguna es alta o crítica). En un
+servidor sin salida a internet, la página lo dice y no hay más.
 
 ## Lo que NO hace (todavía)
 

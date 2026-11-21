@@ -115,3 +115,19 @@ def test_settings_reset_cli(cli, write_config):
     assert "descartados" in cli("settings-reset").stdout
     with app.test_request_context():
         assert settings()["app_name"] == "StorageWeb"
+
+
+def test_own_home_inside_the_allowed_folders(write_config, tmp_path):
+    """``user-add --home`` y ``user-set --home`` miran ``storage.allowed_folders`` (Sistema → Carpetas del servidor)."""
+    cfg = write_config({"storage": {"allowed_folders": [str(tmp_path / "data")]}})
+
+    def run(*args):
+        return subprocess.run([sys.executable, "-m", "storageweb", "--config", str(cfg), *args],
+                              capture_output=True, text=True, encoding="utf-8", cwd=ROOT, env=ENV)
+    fuera = str(tmp_path / "fuera" / "ana")
+    res = run("user-add", "ana", "--password", "contraseña-larga", "--home", fuera)
+    assert res.returncode != 0 and "permitidas" in res.stderr
+    assert run("user-add", "ana", "--password", "contraseña-larga").returncode == 0
+    res = run("user-set", "ana", "--home", fuera)
+    assert res.returncode != 0 and "permitidas" in res.stderr
+    assert run("user-set", "ana", "--home", str(tmp_path / "data" / "ana")).returncode == 0

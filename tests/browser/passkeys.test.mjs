@@ -58,3 +58,15 @@ test("passkeys: se añade en Mi perfil y con ella se entra", async () => {
   assert.match(await page.evaluate("document.querySelector('.passkey-list').textContent"), /Portátil de pruebas/);
   noErrors();
 });
+
+test("entrar solo con la passkey: sin usuario ni contraseña", async () => {
+  // La del test anterior se guardó en el autenticador (security.passkey_login encendido: credencial residente)
+  await page.send("Network.clearBrowserCookies");
+  await page.go(`${BASE}/login?manual=1&next=/profile/security`);
+  const get = "document.querySelector('form[data-for=\"passwordless\"]')";
+  await page.waitFor(`${get} && !${get}.hidden`);
+  await page.evaluate(`${get}.requestSubmit()`);
+  await until("location.pathname === '/profile/security' && document.readyState === 'complete'");
+  assert.match(await page.evaluate("document.querySelector('.passkey-list').textContent"), /Portátil de pruebas/);
+  noErrors();
+});

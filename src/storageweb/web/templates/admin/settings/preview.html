@@ -6,12 +6,29 @@
   <div class="card form-grid">
     <h3 class="card-title span2">{{ _("Viewer") }}</h3>
     <label class="check span2"><input{{ lock('preview.enabled') }} type="checkbox" name="preview_enabled" {% if pv.enabled %}checked{% endif %}>
-      <span>{{ _("Open text and Markdown files in the browser") }} {{ origin('preview.enabled') }}
-        <small class="muted">{{ _("A double click opens them without downloading them: Markdown with its format, text and code with line numbers. HTML and SVG are always shown as code. Disabled, every file is downloaded.") }}</small></span></label>
+      <span>{{ _("Open files in the browser") }} {{ origin('preview.enabled') }}
+        <small class="muted">{{ _("A double click opens them without downloading them: Markdown with its format, text and code with line numbers, and the images, PDF, videos and audio below. HTML and SVG are always shown as code. Disabled, every file is downloaded.") }}</small></span></label>
     <label class="{{ err_class('preview.max_mb') }}"><span class="label-row">{{ _("Largest file to view (MB)") }} {{ origin('preview.max_mb') }}</span>
       <input{{ lock('preview.max_mb') }} type="number" name="preview_max_mb" value="{{ pv.max_mb }}" min="1" max="20">
-      <small class="muted">{{ _("Larger files are downloaded. The viewer reads the whole file to show it.") }}</small>
+      <small class="muted">{{ _("For text files: larger ones are downloaded. The viewer reads the whole file to show it.") }}</small>
       {{ field_error('preview.max_mb') }}</label>
+  </div>
+
+  <div class="card form-grid section-gap">
+    <h3 class="card-title span2">{{ _("Images, PDF, video and audio") }}</h3>
+    <p class="muted small span2">{{ _("They are shown with what the browser has (its image, PDF, video and audio viewers), always with the type the server gives them and never as a page. There is no size limit: the browser asks for them in parts.") }}</p>
+    <label class="check"><input{{ lock('preview.images') }} type="checkbox" name="preview_images" {% if pv.images %}checked{% endif %}>
+      <span>{{ _("Show images") }} {{ origin('preview.images') }}
+        <small class="muted">{{ _("PNG, JPG, GIF, WebP, BMP, ICO and AVIF. SVG can carry code: it is shown as code.") }}</small></span></label>
+    <label class="check"><input{{ lock('preview.pdf') }} type="checkbox" name="preview_pdf" {% if pv.pdf %}checked{% endif %}>
+      <span>{{ _("Show PDF documents") }} {{ origin('preview.pdf') }}
+        <small class="muted">{{ _("With the browser's own PDF viewer, isolated from the page and the session.") }}</small></span></label>
+    <label class="check"><input{{ lock('preview.video') }} type="checkbox" name="preview_video" {% if pv.video %}checked{% endif %}>
+      <span>{{ _("Play videos") }} {{ origin('preview.video') }}
+        <small class="muted">{{ _("MP4, WebM and Ogg, if the browser can play them.") }}</small></span></label>
+    <label class="check"><input{{ lock('preview.audio') }} type="checkbox" name="preview_audio" {% if pv.audio %}checked{% endif %}>
+      <span>{{ _("Play audio") }} {{ origin('preview.audio') }}
+        <small class="muted">{{ _("MP3, WAV, Ogg, Opus, M4A, AAC, FLAC and WebM.") }}</small></span></label>
   </div>
 
   <div class="card form-grid section-gap">

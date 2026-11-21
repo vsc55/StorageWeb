@@ -98,6 +98,7 @@ def _render(section: str):
         context.update(my_sessions=session_repo.list_all(get_db(), user["id"]), current_sid=g.get("session_id"),
                        mfa_applies=mfa.applies(user), mfa=mfa.status(get_db(), user),
                        mfa_required=mfa.required(cfg, user), passkeys_on=mfa_views.passkeys_available(),
+                       passwordless=mfa.passwordless_on(cfg) and mfa.passwordless_allowed(cfg, user),
                        mfa_unlocked=mfa_views.proof_ok(user), mfa_proof_minutes=mfa_views.PROOF_SECONDS // 60)
     elif section == "tokens":
         context.update(my_tokens=api_tokens.list_for_user(get_db(), user["id"]),
@@ -164,7 +165,8 @@ def change_password():
         flash(_("The new password must be different from the current one."), "error")
     else:
         try:
-            users.update(get_db(), user["id"], password_hash=local.hash_password(new))
+            users.update(get_db(), user["id"], password_hash=local.hash_password(
+                new, username=user["username"], **local.rules(settings())))
         except ValueError as exc:
             flash(str(exc), "error")
         else:

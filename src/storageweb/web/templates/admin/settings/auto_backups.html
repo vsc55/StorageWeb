@@ -23,7 +23,9 @@
       {% if not cfg.storage.locations %}<small class="muted"><a href="{{ url_for('locations.index') }}">{{ _("Add a storage location") }}</a></small>{% endif %}
       {{ field_error('maintenance.offsite_location') }}</label>
     <label class="{{ err_class('maintenance.offsite_path') }}"><span class="label-row">{{ _("Folder in the location") }} {{ origin('maintenance.offsite_path') }}</span>
-      <input{{ lock('maintenance.offsite_path') }} type="text" name="offsite_path" value="{{ m.offsite_path }}" class="mono" placeholder="storageweb-backups">
+      <input{{ lock('maintenance.offsite_path') }} type="text" name="offsite_path" value="{{ m.offsite_path }}" class="mono" placeholder="storageweb-backups"
+             data-browse="{{ url_for('admin.browse', scope='location') }}" data-location-from="select[name=offsite_location]"
+             data-pick-title="{{ _('Folder in the location') }}">
       {{ field_error('maintenance.offsite_path') }}</label>
     <label class="{{ err_class('maintenance.offsite_keep') }}"><span class="label-row">{{ _("Backups to keep in the location") }} {{ origin('maintenance.offsite_keep') }}</span>
       <input{{ lock('maintenance.offsite_keep') }} type="number" name="offsite_keep" value="{{ m.offsite_keep }}" min="1">{{ field_error('maintenance.offsite_keep') }}</label>
@@ -31,3 +33,4 @@
   {{ save_bar() }}
 </form>
 {% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/path-picker.js') }}"></script>{% endblock %}

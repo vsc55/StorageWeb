@@ -1,5 +1,6 @@
 {% extends "admin/_layout.html" %}
-{% from "admin/users/_macros.html" import view_switch, avatar, status, badges, filters_form, group_chips, access_list, activity_list with context %}
+{% from "admin/users/_macros.html" import view_switch, avatar, status, badges, user_facts, filters_form, group_chips, access_list, activity_list, favorites_list, signin_security with context %}
+{% from "_space.html" import quota_meter with context %}
 {% block title %}{{ _("Users") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
 <div class="page-head">
@@ -9,7 +10,8 @@
   </div>
   <div class="inline">
     {{ view_switch('panel') }}
-    <a class="btn btn-primary" href="{{ url_for('admin.user_new') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New user") }}</a>
+    {% for key, label in importers %}<a class="btn" href="{{ url_for('admin.user_import', source=key) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Import from %(method)s", method=label) }}</a>
+    {% endfor %}<a class="btn btn-primary" href="{{ url_for('admin.user_new') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New user") }}</a>
   </div>
 </div>
 
@@ -41,6 +43,7 @@
       <div class="user-head-text">
         <h2 class="md-title">{{ current['display_name'] or current['username'] }}</h2>
         <div class="inline small muted"><span>{{ current['username'] }}</span> {{ badges(current) }} {{ status(current) }}</div>
+        {{ user_facts(current) }}
       </div>
       {% if current['id'] != current_user['id'] %}
       <form method="post" action="{{ url_for('admin.user_status', user_uid=current['uid']) }}" class="inline{% if current['enabled'] %} js-confirm{% endif %}"
@@ -56,10 +59,18 @@
       {% if current['id'] != current_user['id'] and auth_method(current['source']) and auth_method(current['source']).stores_password %}
       <a class="btn btn-small" href="{{ url_for('admin.user_password', user_uid=current['uid'], next=here) }}">{{ _("Change password") }}</a>
       {% endif %}
+      {% if current['id'] != current_user['id'] %}
+      <form method="post" action="{{ url_for('admin.user_delete', user_uid=current['uid']) }}" class="inline js-confirm"
+            data-confirm="{{ _('Delete the user «%(name)s»? Their files will not be removed.', name=current['username']) }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ url_for('admin.users_panel', tab=tab) }}">
+        <button class="btn btn-small btn-danger" type="submit">{{ _("Delete user") }}</button>
+      </form>
+      {% endif %}
     </div>
 
     <nav class="tabs" aria-label="{{ _('Sections of the user') }}">
-      {% for key, label in [('profile', _('Profile')), ('groups', _('Groups (%(count)s)', count=memberships|length)), ('access', _('Effective access')), ('activity', _('Activity'))] %}
+      {% for key, label in [('profile', _('Profile')), ('groups', _('Groups (%(count)s)', count=memberships|length)), ('access', _('Effective access')), ('favorites', _('Favorites (%(count)s)', count=favorites|length)), ('security', _('Security')), ('activity', _('Activity'))] %}
       <a class="tab{% if tab == key %} active{% endif %}" href="{{ url_for('admin.users_panel', u=current['uid'], tab=key) }}"{% if tab == key %} aria-current="page"{% endif %}>{{ label }}</a>
       {% endfor %}
     </nav>
@@ -74,8 +85,18 @@
         {% if from_provider %}<p class="muted small span2">{{ _("The name and the email come from %(source)s and are updated on each sign-in: change them there.", source=SOURCE_LABELS[current['source']]) }}</p>{% endif %}
         <label>{{ _("Role") }}
           <select name="role">{% for r in ROLES %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></label>
-        <label>{{ _("Personal folder") }} <small class="muted">({{ _("empty = default template") }})</small>
-          <input type="text" name="home_path" value="{{ form.home_path or '' }}" class="mono"></label>
+        <label>{{ _("Personal folder") }}
+          <input type="text" name="home_path" value="{{ form.home_path or '' }}" class="mono" data-browse="{{ url_for('admin.browse', scope='location') }}" data-location="{{ pick_start().home_location }}" data-start="{{ pick_start().home }}" data-pick-title="{{ _('Personal folder') }}">
+          <small class="muted">{{ _("Empty = the default template.") }}</small></label>
+        <label>{{ _("Quota (MB)") }}
+          <input type="number" name="quota_mb" min="0" value="{{ '' if form.quota_mb is none else form.quota_mb }}"
+                 placeholder="{{ _('default: %(mb)s', mb=default_quota_mb) if default_quota_mb else _('default: no quota') }}">
+          <small class="muted">{{ _("Empty = the one of their groups or the default one; 0 = no quota.") }}</small></label>
+        <div class="field">
+          {% if home_quota %}{{ quota_meter(home_quota) }}
+          {% else %}<span class="label">{{ _("In use") }}</span>
+          <span>{{ ('≥ ' if not home_usage.complete else '') ~ home_usage.used }} <span class="muted small">· {{ _("default: no quota") }}</span></span>{% endif %}
+        </div>
         {% if not (auth_method(current['source']) and auth_method(current['source']).stores_password) %}
         <p class="muted small">{{ _("Signs in with %(source)s: the password is managed there.", source=SOURCE_LABELS[current['source']]) }}</p>
         {% endif %}
@@ -91,6 +112,18 @@
       {{ group_chips(current, memberships, unknown_groups, addable_groups, here, unknown_names) }}
     {% elif tab == 'access' %}
       {{ access_list(current, access, role_permissions) }}
+    {% elif tab == 'security' %}
+      <div class="stack">{{ signin_security(current, mfa, mfa_applies, mfa_required, user_sessions, user_tokens, here) }}</div>
+    {% elif tab == 'favorites' %}
+      <div class="stack">
+        {% if favorites %}
+        <form method="post" action="{{ url_for('admin.user_favorites_clear', user_uid=current['uid']) }}" class="inline js-confirm"
+              data-confirm="{{ _('Remove all the favorites of «%(name)s»? Their files are not touched.', name=current['username']) }}">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ here }}">
+          <button class="btn btn-small" type="submit">{{ _("Remove all") }}</button></form>
+        {% endif %}
+        {{ favorites_list(current, favorites, favorite_roots, here) }}
+      </div>
     {% else %}
       {{ activity_list(current, activity) }}
     {% endif %}
@@ -100,3 +133,4 @@
   </section>
 </div>
 {% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/path-picker.js') }}"></script>{% endblock %}

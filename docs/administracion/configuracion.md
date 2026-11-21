@@ -22,6 +22,17 @@ Cada valor sale de la capa con más prioridad que lo fije, **campo a campo**:
 - **Vuelta atrás completa:** *Sistema → Información → Restablecer todos los ajustes web* o `storageweb-admin settings-reset` descartan los ajustes web; lo que fijan `config.json` y el entorno no cambia.
 - **Secretos:** el `client_secret` de Entra ID nunca se muestra. Si dejas el campo vacío, se conserva el actual.
 
+*Sistema → Información* empieza por lo que se pregunta primero cuando algo falla:
+
+- **Esta instalación:** la versión, cómo se ejecuta (servicio de Windows, contenedor Docker o Podman, servicio de systemd, servidor de desarrollo o un proceso a mano), cuándo arrancó, el PID y los hilos de Waitress, y el Python que la ejecuta.
+- **Servidor:** nombre, sistema operativo y arquitectura, procesadores (y la carga en Linux y macOS), memoria y la **hora del servidor** con su zona: los códigos de la app de verificación dependen de ella.
+- **Base de datos:** versión de SQLite, modo del diario, tamaño (y lo que hay en el WAL) y la versión del esquema frente a la que espera esta versión de StorageWeb.
+- **Carpetas** donde escribe: datos, carpetas personales, copias, subidas a medias y registros, cada una con si existe, si se puede escribir y el espacio libre (una vez por disco). Las que se crean al hacer falta no salen como un fallo.
+- **Cómo ha llegado esta página:** la dirección, la tuya y si *Red y HTTPS* ve algún problema.
+- **Componentes:** las bibliotecas que pide StorageWeb con la versión instalada (las que faltan, primero) y las opcionales de cada tipo de ubicación (S3, SMB, SFTP, Azure), y las de JavaScript que viajan con StorageWeb (Mermaid y highlight.js) con su versión y si algún archivo se ha cambiado a mano. Si los datos del paquete instalado son de otra versión que el código, lo avisa (se arregla volviendo a instalarlo).
+
+**Descargar el informe** da todo eso en texto o JSON, sin secretos, para adjuntarlo a una incidencia (`system_report` en la auditoría).
+
 ![Sistema → Información: lo de arranque y, campo a campo, de dónde sale cada valor](../img/admin/sistema.webp)
 
 !!! note "¿Cuál uso?"
@@ -58,7 +69,7 @@ La barra lateral tiene *Archivos* y, para los administradores, el **Resumen** y 
 | **Resumen** | Avisos que necesitan atención (secreto de Entra ID a punto de caducar, carpetas que no existen, copias automáticas que no se hacen, problemas de red), una tarjeta por zona, tareas frecuentes y la actividad reciente. El número rojo de la barra lateral cuenta los avisos |
 | **Personas** | Usuarios · Grupos · Sesiones y tokens |
 | **Acceso** | Carpetas compartidas · Matriz de accesos · Permisos del rol · Carpetas personales · Cuotas |
-| **Seguridad** | Inicio de sesión · Reglas de bloqueo · API y unidad de red · IPs bloqueadas · Auditoría · Registro de auditoría (retención, niveles y SIEM) |
+| **Seguridad** | Estado de la seguridad · Vulnerabilidades · Inicio de sesión · Reglas de bloqueo · API y unidad de red · IPs bloqueadas · Auditoría · Registro de auditoría (retención, niveles y SIEM) |
 | **Sistema** | General y marca · Red y HTTPS · Almacenamiento externo · Archivos y explorador · Vista previa · Copias automáticas · Copias y base de datos · Monitorización · Información |
 
 **Ajustes bloqueados:** lo que está en `config.json` o en una variable de entorno no se cambia desde la web. En el menú de cada zona, junto a la página, un candado dice cuántos ajustes suyos están así; arriba de la página, la lista de esos ajustes (con su variable de entorno o `config.json`) enlaza a cada uno, y el campo sale desactivado con su origen.

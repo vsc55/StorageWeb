@@ -1,4 +1,5 @@
 {% extends "_login_frame.html" %}
+{% from "_passkeys.html" import passkey_get with context %}
 {% block title %}{{ _("Sign in") }} · {{ app_name }}{% endblock %}
 {% block panel %}
 {% macro local_form(focus) -%}
@@ -13,6 +14,14 @@
   </label>
   <button class="btn btn-primary btn-lg" type="submit">{{ _("Sign in") }}</button>
 </form>
+{% if passwordless %}
+{# Entrar solo con una passkey (security.passkey_login): sin usuario ni contraseña; passkeys.js lo enseña si el
+   navegador puede usarlas #}
+<div class="login-passkey">
+  <p class="login-or muted small"><span>{{ _("or") }}</span></p>
+  {{ passkey_get(url_for('mfa.passwordless_options', next=next_url), url_for('mfa.passwordless'), label=_("Sign in with a passkey"), purpose="passwordless") }}
+</div>
+{% endif %}
 {%- endmacro %}
 <h1>{{ _("Sign in") }}</h1>
 
@@ -39,3 +48,4 @@
 <p class="muted">{{ _("No sign-in method is enabled. Check config.json.") }}</p>
 {% endif %}
 {% endblock %}
+{% block scripts %}{% if passwordless %}<script src="{{ url_for('static', filename='js/passkeys.js') }}"></script>{% endif %}{% endblock %}

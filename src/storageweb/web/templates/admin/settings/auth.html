@@ -18,7 +18,13 @@
     <p class="muted small span2">{% if passkey_rp %}{{ _("Windows Hello, Touch ID, a phone or a security key. They are bound to %(name)s and cannot be moved to another address.", name=passkey_rp) }}
       {% else %}<span class="text-danger">{{ _("Not available yet: passkeys need the public address of the server with a name (not an IP) and HTTPS.") }}</span>
       <a href="{{ url_for('settings.section', name='network') }}">{{ _("Network and HTTPS") }}</a>{% endif %}</p>
+    <label class="check span2"><input type="checkbox" name="passkey_login"{{ lock('security.passkey_login') }} {% if cfg.security.passkey_login %}checked{% endif %}>
+      <span>{{ _("Sign in with a passkey only, without the password") }} {{ origin('security.passkey_login') }}
+        <small class="muted">{{ _("A «Sign in with a passkey» button on the sign-in page, for local accounts. The passkey must verify the person (PIN, fingerprint or face), so it counts for both steps. Passkeys added while this is on are kept on the device, which is what lets the browser offer them without typing the user name.") }}</small></span></label>
   </div>
+
+  <p class="muted small">{{ _("The rules of the passwords of local accounts (length, kinds of characters, common and forbidden ones) are in") }}
+    <a href="{{ url_for('settings.section', name='passwords') }}">{{ _("Passwords") }}</a>.</p>
 
   {# Una tarjeta por método de inicio de sesión registrado (providers/<método>/). Cada uno tiene su
      plantilla en auth/<método>.html; si no, auth/_generic.html la construye con su configuración. #}

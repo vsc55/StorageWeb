@@ -12,6 +12,10 @@
       <input{{ lock('security.api_token_max_days') }} type="number" name="api_token_max_days" value="{{ sec.api_token_max_days }}" min="0" max="3650">
       <small class="muted">{{ _("0 = no limit. With a limit, tokens cannot be created without expiry or for longer, and the ones that already exist stop working when they reach it.") }}</small>
       {{ field_error('security.api_token_max_days') }}</label>
+    <label class="{{ err_class('security.api_token_unused_days') }}"><span class="label-row">{{ _("Warn about tokens unused for (days)") }} {{ origin('security.api_token_unused_days') }}</span>
+      <input{{ lock('security.api_token_unused_days') }} type="number" name="api_token_unused_days" value="{{ sec.api_token_unused_days }}" min="0" max="3650">
+      <small class="muted">{{ _("The Overview warns about valid tokens nobody has used for that long: better revoke them. 0 = no warning.") }}</small>
+      {{ field_error('security.api_token_unused_days') }}</label>
   </div>
 
   <div class="card form-grid section-gap">

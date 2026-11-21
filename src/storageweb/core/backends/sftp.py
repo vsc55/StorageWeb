@@ -20,7 +20,7 @@ from ...i18n import _, _l
 from ...settings.location_types import LocationSchema, Option
 from .base import BackendError, Entry, RemoteBackend, clean_rel, join_rel, name_of
 
-TIMEOUT = 20
+TIMEOUT = 20         # sin la opción «timeout» de la ubicación (la de serie)
 
 
 def _error(exc: Exception) -> BackendError:
@@ -71,8 +71,9 @@ class SFTPSession:
     def _connect(self):
         loc, pk = self.location, self.paramiko
         transport = pk.Transport((loc["host"], int(loc.get("port") or 22)))
-        transport.banner_timeout = TIMEOUT
-        transport.start_client(timeout=TIMEOUT)
+        timeout = int(loc.get("timeout") or TIMEOUT)
+        transport.banner_timeout = timeout
+        transport.start_client(timeout=timeout)
         server_key = transport.get_remote_server_key()
         expected = loc.get("host_key") or ""
         if expected and not host_key_matches(expected, server_key.get_name(), server_key.asbytes()):
@@ -115,6 +116,9 @@ class SFTPBackend(RemoteBackend):
         options=(
             Option("host", _l("Server"), "Nombre o IP del servidor.", required=True, placeholder="files.example.com"),
             Option("port", _l("Port"), "Puerto SSH (`22`).", kind="port", default=22),
+            Option("timeout", _l("Wait for the server (seconds)"),
+                   "Segundos que se espera al servidor (conectar y cada respuesta) antes de dar la operación por fallida (de 1 a 600). Súbelo para un servidor lento o lejano.", kind="seconds", default=20,
+                   help=_l("How long to wait for the server before giving up. Raise it for a slow or distant server.")),
             Option("path", _l("Folder"),
                    "Carpeta del servidor donde va todo: absoluta (`/srv/datos`) o relativa a la del usuario.",
                    kind="server_path", placeholder="/srv/storageweb",

@@ -11,3 +11,5 @@
 *.sql text eol=lf
 packaging/bin/storageweb-admin text eol=lf
 src/storageweb/web/static/vendor/** -text
+# La lista de contraseñas comunes se comprueba por su SHA-256 (tools/common_passwords.py --check): byte a byte
+src/storageweb/providers/local/common_passwords.txt -text

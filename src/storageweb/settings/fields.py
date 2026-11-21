@@ -83,6 +83,18 @@ FIELDS: dict[str, Field] = {
         label=_l("Create the personal folder on first access"),
         page="storage",
         words="home crear"),
+    "storage.allowed_folders": Field(
+        doc="Carpetas del disco del servidor que se pueden usar: las carpetas compartidas y personales que están en el "
+            "disco (sin ubicación de almacenamiento) tienen que estar dentro de alguna, y el botón *Examinar* de la "
+            "administración solo enseña lo que hay en ellas. Rutas absolutas (las relativas, respecto al config.json). "
+            "Se compara la ruta real: un enlace simbólico que sale de ellas está fuera. Una carpeta que ya existía "
+            "fuera deja de abrirse («no disponible») hasta que se mueva o se añada su carpeta. Vacío = cualquiera, "
+            "salvo las rutas de red (`\\\\equipo\\recurso`), que solo valen dentro de una de ellas. "
+            "Para que solo lo cambie quien administra el servidor, póngase en el config.json o en una variable de "
+            "entorno: así la web no lo puede ampliar.",
+        label=_l("Allowed server folders"),
+        page="server_folders",
+        words="carpetas permitidas servidor disco base raíz límite restringir examinar allowed folders"),
     "storage.create_shares": Field(
         doc="Crear las carpetas compartidas si no existen (útil en desarrollo y Docker).",
         label=_l("Create shared folders if they do not exist"),
@@ -102,6 +114,33 @@ FIELDS: dict[str, Field] = {
         label=_l("Measure the quota usage again every (minutes)"),
         page="quotas",
         words="cuota uso medir recalcular reconciliar minutos remoto"),
+    "storage.quota_warn_percent": Field(
+        doc="Desde qué porcentaje de la cuota se avisa: la barra pasa a ámbar y el Resumen lo dice (de 50 a 99).",
+        label=_l("Warn from (percent of the quota)"),
+        page="quotas",
+        words="cuota aviso porcentaje llena casi warn percent full"),
+    "storage.search_max_results": Field(
+        doc="La búsqueda por nombre (web y API) para al llegar a tantos resultados (de 10 a 5000) y lo dice.",
+        label=_l("Search: at most (results)"),
+        page="files",
+        words="buscar búsqueda resultados límite search results limit"),
+    "storage.search_seconds": Field(
+        doc=("Segundos como mucho que dura una búsqueda por nombre (de 1 a 120); al cumplirlos para y enseña lo que "
+             "lleva. En almacenamiento remoto recorrer carpetas es lento: súbelo si hace falta."),
+        label=_l("Search: at most (seconds)"),
+        page="files",
+        words="buscar búsqueda tiempo segundos lenta search time seconds"),
+    "storage.search_max_folders": Field(
+        doc="Carpetas como mucho que recorre una búsqueda por nombre (de 100 a 1 000 000).",
+        label=_l("Search: at most (folders looked at)"),
+        page="files",
+        words="buscar búsqueda carpetas recorrer límite search folders"),
+    "storage.upload_stale_hours": Field(
+        doc=("Horas sin actividad tras las que se descarta una subida por partes a medias (de 1 a 720): hasta entonces "
+             "se puede reanudar; después se borra su `.part`."),
+        label=_l("Discard unfinished uploads after (hours)"),
+        page="files",
+        words="subida reanudar abandonada parte part limpieza upload resume stale"),
     "storage.page_size": Field(
         doc="Elementos de una carpeta que el explorador muestra de una vez (de 50 a 5000). Las carpetas con más se "
             "ven según `storage.listing_mode`. La API y la unidad de red siempre listan la carpeta entera.",
@@ -259,6 +298,12 @@ FIELDS: dict[str, Field] = {
         label=_l("Longest API token lifetime (days)"),
         page="clients",
         words="tokens caducidad máximo días política expiry lifetime"),
+    "security.api_token_unused_days": Field(
+        doc=("Días sin usarse tras los que el Resumen avisa de los tokens de API que siguen valiendo (mejor "
+             "revocarlos: si uno se filtra, sigue funcionando). `0` = sin aviso; de 0 a 3650."),
+        label=_l("Warn about tokens unused for (days)"),
+        page="clients",
+        words="tokens sin usar aviso revocar días unused"),
     "security.webdav_passwords": Field(
         doc=("Admitir también la contraseña de la cuenta (usuarios locales y PAM) en WebDAV. Desactivado: solo "
              "tokens, que se pueden revocar y limitar a lectura."),
@@ -282,10 +327,87 @@ FIELDS: dict[str, Field] = {
         label=_l("Allow passkeys"),
         page="auth",
         words="passkey passkeys webauthn fido llave seguridad windows hello touch id huella security key"),
+    "security.passkey_login": Field(
+        doc=("**Entrar solo con una passkey**, sin escribir el usuario ni la contraseña: un botón *Entrar con una "
+             "passkey* en la página de inicio de sesión. La passkey tiene que verificar a la persona (PIN, huella o "
+             "cara), así que vale por los dos pasos. Solo para las cuentas que guardan aquí su contraseña (las "
+             "locales): en las de PAM decide el sistema si la cuenta sigue valiendo, y eso solo se sabe con su "
+             "contraseña. Necesita `security.passkeys`. Las passkeys añadidas con esto encendido se guardan en el "
+             "dispositivo (*credencial residente*), que es lo que permite elegirlas sin escribir el usuario."),
+        label=_l("Sign in with a passkey only, without the password"),
+        page="auth",
+        words="passkey sin contraseña passwordless entrar login usernameless residente"),
+    "security.password_check": Field(
+        doc=("Al poner una contraseña (crear una cuenta, cambiarla en *Mi perfil* o un administrador a otra persona), "
+             "rechazar las **más comunes**: la lista de unas 19 000 que viaja con StorageWeb o, si se ha descargado o "
+             "subido una en *Seguridad → Contraseñas* (o con `storageweb-admin password-list`), la propia del "
+             "servidor (`<data_dir>/common_passwords.txt`). No se consulta nada fuera. Las contraseñas que ya existen "
+             "no se tocan."),
+        label=_l("Reject common passwords"),
+        page="passwords",
+        words="contraseña común débil filtrada lista password common weak breached blocklist"),
+    "security.password_min_distinct": Field(
+        doc=("Caracteres distintos que tiene que tener como mínimo una contraseña nueva, de `1` (sin comprobar) a "
+             "`20`: `aaaaaaaaaa` o `abababababab` son largas, pero se adivinan enseguida."),
+        label=_l("Different characters at least"),
+        page="passwords",
+        words="contraseña caracteres distintos repetidos password distinct"),
+    "security.password_require": Field(
+        doc=("Tipos de caracteres que tiene que tener una contraseña nueva: `lower` (minúscula), `upper` "
+             "(mayúscula), `digit` (número) y `symbol` (cualquier otro). De serie, ninguno: la longitud protege más "
+             "y obligar a mezclar las hace difíciles de recordar más que de adivinar (NIST SP 800-63B)."),
+        label=_l("It must contain"),
+        page="passwords",
+        words="contraseña mayúscula minúscula número símbolo complejidad password complexity uppercase digit"),
+    "security.password_reject_username": Field(
+        doc="Rechazar las contraseñas que contienen el nombre de usuario (sin distinguir mayúsculas).",
+        label=_l("Reject passwords that contain the user name"),
+        page="passwords",
+        words="contraseña nombre usuario password username"),
+    "security.password_blocklist": Field(
+        doc=("Palabras propias que una contraseña nueva no puede **contener**, sin distinguir mayúsculas: el nombre "
+             "de la empresa, del servicio, la ciudad… De 4 caracteres o más. Se aplica aunque las comunes estén "
+             "apagadas."),
+        label=_l("Forbidden words"),
+        page="passwords",
+        words="contraseña palabras prohibidas lista negra empresa password blocklist banned words"),
+    "security.password_breach_check": Field(
+        doc=("Rechazar las contraseñas que aparecen en **filtraciones conocidas**, preguntando a Pwned Passwords de "
+             "Have I Been Pwned (`api.pwnedpasswords.com`) al ponerlas. Solo se envían los 5 primeros caracteres de "
+             "su SHA-1 (k-anonimato): ni la contraseña ni su hash completo salen del servidor. **Sale a internet**; "
+             "si el servicio no contesta, la contraseña se acepta."),
+        label=_l("Reject passwords that appear in known data breaches (Have I Been Pwned)"),
+        page="passwords",
+        words="contraseña filtrada filtraciones pwned hibp have i been pwned breach leaked"),
+    "security.password_list_urls": Field(
+        doc=("De dónde se descarga la lista propia de contraseñas comunes (*Descargar ahora* en *Seguridad → "
+             "Contraseñas* o `storageweb-admin password-list --download`): direcciones `https://` de ficheros de "
+             "texto con una por línea, que se juntan. De serie, las de SecLists de las que sale la lista de serie, en "
+             "su versión actual. Solo se guardan las de 10 caracteres o más, en minúsculas, con un tope de 64 MB."),
+        label=_l("Download the list from"),
+        page="passwords",
+        words="contraseñas comunes lista descargar actualizar seclists url password list download"),
+    "security.dependency_check_hours": Field(
+        doc=("Cada cuántas horas se comprueban solas las bibliotecas instaladas (Python y el JavaScript copiado) "
+             "contra OSV.dev (vulnerabilidades conocidas) y PyPI y npm (versiones nuevas), de `0` a `720`; de serie `24` "
+             "(una vez al día); `0` = solo con el botón *Comprobar ahora*. **Sale a internet** (`pypi.org`, "
+             "`registry.npmjs.org`, `api.osv.dev`): en un servidor sin salida, ponlo a `0`. "
+             "El resultado se ve en *Seguridad → Vulnerabilidades* y, si las hay, en el Resumen y en *Estado de la seguridad*. "
+             ""),
+        label=_l("Check the libraries automatically every (hours)"),
+        page="vulnerabilities",
+        words="vulnerabilidades cve osv bibliotecas dependencias automático comprobar horas vulnerabilities"),
+    "security.password_min_length": Field(
+        doc=("Longitud mínima de una contraseña nueva de las cuentas locales, de `10` (nunca menos) a `128`. Se aplica "
+             "al ponerla (alta, *Mi perfil*, un administrador o la CLI); las que ya existen no se tocan."),
+        label=_l("Minimum password length"),
+        page="passwords",
+        words="contraseña longitud mínima caracteres largo password length minimum"),
     "preview.enabled": Field(
-        doc=("Abrir en el navegador, sin descargarlos, los archivos de texto y Markdown (doble clic en el explorador). "
+        doc=("Abrir en el navegador, sin descargarlos, los archivos de texto y Markdown, las imágenes, los PDF, los "
+             "vídeos y el audio (doble clic en el explorador; cada tipo multimedia se puede apagar aparte). "
              "Desactivado, todos se descargan como cualquier otro archivo."),
-        label=_l("Open text and Markdown files in the browser"),
+        label=_l("Open files in the browser"),
         page="preview",
         words="visor vista previa ver abrir markdown texto preview viewer"),
     "preview.diagrams": Field(
@@ -301,8 +423,33 @@ FIELDS: dict[str, Field] = {
         label=_l("Color the code"),
         page="preview",
         words="colores sintaxis resaltado highlight código syntax"),
+    "preview.images": Field(
+        doc=("Ver las imágenes en el visor: `png`, `jpg`, `gif`, `webp`, `bmp`, `ico` y `avif`. El SVG no: puede llevar "
+             "código, así que se ve como texto (si `svg` está en las extensiones). Desactivado, se descargan."),
+        label=_l("Show images"),
+        page="preview",
+        words="imágenes fotos png jpg jpeg gif webp images pictures photos"),
+    "preview.pdf": Field(
+        doc=("Ver los PDF en el visor, con el visor de PDF del propio navegador (aislado de la página). Desactivado, o "
+             "en un navegador sin visor de PDF, se descargan."),
+        label=_l("Show PDF documents"),
+        page="preview",
+        words="pdf documentos documents acrobat"),
+    "preview.video": Field(
+        doc=("Reproducir los vídeos en el visor: `mp4`, `m4v`, `webm` y `ogv`, con lo que sepa reproducir el navegador; "
+             "se piden por partes, así que se puede saltar a cualquier punto. Desactivado, se descargan."),
+        label=_l("Play videos"),
+        page="preview",
+        words="vídeo video películas mp4 webm reproducir play movies"),
+    "preview.audio": Field(
+        doc=("Reproducir el audio en el visor: `mp3`, `wav`, `ogg`, `oga`, `opus`, `m4a`, `aac`, `flac` y `weba`. "
+             "Desactivado, se descargan."),
+        label=_l("Play audio"),
+        page="preview",
+        words="audio música sonido mp3 wav flac reproducir music sound play"),
     "preview.max_mb": Field(
-        doc="Tamaño máximo, en MB, de un archivo para verse en el navegador (de 1 a 20); más grande, se descarga.",
+        doc=("Tamaño máximo, en MB, de un archivo de texto para verse en el navegador (de 1 a 20); más grande, se "
+             "descarga (un log, por trozos). No se aplica a imágenes, PDF, vídeo ni audio."),
         label=_l("Largest file to view (MB)"),
         page="preview",
         words="tamaño máximo visor size limit"),
@@ -400,7 +547,9 @@ FIELDS: dict[str, Field] = {
         words="siem syslog tls certificado verificar"),
     "audit.file": Field(
         doc="Escribir también cada evento en este fichero, uno en JSON por línea, para que lo lea un agente (Filebeat, "
-            "Fluent Bit, Wazuh…); vacío = no. Se abre en cada escritura, así que se puede rotar con logrotate.",
+            "Fluent Bit, Wazuh…); vacío = no. Se abre en cada escritura, así que se puede rotar con logrotate. Como el "
+            "servidor añade líneas a ese fichero: fuera de la carpeta de datos (y nunca el config.json), dentro de "
+            "`storage.allowed_folders` si las hay, y una ruta de red solo si está en ellas.",
         label=_l("Also write the audit log to a JSON file"),
         page="audit_settings",
         words="siem auditoría fichero json filebeat fluent wazuh agente"),

@@ -102,14 +102,15 @@ a.chip-detected:hover { text-decoration: none; border-color: var(--primary); }
 .master-detail { display: flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
                  min-height: 480px; background: var(--surface); }
 .md-list { flex: 1 1 260px; max-width: 340px; background: var(--surface-head); border-right: 1px solid var(--line); }
-.md-list ul { list-style: none; margin: 0; padding: 0 8px 12px; display: flex; flex-direction: column; gap: 2px; }
+.md-list ul { list-style: none; margin: 0; padding: 8px 8px 12px; display: flex; flex-direction: column; gap: 2px; }   /* el mismo margen arriba que a los lados */
 .md-search { padding: 12px; }
+.md-search + ul { padding-top: 0; }     /* debajo del buscador (grupos), ya tiene su margen */
 .md-search input { width: 100%; }
 .md-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px;
            border-radius: 8px; border: 1px solid transparent; color: var(--fg); }
 .md-item:hover { text-decoration: none; background: var(--bg-hover); }
 .md-item.active { background: var(--surface); border-color: var(--primary); }
-.md-item-text { display: flex; flex-direction: column; min-width: 0; }
+.md-item-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; text-align: left; }   /* a la izquierda, sea corto o largo */
 .md-empty { padding: 8px 12px; }
 .md-detail { flex: 999 1 420px; min-width: 0; padding: 20px 24px; }
 .md-title { margin: 0; font-size: 20px; }
@@ -582,3 +583,94 @@ td.is-dirty[data-dirty-label]::after { display: none; }  /* en las tablas basta 
 .user-row p { margin: 2px 0 0; }
 .user-row .badge { margin-left: 6px; }
 .user-new .form-actions { margin: 0; }
+
+/* Título de tarjeta con una acción o un enlace a la derecha (Sistema → Información) */
+.card-title-row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.card-title-row .card-title { margin: 0; }
+
+/* Tablas ordenables (admin/sortable.js): la cabecera es un botón con la flecha del orden */
+.sort-btn { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font: inherit; color: inherit; }
+.sort-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 3px; }
+.sort-btn::after { content: "↕"; font-size: 11px; color: var(--muted); opacity: .6; }
+th[aria-sort="ascending"] .sort-btn::after { content: "↑"; opacity: 1; color: var(--fg); }
+th[aria-sort="descending"] .sort-btn::after { content: "↓"; opacity: 1; color: var(--fg); }
+
+/* Barra de progreso (la comprobación de vulnerabilidades, admin/system.js) */
+.progress-panel { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
+.progress-panel p { margin: 0; }
+.sw-progress { width: 100%; height: 10px; appearance: none; border: 0; border-radius: 999px; overflow: hidden;
+               background: var(--line); }
+.sw-progress::-webkit-progress-bar { background: var(--line); border-radius: 999px; }
+.sw-progress::-webkit-progress-value { background: var(--primary); border-radius: 999px; transition: width .3s; }
+.sw-progress::-moz-progress-bar { background: var(--primary); border-radius: 999px; }
+
+/* Seguridad → Estado de la seguridad: el tablero (cifras de un vistazo) y la lista de comprobación. El estado va
+   siempre con su texto (la etiqueta del badge o la nota), nunca solo con el color */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.stat-tile { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border-radius: 12px;
+             background: var(--surface, var(--bg)); border: 1px solid var(--line); color: var(--fg); }
+.stat-tile:hover { text-decoration: none; background: var(--bg-hover); }
+.stat-tile.is-bad { border-color: var(--danger-line); box-shadow: inset 4px 0 0 var(--danger); }
+.stat-tile.is-warn { box-shadow: inset 4px 0 0 var(--badge-admin-fg); }
+.stat-label { font-size: 12px; color: var(--muted); }
+.stat-value { font-size: 28px; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.stat-value small { font-size: 15px; font-weight: 500; color: var(--muted); }
+.stat-note { font-size: 12px; color: var(--muted); }
+.posture-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.posture-list li { display: grid; grid-template-columns: 9.5em 1fr auto; gap: 12px; align-items: start; padding: 9px 4px;
+                   border-bottom: 1px solid var(--line-soft); }
+.posture-list li:last-child { border-bottom: 0; }
+.posture-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.posture-list .badge { justify-self: start; }
+.posture-badge-bad { background: var(--err-bg); color: var(--danger); }
+.posture-badge-warn { background: var(--badge-admin-bg); color: var(--badge-admin-fg); }
+.posture-badge-ok { background: var(--ok-bg); }
+.posture-badge-info { background: var(--line); }
+@media (max-width: 640px) { .posture-list li { grid-template-columns: 1fr; gap: 4px; } }
+
+/* Ficha de usuario: añadir un favorito (carpeta + ruta + botón, en una línea que se parte en móvil) */
+.favorite-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+.favorite-add select { flex: 0 1 auto; }
+/* El campo (o su grupo con «Examinar», que pone path-picker.js) ocupa todo el ancho que queda */
+.favorite-add > input[name=path], .favorite-add > .path-field { flex: 1 1 260px; min-width: 0; }
+.favorite-add > .btn { flex: 0 0 auto; font-weight: 500; }     /* como «Examinar»: la misma fila, el mismo peso */
+
+/* Personas → Importar: la búsqueda en una línea (método, texto, botón) */
+.import-search { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.import-search input[type=search] { flex: 1 1 260px; min-width: 0; }
+
+/* Personas → Importar: la columna de las casillas y la barra de «Importar seleccionados» */
+.check-col { width: 2.2em; }
+.import-bulk { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
+
+/* Campos de ruta con «Examinar» (admin/path-picker.js) y la ventana para elegir */
+/* Un grupo: el campo y «Examinar» pegados, con un solo borde redondeado por fuera */
+.path-field { display: flex; align-items: stretch; min-width: 0; }
+.path-field input { flex: 1 1 auto; min-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.path-field .path-browse { flex: 0 0 auto; margin: 0; border-top-left-radius: 0; border-bottom-left-radius: 0;
+                           margin-left: -1px; height: auto; }
+.path-field input:focus { position: relative; z-index: 1; }      /* el borde del foco, por encima del botón */
+.picker { display: flex; flex-direction: column; gap: 8px; min-width: min(560px, 80vw); }
+.picker-where { margin: 0; padding: 6px 10px; border-radius: 6px; background: var(--bg-soft); overflow-wrap: anywhere; }
+.picker-list { list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow: auto; border: 1px solid var(--line);
+               border-radius: 8px; }
+.picker-item { display: flex; gap: 8px; align-items: center; width: 100%; padding: 7px 10px; border: 0;
+               background: none; color: var(--fg); text-align: left; cursor: pointer; font: inherit; }
+.picker-item:hover, .picker-item:focus-visible { background: var(--bg-hover); }
+.picker-up { color: var(--muted); }
+.picker > .btn-primary { align-self: flex-start; }
+
+/* Seguridad → Contraseñas: los tipos de caracteres (sin el recuadro del fieldset) y el probador */
+.kinds-fieldset { gap: 6px; }
+.kinds-fieldset legend { padding: 0; margin-bottom: 6px; font-size: 13px; font-weight: 400; color: var(--muted); }
+.file-input { max-width: 100%; }
+.password-test-summary { font-weight: 600; margin: 0; }
+.password-test-summary.text-ok { color: var(--ok-fg); }
+.password-checks { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.password-checks li { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.password-checks li .icon { flex: 0 0 auto; align-self: center; }
+.password-checks .is-ok .icon { color: var(--ok-fg); }
+.password-checks .is-bad .icon { color: var(--danger); }
+.password-checks .is-unknown .icon { color: var(--muted); }
+.js-test-username[hidden], .password-test-result[hidden] { display: none; }
+.password-test-form .is-masked { -webkit-text-security: disc; text-security: disc; }

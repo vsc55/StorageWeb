@@ -27,6 +27,24 @@
       <textarea{{ lock('storage.hidden') }} name="hidden" rows="5" class="mono" spellcheck="false" placeholder="Thumbs.db&#10;desktop.ini&#10;.DS_Store&#10;*.tmp&#10;.git/">{{ st.hidden|join('\n') }}</textarea>
       <small class="muted">{{ _("One pattern per line, like .gitignore: «Thumbs.db» or «*.tmp» anywhere, «.git/» only folders, «/private» from the root of each folder. They are not listed and cannot be opened or created (web, network drive and API); the files stay on disk.") }}</small>
       {{ field_error('storage.hidden') }}</label>
+    <label class="{{ err_class('storage.upload_stale_hours') }}"><span class="label-row">{{ _("Discard unfinished uploads after (hours)") }} {{ origin('storage.upload_stale_hours') }}</span>
+      <input{{ lock('storage.upload_stale_hours') }} type="number" name="upload_stale_hours" value="{{ st.upload_stale_hours }}" min="1" max="720">
+      <small class="muted">{{ _("A large upload that stops (closed browser, lost connection) can be resumed until then; after that its part is deleted. From 1 to 720.") }}</small>
+      {{ field_error('storage.upload_stale_hours') }}</label>
+  </div>
+
+  <div class="card form-grid section-gap">
+    <h3 class="card-title span2">{{ _("Search") }}</h3>
+    <p class="muted small span2">{{ _("Searching by name walks the folders: it stops at whichever of these limits comes first and says so. On remote storage or very large folders, adjust them.") }}</p>
+    <label class="{{ err_class('storage.search_max_results') }}"><span class="label-row">{{ _("Search: at most (results)") }} {{ origin('storage.search_max_results') }}</span>
+      <input{{ lock('storage.search_max_results') }} type="number" name="search_max_results" value="{{ st.search_max_results }}" min="10" max="5000">
+      {{ field_error('storage.search_max_results') }}</label>
+    <label class="{{ err_class('storage.search_seconds') }}"><span class="label-row">{{ _("Search: at most (seconds)") }} {{ origin('storage.search_seconds') }}</span>
+      <input{{ lock('storage.search_seconds') }} type="number" name="search_seconds" value="{{ st.search_seconds }}" min="1" max="120">
+      {{ field_error('storage.search_seconds') }}</label>
+    <label class="{{ err_class('storage.search_max_folders') }}"><span class="label-row">{{ _("Search: at most (folders looked at)") }} {{ origin('storage.search_max_folders') }}</span>
+      <input{{ lock('storage.search_max_folders') }} type="number" name="search_max_folders" value="{{ st.search_max_folders }}" min="100" max="1000000">
+      {{ field_error('storage.search_max_folders') }}</label>
   </div>
   {{ save_bar() }}
 </form>

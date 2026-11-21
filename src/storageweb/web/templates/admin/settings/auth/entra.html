@@ -71,8 +71,15 @@
             {{ field_error('auth.entra.client_secret') }}</label>
           <label class="{{ err_class('auth.entra.secret_expires') }}"><span class="label-row">{{ _("The secret expires on") }} {{ origin('auth.entra.secret_expires') }}</span>
             <input{{ lock('auth.entra.secret_expires') }} type="date" name="entra_secret_expires" value="{{ (en.secret_expires or '')[:10] }}">
-            <small class="muted">{{ _("To be warned 30 days before. Filled in automatically when StorageWeb creates the secret.") }}</small>
+            <small class="muted">{{ _("To be warned before it expires. Filled in automatically when StorageWeb creates the secret.") }}</small>
             {{ field_error('auth.entra.secret_expires') }}</label>
+          <label class="{{ err_class('auth.entra.secret_warn_days') }}"><span class="label-row">{{ _("Warn before the secret expires (days)") }} {{ origin('auth.entra.secret_warn_days') }}</span>
+            <input{{ lock('auth.entra.secret_warn_days') }} type="number" name="entra_secret_warn_days" value="{{ en.secret_warn_days }}" min="1" max="365">
+            {{ field_error('auth.entra.secret_warn_days') }}</label>
+          <label class="{{ err_class('auth.entra.secret_months') }}"><span class="label-row">{{ _("New secrets last (months)") }} {{ origin('auth.entra.secret_months') }}</span>
+            <input{{ lock('auth.entra.secret_months') }} type="number" name="entra_secret_months" value="{{ en.secret_months }}" min="1" max="24">
+            <small class="muted">{{ _("For the secrets StorageWeb creates (register, renew, repair). Microsoft allows up to 24; if your tenant's policies ask for less, put that number.") }}</small>
+            {{ field_error('auth.entra.secret_months') }}</label>
           <div class="field span2"><span class="label">Redirect URI</span>
             <div class="copy-row"><input type="text" readonly value="{{ redirect_default }}" class="mono" id="entra-redirect-uri" aria-label="Redirect URI">
               <button type="button" class="btn js-copy" data-copy="#entra-redirect-uri">{{ _("Copy") }}</button></div>

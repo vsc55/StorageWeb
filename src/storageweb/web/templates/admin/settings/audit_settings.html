@@ -47,7 +47,8 @@
       <span>{{ _("Check the certificate of the collector") }} {{ origin('audit.tls_verify') }}</span></label>
     <label class="span2 {{ err_class('audit.file') }}"><span class="label-row">{{ _("Also write the audit log to a JSON file") }} {{ origin('audit.file') }}</span>
       <input{{ lock('audit.file') }} type="text" name="audit_file" value="{{ au.file }}" class="mono" placeholder="/var/log/storageweb/audit.jsonl">
-      <small class="muted">{{ _("One event per line, for Filebeat, Fluent Bit or the Wazuh agent. It can be rotated with logrotate.") }}</small>
+      <small class="muted">{{ _("One event per line, for Filebeat, Fluent Bit or the Wazuh agent. It can be rotated with logrotate.") }}
+        {{ _("Outside the data folder and, if there are allowed server folders, inside one of them.") }}</small>
       {{ field_error('audit.file') }}</label>
     {% if forward_status.active %}
     <p class="small span2">

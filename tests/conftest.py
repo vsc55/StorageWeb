@@ -19,6 +19,14 @@ def spanish_locale():
     i18n.reset_locale(token)
 
 
+@pytest.fixture(autouse=True)
+def no_internet(monkeypatch):
+    """Las consultas de core/advisories (PyPI, npm, OSV.dev) no salen nunca de los tests: contestan «inalcanzable»
+    salvo que un test ponga sus respuestas (tests/unit/test_advisories.py)."""
+    from storageweb.core import advisories
+    monkeypatch.setattr(advisories, "_get_json", lambda url, timeout, data=None: {"ok": False, "error": "unreachable"})
+
+
 @pytest.fixture
 def write_config(tmp_path: Path):
     def _write(overrides: dict | None = None) -> Path:
@@ -32,6 +40,8 @@ def write_config(tmp_path: Path):
             # En los tests de archivos el rol user tiene todos los permisos; los valores por
             # defecto (sin renombrar/borrar) se prueban aparte
             "permissions": {"user": {p: True for p in ("upload", "download", "mkdir", "rename", "delete")}},
+            # La comprobación automática de vulnerabilidades sale a internet: en los tests, nunca sola
+            "security": {"dependency_check_hours": 0},
         }
         deep_update(cfg, overrides or {})
         path = tmp_path / "config.json"

@@ -7,7 +7,7 @@
 
 1. Elige el nombre y las opciones: App Roles `StorageWeb.Admin` y `StorageWeb.User`, claim de grupos y si solo pueden entrar los usuarios asignados.
 2. Pulsa *Iniciar sesión con Microsoft y registrar*. Abre `microsoft.com/devicelogin` en cualquier dispositivo, escribe el código e inicia sesión con una cuenta que pueda registrar aplicaciones (Administrador de aplicaciones o Administrador global).
-3. StorageWeb crea con Microsoft Graph la aplicación (solo para tu organización, Redirect URI, permisos `openid profile email User.Read`), un secreto de 24 meses, la aplicación empresarial y el consentimiento de administrador. Si se crean los App Roles, te asigna `StorageWeb.Admin` y lo mapea al rol de administrador.
+3. StorageWeb crea con Microsoft Graph la aplicación (solo para tu organización, Redirect URI, permisos `openid profile email User.Read`), un secreto de 24 meses (o los que digas en `auth.entra.secret_months`, si las directivas de tu tenant piden menos), la aplicación empresarial y el consentimiento de administrador. Si se crean los App Roles, te asigna `StorageWeb.Admin` y lo mapea al rol de administrador.
 4. Guarda el tenant, el cliente y el secreto en los ajustes y te lleva al último paso del asistente, que comprueba la conexión y activa Entra ID.
 
 Requisitos y detalles:
@@ -21,7 +21,7 @@ Si prefieres hacerlo a mano, sigue los pasos de abajo.
 
 ## Caducidad y renovación del secreto
 
-El registro automático guarda la fecha de caducidad del secreto (`auth.entra.secret_expires`); si registraste la aplicación a mano, ponla en *Inicio de sesión → Conexión*. Desde 30 días antes, los administradores ven un aviso en todas las páginas.
+El registro automático guarda la fecha de caducidad del secreto (`auth.entra.secret_expires`); si registraste la aplicación a mano, ponla en *Inicio de sesión → Conexión*. Desde 30 días antes (`auth.entra.secret_warn_days`), los administradores ven un aviso en todas las páginas.
 
 *Renovar secreto* inicia sesión con Microsoft (el mismo código de dispositivo) y crea un secreto nuevo en la aplicación existente, que se guarda solo. El anterior sigue funcionando hasta su caducidad; puedes borrarlo después en el portal.
 
@@ -108,7 +108,7 @@ La forma más rápida es el **asistente**: *Seguridad → Inicio de sesión → 
 
     - añade la Redirect URI de StorageWeb y pone la URL de cierre de sesión de canal frontal;
     - añade los claims opcionales `email` y `sid` al id_token;
-    - añade los permisos de Microsoft Graph que falten (inicio de sesión, `Group.Read.All` y `User.Read.All`) y les da el consentimiento de administrador;
+    - añade los permisos de Microsoft Graph que falten (inicio de sesión, y los de aplicación `Group.Read.All`, `User.Read.All` y `Application.Read.All`, todos de solo lectura) y les da el consentimiento de administrador;
     - crea la aplicación empresarial (*service principal*) si no existe;
     - si el secreto falló, crea uno nuevo y lo guarda (el anterior no se borra).
 
@@ -136,11 +136,40 @@ También se puede configurar a mano en **Seguridad → Inicio de sesión**, o fi
 | Ajuste | Efecto |
 |---|---|
 | `auto_provision: true` | El usuario se crea en su primer inicio de sesión. |
-| `auto_provision: false` | Solo entran los usuarios que un admin haya dado de alta antes, con origen *Entra ID* y su UPN, desde la web o con `storageweb-admin user-add juan@contoso.com --source entra`. La cuenta se vincula a su identificador de Entra (`oid`) en el primer login. |
+| `auto_provision: false` | Solo entran los usuarios que un admin haya dado de alta antes: importándolos del directorio (*Importar de Entra ID*, abajo) o con origen *Entra ID* y su UPN, desde la web o con `storageweb-admin user-add juan@contoso.com --source entra`. La cuenta se vincula a su identificador de Entra (`oid`) en el primer login. |
 | `default_role` | Rol de los usuarios nuevos si no aplica ningún mapeo. |
 | `role_mappings` | Grupo (Object ID) o App Role → rol. Si coinciden varios, gana `admin`. |
 | `sync_role_on_login` | Con mapeos definidos, el rol se recalcula en cada login: Entra manda. Si está desactivado, el rol solo se asigna al crear el usuario y luego lo gestiona el admin. |
 | `allowed_groups` | Si no está vacío, solo entran los miembros de estos grupos o App Roles. |
+
+### Importar personas antes de que entren
+
+*Personas → Usuarios → **Importar de Entra ID*** (junto a *Nuevo usuario*) da de alta a quien elijas **antes de que
+entre**, para darle ya carpetas compartidas, grupos y cuota:
+
+- **Buscar:** la lista se forma **mientras escribes** (nombre, UPN o correo; al menos dos letras, hasta 25), sin pulsar
+  *Buscar*. **Mostrar todos** trae todo el directorio por orden de nombre y **va cargando al bajar**; nada se lista
+  hasta que lo pides. Las tablas se ordenan por columnas.
+- **Importar una o varias:** el botón de cada fila, o marca varias (también de búsquedas distintas: la selección se
+  conserva) e **Importar las seleccionadas**.
+- **La cuenta es la misma que crearía su primer inicio de sesión:** el nombre de usuario sale del mismo dato que
+  `username_claim` (en minúsculas y sin el dominio si `strip_domain`), queda enlazada a su identificador de Entra
+  (`oid`), el rol sale de `role_mappings` con sus grupos y sus grupos se guardan ya. Cuando la persona entra, lo hace
+  en esa cuenta. Al importar, la persona se vuelve a leer del directorio por su identificador (lo que mande el
+  navegador no cuenta).
+- **Avisos en la lista:** quién ya está importado, quién está desactivado en Entra ID, los nombres que ya usa una
+  cuenta de otro origen (no se pueden importar, como no se podrían enlazar al entrar) y, si la aplicación empresarial
+  tiene **Asignación requerida**, **quién no podrá entrar** porque no está asignado (ni él ni un grupo del que sea
+  miembro directo: Entra ID no aplica la asignación a los grupos anidados). A esas personas se las puede importar,
+  con el aviso; entrarán cuando las asignes en la aplicación empresarial. Si StorageWeb no puede leer la aplicación,
+  lo dice en lugar de callarlo.
+- Si hay `allowed_groups` y la persona no está en ellos, no se importa: no podría entrar. Una cuenta de Entra ID dada
+  de alta antes a mano (sin identificador) se enlaza.
+
+Necesita los permisos de aplicación `User.Read.All` (buscar y leer las cuentas) y `Application.Read.All` (saber si la
+aplicación exige asignación y a quién está asignada), los dos de solo lectura: el registro automático los concede; si
+no, *Reparar permisos*. Queda en la auditoría como `user_imported`. Funciona también con `auto_provision`
+desactivado: es la forma cómoda de decidir quién entra.
 
 El nombre de usuario es el UPN (`juan@contoso.com`) y su carpeta personal es `homes/juan@contoso.com`. Los grupos del token se guardan en minúsculas y sirven también para dar acceso a carpetas compartidas.
 

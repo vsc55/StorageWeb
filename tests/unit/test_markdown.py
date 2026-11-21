@@ -123,7 +123,7 @@ def test_kind_of_with_settings():
 
 @pytest.mark.parametrize("name,kind", [("a.md", "markdown"), ("A.MARKDOWN", "markdown"), ("x.log", "text"),
                                        ("app.py", "text"), ("README", "text"), (".gitignore", "text"),
-                                       ("p.html", "markup"), ("i.svg", "markup"), ("f.pdf", None), ("b.bin", None)])
+                                       ("p.html", "markup"), ("i.svg", "markup"), ("f.pdf", "pdf"), ("f.zip", None), ("b.bin", None)])
 def test_kind_of(name, kind):
     assert preview.kind_of(name) == kind
 
@@ -161,7 +161,7 @@ def test_log_levels_and_neighbours():
     assert preview.log_level("errores sin nivel") == ""
     assert preview.log_level("Copia terminada: 1 aviso, 1 error") == ""   # la palabra, no el nivel
     assert preview.log_level("ts=1 level=warning msg=x") == "warn"
-    entries = [{"name": n, "rel": f"d/{n}", "is_dir": n == "sub"} for n in ("sub", "a.md", "b.pdf", "c.txt", "d.log")]
+    entries = [{"name": n, "rel": f"d/{n}", "is_dir": n == "sub"} for n in ("sub", "a.md", "b.zip", "c.txt", "d.log")]
     prev, nxt = preview.neighbours(entries, "d/c.txt")
     assert prev["name"] == "a.md" and nxt["name"] == "d.log"
     assert preview.neighbours(entries, "d/a.md")[0] is None

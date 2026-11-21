@@ -117,3 +117,47 @@ def cmd_mfa_status(cfg, conn, args):
             text = _("required, not set up") if mfa.required(cfg, user) else _("off")
         print(f"{user['username']:<32} {text}")
     return 0
+
+
+def _password_list_args(p):
+    g = p.add_mutually_exclusive_group()
+    g.add_argument("--download", action="store_true",
+                   help=_("Download it from security.password_list_urls (or --url) as the own list"))
+    g.add_argument("--file", help=_("Use this text file (one password per line) as the own list"))
+    g.add_argument("--reset", action="store_true", help=_("Delete the own list: the built-in one is used again"))
+    p.add_argument("--url", action="append", help=_("Address to download from (instead of the setting); repeatable"))
+
+
+@command("password-list", _l("Show, download or replace the list of common passwords"), _password_list_args,
+         order=136)
+def cmd_password_list(cfg, conn, args):
+    from ..core import passwords
+    from .common import effective
+
+    data_dir = cfg["data_dir"]
+    try:
+        if args.download:
+            urls = args.url or effective(cfg, conn, args)["security"]["password_list_urls"]
+            count = passwords.download(data_dir, urls)
+            audit.log(conn, "password_list_updated", None, username="cli", detail="download")
+            print(_("Common passwords list updated: %(num)s passwords.", num=count))
+        elif args.file:
+            with open(args.file, "rb") as fh:
+                count = passwords.upload(data_dir, fh.read(passwords.MAX_BYTES + 1), args.file)
+            audit.log(conn, "password_list_updated", None, username="cli", detail="upload")
+            print(_("Common passwords list updated: %(num)s passwords.", num=count))
+        elif args.reset:
+            if passwords.reset(data_dir):
+                audit.log(conn, "password_list_reset", None, username="cli")
+            print(_("The list that comes with StorageWeb is used again."))
+    except passwords.PasswordListError as exc:
+        _fail(exc.message)
+    except OSError as exc:
+        _fail(str(exc))
+    state = passwords.status(data_dir)
+    if state["own"]:
+        print(_("Own list of this server: %(num)s passwords, from %(source)s, updated %(when)s.", num=state["count"],
+                source=state["source"], when=state["updated_at"]))
+    else:
+        print(_("The list that comes with StorageWeb: %(num)s passwords (SecLists).", num=state["count"]))
+    return 0

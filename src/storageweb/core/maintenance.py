@@ -55,6 +55,11 @@ def _put_state(conn: Connection, key: str, value) -> None:
     settings_repo.put(conn, STATE_KEY, current, "system")
 
 
+def put_state(conn: Connection, key: str, value) -> None:
+    """Guarda ``value`` en ``maintenance_state`` (lo leen la página que lo enseña y los avisos del Resumen)."""
+    _put_state(conn, key, value)
+
+
 def db_stats(conn: Connection, database: str) -> dict:
     size = sum(Path(database + suffix).stat().st_size for suffix in ("", "-wal") if Path(database + suffix).exists())
     tables = {}

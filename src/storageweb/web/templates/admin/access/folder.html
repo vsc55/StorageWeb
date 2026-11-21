@@ -33,7 +33,9 @@
       <small class="muted">{% if locations %}<a href="{{ url_for('locations.index') }}">{{ _("Storage locations") }}</a>
         {% else %}{{ _("Mounted folders (NFS, SMB, rclone) are on the disk. For S3 or SMB without mounting,") }} <a href="{{ url_for('locations.index') }}">{{ _("add a storage location") }}</a>.{% endif %}</small></label>
     <label><span class="label-row">{{ _("Path") }}</span>
-      <input type="text" name="path" value="{{ share.path }}"{% if not locations %} required{% endif %} class="mono" placeholder="/srv/storageweb/shares/accounting">
+      <input type="text" name="path" value="{{ share.path }}"{% if not locations %} required{% endif %} class="mono" placeholder="/srv/storageweb/shares/accounting"
+             data-browse="{{ url_for('admin.browse', scope='location') }}" data-location-from="select[name=location]"
+             data-start="{{ pick_start().data }}" data-pick-title="{{ _('Path') }}">
       <small class="muted">{{ _("On the disk of the server: absolute path or relative to the folder of config.json. In a storage location: folder inside it (empty = its root).") }}</small></label>
     <label class="check span2"><input type="checkbox" name="read_only" {% if share.read_only %}checked{% endif %}>
       <span>{{ _("Read only for everyone") }}
@@ -107,3 +109,4 @@
 </form>
 {% endif %}
 {% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/path-picker.js') }}"></script>{% endblock %}

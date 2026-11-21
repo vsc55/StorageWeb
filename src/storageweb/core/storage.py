@@ -10,8 +10,10 @@ from pathlib import Path
 from typing import Callable
 
 from .. import patterns
+from ..db.repositories import users as users_repo
 from ..db.repositories.users import groups_of
 from ..i18n import _, format_datetime, format_size
+from ..settings import server_paths
 from . import backends
 from .groups import ADMINS_GROUP
 from .permissions import ADMIN
@@ -65,9 +67,15 @@ def make_root(cfg: dict, name: str, label: str, location: str, path: str, **extr
     """Raíz con su backend. ``path`` (Path) solo existe si está en el disco del servidor."""
     loc = backends.find_location(cfg, location) if location else None
     staging = backends.staging_dir(cfg)
+    allowed = cfg["storage"].get("allowed_folders") or []
     if location and loc is None:
         backend = backends.UnavailableBackend(_("The storage location %(name)s does not exist.", name=location),
                                               staging)
+    elif not location and not server_paths.permitted(path, allowed):
+        # Una carpeta del disco que ya existía antes de restringirlas (o una carpeta personal propia): no se abre
+        backend = backends.UnavailableBackend(
+            _("This folder is a network path outside the allowed server folders.") if server_paths.network_path(path)
+            else _("This folder is outside the allowed server folders."), staging)
     else:
         try:
             backend = backends.backend_for(loc, path, staging)
@@ -77,6 +85,30 @@ def make_root(cfg: dict, name: str, label: str, location: str, path: str, **extr
         extra["quota_mb"] = 0     # «No cuenta para la cuota»: sus carpetas no tienen
     return {**extra, "name": name, "label": label, "location": location, "backend": backend,
             "path": None if location else Path(path), "where": f"{location}:{path}"}
+
+
+def disk_folders(conn, cfg: dict, allowed: list[str] | None = None) -> list[dict]:
+    """Las carpetas del disco del servidor que se usan (la de las carpetas personales, las compartidas sin ubicación
+    y las carpetas personales propias) y si están dentro de ``allowed`` (por defecto, ``storage.allowed_folders``):
+    ``{"kind": home|share|user, "name", "label", "path", "base"}`` (``base`` None = fuera)."""
+    allowed = cfg["storage"].get("allowed_folders") or [] if allowed is None else allowed
+
+    def row(kind, name, label, path):
+        base = server_paths.base_of(path, allowed) if allowed else ""
+        return {"kind": kind, "name": name, "label": label, "path": path, "base": base}
+
+    found = []
+    if not cfg["storage"].get("home_location"):
+        template = cfg["storage"]["home_template"]
+        head = template.split("{username}")[0] or template
+        found.append(row("home", "", _("Personal folders"), head))
+        trimmed = head.rstrip("/\\")
+        if len(trimmed) > 2:            # sin la barra final al mostrarla («C:\» y «/» se quedan como están)
+            found[-1]["path"] = trimmed
+        found += [row("user", u["uid"], u["username"], u["home_path"]) for u in users_repo.with_own_home(conn)]
+    found += [row("share", s["name"], s.get("label") or s["name"], s["path"])
+              for s in cfg["storage"].get("shares", []) if not s.get("location")]
+    return found
 
 
 def home_quota_mb(user, cfg: dict) -> int:

@@ -312,11 +312,11 @@ def test_tree_shows_path_and_subfolders(logged, home):
 
 def test_row_data_for_details_panel(logged, home):
     client, _ = logged
-    (home / "informe.pdf").write_bytes(b"x" * 1536)
+    (home / "informe.zip").write_bytes(b"x" * 1536)
     html = client.get("/f/home/").get_data(as_text=True)
-    assert 'data-name="informe.pdf"' in html and 'data-dir="0"' in html
-    assert 'data-kind="Archivo PDF"' in html and 'data-size="1,5 KB"' in html
-    assert 'data-href="/download/home/informe.pdf"' in html
+    assert 'data-name="informe.zip"' in html and 'data-dir="0"' in html
+    assert 'data-kind="Archivo ZIP"' in html and 'data-size="1,5 KB"' in html
+    assert 'data-href="/download/home/informe.zip"' in html
 
 
 def test_folder_tree_shows_siblings_on_every_level(logged, home):

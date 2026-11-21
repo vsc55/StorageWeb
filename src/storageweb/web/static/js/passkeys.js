@@ -79,7 +79,10 @@
       excludeCredentials: (o.exclude || []).map(function (id) { return { type: "public-key", id: toBytes(id) }; }),
       // La attestation no se comprueba (dice de qué fabricante es la llave, y aquí no se pregunta): no se pide
       attestation: "none",
-      authenticatorSelection: { residentKey: "discouraged", userVerification: "preferred" }
+      // Guardada en el dispositivo solo con «entrar sin contraseña» encendido (lo dice el servidor): las llaves de
+      // seguridad tienen pocos huecos para eso
+      authenticatorSelection: { residentKey: o.residentKey || "discouraged",
+                                requireResidentKey: o.residentKey === "required", userVerification: "preferred" }
     } }).then(function (cred) {
       return post(form.dataset.verify, {
         attestation_object: toB64u(cred.response.attestationObject),
@@ -94,14 +97,17 @@
       challenge: toBytes(o.challenge),
       rpId: o.rpId,
       timeout: o.timeout,
+      // Lista vacía (entrar sin contraseña): el navegador ofrece las passkeys guardadas para este sitio
       allowCredentials: (o.allow || []).map(function (id) { return { type: "public-key", id: toBytes(id) }; }),
-      userVerification: "preferred"
+      userVerification: o.userVerification || "preferred"
     } }).then(function (cred) {
       return post(form.dataset.verify, {
         id: toB64u(cred.rawId),
         authenticator_data: toB64u(cred.response.authenticatorData),
         client_data_json: toB64u(cred.response.clientDataJSON),
-        signature: toB64u(cred.response.signature)
+        signature: toB64u(cred.response.signature),
+        // De quién es (solo lo trae una passkey guardada en el dispositivo): el servidor lo compara con la cuenta
+        user_handle: cred.response.userHandle ? toB64u(cred.response.userHandle) : ""
       }).then(answered);
     }, browserFailed);
   }

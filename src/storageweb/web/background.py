@@ -20,7 +20,7 @@ def apply_process_settings() -> None:
     try:
         siem.configure(settings()["audit"])
         audit_levels.configure(settings()["audit"]["min_level"])
-        quota.configure(settings()["storage"]["quota_refresh_minutes"])
+        quota.configure(settings()["storage"]["quota_refresh_minutes"], settings()["storage"]["quota_warn_percent"])
     except Exception:  # noqa: BLE001 (nunca puede tumbar una petición)
         current_app.logger.exception("Could not apply the audit forwarding settings")
 

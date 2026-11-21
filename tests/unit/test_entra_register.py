@@ -180,14 +180,16 @@ def test_repair_fixes_only_what_is_missing(graph):
     assert {c["name"] for c in claims} == {"email", "sid"}
     grant = next(b for m, p, b in calls if m == "POST" and p == "/oauth2PermissionGrants")
     assert grant["consentType"] == "AllPrincipals" and grant["clientId"] == "sp-1"
-    # redirect, cierre de sesión, claims, permisos, consentimiento, Group.Read.All, User.Read.All, secreto
-    assert len(result["fixed"]) == 8
+    # redirect, cierre de sesión, claims, permisos, consentimiento, Group.Read.All, User.Read.All,
+    # Application.Read.All, secreto
+    assert len(result["fixed"]) == 9
 
 
 def test_repair_leaves_a_correct_app_alone(graph):
     calls, answers = graph
     full = [{"id": i, "type": "Scope"} for i in er.SIGN_IN_SCOPES.values()] + [
-        {"id": er.GROUP_READ_ALL, "type": "Role"}, {"id": er.USER_READ_ALL, "type": "Role"}]
+        {"id": er.GROUP_READ_ALL, "type": "Role"}, {"id": er.USER_READ_ALL, "type": "Role"},
+        {"id": er.APPLICATION_READ_ALL, "type": "Role"}]
     app = {"id": "obj-1", "appId": "c1", "web": {"redirectUris": ["https://files/cb"], "logoutUrl": "https://files/fc"},
            "requiredResourceAccess": [{"resourceAppId": er.GRAPH_APP_ID, "resourceAccess": full}],
            "optionalClaims": {"idToken": [{"name": "email"}, {"name": "sid"}, {"name": "groups"}]}}

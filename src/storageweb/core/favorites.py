@@ -5,13 +5,17 @@
   (web o unidad de red), :func:`moved` y :func:`deleted` los mantienen al día; lo que cambie por fuera queda como
   estaba (y lleva a «no encontrado»).
 - **Recientes**: lo último que el usuario abrió, descargó o subió desde la web, sacado de la auditoría.
+- **Desde la administración** (la ficha del usuario): verlos todos, también los que ya no le sirven (sin acceso u
+  ocultos), quitarlos y añadirle uno (:func:`for_admin`, :func:`add_for`, :func:`clear`).
 """
 from __future__ import annotations
 
 from sqlite3 import Connection
 
 from ..db.repositories import favorites as repo
+from ..i18n import _
 from . import backends, storage
+from .security import PathError
 
 HOME = "home"
 
@@ -67,6 +71,54 @@ def recent(conn: Connection, user, cfg: dict, limit: int = 30) -> list[dict]:
         if len(out) >= limit:
             break
     return out
+
+
+class FavoriteError(Exception):
+    """No se puede añadir ese favorito. ``message`` es para quien lo intentó."""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
+
+
+def for_admin(conn: Connection, user, cfg: dict) -> list[dict]:
+    """TODOS los favoritos del usuario para la administración, también los que ya no ve: ``state`` es ``ok``,
+    ``no_access`` (la carpeta de StorageWeb ya no es suya) u ``hidden`` (lo oculta ``storage.hidden``)."""
+    roots = _roots(user, cfg)
+    out = []
+    for row in repo.list_for_user(conn, user["id"]):
+        root = roots.get(row["root"])
+        state = "no_access" if root is None else "hidden" if storage.is_hidden(cfg, row["rel"]) else "ok"
+        out.append({"root": row["root"], "root_label": root["label"] if root else row["root"], "rel": row["rel"],
+                    "is_dir": bool(row["is_dir"]), "state": state, "created_at": row["created_at"],
+                    "name": backends.name_of(row["rel"]) if row["rel"] else (root["label"] if root else row["root"])})
+    return out
+
+
+def add_for(conn: Connection, user, cfg: dict, root_name: str, path: str) -> dict:
+    """Añade a ``user`` un favorito en una de SUS carpetas (``root_name``) que exista. Lanza :class:`FavoriteError`."""
+    root = _roots(user, cfg).get(str(root_name or ""))
+    if root is None:
+        raise FavoriteError(_("That folder is not one of the user's."))
+    try:
+        rel = backends.clean_rel(str(path or "").strip().strip("/"))
+    except PathError as exc:
+        raise FavoriteError(_("That path is not valid.")) from exc
+    if storage.is_hidden(cfg, rel):
+        raise FavoriteError(_("That path is hidden for everyone (Hidden for everyone)."))
+    try:
+        entry = root["backend"].stat(rel)
+    except backends.BackendError as exc:
+        raise FavoriteError(exc.message) from exc
+    if entry is None:
+        raise FavoriteError(_("«%(path)s» does not exist in %(folder)s.", path=rel or "/", folder=root["label"]))
+    repo.add(conn, user["id"], root["name"], rel, entry.is_dir)
+    return {"root": root["name"], "rel": rel, "is_dir": entry.is_dir}
+
+
+def clear(conn: Connection, user) -> int:
+    """Quita todos los favoritos del usuario; devuelve cuántos tenía."""
+    return repo.remove_all(conn, user["id"])
 
 
 def _owner(user, *roots: str) -> int | None:

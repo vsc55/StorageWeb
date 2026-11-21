@@ -128,9 +128,11 @@ class LoginThrottle:
         self.lockout = lockout_seconds
 
     @staticmethod
-    def _keys(ip: str, username: str, scope: str = "") -> list[str]:
+    def _keys(ip: str, username: str | None, scope: str = "") -> list[str]:
+        """Las claves que cuentan: la IP y la cuenta. ``username=None``, solo la IP (un intento que no nombra
+        ninguna cuenta, como una passkey desconocida: contarlo en una clave común bloquearía a todo el mundo)."""
         prefix = f"{scope}:" if scope else ""
-        return [f"{prefix}ip:{ip}", f"{prefix}user:{username.lower()}"]
+        return [f"{prefix}ip:{ip}"] + ([f"{prefix}user:{username.lower()}"] if username is not None else [])
 
     def _prune(self, key: str, now: float) -> list[float]:
         items = [t for t in self._fails.get(key, []) if now - t < self.lockout]
@@ -140,12 +142,12 @@ class LoginThrottle:
             self._fails.pop(key, None)
         return items
 
-    def is_blocked(self, ip: str, username: str, scope: str = "") -> bool:
+    def is_blocked(self, ip: str, username: str | None, scope: str = "") -> bool:
         now = time.monotonic()
         with self._lock:
             return any(len(self._prune(k, now)) >= self.max_failures for k in self._keys(ip, username, scope))
 
-    def failure(self, ip: str, username: str, scope: str = "") -> None:
+    def failure(self, ip: str, username: str | None, scope: str = "") -> None:
         now = time.monotonic()
         with self._lock:
             for k in self._keys(ip, username, scope):
@@ -154,4 +156,4 @@ class LoginThrottle:
 
     def success(self, ip: str, username: str, scope: str = "") -> None:
         with self._lock:
-            self._fails.pop(self._keys(ip, username, scope)[1], None)
+            self._fails.pop(self._keys(ip, username, scope)[-1], None)

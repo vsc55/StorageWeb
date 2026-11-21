@@ -1,0 +1,84 @@
+{% extends "admin/settings/_layout.html" %}
+{% block section %}
+{# Seguridad → Estado de la seguridad (security_status.py): el tablero, la lista de comprobación (core/posture.py) y
+   los últimos sucesos de seguridad. Solo lectura: cada punto enlaza a la página donde se cambia #}
+{% set state_names = {"bad": _("To fix"), "warn": _("To review"), "ok": _("Right"), "info": _("For your information")} %}
+{% set severity_names = {"critical": _("critical"), "high": _("high"), "moderate": _("moderate"), "low": _("low")} %}
+{% set tl = tiles %}
+
+{# El tablero: cada cifra con su etiqueta y una línea de contexto; el estado va con texto, nunca solo con el color #}
+<div class="stat-grid" role="list">
+  <a class="stat-tile{% if tl.vulns.value %} is-bad{% endif %}" role="listitem" href="{{ url_for('settings.section', name='vulnerabilities') }}">
+    <span class="stat-label">{{ _("Known vulnerabilities") }}</span>
+    <span class="stat-value">{{ tl.vulns.value if tl.vulns.value is not none else '—' }}</span>
+    <span class="stat-note">{% if tl.vulns.value is none %}{{ _("Never checked") if not tl.vulns.at else _("The last check could not ask") }}
+      {% elif tl.vulns.value %}{{ _("worst: %(severity)s", severity=severity_names.get(tl.vulns.worst, tl.vulns.worst)) }} · {{ tl.vulns.at|datetime }}
+      {% else %}{{ _("checked %(date)s", date=tl.vulns.at|datetime) }}{% endif %}</span>
+  </a>
+  <a class="stat-tile" role="listitem" href="{{ url_for('settings.section', name='ips') }}">
+    <span class="stat-label">{{ _("Blocked IPs") }}</span>
+    <span class="stat-value">{{ tl.bans.value }}</span>
+    <span class="stat-note">{{ ngettext("%(num)s automatic", "%(num)s automatic", tl.bans.automatic) }}</span>
+  </a>
+  <a class="stat-tile{% if tl.failed.blocked %} is-warn{% endif %}" role="listitem" href="{{ url_for('admin.audit_log', action='login_failed') }}">
+    <span class="stat-label">{{ _("Failed sign-ins (24 h)") }}</span>
+    <span class="stat-value">{{ tl.failed.value }}</span>
+    <span class="stat-note">{{ ngettext("%(num)s lockout", "%(num)s lockouts", tl.failed.blocked) }}</span>
+  </a>
+  <a class="stat-tile" role="listitem" href="{{ url_for('settings.section', name='sessions') }}">
+    <span class="stat-label">{{ _("Open sessions") }}</span>
+    <span class="stat-value">{{ tl.sessions.value }}</span>
+    <span class="stat-note">{{ ngettext("%(num)s of an administrator", "%(num)s of administrators", tl.sessions.admins) }}</span>
+  </a>
+  <a class="stat-tile" role="listitem" href="{{ url_for('settings.section', name='auth') }}">
+    <span class="stat-label">{{ _("Two-step verification") }}</span>
+    <span class="stat-value">{{ tl.mfa.value }}<small> / {{ tl.mfa.total }}</small></span>
+    <span class="stat-note">{{ _("accounts with a password that have it") }}</span>
+  </a>
+  <a class="stat-tile" role="listitem" href="{{ url_for('settings.section', name='sessions') }}">
+    <span class="stat-label">{{ _("Valid API tokens") }}</span>
+    <span class="stat-value">{{ tl.tokens.value }}</span>
+    <span class="stat-note">{{ _("scripts, apps and network drives") }}</span>
+  </a>
+</div>
+
+<section class="card section-gap" aria-labelledby="posture-title">
+  <div class="card-title-row">
+    <h3 class="card-title" id="posture-title">{{ _("Checklist") }}</h3>
+    <span class="inline small">{% for st in ("bad", "warn", "ok") if posture_summary[st] %}<span class="badge posture-badge-{{ st }}">{{ state_names[st] }}: {{ posture_summary[st] }}</span>{% endfor %}</span>
+  </div>
+  <ul class="posture-list section-gap">
+    {% for r in posture %}
+    <li class="posture-{{ r.state }}">
+      <span class="badge posture-badge-{{ r.state }}">{{ state_names[r.state] }}</span>
+      <div class="posture-text"><strong>{{ r.title }}</strong><span class="muted small">{{ r.detail }}</span></div>
+      <a class="small nowrap" href="{{ r.url }}">{{ _("Go") }} →</a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="card section-gap" aria-labelledby="events-title">
+  <div class="card-title-row">
+    <h3 class="card-title" id="events-title">{{ _("Latest security events") }}</h3>
+    <a class="small" href="{{ url_for('admin.audit_log', level='warning') }}">{{ _("See the audit log") }}</a>
+  </div>
+  {% if events %}
+  <div class="table-scroll section-gap">
+  <table class="files small js-sortable">
+    <thead><tr><th data-sort="text">{{ _("When") }}</th><th data-sort="text">{{ _("Action") }}</th><th data-sort="text">{{ _("User") }}</th><th data-sort="text">{{ _("Address") }}</th><th>{{ _("Detail") }}</th></tr></thead>
+    <tbody>
+      {% for e in events %}
+      <tr><td class="nowrap" data-sort-value="{{ e.ts }}">{{ e.ts|datetime }}</td><td><code>{{ e.action }}</code></td>
+        <td>{{ e.username or '—' }}</td><td>{{ e.ip or '—' }}</td><td class="muted">{{ e.target or '' }}{% if e.target and e.detail %} · {% endif %}{{ e.detail or '' }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted small section-gap">{{ _("Nothing worth a warning in the audit log.") }}</p>
+  {% endif %}
+</section>
+
+{% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/sortable.js') }}"></script>{% endblock %}

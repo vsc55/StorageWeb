@@ -3,6 +3,7 @@
 * ``overview`` — Resumen (avisos, tarjetas por zona, tareas frecuentes) y buscador (Ctrl+K)
 * ``users``    — usuarios: lista y paneles, ficha, acciones en bloque
 * ``audit``    — auditoría y exportación CSV
+* ``browse``   — el selector de rutas de los campos (Examinar y autocompletado)
 
 Los ajustes están en ``views/settings/``, los grupos en ``views/groups.py`` y las carpetas
 compartidas en ``views/access.py``.
@@ -24,4 +25,4 @@ def _labels():
             "PERMISSION_LABELS": PERMISSION_LABELS, "ROLES": ROLES}
 
 
-from . import audit, overview, users  # noqa: E402,F401  (registran sus rutas)
+from . import audit, browse, overview, users  # noqa: E402,F401  (registran sus rutas)

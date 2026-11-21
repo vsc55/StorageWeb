@@ -100,3 +100,128 @@ test("vista previa: las extensiones son etiquetas; añadir una avisa y Descartar
   await page.waitFor("document.querySelector('[data-save-bar]').classList.contains('is-idle')");
   noErrors();
 });
+
+test("información: versión, servidor, base de datos, carpetas y componentes, sin errores", async () => {
+  await page.go(`${BASE}/admin/settings/system`);
+  const text = await page.evaluate("document.body.textContent");
+  for (const want of ["Esta instalación", "Hora del servidor", "Esquema", "Carpetas", "Componentes"]) {
+    assert.ok(text.includes(want), want);
+  }
+  noErrors();
+});
+
+test("vulnerabilidades: barra de progreso, segundo plano, volver a verla y la tabla ordenable", async () => {
+  await page.go(`${BASE}/admin/settings/vulnerabilities`);
+  const start = "document.getElementById('advisories-start')";
+  await page.evaluate(`${start}.click()`);
+  await page.waitFor("document.querySelector('dialog.sw-modal[open] progress.sw-progress')");
+  assert.ok(await page.evaluate(`${start}.disabled`), "no se puede pulsar otra vez mientras dura");
+  // «Seguir en segundo plano» cierra el modal; la comprobación sigue y «Ver el progreso» la trae al frente
+  await page.evaluate("document.querySelector('dialog.sw-modal[open] button[value=ok]').click()");
+  await page.waitFor("!document.querySelector('dialog.sw-modal[open]')");
+  assert.ok(await page.evaluate("!document.getElementById('advisories-show').hidden"));
+  await page.evaluate("document.getElementById('advisories-show').click()");
+  await page.waitFor("document.querySelector('dialog.sw-modal[open] progress.sw-progress')");
+  // Al acabar, la página se recarga con el resultado
+  await page.waitFor("document.querySelector('#advisories details th[data-sort] .sort-btn') && document.readyState === 'complete'", 15000);
+  assert.ok(await page.evaluate(`!${start}.disabled`));
+  const names = "[...document.querySelectorAll('#advisories details tbody tr')].map((r) => r.cells[0].textContent.trim()).join(',')";
+  const header = "document.querySelector('#advisories details th[data-sort] .sort-btn')";
+  await page.evaluate(`${header}.click()`);
+  assert.equal(await page.evaluate(names), "alfa,zeta");
+  await page.evaluate(`${header}.click()`);
+  assert.equal(await page.evaluate(names), "zeta,alfa");
+  assert.equal(await page.evaluate("document.querySelector('#advisories details th[data-sort]').getAttribute('aria-sort')"),
+    "descending");
+  noErrors();
+});
+
+test("importar de Entra ID: la lista se forma mientras se escribe, sin pulsar Buscar", async () => {
+  await page.go(`${BASE}/admin/users/import`);
+  await page.evaluate(`(() => { const i = document.querySelector('#import-search input[name=q]');
+                               i.value = 'ju'; i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await page.waitFor("[...document.querySelectorAll('#import-results tbody tr')].some((r) => r.textContent.includes('Juan Pérez'))");
+  assert.ok(await page.evaluate("!document.querySelector('#import-results').textContent.includes('Pedro')"));
+  assert.match(await page.evaluate("location.search"), /q=ju/);
+  // La tabla que llega después también se ordena
+  assert.ok(await page.evaluate("!!document.querySelector('#import-results th[data-sort] .sort-btn')"));
+  await page.evaluate(`(() => { const i = document.querySelector('#import-search input[name=q]');
+                               i.value = 'pe'; i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await page.waitFor("document.querySelector('#import-results').textContent.includes('Pedro Ruiz')");
+  noErrors();
+});
+
+test("importar de Entra ID: varias a la vez entre búsquedas, «Mostrar todos» va cargando y avisa de quién no podrá entrar", async () => {
+  await page.go(`${BASE}/admin/users/import`);
+  const type = (text) => page.evaluate(`(() => { const i = document.querySelector('#import-search input[name=q]');
+                                                i.value = ${JSON.stringify(text)}; i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  const pick = (name) => page.evaluate(`(() => { const b = [...document.querySelectorAll('input.import-pick')]
+                                                  .find((x) => x.dataset.name === ${JSON.stringify(name)});
+                                                b.click(); })()`);
+  await type("ju");
+  await page.waitFor("document.querySelector('input.import-pick')");
+  await pick("Juan Pérez");
+  await type("pe");
+  await page.waitFor("[...document.querySelectorAll('input.import-pick')].some((b) => b.dataset.name === 'Pedro Ruiz')");
+  await pick("Pedro Ruiz");
+  assert.match(await page.evaluate("document.getElementById('import-count').textContent"), /^2 /);
+  // Juan, que no está a la vista, viaja en un campo oculto del formulario
+  assert.equal(await page.evaluate("document.querySelectorAll('#import-kept input[name=ids]').length"), 1);
+  // Mostrar todos: la primera página y, al bajar, la siguiente; la selección se conserva
+  await page.evaluate("document.getElementById('import-all').click()");
+  await page.waitFor("document.querySelector('#import-results tbody tr')");
+  await page.evaluate("document.getElementById('import-more')?.scrollIntoView()");
+  await page.waitFor("document.querySelectorAll('#import-results tbody tr').length === 2");
+  assert.equal(await page.evaluate("document.querySelectorAll('input.import-pick:checked').length"), 2);
+  // Juan no está asignado a la aplicación (Pedro sí): el aviso
+  assert.ok(await page.evaluate("[...document.querySelectorAll('#import-results tbody tr')].find((r) => r.textContent.includes('Juan')).textContent.includes('no podrá entrar')"));
+  await page.navigating("document.getElementById('import-selected').click()");
+  assert.match(await page.evaluate("document.body.textContent"), /2 personas importadas/);
+  noErrors();
+});
+
+test("rutas: Examinar abre las carpetas para elegir y al escribir se autocompleta", async () => {
+  await page.go(`${BASE}/admin/users?q=ana`);               // la lista filtrada: solo ana
+  const href = await page.evaluate("document.querySelector('.user-actions a.btn-icon')?.getAttribute('href')");
+  assert.ok(href, "la ficha de ana");
+  await page.go(`${BASE}${href}`);
+  const input = "document.querySelector('#sec-favorites input[name=path]')";
+  await page.evaluate(`${input}.parentNode.querySelector('.path-browse').click()`);
+  await page.waitFor("[...document.querySelectorAll('dialog.sw-modal[open] .picker-item')].some((b) => b.textContent.trim() === 'Muchos')");
+  await page.evaluate("[...document.querySelectorAll('dialog.sw-modal[open] .picker-item')].find((b) => b.textContent.trim() === 'Muchos').click()");
+  await page.waitFor("document.querySelector('dialog.sw-modal[open] .picker-where').textContent === '/Muchos'");
+  await page.evaluate("document.querySelector('dialog.sw-modal[open] .picker .btn-primary').click()");
+  await page.waitFor("!document.querySelector('dialog.sw-modal[open]')");
+  assert.equal(await page.evaluate(`${input}.value`), "Muchos");
+  // Autocompletado: escribir de verdad (el selector no atiende a los eventos que pone él mismo)
+  await page.evaluate(`(() => { const i = ${input}; i.value = ''; i.focus(); })()`);
+  await page.send("Input.insertText", { text: "no" });
+  await page.waitFor(`[...${input}.list.options].some((o) => o.value === 'notas.md')`);
+  noErrors();
+});
+
+test("contraseñas: el probador dice regla por regla si se aceptaría", async () => {
+  await page.go(`${BASE}/admin/settings/passwords`);
+  const form = "document.querySelector('.password-test-form')";
+  await page.evaluate(`(() => { const f = ${form}; f.querySelector('[name=test_password]').value = 'qwertyuiop'; f.querySelector('.js-try').click(); })()`);
+  await page.waitFor("!document.querySelector('.password-test-result').hidden");
+  assert.match(await page.evaluate("document.querySelector('.password-test-summary').textContent"), /Se rechazaría/);
+  assert.ok(await page.evaluate("!!document.querySelector('.password-checks li.is-bad')"), "la regla que falla");
+  await page.evaluate(`(() => { const f = ${form}; f.querySelector('[name=test_password]').value = 'caballo-grapa-bateria'; f.querySelector('.js-try').click(); })()`);
+  await page.waitFor("document.querySelector('.password-test-summary').textContent === 'Se aceptaría.'");
+  assert.ok(await page.evaluate("!document.querySelector('.password-checks li.is-bad')"));
+  // Ver la contraseña
+  await page.evaluate("document.querySelector('.js-show-password').click()");
+  assert.equal(await page.evaluate(`${form}.querySelector('[name=test_password]').classList.contains('is-masked')`), false);
+  // Nunca un campo de contraseña ni un formulario: el navegador no ofrece guardarla
+  assert.equal(await page.evaluate("document.querySelectorAll('#password-test input[type=password], #password-test form').length"), 0);
+  // Las reglas de la página, aunque no estén guardadas: marcar «una mayúscula» y probar otra vez
+  await page.evaluate("document.querySelector('form.settings-form input[name=password_require][value=upper]').click()");
+  await page.evaluate(`${form}.querySelector('.js-try').click()`);
+  await page.waitFor("document.querySelector('.password-test-summary').textContent.startsWith('Se rechazaría')");
+  assert.match(await page.evaluate("document.querySelector('.password-checks li.is-bad').textContent"), /mayúscula/);
+  // Sin la regla del nombre de usuario, el campo del usuario no sale
+  await page.evaluate("document.querySelector('form.settings-form input[name=password_reject_username]').click()");
+  assert.equal(await page.evaluate("getComputedStyle(document.querySelector('.js-test-username')).display"), "none");
+  noErrors();
+});

@@ -83,6 +83,21 @@ class DirectoryUser:
 
 
 @dataclass(frozen=True)
+class DirectoryPerson:
+    """Una persona del directorio del proveedor, para importarla antes de que entre (Personas → Importar).
+    ``username`` es el que tendrá al iniciar sesión (las mismas reglas que el método aplica al entrar), y
+    ``external_id`` el que la enlaza con esa cuenta en su primer inicio de sesión."""
+    external_id: str
+    username: str
+    display_name: str = ""
+    email: str = ""
+    enabled: bool = True
+    detail: str = ""                    # cargo, departamento… (solo para reconocerla en la lista)
+    groups: list[str] | None = None     # sus grupos, si se saben (al importar: rol y carpetas desde ya)
+    warning: str = ""                   # por qué no podría entrar aunque se importe (p. ej. sin asignar a la app)
+
+
+@dataclass(frozen=True)
 class Notice:
     """Aviso para el Resumen (``core.alerts``); se resuelve en la página de inicio de sesión."""
     level: str          # danger | warn | info
@@ -191,6 +206,31 @@ class AuthMethod:
 
     def lookup_user(self, section: dict, user) -> DirectoryUser | None:
         """Estado actual de la cuenta en el directorio; ``None`` si no se puede saber (no se toca nada)."""
+        return None
+
+    # --- importar personas del directorio antes de que entren (Personas → Importar, ``core.accounts``)
+    def can_import(self, section: dict) -> bool:
+        """Si se pueden buscar e importar personas de su directorio ahora (activado y con acceso a él)."""
+        return False
+
+    def search_people(self, section: dict, text: str, limit: int = 25) -> list[DirectoryPerson] | None:
+        """Personas cuyo nombre, usuario o correo empieza por ``text``; ``None`` si no se puede preguntar."""
+        return None
+
+    def list_people(self, section: dict, cursor: str = "",
+                    page_size: int = 50) -> tuple[list[DirectoryPerson], str] | None:
+        """Todas, por páginas (*Mostrar todos*, que va cargando al bajar): ``(personas, cursor de la siguiente o
+        "")``. El cursor viene del navegador: el método lo valida y nunca lo usa como dirección. ``None`` si no se
+        puede preguntar."""
+        return None
+
+    def import_notice(self, section: dict) -> str:
+        """Algo que no se ha podido comprobar al buscar (p. ej. un permiso que falta), o ``""``."""
+        return ""
+
+    def get_person(self, section: dict, external_id: str) -> DirectoryPerson | None:
+        """Una persona por su identificador (al importar se vuelve a leer: nunca se fía de lo que manda el
+        navegador), con sus grupos si se pueden leer; ``None`` si no existe o no se puede saber."""
         return None
 
     # --- cierre de sesión iniciado por el proveedor (canal frontal)

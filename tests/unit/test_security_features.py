@@ -138,7 +138,8 @@ def test_run_due_cleans_and_backs_up(db_conn, tmp_path):
     database = db_conn.execute("PRAGMA database_list").fetchone()["file"]
     p = tmp_path / "c.json"
     p.write_text(json.dumps({"data_dir": str(tmp_path / "d"), "database": database,
-                             "maintenance": {"audit_retention_days": 10, "backup_interval_hours": 1, "backup_keep": 2}}),
+                             "maintenance": {"audit_retention_days": 10, "backup_interval_hours": 1, "backup_keep": 2},
+                             "security": {"dependency_check_hours": 0}}),     # la de vulnerabilidades sale a internet
                  encoding="utf-8")
     cfg = load_config(p)
     user = _user(db_conn)

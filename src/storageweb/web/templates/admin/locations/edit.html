@@ -18,6 +18,8 @@
             placeholder="{{ _('(unchanged)') if has_secret[o.name] else o.placeholder }}"></textarea>
   {% elif o.kind == 'port' %}
   <input type="number" name="{{ o.name }}" value="{{ value }}" min="1" max="65535"{% if o.required %} required{% endif %}>
+  {% elif o.kind == 'seconds' %}
+  <input type="number" name="{{ o.name }}" value="{{ value }}" min="1" max="600" step="1"{% if o.required %} required{% endif %}>
   {% else %}
   <input type="{{ 'url' if o.kind == 'url' else 'text' }}" name="{{ o.name }}" value="{{ value }}" class="mono"
          {% if o.section == 'credentials' %}autocomplete="off" {% endif %}placeholder="{{ o.placeholder }}"{% if o.required %} required{% endif %}>

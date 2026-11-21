@@ -56,23 +56,30 @@ def passkeys_available() -> bool:
     return bool(mfa.passkey_scope(settings())[0])
 
 
-def _issue(purpose: str, user) -> str:
+def _issue(purpose: str, user, **extra) -> str:
+    """Un challenge para ``purpose`` y esta cuenta (``None``: entrar sin contraseña, aún sin cuenta)."""
     challenge = mfa.new_challenge()
-    session[_CHALLENGE] = {"c": challenge, "for": purpose, "user": user["id"],
-                           "exp": time.time() + mfa.CHALLENGE_SECONDS}
+    session[_CHALLENGE] = {"c": challenge, "for": purpose, "user": user["id"] if user is not None else None,
+                           "exp": time.time() + mfa.CHALLENGE_SECONDS, **extra}
     return challenge
 
 
-def _take(purpose: str, user) -> str:
+def _take(purpose: str, user, held: dict | None = None) -> str:
     """El challenge emitido para esto y esta cuenta, gastado (una sola respuesta por challenge), o ``""``.
 
     Gastado en los dos lados: fuera de la cookie y apuntado en el servidor. Lo primero solo no basta (la cookie es del
-    cliente y la de antes aún lo lleva)."""
-    held = session.pop(_CHALLENGE, None) or {}
-    if held.get("for") != purpose or held.get("user") != user["id"] or held.get("exp", 0) < time.time():
+    cliente y la de antes aún lo lleva). ``held``: la nota ya sacada de la cookie (para leer lo que lleva además)."""
+    held = held if held is not None else (session.pop(_CHALLENGE, None) or {})
+    owner = user["id"] if user is not None else None
+    if held.get("for") != purpose or held.get("user") != owner or held.get("exp", 0) < time.time():
         return ""
     challenge = str(held.get("c") or "")
     return challenge if mfa.spend_challenge(challenge, held.get("exp", 0)) else ""
+
+
+def _resident(user) -> bool:
+    """Si una passkey nueva de esta cuenta debe guardarse en el dispositivo (para entrar sin contraseña con ella)."""
+    return mfa.passwordless_on(settings()) and mfa.passwordless_allowed(settings(), user)
 
 
 def _body() -> dict:
@@ -290,7 +297,7 @@ def login_enrol_passkey_options():
     if not rp_id:
         return _error(_("Passkeys are not available on this server."))
     return jsonify(mfa.registration_options(get_db(), user, rp_id=rp_id, rp_name=_issuer(),
-                                            challenge=_issue("enrol", user)))
+                                            challenge=_issue("enrol", user), resident=_resident(user)))
 
 
 @bp.route("/login/mfa/enrol/passkey", methods=["POST"])
@@ -322,6 +329,78 @@ def login_enrol_passkey():
               target=mfa.clean_name(data.get("name") or "") or "Passkey")
     _keep_codes(codes, held.get("next"))
     return jsonify({"redirect": url_for("mfa.codes") if codes else safe_next(held.get("next"))})
+
+
+# --------------------------------------------------------------------------- entrar solo con una passkey
+#
+# Sin usuario ni contraseña: el navegador ofrece las passkeys guardadas para este sitio y la elegida dice de quién es
+# (``userHandle``). Vale por los dos pasos porque la persona se verifica en el dispositivo (PIN, huella o cara: flag
+# UV obligatorio). Los fallos cuentan en el limitador del inicio de sesión: por IP mientras no se sabe la cuenta (una
+# passkey desconocida) y por IP y cuenta cuando se sabe, igual que una contraseña equivocada.
+
+def _passwordless_failed(ip: str, user, why: str) -> None:
+    audit.log(get_db(), "login_failed", username=user["username"] if user is not None else None, ip=ip,
+              detail=f"passkey error={why}")
+    _limiter().failure(ip, user["username"] if user is not None else None)
+    ipban.offense(get_db(), settings(), ip, "login_failed")
+
+
+@bp.route("/login/passkey/options", methods=["POST"])
+def passwordless_options():
+    cfg = settings()
+    if g.get("user") is not None:
+        return jsonify({"redirect": safe_next(request.args.get("next"))})
+    if not mfa.passwordless_on(cfg):
+        return _error(_("Passkeys are not available on this server."))
+    if _limiter().is_blocked(client_ip(), None):
+        return _error(_("Too many failed attempts. Wait a few minutes."), 429)
+    rp_id = mfa.passkey_scope(cfg)[0]
+    return jsonify(mfa.passwordless_options(
+        rp_id=rp_id, challenge=_issue("passwordless", None, next=request.args.get("next", ""))))
+
+
+@bp.route("/login/passkey", methods=["POST"])
+def passwordless():
+    cfg = settings()
+    ip = client_ip()
+    held = session.pop(_CHALLENGE, None) or {}
+    rp_id, origin = mfa.passkey_scope(cfg)
+    if not mfa.passwordless_on(cfg):
+        return _error(_("Passkeys are not available on this server."))
+    if _limiter().is_blocked(ip, None):
+        audit.log(get_db(), "login_blocked", ip=ip, detail="passkey")
+        return _error(_("Too many failed attempts. Wait a few minutes."), 429)
+    data = _body()
+    challenge = _take("passwordless", None, held)
+    # De quién es la passkey (si es de alguien) antes de comprobarla: con la cuenta, el bloqueo y los fallos son
+    # también los de esa cuenta
+    owner_id = mfa.passkey_owner(get_db(), str(data.get("id") or ""))
+    owner = users.get_by_id(get_db(), owner_id) if owner_id is not None else None
+    if owner is not None and _limiter().is_blocked(ip, owner["username"]):
+        audit.log(get_db(), "login_blocked", username=owner["username"], ip=ip, detail="passkey")
+        return _error(_("Too many failed attempts. Wait a few minutes."), 429)
+    try:
+        if not challenge:
+            raise mfa.PasskeyError("no challenge")
+        user_id = mfa.verify_passwordless(get_db(), credential_id=str(data.get("id") or ""),
+                                          user_handle=_raw(data, "user_handle"),
+                                          auth_data=_raw(data, "authenticator_data"),
+                                          client_data_json=_raw(data, "client_data_json"),
+                                          signature=_raw(data, "signature"), challenge=challenge, rp_id=rp_id,
+                                          origin=origin)
+    except mfa.PasskeyError as exc:
+        _passwordless_failed(ip, owner, _reason(exc.reason))
+        return _error(_("The passkey was not accepted."))
+    user = users.get_by_id(get_db(), user_id)
+    if user is None or not mfa.passwordless_allowed(cfg, user):
+        # Desactivada, o una cuenta de PAM: la passkey es buena pero no basta para entrar en ella
+        _passwordless_failed(ip, user, "not_allowed")
+        return _error(_("This account cannot sign in with a passkey only. Use your password."))
+    _limiter().success(ip, user["username"])
+    users.touch_login(get_db(), user["id"])
+    start_session(user)
+    audit.log(get_db(), "login", username=user["username"], ip=ip, detail=f"{user['source']}+passkey-only")
+    return jsonify({"redirect": safe_next(held.get("next"))})
 
 
 @bp.route("/login/mfa/cancel", methods=["POST"])
@@ -542,7 +621,7 @@ def passkey_options():
     if not _may_add(user):
         return _error(_("Confirm it is you first (a code or a passkey)."), 403, redirect=_back_url())
     return jsonify(mfa.registration_options(get_db(), user, rp_id=rp_id, rp_name=_issuer(),
-                                            challenge=_issue("register", user)))
+                                            challenge=_issue("register", user), resident=_resident(user)))
 
 
 @bp.route("/profile/mfa/passkey/register", methods=["POST"])

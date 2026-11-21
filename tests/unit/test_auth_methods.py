@@ -173,7 +173,8 @@ def test_new_method_in_the_web(extra_methods, make_app):
     assert 'type="password" name="llave_api_key"' in html
     token = get_csrf(admin, "/admin/settings/auth")
     form = {"_csrf": token, "local_enabled": "on", "entra_provider": "oauth2", "entra_timeout_seconds": "15",
-            "entra_directory_sync_minutes": "60",
+            "entra_directory_sync_minutes": "60", "entra_secret_months": "24", "entra_secret_warn_days": "30",
+            "password_min_length": "10",
             "llave_enabled": "on", "llave_realm": "casa", "llave_groups": "a, b", "llave_timeout": "9",
             "llave_api_key": "NUEVA", "demo_enabled": "on"}
     admin.post("/admin/settings/auth", data=form)

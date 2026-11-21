@@ -23,7 +23,6 @@ from .backends import Backend, BackendError
 MB = 1024 * 1024
 MAX_CHUNK = 32 * MB          # tamaño de parte que usa el navegador
 COPY_BLOCK = 1 * MB
-STALE_HOURS = 24             # las subidas sin actividad se descartan pasado este tiempo
 DISK_MARGIN = 64 * MB        # espacio libre mínimo que se deja en el disco
 
 

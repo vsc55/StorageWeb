@@ -85,6 +85,13 @@ def passkey(conn: Connection, user_id: int, credential_id: str):
                         (user_id, credential_id)).fetchone()
 
 
+def passkey_by_credential(conn: Connection, credential_id: str):
+    """La passkey con ese id, sea de quien sea (entrar sin contraseña: la cuenta la dice la passkey), con el ``uid``
+    de su cuenta para comprobar el ``userHandle``."""
+    return conn.execute("SELECT p.*, u.uid AS user_uid FROM mfa_passkeys p JOIN users u ON u.id = p.user_id "
+                        "WHERE p.credential_id = ?", (credential_id,)).fetchone()
+
+
 def credential_taken(conn: Connection, credential_id: str) -> bool:
     return conn.execute("SELECT 1 FROM mfa_passkeys WHERE credential_id = ?", (credential_id,)).fetchone() is not None
 

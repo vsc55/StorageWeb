@@ -84,10 +84,11 @@ def test_grant_group_read_adds_permission_once(graph):
     er.grant_group_read("tok", "c1")                                 # «ya existe» no es error
     patch = next(b for m, p, b in calls if m == "PATCH")
     graph_access = patch["requiredResourceAccess"][0]["resourceAccess"]
-    assert {"id": er.GROUP_READ_ALL, "type": "Role"} in graph_access and len(graph_access) == 3
+    assert {"id": er.GROUP_READ_ALL, "type": "Role"} in graph_access and len(graph_access) == 4
     assert {"id": er.USER_READ_ALL, "type": "Role"} in graph_access
+    assert {"id": er.APPLICATION_READ_ALL, "type": "Role"} in graph_access     # si exige asignación (Importar)
     assigned = [b["appRoleId"] for m, p, b in calls if p.endswith("/appRoleAssignments")]
-    assert assigned == [er.GROUP_READ_ALL, er.USER_READ_ALL]
+    assert assigned == [er.GROUP_READ_ALL, er.USER_READ_ALL, er.APPLICATION_READ_ALL]
 
 
 def test_info_for_brings_the_description(graph):

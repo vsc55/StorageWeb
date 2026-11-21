@@ -74,7 +74,8 @@ def login():
     # Tras un intento fallido con la cuenta local, el formulario sale desplegado y con el usuario escrito
     tried = request.method == "POST" and form_enabled
     return render_template("login.html", form_enabled=form_enabled, sso_buttons=buttons, next_url=next_url,
-                           local_open=tried, username=(request.form.get("username") or "").strip() if tried else "")
+                           local_open=tried, username=(request.form.get("username") or "").strip() if tried else "",
+                           passwordless=form_enabled and mfa.passwordless_on(cfg))
 
 
 @bp.route("/locale", methods=["POST"])

@@ -24,7 +24,7 @@ from ...settings.location_types import LocationSchema, Option
 from .base import (BackendError, Entry, RangedReader, RemoteBackend, certificate_error, clean_rel, join_rel,
                    name_of)
 
-TIMEOUT = 30
+TIMEOUT = 30         # sin la opción «timeout» de la ubicación (la de serie)
 DAV = "{DAV:}"
 PROPFIND_BODY = (b'<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop>'
                  b"<d:resourcetype/><d:getcontentlength/><d:getlastmodified/></d:prop></d:propfind>")
@@ -65,6 +65,7 @@ class WebDAVClient:
 
     def __init__(self, location: dict):
         self.base_url = location["url"].rstrip("/") + "/"
+        self.timeout = int(location.get("timeout") or TIMEOUT)
         self.headers = {"User-Agent": "StorageWeb"}
         if location.get("username"):
             token = f"{location['username']}:{location.get('password') or ''}".encode()
@@ -82,7 +83,7 @@ class WebDAVClient:
     def send(self, method: str, url: str, headers: dict, body=None, stream: bool = False) -> Response:
         req = urllib.request.Request(url, data=body, method=method, headers={**self.headers, **headers})
         try:
-            resp = urllib.request.urlopen(req, timeout=TIMEOUT, context=self.context)  # noqa: S310 (URL configurada)
+            resp = urllib.request.urlopen(req, timeout=self.timeout, context=self.context)  # noqa: S310 (URL configurada)
         except urllib.error.HTTPError as exc:
             data = exc.read()
             exc.close()
@@ -162,6 +163,9 @@ class WebDAVBackend(RemoteBackend):
                    "Comprobar el certificado TLS del servidor. Desactívalo solo con certificados propios.",
                    kind="bool", default=True,
                    help=_l("Disable it only for servers with their own certificate (many NAS).")),
+            Option("timeout", _l("Wait for the server (seconds)"),
+                   "Segundos que se espera al servidor (conectar y cada respuesta) antes de dar la operación por fallida (de 1 a 600). Súbelo para un servidor lento o lejano.", kind="seconds", default=30,
+                   help=_l("How long to wait for the server before giving up. Raise it for a slow or distant server.")),
             Option("username", _l("User"), "Usuario.", section="credentials"),
             Option("password", _l("Password"), "Contraseña o contraseña de aplicación (secreto).", kind="secret",
                    section="credentials"),

@@ -36,6 +36,7 @@ storageweb [--config RUTA] <comando> [opciones]
 | [`sessions-close`](#sessions-close) | Cierra las sesiones abiertas de un usuario (o de todos) |
 | [`mfa-reset`](#mfa-reset) | Quitar la verificación en dos pasos de un usuario (perdió el móvil y los códigos de recuperación) |
 | [`mfa-status`](#mfa-status) | Listar qué cuentas tienen la verificación en dos pasos |
+| [`password-list`](#password-list) | Ver, descargar o cambiar la lista de contraseñas comunes |
 | [`backup`](#backup) | Copia de seguridad de la base de datos, config.json y secret_key |
 | [`backup-list`](#backup-list) | Lista las copias de seguridad de una carpeta |
 | [`restore`](#restore) | Restaura una copia (con el servicio parado) |
@@ -267,6 +268,21 @@ Listar qué cuentas tienen la verificación en dos pasos.
 storageweb mfa-status
 ```
 
+
+### `password-list` {#password-list}
+
+Ver, descargar o cambiar la lista de contraseñas comunes.
+
+```
+storageweb password-list [--download] [--file FILE] [--reset] [--url URL]
+```
+
+| Argumento | Descripción |
+|---|---|
+| `--download` | Descargarla de security.password_list_urls (o de --url) como lista propia |
+| `--file` `FILE` | Usar este fichero de texto (una contraseña por línea) como lista propia |
+| `--reset` | Borrar la lista propia: vuelve a usarse la de serie |
+| `--url` `URL` | Dirección de la que descargarla (en lugar del ajuste); se puede repetir |
 
 ### `backup` {#backup}
 

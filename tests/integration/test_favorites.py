@@ -78,9 +78,9 @@ def test_home_is_per_user_and_webdav_keeps_them(app, logged, home):
 
 def test_recent_from_the_web_only(app, logged, home):
     client, _csrf = logged
-    (home / "informe.pdf").write_bytes(b"%PDF")
+    (home / "informe.zip").write_bytes(b"PK")
     (home / "notas.md").write_text("# hola", encoding="utf-8")
-    client.get("/download/home/informe.pdf")
+    client.get("/download/home/informe.zip")
     client.get("/view/home/notas.md")
     with app.app_context():
         plain, _id = tokens.create(get_db(), users.get_by_username(get_db(), "ana"), name="dav", scope="read", days=0)
@@ -88,9 +88,9 @@ def test_recent_from_the_web_only(app, logged, home):
     (home / "sincronizado.txt").write_text("x", encoding="utf-8")
     app.test_client().get("/dav/home/sincronizado.txt", headers=auth)      # unidad de red: no cuenta
     page = client.get("/recent").get_data(as_text=True)
-    assert 'href="/download/home/informe.pdf"' in page and 'href="/view/home/notas.md"' in page
+    assert 'href="/download/home/informe.zip"' in page and 'href="/view/home/notas.md"' in page
     assert "sincronizado.txt" not in page
-    assert page.index("notas.md") < page.index("informe.pdf")              # lo último, primero
+    assert page.index("notas.md") < page.index("informe.zip")              # lo último, primero
 
 
 def test_remove_from_the_list(app, logged, home):

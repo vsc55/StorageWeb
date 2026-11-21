@@ -4,7 +4,7 @@
 
 | Origen | Cómo entra | Quién lo crea |
 |---|---|---|
-| **Local** | Usuario y contraseña (hash scrypt en SQLite; mínimo 10 caracteres) | Un admin, desde la web o la CLI |
+| **Local** | Usuario y contraseña (hash scrypt en SQLite; mínimo 10 caracteres o los de `security.password_min_length`) | Un admin, desde la web o la CLI |
 | **Sistema (PAM)** | Usuario y contraseña del sistema operativo | Automático en su primer login (`auth.pam.enabled`) |
 | **Entra ID** | Botón *Iniciar sesión con Microsoft* | Automático (`auto_provision`) o un admin por adelantado |
 
@@ -87,18 +87,18 @@ Eliminar un grupo quita el acceso que da; no toca usuarios ni archivos. La [deci
 
 === "Web"
 
-    *Personas → Usuarios*: crear, editar (rol, grupos, carpeta, estado), cambiar la contraseña, activar o desactivar y eliminar.
+    *Personas → Usuarios*: crear, **importar de Entra ID** (buscar en el directorio y dar de alta antes de que entren; ver [Entra ID](entra-id.md#importar-personas-antes-de-que-entren)), editar (rol, grupos, carpeta, estado), cambiar la contraseña, activar o desactivar y eliminar.
     Hay dos vistas para elegir con el selector *Lista · Paneles* (se recuerda la última):
 
     - **Lista:** filtros por estado, origen, rol y grupo, paginación y **acciones en bloque** (añadir a un grupo, cambiar el rol, activar, desactivar). Cada acción se aplica a cada usuario con sus protecciones; los que no se pueden cambiar se listan.
-    - **Paneles:** lista a la izquierda y detalle con las pestañas *Perfil*, *Grupos*, *Acceso efectivo* y *Actividad*.
+    - **Paneles:** lista a la izquierda y detalle con lo mismo que la ficha: arriba quién es (origen, alta y último acceso) con *Desactivar*, *Cambiar contraseña* y *Eliminar usuario*, y las pestañas *Perfil* (nombre, email, rol, carpeta personal, cuota y lo que ocupa), *Grupos*, *Acceso efectivo*, *Favoritos*, *Seguridad* (verificación en dos pasos, sesiones y tokens) y *Actividad*.
 
     ![Personas → Usuarios, vista de lista](../img/admin/usuarios.webp)
 
     La ficha de cada usuario muestra su **acceso efectivo** (qué carpetas ve, con qué permiso y por qué: su carpeta, abierta a todos, por su nombre o por un grupo) y su **actividad reciente** en la auditoría.
 
     ![La ficha de una usuaria de Entra ID: datos de solo lectura, acceso efectivo, sesiones y actividad](../img/admin/usuario.webp)
-    La lista se puede filtrar por estado (*Todos*, *Activos*, *Desactivados*) y cada fila tiene sus acciones como iconos: **Editar** (lápiz), **Cambiar contraseña** (llave; desactivada en las cuentas de Entra ID o PAM, cuya contraseña se gestiona allí) y **Desactivar**/**Activar**; con el ratón encima se ve qué hace cada uno. *Cambiar contraseña* también está en la vista de paneles, y no dentro de *Editar*. El servidor vuelve a comprobarlo todo: un botón desactivado no se salta con una petición hecha a mano. La ficha de cada usuario se ordena por lo que se viene a hacer: arriba, quién es (rol, origen, estado, alta y último acceso); después lo que se edita, *Perfil* (nombre y email), *Acceso* (el rol y los grupos, que deciden juntos qué puede hacer y qué ve; el resultado, en *Acceso efectivo* al lado) y *Carpeta personal* (ruta, cuota y lo que ocupa), con una barra *Cambios sin guardar* que solo aparece al tocar algo (y avisa si se sale sin guardar); luego *Inicio de sesión y seguridad* (verificación en dos pasos y quitarla, sesiones y tokens) y, al final, la zona peligrosa: desactivar y eliminar. Activar o desactivar se hace solo con su botón, no al editar. Lleva a su propia página, con la contraseña nueva dos veces; al guardarla se cierran todas las sesiones de esa persona (`password_reset_by_admin` en la auditoría), pero sus tokens de API siguen valiendo; para cortarle el paso del todo, desactívala o revoca sus tokens en la ficha. La propia se cambia en *Mi perfil*, que pide la actual.
+    La lista se puede filtrar por estado (*Todos*, *Activos*, *Desactivados*) y cada fila tiene sus acciones como iconos: **Editar** (lápiz), **Cambiar contraseña** (llave; desactivada en las cuentas de Entra ID o PAM, cuya contraseña se gestiona allí) y **Desactivar**/**Activar**; con el ratón encima se ve qué hace cada uno. *Cambiar contraseña* también está en la vista de paneles, y no dentro de *Editar*. El servidor vuelve a comprobarlo todo: un botón desactivado no se salta con una petición hecha a mano. La ficha de cada usuario se ordena por lo que se viene a hacer: arriba, quién es (rol, origen, estado, alta y último acceso); después lo que se edita, *Perfil* (nombre y email), *Acceso* (el rol y los grupos, que deciden juntos qué puede hacer y qué ve; el resultado, en *Acceso efectivo* al lado) y *Carpeta personal* (ruta, cuota y lo que ocupa), con una barra *Cambios sin guardar* que solo aparece al tocar algo (y avisa si se sale sin guardar); luego *Inicio de sesión y seguridad* (verificación en dos pasos y quitarla, sesiones y tokens), *Favoritos* (los enlaces de arriba de su explorador: todos, también los que ya no le sirven porque perdió el acceso o están ocultos; quitar uno o todos y añadirle uno de sus carpetas que exista, sin tocar sus archivos; auditado) y, al final, la zona peligrosa: desactivar y eliminar. Activar o desactivar se hace solo con su botón, no al editar. Lleva a su propia página, con la contraseña nueva dos veces; al guardarla se cierran todas las sesiones de esa persona (`password_reset_by_admin` en la auditoría), pero sus tokens de API siguen valiendo; para cortarle el paso del todo, desactívala o revoca sus tokens en la ficha. La propia se cambia en *Mi perfil*, que pide la actual.
 
 === "CLI"
 
@@ -111,6 +111,8 @@ Eliminar un grupo quita el acceso que da; no toca usuarios ni archivos. La [deci
     sudo storageweb-admin user-add juan@contoso.com --source entra     # alta previa de Entra
     sudo storageweb-admin user-list
     ```
+
+Los campos de ruta de la administración (la carpeta personal, los favoritos, la ruta de una carpeta compartida y la carpeta de las copias fuera del servidor) tienen un botón **Examinar** para ir por las carpetas y elegir, y se autocompletan mientras se escribe con lo que hay en la carpeta escrita. Miran a donde corresponde: las carpetas de esa persona, la ubicación de almacenamiento elegida o, sin ella, el disco del servidor (ahí, solo carpetas y, si las hay, solo dentro de las [carpetas del servidor permitidas](almacenamiento.md#carpetas-del-servidor-permitidas)). Solo lo usan administradores y solo desde la propia página (pide el token CSRF en una cabecera); en las carpetas de una persona y en una ubicación no se sale de ellas (ni con `..` ni siguiendo un enlace simbólico) ni enseña lo oculto para todos, y en el disco nunca lista rutas de red (`\\equipo\recurso`) ni de dispositivo: el servidor se conectaría a otro equipo con su cuenta.
 
 ### Desactivar en lugar de eliminar
 

@@ -56,11 +56,27 @@ def _prompt_password() -> str:
     return password
 
 
-def _ask_password(given: str | None) -> str:
+def _ask_password(given: str | None, *, username: str = "", rules: dict | None = None) -> str:
     try:
-        return local.hash_password(given or _prompt_password())
+        return local.hash_password(given or _prompt_password(), username=username, **(rules or {}))
     except ValueError as exc:
         _fail(str(exc))
+
+
+def effective(cfg: dict, conn, args) -> dict:
+    """Los ajustes efectivos: los de config.json y los guardados desde la web (la CLI solo lee el archivo). Si no se
+    pueden leer los de la web, los del archivo."""
+    try:
+        from ..settings.runtime import open_runtime
+        runtime, _boot = open_runtime(args.config, create_key=False)
+        return runtime.current(conn)
+    except Exception:  # noqa: BLE001
+        return cfg
+
+
+def password_rules(cfg: dict, conn, args) -> dict:
+    """Las reglas de las contraseñas efectivas (``local.rules``)."""
+    return local.rules(effective(cfg, conn, args))
 
 
 def _groups(value: str | None) -> list[str]:

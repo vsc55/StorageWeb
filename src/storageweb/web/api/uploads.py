@@ -119,7 +119,7 @@ def _load(upload_id: str):
 
 def _cleanup_stale() -> None:
     conn = get_db()
-    for row in repo.stale(conn, core.STALE_HOURS):
+    for row in repo.stale(conn, settings()["storage"]["upload_stale_hours"]):
         core.discard(core.part_path(Path(row["dir_path"]), row["id"]))
         repo.delete(conn, row["id"])
 

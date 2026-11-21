@@ -10,7 +10,8 @@
   </div>
   <div class="inline">
     {{ view_switch('list') }}
-    <a class="btn btn-primary" href="{{ url_for('admin.user_new') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New user") }}</a>
+    {% for key, label in importers %}<a class="btn" href="{{ url_for('admin.user_import', source=key) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Import from %(method)s", method=label) }}</a>
+    {% endfor %}<a class="btn btn-primary" href="{{ url_for('admin.user_new') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New user") }}</a>
   </div>
 </div>
 

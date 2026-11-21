@@ -68,7 +68,8 @@ def generic_parser(method: AuthMethod) -> dict:
 def parse() -> dict:
     return {"auth": {m.key: _PARSERS.get(m.key, generic_parser)(m) for m in providers.methods()},
             # La política de la verificación en dos pasos va en esta página (es del inicio de sesión)
-            "security": {"mfa_required": request.form.get("mfa_required", "off"), "passkeys": checked("passkeys")}}
+            "security": {"mfa_required": request.form.get("mfa_required", "off"), "passkeys": checked("passkeys"),
+                         "passkey_login": checked("passkey_login")}}
 
 
 MFA_POLICY_LABELS = dict(zip(MFA_POLICIES, (_l("Nobody: optional for everyone"), _l("Administrators"),

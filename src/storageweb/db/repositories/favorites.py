@@ -27,6 +27,12 @@ def remove(conn: Connection, user_id: int, root: str, rel: str) -> None:
     conn.commit()
 
 
+def remove_all(conn: Connection, user_id: int) -> int:
+    cur = conn.execute("DELETE FROM favorites WHERE user_id = ?", (user_id,))
+    conn.commit()
+    return cur.rowcount
+
+
 def _owner_clause(user_id: int | None) -> tuple[str, tuple]:
     # En «home» la carpeta es de cada usuario: solo cambian los favoritos de quien hace la operación
     return ("", ()) if user_id is None else (" AND user_id = ?", (user_id,))

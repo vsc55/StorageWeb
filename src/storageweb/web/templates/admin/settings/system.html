@@ -1,7 +1,133 @@
 {% extends "admin/settings/_layout.html" %}
 {% from "admin/_page.html" import origin_badge with context %}
 {% block section %}
+{# Diagnóstico (web/views/settings/system.py → core/diagnostics.py): lo que se pregunta primero cuando algo falla #}
+{% set sy, db, comp, net = diag.system, diag.database, diag.components, diag.network %}
+{% set unknown = _("unknown") %}
+{% set run_modes = {"windows_service": _("Windows service"), "container": _("Container"), "systemd": _("systemd service"),
+                    "dev": _("Development server"), "process": _("Process started by hand or by another supervisor")} %}
+{% set folder_names = {"data": _("Data"), "homes": _("Personal folders"), "backups": _("Backups"),
+                       "uploads": _("Unfinished uploads"), "logs": _("Logs (Windows service)")} %}
 <div class="card">
+  <div class="card-title-row">
+    <h3 class="card-title">{{ _("This installation") }}</h3>
+    <span class="inline">
+      <a class="btn btn-small" href="{{ url_for('settings.system_report', format='txt') }}">{{ _("Download report (text)") }}</a>
+      <a class="btn btn-small" href="{{ url_for('settings.system_report', format='json') }}">JSON</a>
+    </span>
+  </div>
+  <p class="muted small">{{ _("What is asked first when something fails. The report has the same, without secrets, to attach to an issue.") }}</p>
+  <dl class="kv section-gap">
+    <dt>{{ _("Version") }}</dt><dd>StorageWeb <strong>{{ sy.version }}</strong></dd>
+    <dt>{{ _("Runs as") }}</dt><dd>{{ run_modes.get(sy.run_mode, sy.run_mode) }}{% if sy.container %} <span class="badge">{{ sy.container }}</span>{% endif %}</dd>
+    <dt>{{ _("Started") }}</dt><dd>{{ sy.started|datetime }} <small class="muted">({{ _("%(time)s running", time=sy.uptime_seconds|duration) }})</small></dd>
+    <dt>{{ _("Process") }}</dt><dd>PID {{ sy.pid }}{% if sy.threads %} · {{ ngettext("%(num)s thread (Waitress)", "%(num)s threads (Waitress)", sy.threads) }}{% endif %}</dd>
+    <dt>Python</dt><dd>{{ sy.python_impl or unknown }} {{ sy.python or '' }} <code class="muted small">{{ sy.python_exe }}</code></dd>
+  </dl>
+</div>
+
+<div class="card section-gap">
+  <h3 class="card-title">{{ _("Server") }}</h3>
+  <dl class="kv section-gap">
+    <dt>{{ _("Name") }}</dt><dd>{{ sy.hostname or unknown }}</dd>
+    <dt>{{ _("Operating system") }}</dt><dd>{{ sy.os or unknown }}{% if sy.kernel and sy.kernel not in sy.os %} <small class="muted">({{ sy.kernel }})</small>{% endif %} · {{ sy.arch or unknown }}</dd>
+    <dt>{{ _("Processors") }}</dt><dd>{{ sy.cpus or unknown }}{% if sy.load %} <small class="muted">· {{ _("load %(values)s", values=sy.load|join(' / ')) }}</small>{% endif %}</dd>
+    <dt>{{ _("Memory") }}</dt><dd>{{ sy.memory|filesize if sy.memory else unknown }}</dd>
+    <dt>{{ _("Server time") }}</dt><dd>{{ sy.now|datetime }} <small class="muted">({% if sy.timezone %}{{ sy.timezone }}, {% endif %}UTC{{ sy.utc_offset }})</small>
+      <small class="muted">· {{ _("Authenticator app codes depend on it: if it is wrong, they fail.") }}</small></dd>
+  </dl>
+</div>
+
+<div class="card section-gap">
+  <div class="card-title-row">
+    <h3 class="card-title">{{ _("Database") }}</h3>
+    <a class="small" href="{{ url_for('settings.section', name='backups') }}">{{ _("Backups and maintenance") }}</a>
+  </div>
+  <dl class="kv section-gap">
+    <dt>{{ _("Engine") }}</dt><dd>{{ db.engine }} · {{ _("mode %(mode)s", mode=db.journal or unknown) }}</dd>
+    <dt>{{ _("File") }}</dt><dd><code>{{ db.path }}</code> · {{ db.size|filesize }}{% if db.wal_size %} <small class="muted">({{ _("%(size)s in the WAL journal", size=db.wal_size|filesize) }})</small>{% endif %}</dd>
+    <dt>{{ _("Schema") }}</dt><dd>{{ _("version %(num)s", num=db.schema) }}
+      {% if db.schema == db.latest %}<span class="badge badge-ok">{{ _("up to date") }}</span>
+      {% else %}<span class="badge badge-err">{{ _("this version expects %(num)s", num=db.latest) }}</span>{% endif %}</dd>
+  </dl>
+</div>
+
+<div class="card section-gap">
+  <h3 class="card-title">{{ _("Folders") }}</h3>
+  <p class="muted small">{{ _("Where StorageWeb writes on this server. The free space is shown once per disk.") }}</p>
+  <div class="table-scroll section-gap">
+  <table class="files small js-sortable">
+    <thead><tr><th data-sort="text">{{ _("Folder") }}</th><th data-sort="text">{{ _("Path") }}</th><th data-sort="text">{{ _("State") }}</th><th data-sort="number">{{ _("Free") }}</th></tr></thead>
+    <tbody>
+      {% for f in diag.folders %}
+      <tr>
+        <td>{{ folder_names.get(f.key, f.key) }}</td>
+        <td><code>{{ f.path or '—' }}</code></td>
+        <td class="nowrap">{% if f.exists and f.writable %}<span class="badge badge-ok">{{ _("writable") }}</span>
+          {% elif f.exists %}<span class="badge badge-err">{{ _("read-only") }}</span>
+          {% elif f.on_demand %}<span class="badge">{{ _("created when needed") }}</span>
+          {% else %}<span class="badge badge-err">{{ _("missing") }}</span>{% endif %}</td>
+        <td class="nowrap" data-sort-value="{{ f.free }}">{% if f.total %}{{ _("%(free)s of %(total)s", free=f.free|filesize, total=f.total|filesize) }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div class="card section-gap">
+  <div class="card-title-row">
+    <h3 class="card-title">{{ _("How this page arrived") }}</h3>
+    <a class="small" href="{{ url_for('settings.section', name='network') }}">{{ _("Network and HTTPS") }}</a>
+  </div>
+  <dl class="kv section-gap">
+    <dt>{{ _("Address") }}</dt><dd><code>{{ net.scheme }}://{{ net.host }}</code>{% if net.public_url %} <small class="muted">· {{ _("public address %(url)s", url=net.public_url) }}</small>{% endif %}</dd>
+    <dt>{{ _("Your address") }}</dt><dd>{{ net.client }}{% if net.behind_proxy %} <small class="muted">({{ _("behind a proxy") }})</small>{% endif %}</dd>
+    <dt>{{ _("Problems") }}</dt><dd>{% if net.problems %}<span class="badge badge-err">{{ net.problems|length }}</span> {{ net.problems|first }}{% else %}<span class="badge badge-ok">{{ _("none") }}</span>{% endif %}</dd>
+  </dl>
+</div>
+
+<div class="card section-gap">
+  <h3 class="card-title">{{ _("Components") }}</h3>
+  {% if comp.stale %}
+  <p class="flash flash-error" role="note">{{ _("The installed package data says version %(installed)s and the code is %(code)s: the list below is from then. Install it again (pip install -e . in a checkout, or the package of this version).", installed=comp.dist_version, code=sy.version) }}</p>
+  {% endif %}
+  {% if not comp.found %}
+  <p class="muted small">{{ _("StorageWeb is not installed as a package (running from the source code without pip install): the libraries it needs cannot be listed.") }}</p>
+  {% endif %}
+  {% if comp.found or diag.javascript %}
+  <div class="table-scroll section-gap">
+  <table class="files small js-sortable">
+    <thead><tr><th data-sort="text">{{ _("Library") }}</th><th data-sort="text">{{ _("Type") }}</th><th data-sort="text">{{ _("For") }}</th><th>{{ _("Asked for") }}</th><th data-sort="version">{{ _("Installed") }}</th></tr></thead>
+    <tbody>
+      {% for r in comp.required %}
+      <tr><td>{{ r.name }}</td><td>{{ r.kind }}</td><td class="muted">{{ _("StorageWeb (needed)") }}</td><td><code>{{ r.spec or '—' }}</code></td>
+        <td>{% if r.installed %}{{ r.installed }}{% else %}<span class="badge badge-err">{{ _("missing") }}</span>{% endif %}</td></tr>
+      {% endfor %}
+      {% for r in diag.javascript %}
+      <tr><td>{{ r.name }}</td><td>{{ r.kind }}</td><td>{{ r.feature or '—' }}</td><td><code>{{ r.version }}</code></td>
+        <td>{{ r.version }}{% if r.status == 'modified' %} <span class="badge badge-err">{{ _("changed by hand") }}</span>
+          {% elif r.status == 'missing' %} <span class="badge badge-err">{{ _("files missing") }}</span>{% endif %}</td></tr>
+      {% endfor %}
+      {% for r in comp.optional %}
+      <tr><td>{{ r.name }}</td><td>{{ r.kind }}</td><td>{{ r.feature }} <small class="muted">({{ _("optional: %(extra)s", extra=r.extra) }})</small></td><td><code>{{ r.spec or '—' }}</code></td>
+        <td>{% if r.installed %}{{ r.installed }}{% else %}<span class="badge">{{ _("not installed") }}</span>{% endif %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card section-gap">
+  <div class="card-title-row">
+    <h3 class="card-title">{{ _("Vulnerabilities and new versions") }}</h3>
+    <a class="small" href="{{ url_for('settings.section', name='vulnerabilities') }}">{{ _("Vulnerabilities") }}</a>
+  </div>
+  <p class="muted small">{{ _("The check of the installed libraries against the vulnerability databases is in Security → Vulnerabilities.") }}</p>
+</div>
+
+<div class="card section-gap">
   <h3 class="card-title">{{ _("Startup (config.json or environment only, requires restarting the service)") }}</h3>
   <dl class="kv section-gap">
     <dt>{{ _("Configuration file") }}</dt><dd><code>{{ boot.config_path }}</code></dd>
@@ -58,4 +184,6 @@
   <summary>{{ _("Effective configuration (JSON, secrets hidden)") }}</summary>
   <pre class="code">{{ effective_json }}</pre>
 </details>
+{% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/sortable.js') }}"></script>
 {% endblock %}

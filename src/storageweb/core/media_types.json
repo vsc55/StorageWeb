@@ -1,0 +1,21 @@
+{
+  "$comment": "Imágenes, PDF, vídeo y audio que abre el visor (core/preview.py, files.inline). Por tipo: el ajuste que lo enciende (preview.<setting>) y extensión → tipo MIME con el que se sirve (nunca el del archivo). Solo formatos que no ejecutan código con la sesión: nunca svg ni html. Se lee y se valida al arrancar.",
+  "image": {
+    "setting": "images",
+    "types": {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "gif": "image/gif",
+              "webp": "image/webp", "bmp": "image/bmp", "ico": "image/x-icon", "avif": "image/avif"}
+  },
+  "pdf": {
+    "setting": "pdf",
+    "types": {"pdf": "application/pdf"}
+  },
+  "video": {
+    "setting": "video",
+    "types": {"mp4": "video/mp4", "m4v": "video/mp4", "webm": "video/webm", "ogv": "video/ogg"}
+  },
+  "audio": {
+    "setting": "audio",
+    "types": {"mp3": "audio/mpeg", "wav": "audio/wav", "ogg": "audio/ogg", "oga": "audio/ogg", "opus": "audio/ogg",
+              "m4a": "audio/mp4", "aac": "audio/aac", "flac": "audio/flac", "weba": "audio/webm"}
+  }
+}

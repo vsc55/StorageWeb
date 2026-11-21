@@ -174,6 +174,23 @@
                 text-align: center; color: var(--muted); }
 .viewer-empty p { margin: 0; color: var(--fg); }
 
+/* Imágenes, PDF, vídeo y audio: centrados y sin salirse de la ventana (la cabecera ocupa unos 90px) */
+.viewer-media { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center;
+                gap: 16px; padding: 20px 28px 32px; min-height: 0; }
+.viewer-media video { max-width: 100%; max-height: calc(100vh - 170px); background: #000; border-radius: 6px; }
+.viewer-media audio { width: min(640px, 100%); }
+.viewer-pdf { width: 100%; height: calc(100vh - 150px); min-height: 360px; border: 1px solid var(--line-soft);
+              border-radius: 6px; background: var(--bg-soft); }
+.viewer-media-pdf { padding-top: 12px; padding-bottom: 12px; }
+.viewer-image { padding: 0; border: 0; background: none; cursor: zoom-in; max-width: 100%; }
+.viewer-image img { display: block; max-width: 100%; max-height: calc(100vh - 170px); object-fit: contain;
+                    border-radius: 4px;
+                    /* Cuadros detrás: se ve dónde una imagen es transparente */
+                    background: repeating-conic-gradient(var(--bg-hover) 0 25%, var(--bg) 0 50%) 0 0 / 16px 16px; }
+.viewer-image.is-zoomed { cursor: zoom-out; overflow: auto; max-height: none; }
+.viewer-image.is-zoomed img { max-width: none; max-height: none; }
+.viewer-media-image:has(.is-zoomed) { align-items: flex-start; justify-content: flex-start; overflow: auto; }
+
 .viewer-code { padding: 20px 28px 48px; display: flex; flex-direction: column; gap: 10px; }
 .viewer-code > p { margin: 0; }
 .viewer-note { display: flex; gap: 10px; align-items: flex-start; background: var(--primary-soft); color: var(--fg); }
@@ -299,7 +316,7 @@ html:not(.js) .editor-status button { pointer-events: none; }
   .viewer-toc-small { display: block; }
 }
 @media (max-width: 720px) {
-  .viewer-head, .viewer-code, .viewer-body { padding-left: 16px; padding-right: 16px; }
+  .viewer-head, .viewer-code, .viewer-body, .viewer-media { padding-left: 16px; padding-right: 16px; }
   .viewer-actions { justify-content: flex-start; }
   .viewer-mode { flex: 1 1 auto; }
   .viewer-mode .segment { flex: 1 1 0; }

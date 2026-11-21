@@ -9,7 +9,7 @@ from ..i18n import _, _l
 from ..providers import local
 from ..core.accounts import stores_password
 from ..settings import ROLES
-from .common import _ask_password, _fail, _get, _groups, _prompt_password, _read_password, command
+from .common import _ask_password, _fail, _get, _groups, _prompt_password, _read_password, command, effective, password_rules
 
 
 def _user_add_args(p):
@@ -37,7 +37,8 @@ def cmd_user_add(cfg, conn, args):
     try:
         create_account(conn, username=args.username, source=source, role=args.role,
                        password=password, display_name=args.name, email=args.email,
-                       groups=_groups(args.groups), home_path=args.home)
+                       groups=_groups(args.groups), home_path=args.home,
+                       password_rules=password_rules(cfg, conn, args), cfg=effective(cfg, conn, args))
     except AccountError as exc:
         _fail(exc.message)
     print(_("User %(name)s (%(source)s, %(role)s) created.", name=repr(args.username), source=args.source,
@@ -56,7 +57,8 @@ def cmd_user_passwd(cfg, conn, args):
     if not stores_password(user["source"]):
         _fail(_("%(name)s is a %(source)s user; its password is not managed here.",
                 name=repr(args.username), source=user["source"]))
-    users.update(conn, user["id"], password_hash=_ask_password(_read_password(args)))
+    users.update(conn, user["id"], password_hash=_ask_password(_read_password(args), username=user["username"],
+                                                               rules=password_rules(cfg, conn, args)))
     print(_("Password updated."))
 
 
@@ -82,6 +84,11 @@ def cmd_user_set(cfg, conn, args):
     user = _get(conn, args.username)
     fields = {}
     if args.home is not None:
+        from ..core.accounts import AccountError, check_home_path
+        try:
+            check_home_path(effective(cfg, conn, args), args.home)
+        except AccountError as exc:
+            _fail(exc.message)
         fields["home_path"] = args.home
     if args.name is not None:
         fields["display_name"] = args.name

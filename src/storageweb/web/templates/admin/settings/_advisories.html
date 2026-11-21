@@ -1,0 +1,60 @@
+{# La tarjeta de vulnerabilidades y versiones nuevas (Seguridad → Estado de la seguridad). Necesita «advisories»
+   (el último resultado) y «advisories_job» (la comprobación en marcha), de security_status.security_context #}
+{# Versiones nuevas y vulnerabilidades conocidas (core/advisories.py): solo al pulsar el botón, porque sale a internet #}
+{% set severity_names = {"critical": _("critical"), "high": _("high"), "moderate": _("moderate"), "low": _("low"), "none": _("none")} %}
+{% macro advisory_row(r) -%}
+<tr>
+  <td>{% if r.url %}<a href="{{ r.url }}" rel="noopener noreferrer" target="_blank">{{ r.name }}</a>{% else %}{{ r.name }}{% endif %}</td>
+  <td>{{ r.kind or r.ecosystem }}</td>
+  <td>{{ r.installed }}</td>
+  <td class="nowrap" data-sort-value="{{ r.latest }}">{% if r.state == 'behind' %}{{ r.latest }} <span class="badge">{{ _("newer") }}</span>
+    {% elif r.state == 'current' %}<span class="muted">{{ _("up to date") }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+  <td data-sort-value="{{ r.risk|default(r.vulns|length) }}">{% for v in r.vulns %}<div><a href="{{ v.url }}" rel="noopener noreferrer" target="_blank"><code>{{ v.id }}</code></a>
+      {% if v.severity %}<span class="badge{% if v.severity in ('high', 'critical') %} badge-err{% endif %}">{{ severity_names.get(v.severity, v.severity) }}{% if v.score is not none and not v.published %} {{ v.score }}{% endif %}</span>{% endif %}
+      {% if v.summary %}<small class="muted">{{ v.summary }}</small>{% endif %}</div>
+    {% else %}<span class="muted">—</span>{% endfor %}</td>
+</tr>
+{%- endmacro %}
+<section class="card section-gap" id="advisories" aria-labelledby="advisories-title">
+  <h3 class="card-title" id="advisories-title">{{ _("Vulnerabilities and new versions") }}</h3>
+  <p class="muted small">{{ _("Asks the public databases about every installed library (Python and JavaScript): the vulnerability database OSV.dev (CVE, GitHub advisories) and PyPI and npm for the newest version. It goes out to the internet (pypi.org, registry.npmjs.org, api.osv.dev, through the system proxy if there is one), so it is only done when you press the button; nothing about this server is sent except the names and versions of the libraries.") }}</p>
+  {% set job = advisories_job %}
+  <form method="post" action="{{ url_for('settings.system_advisories') }}" class="section-gap inline" id="advisories-form"
+        data-status="{{ url_for('settings.system_advisories_status') }}"{% if job.running %} data-running{% endif %}>
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button class="btn btn-primary" type="submit" id="advisories-start"{% if job.running %} disabled{% endif %}>{{ _("Check now") }}</button>
+    <button class="btn" type="button" id="advisories-show"{% if not job.running %} hidden{% endif %}>{{ _("See the progress") }}</button>
+    <span class="muted small" id="advisories-running"{% if not job.running %} hidden{% endif %}>{{ _("Checking in the background…") }}</span>
+  </form>
+  {% if advisories %}
+  {% set adv = advisories %}
+  <p class="section-gap">{{ _("Last check: %(date)s.", date=adv.at|datetime) }}
+    {% if not adv.vulns_ok %}<span class="badge badge-err">{{ _("the vulnerability database did not answer (%(error)s): the vulnerabilities were not checked", error=adv.vulns_error) }}</span>
+    {% elif adv.vuln_total %}<span class="badge badge-err">{{ ngettext("%(num)s vulnerability", "%(num)s vulnerabilities", adv.vuln_total) }}</span>
+      {{ ngettext("in %(num)s library", "in %(num)s libraries", adv.vuln_packages) }}
+    {% else %}<span class="badge badge-ok">{{ ngettext("no known vulnerabilities in %(num)s library", "no known vulnerabilities in %(num)s libraries", adv.vuln_asked) }}</span>{% endif %}
+    {% if adv.behind %} · {{ ngettext("%(num)s with a newer version", "%(num)s with a newer version", adv.behind) }}{% endif %}</p>
+  {% set notable = adv.rows|selectattr('vulns')|list + adv.rows|rejectattr('vulns')|selectattr('state', 'equalto', 'behind')|selectattr('group', 'ne', 'other')|list %}
+  {% if notable %}
+  <div class="table-scroll section-gap">
+  <table class="files small js-sortable">
+    <thead><tr><th data-sort="text">{{ _("Library") }}</th><th data-sort="text">{{ _("Type") }}</th><th data-sort="version">{{ _("Installed") }}</th><th data-sort="version">{{ _("Newest") }}</th><th data-sort="number">{{ _("Known vulnerabilities") }}</th></tr></thead>
+    <tbody>{% for r in notable %}{{ advisory_row(r) }}{% endfor %}</tbody>
+  </table>
+  </div>
+  {% endif %}
+  <details class="section-gap">
+    <summary>{{ ngettext("All %(num)s library checked", "All %(num)s libraries checked", adv.checked) }}</summary>
+    <div class="table-scroll section-gap">
+    <table class="files small js-sortable">
+      <thead><tr><th data-sort="text">{{ _("Library") }}</th><th data-sort="text">{{ _("Type") }}</th><th data-sort="version">{{ _("Installed") }}</th><th data-sort="version">{{ _("Newest") }}</th><th data-sort="number">{{ _("Known vulnerabilities") }}</th></tr></thead>
+      <tbody>{% for r in adv.rows %}{{ advisory_row(r) }}{% endfor %}</tbody>
+    </table>
+    </div>
+  </details>
+  <p class="muted small">{{ _("The severity is the one the vulnerability database published or, without one, the CVSS score of its vector (shown with the number).") }}</p>
+  <p class="muted small">{{ _("A newer version is not always needed: the libraries StorageWeb asks for are updated with StorageWeb. A known vulnerability is worth acting on whatever its origin: it is code that runs on this server.") }}</p>
+  {% else %}
+  <p class="muted small section-gap">{{ _("Never checked.") }}</p>
+  {% endif %}
+</section>

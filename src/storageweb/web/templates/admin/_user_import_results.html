@@ -1,0 +1,23 @@
+{# Los resultados de Personas → Importar: la página los incluye y admin/user-import.js los pide solos
+   (?partial=1) mientras se escribe #}
+{% if failed %}
+<p class="flash flash-error section-gap" role="alert">{{ _("The directory could not be read. Check the connection in Sign-in (the application needs the User.Read.All permission: «Repair permissions» adds it).") }}</p>
+{% elif (query|length >= 2 or show_all) and not people %}
+<p class="muted section-gap">{% if show_all %}{{ _("The directory is empty.") }}{% else %}{{ _("Nobody in the directory starts with «%(text)s».", text=query) }}{% endif %}</p>
+{% elif people %}
+{% if notice %}<p class="flash viewer-note section-gap" role="note">{{ notice }}</p>{% endif %}
+<div class="card section-gap">
+  <div class="table-scroll">
+  <table class="files small js-sortable">
+    <thead><tr><th class="check-col"><input type="checkbox" id="import-all-rows" aria-label="{{ _('Select all') }}" hidden></th><th data-sort="text">{{ _("Name") }}</th><th data-sort="text">{{ _("User name") }}</th><th data-sort="text">{{ _("Email") }}</th><th data-sort="text">{{ _("State") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr></thead>
+    <tbody>
+      {% include "admin/_user_import_rows.html" %}
+    </tbody>
+  </table>
+  </div>
+  {% if more %}
+  {# Más personas: se cargan solas al acercarse (admin/user-import.js); sin JavaScript, el enlace #}
+  <p class="section-gap" id="import-more-row"><a class="btn btn-small" id="import-more" href="{{ more|replace('rows=1', 'rows=0') }}" data-next="{{ more }}">{{ _("Load more") }}</a></p>
+  {% elif not show_all and people|length >= limit %}<p class="muted small section-gap">{{ _("Up to %(num)s results: if who you are looking for is not here, write more of the name.", num=limit) }}</p>{% endif %}
+</div>
+{% endif %}

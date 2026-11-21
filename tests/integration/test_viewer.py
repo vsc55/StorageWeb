@@ -73,7 +73,7 @@ def test_previous_next_and_audit(app, logged, home):
     client, _ = logged
     _files(home)
     page = client.get("/view/home/docs/latin.txt").get_data(as_text=True)
-    # Solo los que se ven, por nombre: app.log, guia.md, latin.txt, otra.md, pagina.html (no .png ni .bin)
+    # Solo los que se ven, por nombre: app.log, esquema.png, falso.txt, guia.md, latin.txt, otra.md… (no .bin)
     assert 'href="/view/home/docs/guia.md"' in page and 'href="/view/home/docs/otra.md"' in page
     with app.app_context():
         row = audit.recent(get_db(), 1, action="download")[0]

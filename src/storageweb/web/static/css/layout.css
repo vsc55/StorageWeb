@@ -141,6 +141,12 @@ summary.avatar { box-shadow: 0 0 0 2px var(--rail-bg); }
 .login-panel h1 { margin: 0 0 24px; font-size: 26px; }
 .login-panel input[type=text], .login-panel input[type=password] { min-height: 42px; border-radius: 10px; }
 .login-sso { display: flex; flex-direction: column; gap: 10px; }
+/* Entrar solo con una passkey: debajo del formulario, tras un «o» con raya a los lados */
+.login-passkey { margin-top: 14px; }
+.login-or { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; }
+.login-or::before, .login-or::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
+.login-passkey .passkey-form { display: block; }
+.login-passkey .passkey-form .btn { width: 100%; justify-content: center; padding-top: 10px; padding-bottom: 10px; }
 .login-local { margin-top: 20px; padding-top: 6px; border-top: 1px solid var(--line); }
 .login-local > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 2px;
                          list-style: none; cursor: pointer; color: var(--muted); font-weight: 500; border-radius: 6px; }

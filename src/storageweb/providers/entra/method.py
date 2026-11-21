@@ -11,15 +11,25 @@ from ...settings.auth_methods import AuthConfig
 from ...settings.defaults import ROLES
 from ...settings.errors import ConfigError
 from ...settings.fields import Field
-from ..base import AuthDenied, AuthMethod, DirectoryUser, GroupDirectory, Identity, LoginButton, Notice
+from ..base import (AuthDenied, AuthMethod, DirectoryPerson, DirectoryUser, GroupDirectory, Identity, LoginButton,
+                    Notice)
 from . import directory
 from .common import MULTI_TENANT
 from .oauth2 import GRANTED_KEY
 from .sso import SSO_PROVIDERS, get_sso_provider
 
-SECRET_WARN_DAYS = 30
 GUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 _log = logging.getLogger(__name__)
+
+
+def _int_between(value, low: int, high: int, field: str) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(_("%(field)s must be an integer", field=field), field) from exc
+    if not low <= number <= high:
+        raise ConfigError(_("%(field)s must be between %(low)s and %(high)s", field=field, low=low, high=high), field)
+    return number
 
 
 def _validate(section: dict, cfg: dict) -> None:
@@ -30,6 +40,8 @@ def _validate(section: dict, cfg: dict) -> None:
     section["role_mappings"] = checks.role_mappings(section["role_mappings"], "auth.entra.role_mappings")
     section["timeout_seconds"] = checks.positive_int(section["timeout_seconds"], "auth.entra.timeout_seconds")
     section["secret_expires"] = checks.iso_datetime(section.get("secret_expires"), "auth.entra.secret_expires")
+    section["secret_months"] = _int_between(section.get("secret_months"), 1, 24, "auth.entra.secret_months")
+    section["secret_warn_days"] = _int_between(section.get("secret_warn_days"), 1, 365, "auth.entra.secret_warn_days")
     section["auto_login"] = bool(section.get("auto_login"))
     try:
         section["directory_sync_minutes"] = int(section.get("directory_sync_minutes", 0) or 0)
@@ -89,8 +101,13 @@ CONFIG = AuthConfig(
         "issuer": "",
         "logout_url": "",
         "timeout_seconds": 15,
-        # Caducidad del client_secret (ISO 8601); vacía = desconocida. Se avisa 30 días antes.
+        # Caducidad del client_secret (ISO 8601); vacía = desconocida. Se avisa secret_warn_days antes.
         "secret_expires": "",
+        # Meses que vale un secreto que crea StorageWeb (registrar, renovar, reparar); Microsoft admite hasta 24 y
+        # las directivas del tenant pueden exigir menos
+        "secret_months": 24,
+        # Días antes de que caduque el secreto en que empieza el aviso del Resumen
+        "secret_warn_days": 30,
     },
     fields={
         "enabled": Field(doc="Activar el inicio de sesión con Microsoft Entra ID.", label="Microsoft Entra ID",
@@ -159,9 +176,19 @@ CONFIG = AuthConfig(
                                  label=_l("Timeout (s)"), page="auth"),
         "secret_expires": Field(
             doc=("Fecha de caducidad del `client_secret` (ISO 8601). La rellenan el registro automático y la "
-                 "renovación; con ella se avisa a los admins 30 días antes."),
+                 "renovación; con ella se avisa a los admins `secret_warn_days` días antes."),
             label=_l("The secret expires on"), page="auth", words="entra secreto caducidad caduca expira expiry",
             form=lambda value: str(value or "")[:10]),
+        "secret_months": Field(
+            doc=("Meses que vale un `client_secret` que crea StorageWeb (registrar la aplicación, *Renovar el "
+                 "secreto*, *Reparar*), de 1 a 24. Microsoft admite hasta 24; si las directivas del tenant piden "
+                 "menos (p. ej. 6 o 12), pon ese número o Entra ID rechazará el secreto."),
+            label=_l("New secrets last (months)"), page="auth",
+            words="entra secreto caducidad meses duración directiva policy lifetime months"),
+        "secret_warn_days": Field(
+            doc="Días antes de que caduque el `client_secret` en que empieza el aviso del Resumen (de 1 a 365).",
+            label=_l("Warn before the secret expires (days)"), page="auth",
+            words="entra secreto aviso caduca días warn expiry"),
     },
     validate=_validate,
     secrets=("client_secret",),
@@ -212,6 +239,46 @@ def groups_overage(claims: dict) -> bool:
     return bool((isinstance(names, dict) and "groups" in names) or claims.get("hasgroups"))
 
 
+# El claim del token que da el nombre de usuario (auth.entra.username_claim) → el campo de Graph que lleva lo mismo
+_CLAIM_FIELDS = {"preferred_username": "userPrincipalName", "upn": "userPrincipalName", "unique_name": "userPrincipalName",
+                 "email": "mail"}
+
+
+def username_from(section: dict, value: str) -> str:
+    """El nombre de usuario como lo da el inicio de sesión: en minúsculas y sin el dominio si ``strip_domain``."""
+    raw = str(value or "").strip().lower()
+    return raw.split("@")[0] if section.get("strip_domain") else raw
+
+
+def person_from_graph(section: dict, user: dict) -> DirectoryPerson | None:
+    """Una cuenta de Graph → :class:`DirectoryPerson`, con el nombre de usuario que le dará su primer inicio de
+    sesión (el mismo claim que ``identity_from_claims``; si es uno que Graph no tiene, el UPN)."""
+    field = _CLAIM_FIELDS.get(section.get("username_claim") or "preferred_username", "userPrincipalName")
+    username = username_from(section, user.get(field) or user.get("userPrincipalName") or user.get("mail") or "")
+    if not user.get("id") or not username:
+        return None
+    detail = " · ".join(str(x) for x in (user.get("jobTitle"), user.get("department")) if x)
+    return DirectoryPerson(external_id=str(user["id"]).lower(), username=username,
+                           display_name=str(user.get("displayName") or ""),
+                           email=str(user.get("mail") or user.get("userPrincipalName") or ""),
+                           enabled=bool(user.get("accountEnabled", True)), detail=detail)
+
+
+NOT_ASSIGNED = _l("Not assigned to the application in Entra ID («Assignment required» is on): they cannot sign in "
+                  "until an administrator assigns them, or one of their groups, in the enterprise application.")
+
+
+def _with_assignment(section: dict, people: list[DirectoryPerson]) -> list[DirectoryPerson]:
+    """Las personas con el aviso de las que no podrían entrar porque la aplicación exige asignación y no lo están (ni
+    ellas ni un grupo del que sean miembros directos). Lo que no se sabe no se avisa."""
+    info = directory.assignment(section)
+    if not info or not info["required"]:
+        return people
+    return [p if directory.assigned(p.external_id, info) else DirectoryPerson(**{**p.__dict__,
+                                                                                   "warning": str(NOT_ASSIGNED)})
+            for p in people]
+
+
 def identity_from_claims(section: dict, claims: dict) -> Identity:
     """Claims del id_token ya validados → :class:`Identity`. :class:`AuthDenied` si no puede entrar.
 
@@ -224,7 +291,7 @@ def identity_from_claims(section: dict, claims: dict) -> Identity:
     raw_username = str(claims.get(section["username_claim"]) or claims.get("email") or "").strip().lower()
     if not oid or not raw_username:
         raise AuthDenied(_("The Microsoft account did not return a valid identifier."), "claims")
-    username = raw_username.split("@")[0] if section["strip_domain"] else raw_username
+    username = username_from(section, raw_username)
     roles = {str(x).lower() for x in claims.get("roles") or []}
     found: set[str] | None = {str(x).lower() for x in claims.get("groups") or []}
     if groups_overage(claims):
@@ -276,7 +343,7 @@ class EntraMethod(AuthMethod):
 
     def notices(self, section: dict) -> list[Notice]:
         days = secret_days(section)
-        if days is None or days > SECRET_WARN_DAYS:
+        if days is None or days > int(section.get("secret_warn_days") or 30):
             return []
         date = format_datetime(section["secret_expires"])
         if days < 0:
@@ -303,6 +370,39 @@ class EntraMethod(AuthMethod):
         if not section.get("enabled") or not directory.configured(section):
             return 0
         return int(section.get("directory_sync_minutes") or 0)
+
+    # --- importar personas (Personas → Importar de Microsoft Entra ID)
+    def can_import(self, section: dict) -> bool:
+        return bool(section.get("enabled")) and directory.configured(section)
+
+    def search_people(self, section: dict, text: str, limit: int = 25) -> list[DirectoryPerson] | None:
+        found = directory.search_users(section, text, limit)
+        if found is None:
+            return None
+        people = [p for p in (person_from_graph(section, u) for u in found) if p]
+        return _with_assignment(section, people)
+
+    def list_people(self, section: dict, cursor: str = "",
+                    page_size: int = 50) -> tuple[list[DirectoryPerson], str] | None:
+        page = directory.list_users(section, cursor, page_size)
+        if page is None:
+            return None
+        found, following = page
+        return _with_assignment(section, [p for p in (person_from_graph(section, u) for u in found) if p]), following
+
+    def import_notice(self, section: dict) -> str:
+        if directory.assignment(section) is None:
+            return _("Whether the application requires assignment (and so who can sign in) could not be checked: it "
+                     "needs the Application.Read.All permission («Repair permissions» adds it).")
+        return ""
+
+    def get_person(self, section: dict, external_id: str) -> DirectoryPerson | None:
+        found = directory.get_user(section, external_id)
+        person = person_from_graph(section, found) if found else None
+        if person is None:
+            return None
+        groups = directory.member_groups(section, person.external_id) if person.enabled else None
+        return _with_assignment(section, [DirectoryPerson(**{**person.__dict__, "groups": groups})])[0]
 
     def lookup_user(self, section: dict, user) -> DirectoryUser | None:
         state = directory.user_state(section, user["external_id"] or "")

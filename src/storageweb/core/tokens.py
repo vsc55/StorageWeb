@@ -23,7 +23,6 @@ SCOPES = ("read", "write")
 SCOPE_LABELS = {"read": _l("Read (list and download)"), "write": _l("Read and write")}
 EXPIRY_DAYS = (30, 90, 365, 0)
 READ_PERMISSIONS = frozenset({"download"})
-UNUSED_DAYS = 90       # aviso del Resumen: tokens vigentes sin usar desde hace tanto
 
 
 class TokenError(Exception):
@@ -136,13 +135,15 @@ def restrict(permissions: frozenset[str], token) -> frozenset[str]:
 @source("tokens", order=60)
 def _unused_tokens(ctx):
     """Tokens que siguen valiendo pero nadie usa desde hace meses: candidatos a revocar."""
-    if not (ctx.cfg.get("security") or {}).get("api_tokens") or not ctx.cfg.get("database"):
+    security = ctx.cfg.get("security") or {}
+    days = int(security.get("api_token_unused_days", 90) or 0)      # 0 = sin aviso
+    if not security.get("api_tokens") or not days or not ctx.cfg.get("database"):
         return []
     now = datetime.now(timezone.utc)
     try:
         conn = connect(ctx.cfg["database"])
         try:
-            count = repo.unused_since(conn, (now - timedelta(days=UNUSED_DAYS)).isoformat(timespec="seconds"),
+            count = repo.unused_since(conn, (now - timedelta(days=days)).isoformat(timespec="seconds"),
                                       now.isoformat(timespec="seconds"))
         finally:
             conn.close()
@@ -152,6 +153,6 @@ def _unused_tokens(ctx):
         return []
     return [alert("info", "tokens_unused",
                   ngettext("%(num)s API token unused for more than %(days)s days",
-                           "%(num)s API tokens unused for more than %(days)s days", count, days=UNUSED_DAYS),
+                           "%(num)s API tokens unused for more than %(days)s days", count, days=days),
                   _("Tokens nobody uses are better revoked: if one leaks, it still works."),
                   "sessions", _("See the tokens"))]

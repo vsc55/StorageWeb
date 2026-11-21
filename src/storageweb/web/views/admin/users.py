@@ -3,12 +3,13 @@ from __future__ import annotations
 
 import re
 
-from flask import abort, flash, g, redirect, render_template, request, session, url_for
+from flask import abort, flash, g, make_response, redirect, render_template, request, session, url_for
 
-from ....core import accounts, mfa
+from ....core import accounts, favorites, mfa
 from ....core import groups as group_core
 from ....core.permissions import ADMIN, PERMISSION_LABELS, permissions_for
 from ....core import quota
+from ....providers import local
 from ....core.storage import available_roots, explain_access, home_quota_mb
 from ....db.repositories import api_tokens, audit, users
 from ....db.repositories import mfa as mfa_repo
@@ -27,7 +28,7 @@ from . import bp
 
 USER_STATUS_FILTERS = ("all", "active", "disabled")
 USER_VIEWS = ("list", "panel")
-USER_TABS = ("profile", "groups", "access", "activity")
+USER_TABS = ("profile", "groups", "access", "favorites", "security", "activity")
 PAGE_SIZE = 25
 BULK_ACTIONS = ("disable", "enable", "role_user", "role_admin", "add_group")
 
@@ -96,7 +97,7 @@ def users_list():
                            session_count=len(session_repo.list_all(get_db())),
                            filters=f, search=f["q"], status=f["status"], counts=users.counts(get_db()),
                            all_groups=group_repo.list_all(get_db()), group_names=_group_names(shown),
-                           page_size=PAGE_SIZE, mfa_users=mfa_repo.enrolled_ids(get_db()))
+                           page_size=PAGE_SIZE, mfa_users=mfa_repo.enrolled_ids(get_db()), importers=_importers())
 
 
 @bp.route("/users/bulk", methods=["POST"])
@@ -160,6 +161,8 @@ def _user_detail(user) -> dict:
             "user_tokens": api_tokens.list_for_user(get_db(), user["id"]),
             "access": explain_access(user, cfg, labels) if user["enabled"] else [],
             "activity": audit.for_user(get_db(), user["username"], 8),
+            "favorites": favorites.for_admin(get_db(), user, cfg),
+            "favorite_roots": [(r["name"], r["label"]) for r in available_roots(user, cfg)],
             "mfa": mfa.status(get_db(), user), "mfa_applies": mfa.applies(user),
             "mfa_required": mfa.required(cfg, user),
             "role_permissions": [PERMISSION_LABELS[p] for p in PERMISSIONS if p in perms]}
@@ -184,7 +187,7 @@ def users_panel():
     ctx = {}
     if current is not None:
         ctx = {**_user_detail(current), "form": {**dict(current), "enabled": bool(current["enabled"])}}
-    return render_template("admin/users/panel.html", users=rows, current=current, tab=tab, filters=f,
+    return render_template("admin/users/panel.html", users=rows, current=current, tab=tab, filters=f, importers=_importers(),
                            counts=users.counts(get_db()), **ctx)
 
 
@@ -245,6 +248,88 @@ def _quota_field(f) -> dict:
     return {"quota_mb": int(raw) if raw.isdigit() else -1}
 
 
+SEARCH_LIMIT = 25      # al buscar: lo que empieza por lo escrito
+PAGE_SIZE_ALL = 50     # «Mostrar todos»: personas por página (las siguientes, al bajar)
+IMPORT_MAX = 200       # «Importar seleccionados»: personas por envío
+
+
+def _importers() -> list[tuple[str, str]]:
+    """``(clave, nombre)`` de los métodos de los que se pueden importar personas ahora (el botón «Importar de…»)."""
+    return [(m.key, m.label) for m in accounts.import_methods(settings())]
+
+
+@bp.route("/users/import", methods=["GET", "POST"])
+@admin_required
+def user_import():
+    """Buscar personas en el directorio de un método (Microsoft Entra ID) e importarlas antes de que entren: la misma
+    cuenta que les daría su primer inicio de sesión. Al importar, la persona se vuelve a leer por su identificador."""
+    cfg = settings()
+    methods = accounts.import_methods(cfg)
+    if not methods:
+        flash(_("No sign-in method can import people now (for Microsoft Entra ID: enabled, with the client secret "
+                "and the User.Read.All permission)."), "error")
+        return redirect(url_for("admin.users_index"))
+    key = request.values.get("source") or methods[0].key
+    method = next((m for m in methods if m.key == key), methods[0])
+    query = request.values.get("q", "").strip()[:100]
+    show_all = request.values.get("all") == "1" and not query
+    if request.method == "POST":
+        # Una (el botón de su fila) o varias (las casillas: «Importar seleccionados»)
+        single = request.form.get("external_id", "")
+        wanted = [single] if single else list(dict.fromkeys(request.form.getlist("ids")))[:IMPORT_MAX]
+        imported = 0
+        for external_id in wanted:
+            try:
+                user, how, warning = accounts.import_account(get_db(), cfg, method.key, external_id)
+            except accounts.AccountError as exc:
+                flash(exc.message, "error")
+                continue
+            imported += 1
+            audit_event("user_imported", user["username"], f"{method.key}:{user['role']} {how}")
+            if len(wanted) == 1:
+                flash(_("«%(name)s» imported: they can sign in with %(method)s.", name=user["username"],
+                        method=method.label) if how == "created" else
+                      _("«%(name)s» already existed and is now linked to %(method)s.", name=user["username"],
+                        method=method.label), "info")
+            if warning:
+                flash(f"{user['username']}: {warning}", "error")
+        if len(wanted) > 1 and imported:
+            flash(ngettext("%(num)s person imported.", "%(num)s people imported.", imported), "info")
+        if not wanted:
+            flash(_("Select at least one person."), "error")
+        return redirect(url_for("admin.user_import", source=method.key, q=query or None,
+                                all="1" if request.form.get("all") == "1" else None))
+    people, failed, following = [], False, ""
+    found = None
+    if show_all:
+        page = method.list_people(method.section(cfg), request.args.get("cursor", "")[:4096], PAGE_SIZE_ALL)
+        found, following = page if page is not None else (None, "")
+        failed = page is None
+    elif len(query) >= 2:
+        found = method.search_people(method.section(cfg), query, SEARCH_LIMIT)
+        failed = found is None
+    if found is not None:
+        for person in found:
+            existing = users.get_by_external(get_db(), method.key, person.external_id)
+            same_name = users.get_by_username(get_db(), person.username)
+            people.append({"person": person, "imported": existing,
+                           "conflict": same_name if same_name is not None and existing is None
+                           and (same_name["source"] != method.key or same_name["external_id"]) else None})
+    more = url_for("admin.user_import", source=method.key, all="1", cursor=following, rows="1") if following else ""
+    context = {"methods": methods, "method": method, "query": query, "people": people, "failed": failed,
+               "show_all": show_all, "limit": SEARCH_LIMIT, "more": more,
+               "notice": method.import_notice(method.section(cfg)) if people and not request.args.get("cursor") else ""}
+    if request.args.get("rows") == "1":
+        # Solo las filas de la página siguiente (al bajar); la dirección de la otra, en X-Next
+        resp = make_response(render_template("admin/_user_import_rows.html", **context))
+        resp.headers["X-Next"] = more
+        return resp
+    if request.args.get("partial") == "1":
+        # Solo los resultados: la búsqueda mientras se escribe (admin/user-import.js)
+        return render_template("admin/_user_import_results.html", **context)
+    return render_template("admin/user_import.html", **context)
+
+
 @bp.route("/users/new", methods=["GET", "POST"])
 @admin_required
 def user_new():
@@ -258,7 +343,8 @@ def user_new():
             uid = accounts.create_account(get_db(), 
                 username=form["username"], source=form["source"], role=form["role"],
                 password=form["password"], display_name=form["display_name"], email=form["email"],
-                groups=form["groups"], home_path=form["home_path"], enabled=form["enabled"])
+                groups=form["groups"], home_path=form["home_path"], enabled=form["enabled"],
+                password_rules=local.rules(settings()), cfg=settings())
         except accounts.AccountError as exc:
             flash(exc.message, "error")
         else:
@@ -279,7 +365,7 @@ def user_edit(user_uid: str):
         # reglas. Aquí se conserva como está, venga lo que venga en el formulario
         data = {**_user_form_data(), "enabled": bool(user["enabled"])}
         try:
-            accounts.update_account(get_db(), user, g.user, **data)
+            accounts.update_account(get_db(), user, g.user, **data, cfg=settings())
         except accounts.AccountError as exc:
             flash(exc.message, "error")
             form.update(data)
@@ -318,7 +404,8 @@ def user_password(user_uid: str):
             flash(_("The new passwords do not match."), "error")
         else:
             try:
-                closed = accounts.set_password(get_db(), user, g.user, new)
+                closed = accounts.set_password(get_db(), user, g.user, new,
+                                               password_rules=local.rules(settings()))
             except accounts.AccountError as exc:
                 flash(exc.message, "error")
             else:
@@ -347,6 +434,47 @@ def _user_groups_context(user) -> dict:
             "addable_groups": [g for g in group_repo.list_all(get_db()) if g["id"] not in mine]}
 
 
+def _favorites_back(user_uid: str):
+    """A donde se hizo (``next``: la ficha o la pestaña de los paneles), o a la tarjeta de la ficha."""
+    return back(url_for("admin.user_edit", user_uid=user_uid) + "#sec-favorites")
+
+
+@bp.route("/users/<user_uid>/favorites/add", methods=["POST"])
+@admin_required
+def user_favorite_add(user_uid: str):
+    """Añade a la persona un favorito en una de sus carpetas (que exista)."""
+    user = _user_or_404(user_uid)
+    try:
+        added = favorites.add_for(get_db(), user, settings(), request.form.get("root", ""),
+                                  request.form.get("path", ""))
+    except favorites.FavoriteError as exc:
+        flash(exc.message, "error")
+    else:
+        audit_event("favorite_added_by_admin", user["username"], f"{added['root']}:/{added['rel']}")
+        flash(_("Favorite added."), "info")
+    return _favorites_back(user_uid)
+
+
+@bp.route("/users/<user_uid>/favorites/remove", methods=["POST"])
+@admin_required
+def user_favorite_remove(user_uid: str):
+    user = _user_or_404(user_uid)
+    root, rel = request.form.get("root", ""), request.form.get("rel", "")
+    favorites.remove(get_db(), user, root, rel)
+    audit_event("favorite_removed_by_admin", user["username"], f"{root}:/{rel}")
+    return _favorites_back(user_uid)
+
+
+@bp.route("/users/<user_uid>/favorites/clear", methods=["POST"])
+@admin_required
+def user_favorites_clear(user_uid: str):
+    user = _user_or_404(user_uid)
+    removed = favorites.clear(get_db(), user)
+    audit_event("favorites_cleared_by_admin", user["username"], f"removed={removed}")
+    flash(ngettext("%(num)s favorite removed.", "%(num)s favorites removed.", removed), "info")
+    return _favorites_back(user_uid)
+
+
 @bp.route("/users/<user_uid>/groups", methods=["POST"])
 @admin_required
 def user_group_add(user_uid: str):
@@ -372,7 +500,7 @@ def user_delete(user_uid: str):
         return redirect(url_for("admin.user_edit", user_uid=user_uid))
     audit_event("user_deleted", user["username"])
     flash(_("User «%(name)s» deleted (their files have not been removed).", name=user["username"]), "info")
-    return redirect(url_for("admin.users_list"))
+    return back(url_for("admin.users_list"))          # desde los paneles, a los paneles (``next``)
 
 
 search.action("user", _l("New user"), "admin.user_new", words="alta crear usuario cuenta add create", order=10)

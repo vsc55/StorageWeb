@@ -16,7 +16,9 @@ from .errors import ConfigError
 
 # Clases de opción: cómo se valida y qué control muestra la web
 # server_path: ruta en un servidor (SFTP, FTP): absoluta (/srv/datos) o relativa a la carpeta del usuario
-OPTION_KINDS = ("text", "path", "server_path", "url", "secret", "bool", "port", "multiline")
+# seconds: un tiempo de espera, de 1 a MAX_SECONDS segundos
+OPTION_KINDS = ("text", "path", "server_path", "url", "secret", "bool", "port", "multiline", "seconds")
+MAX_SECONDS = 600
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,15 @@ class Option:
                 raise ConfigError(_("%(where)s: %(field)s must be a port number (1-65535)", where=where,
                                     field=self.name), "storage.locations")
             return port
+        if self.kind == "seconds":
+            try:
+                seconds = int(value)
+            except (TypeError, ValueError):
+                seconds = 0
+            if not 1 <= seconds <= MAX_SECONDS:
+                raise ConfigError(_("%(where)s: %(field)s must be a number of seconds (1-%(max)s)", where=where,
+                                    field=self.name, max=MAX_SECONDS), "storage.locations")
+            return seconds
         text = str(value).strip()
         if self.kind in ("path", "server_path"):
             parts = [p for p in text.replace("\\", "/").split("/") if p not in ("", ".")]

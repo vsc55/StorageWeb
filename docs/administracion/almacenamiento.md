@@ -18,6 +18,31 @@ Se pueden mezclar: unas carpetas en el disco, otras en un bucket y las personale
 !!! tip "¿Y Google Drive, OneDrive o Dropbox?"
     Móntalos con [rclone](https://rclone.org/) (ver más abajo). Google Cloud Storage funciona como **S3** en su modo compatible (claves HMAC, `endpoint_url` `https://storage.googleapis.com`).
 
+## Carpetas del servidor permitidas
+
+En *Sistema → Carpetas del servidor* (`storage.allowed_folders`) se dice en qué carpetas del disco del servidor puede
+haber carpetas compartidas y personales, una ruta absoluta por línea (por ejemplo `/srv/storageweb`). Vacío, como
+viene de serie, vale cualquiera. Con una lista:
+
+- No se puede guardar una carpeta compartida en el disco, la plantilla de las carpetas personales ni la carpeta
+  personal propia de una persona (web y `storageweb-admin user-add/user-set --home`) fuera de ellas.
+- Una que ya estaba fuera deja de abrirse («no disponible») hasta que se mueva o se añada su carpeta. La página
+  enseña antes de guardar cuáles quedarían fuera.
+- El botón *Examinar* solo lista lo que hay dentro de ellas.
+- Se compara la ruta real: `..` y los enlaces simbólicos que salen de ellas cuentan como fuera.
+- El fichero de la auditoría (`audit.file`, *Seguridad → Auditoría*) también tiene que estar dentro de ellas: el
+  servidor añade líneas a ese fichero. Aunque no haya lista, nunca puede estar en la carpeta de datos ni ser el
+  `config.json`, y una ruta de red (`\\equipo\recurso`) solo vale si está dentro de una carpeta permitida.
+
+**Rutas de red**: una carpeta compartida o personal en el disco con una ruta de red (`\\nas\datos`, `//nas/datos`)
+solo se acepta si está dentro de una carpeta permitida, **aunque no haya lista**: usarla es que el servidor se
+conecte a ese equipo con la cuenta del servicio (en Windows, entregándole su hash NTLM). Para un NAS, mejor una
+[ubicación SMB](#smb); si de verdad hay que usar la ruta, añádela a la lista.
+
+Las ubicaciones (S3, SMB…) no son el disco del servidor y no se miran. Para que la lista no se pueda ampliar desde
+la web, ponla en el `config.json` o en la variable `STORAGEWEB_STORAGE__ALLOWED_FOLDERS` (en JSON si alguna ruta tiene espacios:
+`["/srv/storageweb", "/mnt/nas datos"]`): la página la muestra bloqueada.
+
 ## Montajes
 
 Es la opción más sencilla y la que mejor rinde: StorageWeb no sabe que la carpeta es remota. El usuario del servicio (`storageweb`) debe poder leer y escribir en el punto de montaje.
@@ -235,7 +260,7 @@ Se aplican a la ruta dentro de cada carpeta de StorageWeb (la personal o cada co
 
 ## Cuotas
 
-Las cuotas **impiden escribir lo que no quepa** (`storage.quota_enforce`, activado por defecto): no se puede subir, copiar ni mover a una carpeta lo que la deje por encima de su cuota. La web lo explica en cada archivo rechazado, la unidad de red y la API responden `507 Insufficient Storage` con el motivo, y la extensión de VS Code para y lo avisa. Desactivado, las cuotas solo avisan. En los dos casos se ven en el explorador (barra en el panel de la carpeta y un aviso encima de la lista a partir del 90 % y al superarla), en *Mi perfil* y en la administración.
+Las cuotas **impiden escribir lo que no quepa** (`storage.quota_enforce`, activado por defecto): no se puede subir, copiar ni mover a una carpeta lo que la deje por encima de su cuota. La web lo explica en cada archivo rechazado, la unidad de red y la API responden `507 Insufficient Storage` con el motivo, y la extensión de VS Code para y lo avisa. Desactivado, las cuotas solo avisan. En los dos casos se ven en el explorador (barra en el panel de la carpeta y un aviso encima de la lista a partir del 90 %, `storage.quota_warn_percent`, y al superarla), en *Mi perfil* y en la administración.
 
 ```mermaid
 flowchart TD

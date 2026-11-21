@@ -91,9 +91,10 @@
     },
     prompt: function (message, value) { return modal({ message: message, input: value || "" }); },
     alert: function (message) { return modal({ message: message, cancel: false, ok: t("OK") }); },
-    // Un modal solo para mirar: ``title`` arriba, el elemento ``content`` debajo y un botón de cerrar
-    show: function (title, content) {
-      return modal({ message: title, content: content, cancel: false, ok: t("Close"), wide: true });
+    // Un modal solo para mirar: ``title`` arriba, el elemento ``content`` debajo y un botón de cerrar (``opts.ok``:
+    // otro texto para él). Para cerrarlo desde fuera: ``content.closest("dialog").close()``
+    show: function (title, content, opts) {
+      return modal({ message: title, content: content, cancel: false, ok: (opts && opts.ok) || t("Close"), wide: true });
     }
   };
 

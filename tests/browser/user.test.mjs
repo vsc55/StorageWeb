@@ -82,7 +82,11 @@ test("carpeta con muchos archivos: carga más al bajar y el filtro busca entre t
   assert.match(await page.evaluate("document.getElementById('listing-status').textContent"), /coinciden/);
   await page.evaluate(`(() => { const f = document.getElementById('filter-input'); f.value = '';
                                f.dispatchEvent(new Event('input')); })()`);
-  await page.waitFor("document.querySelectorAll('tr.file-row').length === 50");
+  // Sin filtro vuelve el principio de la carpeta: 50 filas, o más si con ellas el botón queda cerca de la vista (con
+  // filas más bajas, como en Linux, carga otro trozo solo: es lo que tiene que hacer)
+  await page.waitFor("document.querySelectorAll('tr.file-row').length >= 50 && " +
+                     "!/coinciden/.test(document.getElementById('listing-status').textContent)");
+  assert.equal(await page.evaluate("document.querySelector('tr.file-row').dataset.name"), "f000.txt");
   noErrors();
 });
 
@@ -111,6 +115,15 @@ test("visor: el código sale con colores y sin descuadrar las líneas", async ()
   assert.equal(info.keyword, "def");
   assert.ok(info.docLines >= 3, "la cadena de varias líneas se colorea en cada una");
   assert.notEqual(info.color, await page.evaluate("getComputedStyle(document.body).color"), "tiene su color");
+  noErrors();
+});
+
+test("visor: una imagen se ve entera y al pulsarla, a su tamaño", async () => {
+  await page.go(`${BASE}/view/home/foto.png`);
+  await page.waitFor("(() => { const i = document.querySelector('#viewer-image img'); return i && i.complete && i.naturalWidth === 1; })()");
+  assert.ok(await page.evaluate("document.getElementById('viewer-media-error').hidden"), "sin aviso de error");
+  await page.evaluate("document.getElementById('viewer-image').click()");
+  assert.equal(await page.evaluate("document.getElementById('viewer-image').getAttribute('aria-pressed')"), "true");
   noErrors();
 });
 
