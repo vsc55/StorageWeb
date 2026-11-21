@@ -100,7 +100,8 @@ def add_passkey(conn: Connection, user_id: int, *, credential_id: str, public_ke
 
 def note_passkey_use(conn: Connection, passkey_id: int, last_count: int, new_count: int) -> bool:
     """Apunta el uso y el contador. Solo si el contador sigue siendo el que se comprobó: de dos aserciones a la vez
-    con la misma credencial, una sola gana."""
+    con la misma credencial que lleva contador, una sola gana. Con contador 0 (sin contador) las dos casan aquí: lo
+    que impide repetir una aserción es el challenge gastado (:func:`core.mfa.spend_challenge`), no esto."""
     cur = conn.execute("UPDATE mfa_passkeys SET sign_count = ?, last_used_at = ? WHERE id = ? AND sign_count = ?",
                        (new_count, now_iso(), passkey_id, last_count))
     conn.commit()

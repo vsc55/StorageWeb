@@ -546,3 +546,16 @@ def test_entra_delete_warning(app, admin):
     uid = add_user(app, "juan@contoso.com", password=None, source="entra", external_id="o9")
     html = client.get(f"/admin/users/{U(uid)}").get_data(as_text=True)
     assert "se vuelve a crear" in html and "Desactivar usuario" in html
+
+
+def test_change_password_page_never_links_outside(admin, app):
+    client, _token = admin
+    add_user(app, "luis")
+    with app.app_context():
+        uid = users.get_by_username(get_db(), "luis")["uid"]
+    page = client.get(f"/admin/users/{uid}/password?next=https://evil.example/login").get_data(as_text=True)
+    # «Volver» y «Cancelar» van a la ficha (la URL solo sale en el selector de idioma, que pasa por safe_next)
+    assert 'href="https://evil.example' not in page
+    assert page.count(f'href="/admin/users/{uid}"') >= 2
+    page = client.get(f"/admin/users/{uid}/password?next=/admin/users?view=panels").get_data(as_text=True)
+    assert 'href="/admin/users?view=panels"' in page

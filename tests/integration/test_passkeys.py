@@ -25,13 +25,13 @@ def post_json(client, url: str, body: dict, token: str):
     return client.post(url, json=body, headers={"X-CSRF-Token": token})
 
 
-def register(client, token: str, *, name: str = "Portátil", cred_id: bytes = b"cred-0001",
+def register(client, token: str, *, name: str = "Portátil", cred_id: bytes = b"cred-0001", count: int = 1,
              options="/profile/mfa/passkey/options", verify="/profile/mfa/passkey/register"):
     """Registra una passkey como el navegador. Devuelve ``(clave privada, respuesta)``."""
     opts = post_json(client, options, {"for": "register"}, token)
     assert opts.status_code == 200, opts.get_json()
     challenge = opts.get_json()["challenge"]
-    priv, _key, att, cdj = _registration(challenge, cred_id=cred_id)
+    priv, _key, att, cdj = _registration(challenge, cred_id=cred_id, count=count)
     resp = post_json(client, verify, {"attestation_object": wa.b64u_encode(att),
                                       "client_data_json": wa.b64u_encode(cdj), "name": name}, token)
     return priv, resp
@@ -146,11 +146,15 @@ def test_adding_or_removing_needs_proof(pk_app):
     token = get_csrf(client, "/profile/security")
     page = client.get("/profile/security").get_data(as_text=True)
     assert "Confirma que eres tú" in page and "/profile/mfa/passkey/1/remove" not in page
-    # Una segunda passkey con la sesión sola: no
+    # Una segunda passkey con la sesión sola: no. Quitarla ni renombrarla tampoco (un POST a mano)
     assert post_json(client, "/profile/mfa/passkey/options", {"for": "register"}, token).status_code == 403
     assert client.post("/profile/mfa/passkey/1/remove", data={"_csrf": token}).location.endswith("#mfa")
+    assert client.post("/profile/mfa/passkey/1/rename",
+                       data={"_csrf": token, "name": "De otro"}).location.endswith("#mfa")
     with pk_app.app_context():
         assert mfa_repo.passkey_count(get_db(), ana(pk_app)["id"]) == 1
+        assert [k["name"] for k in mfa.status(get_db(), ana(pk_app))["passkeys"]] == ["Portátil"]
+    assert last_audit(pk_app, "passkey_renamed") is None
     # Demostrarlo con la passkey abre unos minutos para cambiar cosas
     opts = post_json(client, "/profile/mfa/passkey/options", {"for": "prove"}, token).get_json()
     proved = post_json(client, "/profile/mfa/passkey/prove", assertion_body(priv, opts["challenge"], count=3), token)
@@ -283,3 +287,98 @@ def test_status_for_the_admin_and_the_cli(pk_app, capsys):
         from storageweb.web.context import settings
         cmd_mfa_status(settings(), get_db(), None)
     assert "activada: 1 passkey" in capsys.readouterr().out
+
+
+def test_replaying_an_old_cookie_does_not_bring_the_challenge_back(pk_app):
+    """La cookie es del cliente: quitar el challenge de ella no impide reenviar la de antes. Con un autenticador sin
+    contador (0 siempre, como los de plataforma) el contador no lo nota; el challenge gastado en el servidor sí."""
+    client, token = logged_in(pk_app)
+    priv, _resp = register(client, token, count=0)
+    client = pk_app.test_client()
+    assert login(client, "ana", next_url="/f/home/").location.endswith("/login/mfa")
+    token = get_csrf(client, "/login/mfa")
+    challenge = post_json(client, "/login/mfa/passkey/options", {}, token).get_json()["challenge"]
+    cookie = pk_app.config["SESSION_COOKIE_NAME"]
+    captured = client.get_cookie(cookie).value            # la nota a medias y el challenge, antes de usarlos
+    body = assertion_body(priv, challenge, count=0)
+    assert post_json(client, "/login/mfa/passkey", body, token).status_code == 200
+    # Otra persona con la cookie y la respuesta capturadas, dentro de los 5 minutos
+    thief = pk_app.test_client()
+    thief.set_cookie(cookie, captured)
+    again = post_json(thief, "/login/mfa/passkey", body, token)
+    assert again.status_code == 400
+    assert last_audit(pk_app, "mfa_failed")["detail"] == "stage=passkey error=no_challenge"
+    assert thief.get("/f/home/").status_code == 302                                   # sin sesión
+
+
+def test_a_clone_answering_zero_does_not_switch_the_counter_off(pk_app):
+    client, token = logged_in(pk_app)
+    priv, _resp = register(client, token, count=5)
+    assert sign_in(pk_app.test_client(), priv, count=6)[0].status_code == 200
+    resp, *_ = sign_in(pk_app.test_client(), priv, count=0)
+    assert resp.status_code == 400
+    assert last_audit(pk_app, "mfa_failed")["detail"] == "stage=passkey error=the_signature_counter_went_backwards"
+    with pk_app.app_context():
+        assert mfa_repo.passkeys(get_db(), ana(pk_app)["id"])[0]["sign_count"] == 6     # no bajó a 0
+    assert sign_in(pk_app.test_client(), priv, count=7)[0].status_code == 200
+
+
+def test_the_default_port_in_the_public_address_still_works(make_app):
+    """El navegador manda https://panel.example.com aunque la dirección diga :443."""
+    app = make_app({"network": {"public_url": "https://panel.example.com:443"}})
+    client, token = logged_in(app)
+    priv, resp = register(client, token)
+    assert resp.status_code == 200, resp.get_json()
+    assert sign_in(app.test_client(), priv, count=2)[0].status_code == 200
+
+
+def test_the_same_credential_twice_at_once_is_a_refusal_not_a_500(pk_app, monkeypatch):
+    """Dos registros a la vez pasan los dos la comprobación previa; el UNIQUE decide y el segundo es un rechazo."""
+    client, token = logged_in(pk_app)
+    register(client, token)                                # primer factor: deja la prueba hecha
+    monkeypatch.setattr(mfa_repo, "credential_taken", lambda conn, credential_id: False)
+    _priv, resp = register(client, token, name="Otra vez")
+    assert resp.status_code == 400 and resp.get_json()["error"] == "No se ha podido añadir la passkey."
+    assert last_audit(pk_app, "mfa_failed")["detail"] == "stage=enrol error=credential_already_registered"
+    with pk_app.app_context():
+        assert mfa_repo.passkey_count(get_db(), ana(pk_app)["id"]) == 1
+
+
+def test_forced_enrolment_leaves_nothing_if_the_account_is_disabled_meanwhile(make_app, monkeypatch):
+    app = make_app({**PUBLIC, "security": {"mfa_required": "all"}})
+    add_user(app, "ana")
+    client = app.test_client()
+    assert login(client, "ana").location.endswith("/login/mfa/enrol")
+    token = get_csrf(client, "/login/mfa/enrol")
+    real = mfa.register_passkey
+
+    def and_then_disabled(conn, user, **kw):      # el administrador la desactiva durante la ceremonia
+        codes = real(conn, user, **kw)
+        users.update(conn, user["id"], enabled=False)
+        return codes
+    monkeypatch.setattr(mfa, "register_passkey", and_then_disabled)
+    _priv, resp = register(client, token, options="/login/mfa/enrol/passkey/options",
+                           verify="/login/mfa/enrol/passkey")
+    assert resp.get_json()["redirect"].endswith("/login?manual=1")
+    with app.app_context():
+        state = mfa.status(get_db(), ana(app))
+        assert not state["enrolled"] and state["passkeys"] == []
+        assert mfa_repo.recovery_unused(get_db(), ana(app)["id"]) == []
+    assert client.get("/profile/mfa/codes").status_code == 302
+
+
+def test_confirming_in_my_profile_counts_failures_like_the_login(make_app):
+    app = make_app({"security": {"max_login_failures": 3}})
+    add_user(app, "ana")
+    secret, _codes = enrol(app, "ana")
+    client = app.test_client()
+    login(client, "ana")
+    assert submit(client, "/login/mfa", code(secret, 1)).status_code == 302
+    token = get_csrf(client, "/profile/security")
+    for _ in range(3):
+        client.post("/profile/mfa/prove", data={"_csrf": token, "code": "000000"})
+    assert last_audit(app, "mfa_failed")["detail"] == "stage=manage error=bad_code"
+    # Bloqueado: ni siquiera el código bueno da la prueba
+    client.post("/profile/mfa/recovery", data={"_csrf": token, "code": code(secret, 2)})
+    assert last_audit(app, "login_blocked")["detail"] == "mfa manage"
+    assert last_audit(app, "mfa_recovery_regenerated") is None

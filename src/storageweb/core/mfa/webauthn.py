@@ -39,6 +39,9 @@ from . import cbor, cose
 FLAG_UP = 0x01          # presente: alguien la tocó
 FLAG_UV = 0x04          # verificado: PIN, huella o cara, no solo un toque
 FLAG_AT = 0x40          # trae los datos de la credencial (registro)
+FLAG_ED = 0x80          # trae extensiones (un mapa CBOR al final)
+
+_DEFAULT_PORTS = {"https": 443, "http": 80}
 
 CHALLENGE_BYTES = 32
 
@@ -92,19 +95,43 @@ def scope_from(public_url: str) -> tuple[str, str]:
     scheme = parts.scheme.lower()
     if scheme != "https" and host != "localhost":
         return "", ""
-    return host, f"{scheme}://{parts.netloc.lower()}"
+    try:
+        port = parts.port
+    except ValueError:
+        return "", ""
+    # El navegador serializa el origen sin el puerto por defecto (``https://x`` y no ``https://x:443``): con él, la
+    # igualdad exacta de :func:`_client_data` no casaría nunca y las passkeys no funcionarían sin decir por qué
+    suffix = f":{port}" if port is not None and port != _DEFAULT_PORTS.get(scheme) else ""
+    return host, f"{scheme}://{host}{suffix}"
+
+
+def _extensions_to_the_end(data: bytes, at: int, flags: int) -> None:
+    """Lo que queda desde ``at``: nada, o (con el flag ED) un único mapa CBOR que llega justo al final. Cualquier
+    otra cosa son bytes que nadie declaró, y un lector que los ignora no distingue unos datos de unos datos con algo
+    pegado."""
+    if not flags & FLAG_ED:
+        if at != len(data):
+            raise CeremonyError("trailing bytes in authenticator data")
+        return
+    try:
+        ext, consumed = cbor.decode_from(data, at)
+    except cbor.CborError as exc:
+        raise CeremonyError("extensions are not readable") from exc
+    if not isinstance(ext, dict) or at + consumed != len(data):
+        raise CeremonyError("extensions are not a single map")
 
 
 def parse_auth_data(blob: bytes) -> dict:
     """Los datos del autenticador: cabecera fija de 37 bytes (hash del RP ID, flags, contador) y, si el flag AT lo
-    dice, la credencial: AAGUID, id y la clave pública en CBOR (seguida de las extensiones, por eso el decodificador
-    dice dónde acabó)."""
+    dice, la credencial: AAGUID, id y la clave pública en CBOR (seguida de las extensiones si el flag ED lo dice, por
+    eso el decodificador dice dónde acabó). Nada más: sin el flag ED, un byte de más es un error."""
     data = bytes(blob or b"")
     if len(data) < 37:
         raise CeremonyError("authenticator data too short")
     out = {"rp_id_hash": data[:32], "flags": data[32], "sign_count": struct.unpack(">I", data[33:37])[0],
            "credential_id": b"", "public_key": None, "public_key_raw": b"", "aaguid": b""}
     if not out["flags"] & FLAG_AT:
+        _extensions_to_the_end(data, 37, out["flags"])
         return out
     if len(data) < 55:
         raise CeremonyError("attested credential data truncated")
@@ -125,6 +152,7 @@ def parse_auth_data(blob: bytes) -> dict:
     # llega una aserción (una sola representación, ningún segundo sitio que pueda discrepar)
     # (``consumed`` es una LONGITUD desde key_at, no la posición final)
     out["public_key_raw"] = data[key_at:key_at + consumed]
+    _extensions_to_the_end(data, key_at + consumed, out["flags"])
     return out
 
 
@@ -193,9 +221,11 @@ def verify_assertion(*, auth_data: bytes, client_data_json: bytes, signature: by
     if not cose.verify(public_key, int(alg), bytes(signature or b""), signed):
         raise CeremonyError("signature does not verify")
     count, last = auth["sign_count"], int(last_sign_count or 0)
-    # Cero en un lado = el autenticador no lleva contador (lo normal en los de plataforma). Solo un contador que
-    # existe y no avanza es prueba, y lo es de lo único por lo que merece la pena rechazar: una clave clonada
-    if count and last and count <= last:
+    # WebAuthn §7.2, paso 21: si el guardado es distinto de cero, el nuevo tiene que ser MAYOR. Cero guardado = el
+    # autenticador no lleva contador (lo normal en los de plataforma) y no se le acusa de nada. Pero un cero que
+    # llega cuando ya había contador también es no avanzar: aceptarlo dejaría que una clave clonada mandara 0,
+    # bajara el guardado a 0 y apagara la comprobación para siempre (la del original y la suya)
+    if last and count <= last:
         raise CeremonyError("the signature counter went backwards")
     return {"sign_count": count, "uv": bool(auth["flags"] & FLAG_UV)}
 

@@ -18,7 +18,7 @@ from ....i18n import _, _l, format_size, ngettext
 from ....settings import PERMISSIONS, ROLES
 from ...context import get_db, settings
 from ...forms import back, split_list
-from ...guards import admin_required, audit_event
+from ...guards import admin_required, audit_event, safe_next
 from ... import search
 from . import bp
 
@@ -323,7 +323,11 @@ def user_password(user_uid: str):
                 flash(_("New password for «%(name)s». Their open sessions have been closed.", name=user["username"]),
                       "info")
                 return done_url
-    return render_template("admin/user_password.html", user=user, next_url=request.values.get("next", ""))
+    # «Volver» y «Cancelar» llevan a ``next``: solo una ruta de este sitio (si no, un enlace con
+    # ?next=https://otro.sitio sacaría al administrador de aquí). Uno que no lo es se ignora: vuelve a la ficha
+    nxt = request.values.get("next") or ""
+    return render_template("admin/user_password.html", user=user,
+                           next_url=nxt if nxt and safe_next(nxt) == nxt else "")
 
 
 def _user_groups_context(user) -> dict:

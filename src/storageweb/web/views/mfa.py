@@ -10,7 +10,8 @@ mientras falte el código: si no, quien tenga la contraseña podría probar cód
 
 **Passkeys.** Las ceremonias van por JSON (``static/js/passkeys.js`` las traduce a ``navigator.credentials``): el
 servidor emite un challenge, lo guarda en la cookie firmada con su propósito, la cuenta y su caducidad, y lo gasta al
-primer intento, valga o no. El RP ID y el origen salen de ``network.public_url`` (:func:`core.mfa.passkey_scope`),
+primer intento, valga o no: lo quita de la cookie y lo apunta como gastado en el servidor
+(:func:`core.mfa.spend_challenge`), porque reenviar la cookie de antes devolvería el challenge. El RP ID y el origen salen de ``network.public_url`` (:func:`core.mfa.passkey_scope`),
 nunca de la petición.
 
 **Cambiar los factores pide demostrar que eres tú** (un código o una passkey), no solo la sesión: quien la tenga abierta
@@ -63,11 +64,15 @@ def _issue(purpose: str, user) -> str:
 
 
 def _take(purpose: str, user) -> str:
-    """El challenge emitido para esto y esta cuenta, gastado (una sola respuesta por challenge), o ``""``."""
+    """El challenge emitido para esto y esta cuenta, gastado (una sola respuesta por challenge), o ``""``.
+
+    Gastado en los dos lados: fuera de la cookie y apuntado en el servidor. Lo primero solo no basta (la cookie es del
+    cliente y la de antes aún lo lleva)."""
     held = session.pop(_CHALLENGE, None) or {}
     if held.get("for") != purpose or held.get("user") != user["id"] or held.get("exp", 0) < time.time():
         return ""
-    return str(held.get("c") or "")
+    challenge = str(held.get("c") or "")
+    return challenge if mfa.spend_challenge(challenge, held.get("exp", 0)) else ""
 
 
 def _body() -> dict:
@@ -263,6 +268,7 @@ def login_enrol():
             codes = mfa.enroll_confirm(get_db(), _key(), user, code)
             if codes is not None:
                 if _finish(user, held, f"{user['source']}+totp") is None:
+                    mfa.disable(get_db(), user)     # el alta no acabó (ver login_enrol_passkey)
                     return redirect(url_for("auth.login", manual=1))
                 audit.log(get_db(), "mfa_enrolled", username=user["username"], ip=client_ip(), detail="forced")
                 return _show_codes(codes, held.get("next"))
@@ -307,6 +313,9 @@ def login_enrol_passkey():
     if mfa.status(get_db(), user)["pending"]:
         mfa.remove_totp(get_db(), user)      # el alta de la app que quedó a medias en la misma página
     if _finish(user, held, f"{user['source']}+passkey") is None:
+        # La cuenta se desactivó mientras tanto: el alta no acabó. Quitar lo creado (la cuenta no tenía nada:
+        # es el alta obligatoria) en vez de dejar una passkey y unos códigos de recuperación que nadie ha visto
+        mfa.disable(get_db(), user)
         return jsonify({"redirect": url_for("auth.login", manual=1)})
     audit.log(get_db(), "mfa_enrolled", username=user["username"], ip=client_ip(), detail="forced passkey")
     audit.log(get_db(), "passkey_added", username=user["username"], ip=client_ip(),
@@ -367,15 +376,34 @@ def _grant_proof(user) -> None:
     session[_PROOF] = {"user": user["id"], "exp": time.time() + PROOF_SECONDS}
 
 
+def _manage_blocked(user) -> bool:
+    """Demasiados fallos al confirmar en *Mi perfil*: el mismo limitador y la misma clave (IP + cuenta) que el
+    inicio de sesión. Sin él, una sesión abierta en un equipo ajeno probaría códigos sin freno hasta acertar uno
+    (y cada intento compara contra los diez códigos de recuperación: también es CPU)."""
+    if _limiter().is_blocked(client_ip(), user["username"]):
+        audit_event("login_blocked", None, "mfa manage")
+        return True
+    return False
+
+
+def _manage_failed(user, why: str) -> None:
+    audit_event("mfa_failed", None, f"stage=manage error={why}")
+    _limiter().failure(client_ip(), user["username"])
+    ipban.offense(get_db(), settings(), client_ip(), "mfa_failed")
+
+
 def _proved(user) -> bool:
     """Cambiar algo del segundo paso pide haberlo demostrado hace poco (:func:`proof_ok`) o un código válido en el
     mismo formulario (de la aplicación o de recuperación)."""
     if proof_ok(user):
         return True
+    if _manage_blocked(user):
+        flash(_("Too many failed attempts. Wait a few minutes."), "error")
+        return False
     code = request.form.get("code") or ""
     kind = mfa.verify(get_db(), _key(), user, code)
     if not kind:
-        audit_event("mfa_failed", None, f"stage=manage error={'empty' if not code.strip() else 'bad_code'}")
+        _manage_failed(user, "empty" if not code.strip() else "bad_code")
         flash(_("The code is not valid."), "error")
         return False
     if kind == "recovery":
@@ -549,10 +577,13 @@ def passkey_prove():
     user = _own_account(notify=False)
     if user is None:
         return _error(_("Passkeys are not available on this server."))
+    if _manage_blocked(user):
+        session.pop(_CHALLENGE, None)
+        return _error(_("Too many failed attempts. Wait a few minutes."), 429)
     try:
         _assert(user, "prove", _body())
     except mfa.PasskeyError as exc:
-        audit_event("mfa_failed", None, f"stage=manage error={_reason(exc.reason)}")
+        _manage_failed(user, _reason(exc.reason))
         return _error(_("The passkey was not accepted."))
     _grant_proof(user)
     flash(_("Confirmed: for the next few minutes you can change your two-step verification."), "info")
@@ -566,8 +597,12 @@ def passkey_rename(passkey_id: int):
     if user is None:
         return _back()
     old = mfa.passkey_name(get_db(), user, passkey_id)
+    # Como quitarla: la página solo enseña el formulario con la prueba hecha, y aquí se vuelve a comprobar (un POST
+    # a mano desde una sesión abierta no la renombra)
+    if not old or not _proved(user):
+        return _back()
     name = request.form.get("name") or ""
-    if old and mfa.rename_passkey(get_db(), user, passkey_id, name):
+    if mfa.rename_passkey(get_db(), user, passkey_id, name):
         audit_event("passkey_renamed", mfa.clean_name(name), f"from={old}")
     return _back()
 

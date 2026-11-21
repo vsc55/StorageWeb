@@ -4,8 +4,10 @@ Basado en el de ServiceSentry (mismo autor).
 
 **Solo decodifica**: el navegador manda CBOR y el servidor lo lee. Dos reglas que son de seguridad:
 
-* **se rechazan las longitudes indefinidas.** WebAuthn exige la forma canónica (CTAP2 §6); admitir también la otra
-  serían dos codificaciones del mismo valor, y así se acaba firmando una y comprobando la otra.
+* **solo la forma canónica** (CTAP2 §6): sin longitudes indefinidas y cada argumento en la forma más corta que lo
+  admite (``0x18 0x05`` no es un 5). Admitir otra serían dos codificaciones del mismo valor, y así se acaba firmando
+  una y comprobando la otra. Del tipo 7 solo ``false``, ``true`` y ``null``: un float cuyos bits valgan 20 no es un
+  ``false``.
 * **el decodificador dice cuánto leyó.** Los datos del autenticador llevan la clave seguida de las extensiones, así
   que «lee el resto» no tiene respuesta: un lector que ignora lo que sobra no distingue una clave de una clave con
   algo pegado.
@@ -35,16 +37,20 @@ def _head(data: bytes, i: int) -> tuple:
     i += 1
     if minor < 24:
         return major, minor, i
-    if minor == 24:
-        if i + 1 > len(data):
-            raise CborError("truncated")
-        return major, data[i], i + 1
-    if minor in (25, 26, 27):
-        width = {25: 2, 26: 4, 27: 8}[minor]
+    if major == 7:
+        # 24 = valor simple en el byte siguiente (ninguno se usa aquí) y 25–27 son floats: lo que sigue no es un
+        # argumento, y leerlo como tal convertiría unos bits en false, true o null
+        raise CborError("unsupported simple value")
+    if minor in (24, 25, 26, 27):
+        width = {24: 1, 25: 2, 26: 4, 27: 8}[minor]
         if i + width > len(data):
             raise CborError("truncated")
-        fmt = {2: ">H", 4: ">I", 8: ">Q"}[width]
-        return major, struct.unpack(fmt, data[i:i + width])[0], i + width
+        fmt = {1: ">B", 2: ">H", 4: ">I", 8: ">Q"}[width]
+        value = struct.unpack(fmt, data[i:i + width])[0]
+        # La forma más corta: lo que cabía en una anterior es otra codificación del mismo valor
+        if value < (24 if width == 1 else 1 << (4 * width)):
+            raise CborError("non-minimal encoding")
+        return major, value, i + width
     # 28–30 reservados; 31 es la forma indefinida, que la codificación canónica de WebAuthn no usa
     raise CborError("indefinite or reserved length")
 

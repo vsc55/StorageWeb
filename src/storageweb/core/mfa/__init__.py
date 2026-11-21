@@ -29,6 +29,9 @@ Las reglas de fondo:
 from __future__ import annotations
 
 import secrets
+import sqlite3
+import threading
+import time
 from sqlite3 import Connection
 
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -202,6 +205,29 @@ def new_challenge() -> str:
     return webauthn.new_challenge()
 
 
+# Challenges ya gastados, hasta que caducan. El challenge viaja en la cookie firmada, y la cookie es del cliente:
+# quitarlo de ella («session.pop») no impide reenviar la cookie de antes con la misma respuesta. Con un contador de
+# firmas el reenvío se notaría, pero los autenticadores de plataforma no llevan (siempre 0), así que el único
+# «una sola vez» que vale es este, del lado del servidor. En memoria del proceso, como los códigos de /connect:
+# Waitress es un proceso y un challenge vive 5 minutos.
+_SPENT: dict[str, float] = {}
+_SPENT_LOCK = threading.Lock()
+
+
+def spend_challenge(challenge: str, expires_at: float) -> bool:
+    """Gasta un challenge emitido por este servidor: ``True`` la primera vez, ``False`` si ya se usó."""
+    if not challenge:
+        return False
+    now = time.time()
+    with _SPENT_LOCK:
+        for old in [c for c, exp in _SPENT.items() if exp < now]:
+            del _SPENT[old]
+        if challenge in _SPENT:
+            return False
+        _SPENT[challenge] = max(float(expires_at or 0), now)
+        return True
+
+
 def registration_options(conn: Connection, user, *, rp_id: str, rp_name: str, challenge: str) -> dict:
     """Lo que necesita ``navigator.credentials.create()``. El ``user.id`` es el uid de la cuenta (no el nombre: un
     cambio de nombre no puede soltar la passkey) y ``exclude`` evita registrar dos veces el mismo autenticador."""
@@ -227,9 +253,15 @@ def register_passkey(conn: Connection, user, *, attestation_object: bytes, clien
         raise PasskeyError("credential already registered")
     label = clean_name(name) or "Passkey"
     first = not enrolled(conn, user)
-    repo.add_passkey(conn, user["id"], credential_id=credential_id,
-                     public_key=webauthn.b64u_encode(cred["public_key_raw"]), alg=cred["alg"],
-                     sign_count=cred["sign_count"], name=label, aaguid=cred["aaguid"].hex())
+    try:
+        repo.add_passkey(conn, user["id"], credential_id=credential_id,
+                         public_key=webauthn.b64u_encode(cred["public_key_raw"]), alg=cred["alg"],
+                         sign_count=cred["sign_count"], name=label, aaguid=cred["aaguid"].hex())
+    except sqlite3.IntegrityError as exc:
+        # Dos registros de la misma credencial a la vez (doble clic, dos pestañas): los dos pasaron
+        # credential_taken y el UNIQUE decide. El segundo es un rechazo como cualquier otro, no un 500
+        conn.rollback()
+        raise PasskeyError("credential already registered") from exc
     return _new_recovery(conn, user) if first else []
 
 

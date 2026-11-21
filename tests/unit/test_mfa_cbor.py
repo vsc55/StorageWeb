@@ -100,6 +100,36 @@ class TestItRefusesWhatTheCanonicalFormDoesNotUse:
         with pytest.raises(cbor.CborError):
             cbor.decode(bytes.fromhex('a201010102'))
 
+    @pytest.mark.parametrize('encoded', [
+        '1805',                  # 5 in a one-byte argument (fits in the head)
+        '190001',                # 1 in two bytes
+        '1900ff',                # 255 in two bytes (fits in one)
+        '1a0000ffff',            # 65535 in four bytes
+        '1b00000000ffffffff',    # 2^32 - 1 in eight bytes
+        '3805',                  # -6, same rule for negatives
+        '5801ff',                # a byte string whose length did not need the extra byte
+        'a1180101',              # map key 1 written long: the COSE kty label in another encoding
+    ])
+    def test_an_argument_longer_than_it_needs_is_refused(self, encoded):
+        """Two encodings of the same integer are two encodings of the same COSE key."""
+        with pytest.raises(cbor.CborError):
+            cbor.decode(bytes.fromhex(encoded))
+
+    @pytest.mark.parametrize('encoded', [
+        'f90014',                # half float whose bits are 20 — not `false`
+        'fa00000015',            # single float, bits 21 — not `true`
+        'fb0000000000000016',    # double float, bits 22 — not `null`
+        'f814',                  # simple value 20 in the extended form
+    ])
+    def test_floats_and_extended_simple_values_are_not_false_true_or_null(self, encoded):
+        with pytest.raises(cbor.CborError):
+            cbor.decode(bytes.fromhex(encoded))
+
+    def test_the_shortest_form_at_each_boundary_still_reads(self):
+        for encoded, value in [('1818', 24), ('18ff', 255), ('190100', 256), ('19ffff', 65535),
+                               ('1a00010000', 65536), ('1b0000000100000000', 1 << 32)]:
+            assert cbor.decode(bytes.fromhex(encoded)) == value
+
     def test_trailing_data_is_an_error_for_a_whole_document(self):
         with pytest.raises(cbor.CborError):
             cbor.decode(bytes.fromhex('01') + b'\x02')

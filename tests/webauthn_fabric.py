@@ -72,8 +72,10 @@ def _client_data(kind, challenge, origin=ORIGIN):
 def _registration(challenge, origin=ORIGIN, **kw):
     priv, key = _key()
     auth = _auth_data(cose_key=key, **kw)
+    # La longitud en su forma más corta, como la manda un navegador (el decodificador rechaza las demás)
+    head = b'\x58' + bytes([len(auth)]) if len(auth) < 256 else b'\x59' + struct.pack('>H', len(auth))
     att = b'\xa3' + b'\x63fmt' + b'\x64none' + b'\x67attStmt' + b'\xa0' \
-          + b'\x68authData' + b'\x59' + struct.pack('>H', len(auth)) + auth
+          + b'\x68authData' + head + auth
     return priv, key, att, _client_data('webauthn.create', challenge, origin)
 
 

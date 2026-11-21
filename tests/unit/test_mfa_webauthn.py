@@ -65,19 +65,36 @@ class TestTheHappyPathAgreesWithItself:
                                      challenge=ch, rp_id=RP_ID, origin=ORIGIN)
         assert cbor.decode(out['public_key_raw']) == key
 
+    @staticmethod
+    def _register_with(auth, ch):
+        head = b'\x58' + bytes([len(auth)]) if len(auth) < 256 else b'\x59' + struct.pack('>H', len(auth))
+        att = (b'\xa3' + b'\x63fmt' + b'\x64none' + b'\x67attStmt' + b'\xa0'
+               + b'\x68authData' + head + auth)
+        return wa.verify_registration(attestation_object=att,
+                                      client_data_json=_client_data('webauthn.create', ch),
+                                      challenge=ch, rp_id=RP_ID, origin=ORIGIN)
+
     def test_it_stops_at_the_key_and_not_at_whatever_follows(self):
         """Extensions come after the key in the same blob, so "the rest of the buffer" is not
         an answer either."""
         ch = wa.new_challenge()
-        priv, key = _key()
-        auth = _auth_data(cose_key=key, extra=b'\xa0' * 8)
-        att = (b'\xa3' + b'\x63fmt' + b'\x64none' + b'\x67attStmt' + b'\xa0'
-               + b'\x68authData' + b'\x59' + struct.pack('>H', len(auth)) + auth)
-        out = wa.verify_registration(attestation_object=att,
-                                     client_data_json=_client_data('webauthn.create', ch),
-                                     challenge=ch, rp_id=RP_ID, origin=ORIGIN)
+        _priv, key = _key()
+        cred_protect = b'\xa1\x6bcredProtect\x02'          # {"credProtect": 2}
+        auth = _auth_data(flags=wa.FLAG_UP | wa.FLAG_AT | wa.FLAG_ED, cose_key=key, extra=cred_protect)
+        out = self._register_with(auth, ch)
         assert cbor.decode(out['public_key_raw']) == key
-        assert priv is not None
+
+    @pytest.mark.parametrize('flags,extra', [
+        (wa.FLAG_UP | wa.FLAG_AT, b'\xa0'),                       # bytes that no flag declared
+        (wa.FLAG_UP | wa.FLAG_AT | wa.FLAG_ED, b''),              # extensions declared, none there
+        (wa.FLAG_UP | wa.FLAG_AT | wa.FLAG_ED, b'\xa0\xa0'),      # two maps, not one
+        (wa.FLAG_UP | wa.FLAG_AT | wa.FLAG_ED, b'\x01'),          # not a map
+    ])
+    def test_what_follows_the_key_is_exactly_the_declared_extensions(self, flags, extra):
+        ch = wa.new_challenge()
+        _priv, key = _key()
+        with pytest.raises(wa.CeremonyError):
+            self._register_with(_auth_data(flags=flags, cose_key=key, extra=extra), ch)
 
     def test_an_assertion_from_that_credential_verifies(self):
         ch = wa.new_challenge()
@@ -237,8 +254,10 @@ class TestACounterThatStopsMoving:
     """The one signal in this protocol that says two devices are answering for one
     credential."""
 
-    @pytest.mark.parametrize('count,last', [(5, 5), (4, 9)])
+    @pytest.mark.parametrize('count,last', [(5, 5), (4, 9), (0, 7)])
     def test_a_counter_that_did_not_move_forward_is_refused(self, count, last):
+        """(0, 7) as well: a clone that answers 0 would otherwise lower the stored counter to 0
+        and switch the check off for the original and for itself (WebAuthn §7.2 step 21)."""
         ch = wa.new_challenge()
         priv, k = _key()
         auth, cdj, sig = _assertion(priv, ch, count=count)
@@ -247,10 +266,10 @@ class TestACounterThatStopsMoving:
                                 challenge=ch, rp_id=RP_ID, origin=ORIGIN,
                                 public_key=k, alg=cose.ES256, last_sign_count=last)
 
-    @pytest.mark.parametrize('count,last', [(0, 0), (0, 7), (7, 0)])
+    @pytest.mark.parametrize('count,last', [(0, 0), (7, 0)])
     def test_an_authenticator_that_keeps_no_counter_is_not_accused(self, count, last):
-        """Zero on either side means it does not keep one — allowed, and common on platform
-        authenticators. Only a counter that EXISTS and went backwards is evidence."""
+        """A stored zero means it does not keep one — allowed, and common on platform
+        authenticators. Only a counter that EXISTS and did not move forward is evidence."""
         ch = wa.new_challenge()
         priv, k = _key()
         auth, cdj, sig = _assertion(priv, ch, count=count)
@@ -292,6 +311,21 @@ class TestWhereTheRpIdComesFrom:
     def test_the_origin_keeps_the_port_because_the_browser_sends_it(self, url, origin):
         assert wa.origin_from(url) == origin
 
+    @pytest.mark.parametrize('url,origin', [
+        ('https://panel.example.com:443', 'https://panel.example.com'),
+        ('https://panel.example.com:443/x', 'https://panel.example.com'),
+        ('http://localhost:80', 'http://localhost'),
+        ('http://localhost:8080', 'http://localhost:8080'),
+        ('https://panel.example.com.:8443', 'https://panel.example.com:8443'),
+    ])
+    def test_but_not_the_default_port_because_the_browser_drops_it(self, url, origin):
+        """The browser serialises https://x:443 as https://x; keeping :443 would make the exact
+        comparison fail on every ceremony while the settings page says passkeys work."""
+        assert wa.origin_from(url) == origin
+
+    def test_a_port_that_is_not_a_port_is_nothing(self):
+        assert wa.scope_from('https://panel.example.com:99999') == ('', '')
+
 
 class TestMalformedInputIsARefusalAndNotACrash:
     """All of it arrives from the browser, on a path reachable without a session."""
@@ -314,6 +348,14 @@ class TestMalformedInputIsARefusalAndNotACrash:
         blob = hashlib.sha256(RP_ID.encode()).digest() + bytes([wa.FLAG_UP]) \
             + struct.pack('>I', 9)
         assert wa.parse_auth_data(blob)['sign_count'] == 9
+
+    def test_an_assertion_blob_with_undeclared_bytes_is_refused(self):
+        head = hashlib.sha256(RP_ID.encode()).digest()
+        with pytest.raises(wa.CeremonyError):
+            wa.parse_auth_data(head + bytes([wa.FLAG_UP]) + struct.pack('>I', 9) + b'\xa0')
+        # With ED they are its extensions: one map, to the end
+        ok = head + bytes([wa.FLAG_UP | wa.FLAG_ED]) + struct.pack('>I', 9) + b'\xa0'
+        assert wa.parse_auth_data(ok)['sign_count'] == 9
 
     def test_a_credential_id_length_that_overruns_the_buffer(self):
         blob = hashlib.sha256(RP_ID.encode()).digest() + bytes([wa.FLAG_UP | wa.FLAG_AT]) \
