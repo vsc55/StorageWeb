@@ -297,8 +297,11 @@ def user_edit(user_uid: str):
 @bp.route("/users/<user_uid>/password", methods=["GET", "POST"])
 @admin_required
 def user_password(user_uid: str):
-    """Poner una contraseña nueva a otra cuenta (la olvidó, o hay que cortarle el paso). La propia se cambia en Mi
-    perfil, que pide la actual."""
+    """Poner una contraseña nueva a otra cuenta (la olvidó, o se sospecha que otro la sabe). La propia se cambia en Mi
+    perfil, que pide la actual.
+
+    Cierra sus sesiones, pero sus tokens de API siguen valiendo (la extensión de VS Code o la unidad de red no se
+    desconectan por un olvido). Para cortarle el paso del todo está Desactivar, o revocar sus tokens en la ficha."""
     user = _user_or_404(user_uid)
     done_url = back(url_for("admin.user_edit", user_uid=user_uid))
     # Se comprueba aquí (y otra vez en accounts.set_password), no se da por bueno que el botón estuviera
