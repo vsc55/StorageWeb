@@ -69,6 +69,8 @@ Las reglas de las contraseñas de las cuentas locales están en *Seguridad → C
 `user-passwd`); las que ya existen no se tocan. Se guardan con el hash scrypt de Werkzeug. Quien la escribe ve
 debajo del campo lo que se le pide («Al menos 12 caracteres, con una mayúscula, un número.»).
 
+![Seguridad → Contraseñas: las palabras prohibidas y el probador, que dice regla por regla por qué se rechazaría](../img/admin/contrasenas.webp)
+
 | Regla | Ajuste | De serie |
 |---|---|---|
 | Longitud mínima (de 10 a 128; nunca menos de 10) | `security.password_min_length` | 10 |
@@ -182,6 +184,8 @@ Se envía desde una cola en segundo plano: un colector lento o caído nunca fren
 
 ## Estado de la seguridad
 
+![Seguridad → Estado de la seguridad: las cifras clave y la lista de comprobación](../img/admin/estado-seguridad.webp)
+
 *Seguridad → Estado de la seguridad* es el tablero de la seguridad, de solo lectura:
 
 - **Cifras de un vistazo:** vulnerabilidades conocidas de las bibliotecas (y la peor), IPs bloqueadas ahora (y cuántas
@@ -198,6 +202,8 @@ Se envía desde una cola en segundo plano: un colector lento o caído nunca fren
   equivocados, bloqueos, IPs bloqueadas, accesos denegados…), con un enlace a la auditoría filtrada.
 
 ## Vulnerabilidades en las bibliotecas
+
+![Seguridad → Vulnerabilidades: una biblioteca (inventada) con un aviso y una versión más nueva](../img/admin/vulnerabilidades.webp)
 
 *Seguridad → Vulnerabilidades* pregunta por cada biblioteca instalada, las de Python (todo el entorno, también las
 dependencias de las dependencias) y las de JavaScript que viajan con StorageWeb (Mermaid y highlight.js):

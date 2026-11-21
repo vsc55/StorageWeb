@@ -114,6 +114,8 @@ Eliminar un grupo quita el acceso que da; no toca usuarios ni archivos. La [deci
 
 Los campos de ruta de la administración (la carpeta personal, los favoritos, la ruta de una carpeta compartida y la carpeta de las copias fuera del servidor) tienen un botón **Examinar** para ir por las carpetas y elegir, y se autocompletan mientras se escribe con lo que hay en la carpeta escrita. Miran a donde corresponde: las carpetas de esa persona, la ubicación de almacenamiento elegida o, sin ella, el disco del servidor (ahí, solo carpetas y, si las hay, solo dentro de las [carpetas del servidor permitidas](almacenamiento.md#carpetas-del-servidor-permitidas)). Solo lo usan administradores y solo desde la propia página (pide el token CSRF en una cabecera); en las carpetas de una persona y en una ubicación no se sale de ellas (ni con `..` ni siguiendo un enlace simbólico) ni enseña lo oculto para todos, y en el disco nunca lista rutas de red (`\\equipo\recurso`) ni de dispositivo: el servidor se conectaría a otro equipo con su cuenta.
 
+![Examinar en los favoritos de una persona: sus carpetas y archivos para elegir](../img/admin/examinar.webp)
+
 ### Desactivar en lugar de eliminar
 
 Desactivar funciona con **cualquier origen**: local, Entra ID o PAM. Una cuenta desactivada no puede iniciar sesión aunque Microsoft o el sistema la sigan autenticando: StorageWeb rechaza el acceso con «Tu cuenta está deshabilitada». Su sesión abierta se cierra en la siguiente petición, y sus archivos, grupos y preferencias se conservan para cuando se active de nuevo.

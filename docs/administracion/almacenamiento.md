@@ -20,6 +20,8 @@ Se pueden mezclar: unas carpetas en el disco, otras en un bucket y las personale
 
 ## Carpetas del servidor permitidas
 
+![Sistema → Carpetas del servidor: la lista y las carpetas del disco en uso, cada una con si queda dentro](../img/admin/carpetas-servidor.webp)
+
 En *Sistema → Carpetas del servidor* (`storage.allowed_folders`) se dice en qué carpetas del disco del servidor puede
 haber carpetas compartidas y personales, una ruta absoluta por línea (por ejemplo `/srv/storageweb`). Vacío, como
 viene de serie, vale cualquiera. Con una lista:

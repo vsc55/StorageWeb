@@ -73,6 +73,22 @@ def _fake_disk(base: Path) -> None:
     loader._resolve = lambda base_dir, value: (PurePosixPath(value) if str(value).startswith(SERVER_ROOT)  # noqa: SLF001
                                                else resolve(base_dir, value))
 
+    # Las carpetas permitidas (storage.allowed_folders) comparan la ruta real: las de /srv/storageweb, tal cual (en
+    # Windows se les pegaría la unidad de cada sitio y no coincidirían)
+    import posixpath
+
+    from storageweb.settings import server_paths
+    real_of = server_paths.real
+
+    def shown_real(path) -> str:
+        text = str(path).replace("\\", "/")
+        if len(text) > 2 and text[1] == ":":
+            text = text[2:]
+        if not text.startswith(SERVER_ROOT):
+            return real_of(path)
+        return os.path.normcase(os.path.normpath(posixpath.normpath(text)))   # con el separador de este sistema
+    server_paths.real = shown_real
+
     backend_for, local_exists = backends.backend_for, locations.local_exists
     backends.backend_for = lambda location, path, staging: backend_for(location, real(path), staging)
     locations.local_exists = lambda location, path: local_exists(location, real(path))
@@ -83,11 +99,51 @@ def _ago(**delta) -> str:
     return (NOW - timedelta(**delta)).isoformat(timespec="seconds")
 
 
+def _mockup_png(width: int = 1200, height: int = 760) -> bytes:
+    """Una maqueta de página web (cabecera, portada, tres tarjetas y pie) como PNG, sin dependencias: lo que se ve
+    en el visor de imágenes."""
+    import struct
+    import zlib
+
+    rows = [bytearray(b"\xf4\xf6\xfb" * width) for _ in range(height)]
+
+    def box(x, y, w, h, rgb):
+        for row in rows[y:y + h]:
+            row[x * 3:(x + w) * 3] = bytes(rgb) * w
+
+    box(0, 0, width, 72, (31, 58, 95))                     # cabecera
+    box(40, 22, 150, 28, (96, 165, 250))                   # logo
+    for i in range(4):                                     # menú
+        box(width - 520 + i * 120, 30, 90, 12, (203, 213, 225))
+    box(0, 72, width, 300, (79, 124, 255))                 # portada
+    box(80, 150, 560, 34, (255, 255, 255))
+    box(80, 204, 420, 16, (219, 234, 254))
+    box(80, 232, 380, 16, (219, 234, 254))
+    box(80, 280, 170, 46, (255, 255, 255))                 # botón
+    box(720, 120, 400, 210, (147, 197, 253))               # imagen de la portada
+    for i in range(3):                                     # tarjetas
+        x = 80 + i * 360
+        box(x, 410, 320, 250, (255, 255, 255))
+        box(x, 410, 320, 120, (226, 232, 240))
+        box(x + 24, 554, 200, 16, (51, 65, 85))
+        box(x + 24, 586, 260, 10, (148, 163, 184))
+        box(x + 24, 606, 230, 10, (148, 163, 184))
+    box(0, height - 60, width, 60, (30, 41, 59))           # pie
+    raw = b"".join(b"\x00" + bytes(row) for row in rows)
+
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+
+
 def _file(path: Path, size: int, days: float) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "wb") as fh:
         if path.name in TEXTS:            # lo que se abre en el visor necesita contenido de verdad
             fh.write(TEXTS[path.name].encode("utf-8"))
+        elif path.suffix == ".png":       # el visor de imágenes, también
+            fh.write(_mockup_png())
         else:
             fh.truncate(size)
     stamp = (NOW - timedelta(days=days)).timestamp()
@@ -346,7 +402,9 @@ def build(base: Path, port: int) -> Path:
                  "share": "datos", "username": "storageweb", "password": "demo-secreto"},
             ],
             "group_quotas": {"diseno": 10240},
+            "allowed_folders": [shown],
         },
+        "security": {"password_blocklist": ["ejemplo"]},
         "maintenance": {"audit_retention_days": 365, "backup_keep": 7},
     }
 
@@ -415,7 +473,84 @@ def build(base: Path, port: int) -> Path:
         from storageweb.core import maintenance
         runtime = app.extensions["storageweb.runtime"]
         maintenance.create_backup(runtime.current(conn), prune=False)
+        _fake_advisories(conn)
     return config
+
+
+# Una biblioteca y un aviso INVENTADOS (nunca se le atribuye un fallo a una biblioteca de verdad): lo que se ve en
+# Seguridad → Vulnerabilidades. Las de verdad salen al día y sin avisos.
+FAKE_LIBRARY = {"name": "visor-pdf-ejemplo", "ecosystem": "PyPI", "installed": "2.4.1", "group": "pdf"}
+FAKE_ADVISORY = {"id": "GHSA-demo-ejem-plo1", "aliases": ["CVE-2026-00000"],
+                 "summary": "Lectura de archivos fuera de la carpeta al abrir un PDF preparado (ejemplo inventado)",
+                 "severity": [{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:N/A:N"}]}
+
+
+def _fake_advisories(conn) -> None:
+    """La comprobación de vulnerabilidades, hecha de verdad (core/advisories.check) pero contra respuestas
+    inventadas: la demo no sale del equipo."""
+    import urllib.parse
+
+    from storageweb.core import advisories, maintenance
+
+    # También para la comprobación automática del servidor (dependency_check), que la repite al arrancar
+    real_rows = advisories.default_rows
+    advisories.default_rows = lambda *args, **kwargs: real_rows(*args, **kwargs) + [FAKE_LIBRARY]
+    rows = advisories.default_rows()
+    installed = {r["name"].lower(): r["installed"] for r in rows}
+
+    def answer(url, timeout, data=None):
+        if url == advisories.OSV_BATCH_URL:
+            queries = json.loads(data)["queries"]
+            return {"ok": True, "data": {"results": [
+                {"vulns": [{"id": FAKE_ADVISORY["id"]}]} if q["package"]["name"] == FAKE_LIBRARY["name"] else {}
+                for q in queries]}}
+        if url.startswith(advisories.OSV_VULN_API.split("{")[0]):
+            return {"ok": True, "data": FAKE_ADVISORY}
+        name = urllib.parse.unquote(url.rstrip("/").split("/")[-2])      # …/<nombre>/json o …/<nombre>/latest
+        version = "2.6.0" if name == FAKE_LIBRARY["name"] else installed.get(name.lower(), "")
+        if url.startswith("https://pypi.org/"):
+            return {"ok": True, "data": {"info": {"version": version}}}
+        return {"ok": True, "data": {"version": version}}
+
+    advisories._get_json = answer  # noqa: SLF001
+    maintenance.put_state(conn, advisories.STATE_KEY, advisories.check(rows))
+    conn.commit()
+
+
+# Personas del directorio de Entra ID (inventadas) para Personas → Importar
+DIRECTORY = [
+    {"id": "d1a0c3e2-0001-4f00-9000-000000000001", "displayName": "Marta López", "userPrincipalName":
+     "marta.lopez@ejemplo.com", "mail": "marta.lopez@ejemplo.com", "accountEnabled": True,
+     "jobTitle": "Contable", "department": "Administración"},
+    {"id": "d1a0c3e2-0002-4f00-9000-000000000002", "displayName": "María Gómez", "userPrincipalName":
+     "maria.gomez@ejemplo.com", "mail": "maria.gomez@ejemplo.com", "accountEnabled": True,
+     "jobTitle": "Diseñadora", "department": "Diseño"},
+    {"id": "d1a0c3e2-0003-4f00-9000-000000000003", "displayName": "Mario Fernández", "userPrincipalName":
+     "mario.fernandez@ejemplo.com", "mail": "mario.fernandez@ejemplo.com", "accountEnabled": True,
+     "jobTitle": "Comercial", "department": "Ventas"},
+    {"id": "d1a0c3e2-0004-4f00-9000-000000000004", "displayName": "Manuel Torres", "userPrincipalName":
+     "manuel.torres@ejemplo.com", "mail": "manuel.torres@ejemplo.com", "accountEnabled": True,
+     "jobTitle": "Técnico de sistemas", "department": "IT"},
+]
+
+
+def _fake_directory() -> None:
+    """El directorio de Entra ID, inventado: la búsqueda y la lista de Personas → Importar, y quién tiene la
+    aplicación asignada (Manuel no: sale el aviso)."""
+    from storageweb.providers.entra import directory
+
+    people = {p["id"]: p for p in DIRECTORY}
+    # Marta ya existe en la demo con su propio identificador: el del directorio es el suyo
+    people["a41f7c02-9d3e-4b8a-8c51-2e6f0b9d7a14"] = {**DIRECTORY[0], "id": "a41f7c02-9d3e-4b8a-8c51-2e6f0b9d7a14"}
+    del people[DIRECTORY[0]["id"]]
+    ordered = sorted(people.values(), key=lambda p: p["displayName"])
+    directory.search_users = lambda ecfg, text, limit=25: [
+        p for p in ordered if p["displayName"].lower().startswith(text.lower())][:limit]
+    directory.list_users = lambda ecfg, skiptoken="", page_size=50: (ordered, "")
+    directory.get_user = lambda ecfg, oid: people.get(oid)
+    directory.member_groups = lambda ecfg, oid: []
+    directory.assignment = lambda ecfg: {"required": True,
+                                         "users": {p["id"] for p in ordered if p["displayName"] != "Manuel Torres"}}
 
 
 # --------------------------------------------------------------------------- capturas
@@ -425,6 +560,8 @@ def plan(uids: dict) -> list[dict]:
     select = ("(names) => names.forEach(n => document.querySelector(`tr.file-row[data-name=\"${n}\"] "
               "input[type=checkbox]`).click())")
     return [
+        # El Resumen, lo primero: su actividad reciente es la de la demo, no la de las capturas que vienen después
+        {"file": "admin/resumen.webp", "path": "/admin/", "as": "ana.garcia"},
         {"file": "uso/inicio-sesion.webp", "path": "/login?manual=1", "as": None},
         {"file": "uso/explorador.webp", "path": "/f/home/", "as": "ana.garcia",
          "js": f"({select})(['Informe trimestral T3.pdf'])"},
@@ -437,6 +574,8 @@ def plan(uids: dict) -> list[dict]:
          "wait": 2500},   # el diagrama se dibuja en su marco
         {"file": "uso/visor-texto.webp", "path": "/view/home/Registro%20de%20copias.log", "as": "ana.garcia"},
         {"file": "uso/visor-codigo.webp", "path": "/view/proyectos/Web%20corporativa/publicar.py", "as": "ana.garcia"},
+        {"file": "uso/visor-imagen.webp", "path": "/view/proyectos/Web%20corporativa/Maquetas/Inicio%20v3.png",
+         "as": "ana.garcia", "wait": 900},
         {"file": "uso/editor.webp", "path": "/edit/home/Plan%20de%20proyecto.md", "as": "ana.garcia"},
         {"file": "uso/perfil.webp", "path": "/profile/security", "as": "ana.garcia"},
         {"file": "uso/perfil-tokens.webp", "path": "/profile/tokens", "as": "ana.garcia"},
@@ -445,18 +584,30 @@ def plan(uids: dict) -> list[dict]:
         {"file": "uso/explorador-oscuro.webp", "path": "/f/home/Documentos/", "as": "ana.garcia", "scheme": "dark"},
         {"file": "uso/movil.webp", "path": "/f/home/", "as": "ana.garcia", "width": 390, "height": 760,
          "mobile": True},
-        {"file": "admin/resumen.webp", "path": "/admin/", "as": "ana.garcia"},
         {"file": "admin/buscador.webp", "path": "/admin/", "as": "ana.garcia",
          "js": "(() => { const d = document.getElementById('admin-search'); d.showModal();"
                " const i = d.querySelector('input'); i.value = 'cuota'; i.dispatchEvent(new Event('input')); })()",
          "wait": 900},
         {"file": "admin/usuarios.webp", "path": "/admin/users/", "as": "ana.garcia"},
         {"file": "admin/usuario.webp", "path": f"/admin/users/{uids['marta.lopez@ejemplo.com']}", "as": "ana.garcia"},
+        {"file": "admin/importar.webp", "path": "/admin/users/import?all=1", "as": "ana.garcia",
+         "js": "document.querySelector('input[type=checkbox][name=ids]')?.click()", "wait": 900},
+        {"file": "admin/examinar.webp", "path": f"/admin/users/{uids['ana.garcia']}", "as": "ana.garcia",
+         "js": "(() => { const s = document.getElementById('sec-favorites'); s.scrollIntoView({block: 'center'});"
+               " s.querySelector('.path-browse').click(); })()", "wait": 1200},
         {"file": "admin/grupos.webp", "path": "/admin/groups/", "as": "ana.garcia"},
         {"file": "admin/matriz.webp", "path": "/admin/groups/matrix", "as": "ana.garcia"},
         {"file": "admin/carpetas.webp", "path": "/admin/access/folders", "as": "ana.garcia"},
         {"file": "admin/carpeta.webp", "path": "/admin/access/folders/contabilidad", "as": "ana.garcia"},
         {"file": "admin/inicio-sesion.webp", "path": "/admin/settings/auth", "as": "ana.garcia"},
+        {"file": "admin/contrasenas.webp", "path": "/admin/settings/passwords", "as": "ana.garcia",
+         "js": "(() => { const t = document.getElementById('password-test');"
+               " t.querySelector('[name=test_password]').value = 'Ejemplo-2026';"
+               " t.querySelector('.js-show-password').click(); t.querySelector('.js-try').click();"
+               " setTimeout(() => t.scrollIntoView({block: 'end'}), 700); })()", "wait": 1400},
+        {"file": "admin/estado-seguridad.webp", "path": "/admin/settings/security_status", "as": "ana.garcia"},
+        {"file": "admin/vulnerabilidades.webp", "path": "/admin/settings/vulnerabilities", "as": "ana.garcia"},
+        {"file": "admin/carpetas-servidor.webp", "path": "/admin/settings/server_folders", "as": "ana.garcia"},
         {"file": "admin/marca.webp", "path": "/admin/settings/general", "as": "ana.garcia"},
         {"file": "admin/ubicaciones.webp", "path": "/admin/storage/", "as": "ana.garcia"},
         {"file": "admin/copias.webp", "path": "/admin/settings/backups", "as": "ana.garcia"},
@@ -517,6 +668,7 @@ def main() -> int:
 
         from storageweb import create_app
         from storageweb.db import connect
+        _fake_directory()
         app = create_app(str(config))
         from storageweb.cli.server import waitress_options
         server = create_server(app, host="127.0.0.1", port=port, **waitress_options(app.config["SW"]["server"]))
@@ -541,6 +693,10 @@ def main() -> int:
         for real_path, shown_path in ((base / "data", "/var/lib/storageweb"), (base, SERVER_ROOT)):
             for form in (str(real_path), real_path.as_posix()):
                 replace.append([form, shown_path])
+        # /srv/storageweb, que en Windows lleva delante la unidad de la carpeta temporal («C:\srv\storageweb»)
+        if base.drive:
+            for form in (base.drive + SERVER_ROOT.replace("/", "\\"), base.drive + SERVER_ROOT):
+                replace.append([form, SERVER_ROOT])
         replace.append([f"127.0.0.1:{port}", "127.0.0.1:8080"])   # el puerto libre que tocó, como el de serie
         plan_file.write_text(json.dumps({"base": url, "password": PASSWORD, "out": str(args.out), "shots": shots,
                                          "replace": replace}, ensure_ascii=False), encoding="utf-8")

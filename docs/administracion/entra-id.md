@@ -144,6 +144,8 @@ También se puede configurar a mano en **Seguridad → Inicio de sesión**, o fi
 
 ### Importar personas antes de que entren
 
+![Personas → Importar de Entra ID: la lista con una seleccionada, otra ya importada y el aviso de quien no tiene la aplicación asignada](../img/admin/importar.webp)
+
 *Personas → Usuarios → **Importar de Entra ID*** (junto a *Nuevo usuario*) da de alta a quien elijas **antes de que
 entre**, para darle ya carpetas compartidas, grupos y cuota:
 

@@ -86,6 +86,8 @@ Los archivos de texto, las imágenes, los PDF, los vídeos y el audio se abren e
 
 ![Un archivo de Python en el visor, con los colores del código](../img/uso/visor-codigo.webp)
 
+![Una imagen en el visor, con su nombre, su tipo y Descargar](../img/uso/visor-imagen.webp)
+
 Se ven enteros los archivos de texto de hasta 2 MB (el administrador puede cambiarlo; las imágenes, los PDF, el vídeo y el audio no tienen límite). Un texto más grande, como un log, se ve **por partes**: de entrada la última, con los botones *Principio*, *Anterior*, *Siguiente* y *Final* para moverse; solo se lee esa parte, también en almacenamiento remoto. Un Markdown más grande, o un archivo que no es texto, se descarga. Si no está en UTF-8, se muestra como Windows-1252 (lo habitual en archivos antiguos de Windows) y lo avisa. Las imágenes de otras webs no se cargan dentro de un documento, para que nadie sepa quién lo está leyendo; queda un enlace para abrirlas. Los diagramas `mermaid` se dibujan (sin JavaScript se ve su código). Ver un archivo cuenta en la auditoría como una descarga (detalle `view`), una vez aunque saltes de un punto a otro de un vídeo.
 
 El administrador decide en *Sistema → Vista previa* si hay visor, qué tipos multimedia se ven (imágenes, PDF, vídeo y audio, cada uno aparte), si se dibujan los diagramas, el tamaño máximo, la lista de extensiones que se abren y las que no se abren nunca. De serie no se abren los archivos de texto que suelen guardar secretos o claves (`.env`, `.pem`, `.key`, `.ppk`, `.asc`): se descargan. *Restablecer* devuelve una lista a la de serie y, antes, dice qué extensiones se añaden y cuáles se quitan. Ver `preview.*` en la [referencia de configuración](../referencia/configuracion.md).
