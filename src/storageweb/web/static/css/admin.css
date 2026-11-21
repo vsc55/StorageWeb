@@ -553,3 +553,32 @@ td.is-dirty[data-dirty-label]::after { display: none; }  /* en las tablas basta 
 .tag.is-match { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-soft); }
 .tags-hint { flex: 1 0 100%; padding: 0 6px 2px; }
 .tags-hint[hidden] { display: none; }
+
+/* Auditoría: filas que se pulsan y el modal con los datos de una (admin/audit.js) */
+.audit-row { cursor: pointer; }
+.audit-row:hover td, .audit-row:focus-visible td { background: var(--bg-hover); }
+.audit-row:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.audit-detail { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.audit-fields { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 16px; margin: 0; width: 100%; }
+.audit-fields dt { color: var(--muted); font-size: 13px; }
+.audit-fields dd { margin: 0; min-width: 0; }
+.audit-long { white-space: pre-wrap; overflow-wrap: anywhere; }
+.audit-pairs { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; margin: 6px 0 0;
+               padding: 8px 10px; background: var(--bg-soft); border-radius: var(--radius); font-size: 13px; }
+.audit-pairs dt { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.audit-pairs dd { margin: 0; overflow-wrap: anywhere; }
+
+/* Acciones de una fila como botones de icono (Personas → Usuarios) */
+.user-actions { display: inline-flex; gap: 4px; align-items: center; justify-content: flex-end; }
+.user-actions .btn-icon.btn-small { width: 30px; height: 30px; min-height: 30px; padding: 0; }
+.user-actions .btn-icon .icon { width: 16px; height: 16px; margin: 0; }
+.user-actions .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Ficha del usuario (admin/user_form.html): quién es arriba, lo editable con su barra de guardar y lo inmediato aparte */
+.user-facts { margin-top: 2px; }
+.user-main.stack { gap: 16px; }
+.user-role { max-width: 320px; }
+.user-row { display: flex; justify-content: space-between; align-items: center; gap: 8px 16px; flex-wrap: wrap; }
+.user-row p { margin: 2px 0 0; }
+.user-row .badge { margin-left: 6px; }
+.user-new .form-actions { margin: 0; }

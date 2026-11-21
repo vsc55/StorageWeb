@@ -16,7 +16,7 @@
 
   // Modal propio en lugar de confirm/prompt/alert del navegador. Devuelve una promesa:
   //   SW.confirm(texto, {ok, danger, content, wide}) → true/false     SW.prompt(texto, valor) → texto o null
-  //   SW.alert(texto) → cuando se cierra
+  //   SW.alert(texto) → cuando se cierra                                     SW.show(título, elemento) → al cerrar
   // ``content``: un elemento que va debajo del texto (el texto pasa a ser el título); ``wide``: más ancho.
   // Usa <dialog>: el foco queda dentro, Esc cancela y el fondo no se puede tocar.
   function modal(opts) {
@@ -90,7 +90,11 @@
                      content: opts && opts.content, wide: opts && opts.wide });
     },
     prompt: function (message, value) { return modal({ message: message, input: value || "" }); },
-    alert: function (message) { return modal({ message: message, cancel: false, ok: t("OK") }); }
+    alert: function (message) { return modal({ message: message, cancel: false, ok: t("OK") }); },
+    // Un modal solo para mirar: ``title`` arriba, el elemento ``content`` debajo y un botón de cerrar
+    show: function (title, content) {
+      return modal({ message: title, content: content, cancel: false, ok: t("Close"), wide: true });
+    }
   };
 
   // Formularios con confirmación (class="js-confirm" data-confirm="…"): el botón de aceptar lleva el

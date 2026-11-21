@@ -1,0 +1,20 @@
+{# Formularios de las ceremonias de passkeys. Los maneja static/js/passkeys.js (data-passkey): nacen ocultos y el JS los
+   enseña solo si el navegador puede usar passkeys; si no, enseña el aviso data-passkey-unsupported. Sin JS no hacen
+   nada (no tienen action): todo va por JSON con la cabecera X-CSRF-Token. #}
+
+{% macro passkey_create(options_url, verify_url, label=None, primary=False) -%}
+<form class="passkey-form" data-passkey="create" data-for="register" data-options="{{ options_url }}" data-verify="{{ verify_url }}" hidden>
+  <input type="text" name="passkey_name" maxlength="64" autocomplete="off"
+         placeholder="{{ _('Name, e.g. Work laptop') }}" aria-label="{{ _('Passkey name') }}">
+  <button class="btn{% if primary %} btn-primary{% endif %}" type="submit">{{ label or _("Add a passkey") }}</button>
+</form>
+<p class="muted small" data-passkey-unsupported hidden>{{ _("This browser cannot use passkeys (or the page is not on HTTPS).") }}</p>
+{%- endmacro %}
+
+{% macro passkey_get(options_url, verify_url, label=None, primary=False, purpose="login") -%}
+<form class="passkey-form" data-passkey="get" data-for="{{ purpose }}" data-options="{{ options_url }}" data-verify="{{ verify_url }}" hidden>
+  <button class="btn{% if primary %} btn-primary btn-lg{% endif %}" type="submit">
+    <svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg>{{ label or _("Use a passkey") }}</button>
+</form>
+<p class="muted small" data-passkey-unsupported hidden>{{ _("This browser cannot use passkeys (or the page is not on HTTPS).") }}</p>
+{%- endmacro %}

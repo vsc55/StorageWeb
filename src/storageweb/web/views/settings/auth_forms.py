@@ -16,6 +16,7 @@ from collections.abc import Callable
 from flask import request
 
 from .... import providers
+from ....core.mfa import webauthn
 from ....db.repositories import mfa as mfa_repo
 from ....i18n import _l
 from ....providers import AuthMethod
@@ -67,7 +68,7 @@ def generic_parser(method: AuthMethod) -> dict:
 def parse() -> dict:
     return {"auth": {m.key: _PARSERS.get(m.key, generic_parser)(m) for m in providers.methods()},
             # La política de la verificación en dos pasos va en esta página (es del inicio de sesión)
-            "security": {"mfa_required": request.form.get("mfa_required", "off")}}
+            "security": {"mfa_required": request.form.get("mfa_required", "off"), "passkeys": checked("passkeys")}}
 
 
 MFA_POLICY_LABELS = dict(zip(MFA_POLICIES, (_l("Nobody: optional for everyone"), _l("Administrators"),
@@ -81,6 +82,7 @@ def context(cfg: dict) -> dict:
                                      password_methods).fetchall()
     enrolled = mfa_repo.enrolled_ids(get_db())
     ctx: dict = {"auth_methods": providers.methods(), "mfa_policies": list(MFA_POLICY_LABELS.items()),
+                 "passkey_rp": webauthn.scope_from(cfg["network"].get("public_url", ""))[0],
                  "mfa_counts": {"total": len(with_password),
                                 "enrolled": sum(1 for r in with_password if r["id"] in enrolled)}}
     for method in providers.methods():

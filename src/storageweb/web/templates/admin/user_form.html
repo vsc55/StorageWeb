@@ -1,8 +1,22 @@
 {% extends "admin/_layout.html" %}
 {% from "admin/users/_macros.html" import avatar, status, badges, group_chips, access_list, activity_list with context %}
+{% from "_space.html" import quota_meter with context %}
 {% block title %}{{ _("Edit %(name)s", name=user['username']) if user else _("New user") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
 {% if user %}
+{#
+  Ficha de un usuario, ordenada por lo que viene a hacer quien la abre, no por las columnas de la tabla:
+  · cabecera: quién es (se lee, no se edita): nombre, rol, origen, estado, alta y último acceso;
+  · Perfil, Acceso (rol + grupos: deciden lo mismo) y Carpeta personal (ruta + cuota + lo que ocupa): lo que se edita,
+    con UN modelo de guardar: la barra «Cambios sin guardar» aparece al tocar un campo (sus campos van con
+    form="user-form", así que pueden estar en tarjetas con botones inmediatos sin anidar formularios);
+  · Inicio de sesión y seguridad: si puede entrar y cómo (2FA, sesiones, tokens), con acciones inmediatas;
+  · Zona peligrosa: desactivar y eliminar, una sola vez cada cosa (sin casilla «activa» que lo duplique).
+  La contraseña no está aquí: tiene su botón en la lista y en los paneles.
+#}
+{% set from_provider = auth_method(user['source']) and auth_method(user['source']).profile_from_provider %}
+{% set is_sso = auth_method(user['source']) and auth_method(user['source']).sso %}
+{% set stores_pw = auth_method(user['source']) and auth_method(user['source']).stores_password %}
 <a class="small" href="{{ url_for('admin.users_index') }}">← {{ _("Users") }}</a>
 <div class="user-head">
   {{ avatar(user, 'xl') }}
@@ -11,28 +25,216 @@
     <div class="inline small muted">
       {% if user['display_name'] %}<span>{{ user['display_name'] }}</span>{% endif %}
       {{ badges(user) }} {{ status(user) }}
+    </div>
+    <div class="inline small muted user-facts">
+      <span>{{ SOURCE_LABELS[user['source']] }}{% if is_sso and not user['external_id'] %} ({{ _("will be linked on first sign-in") }}){% endif %}</span>
+      <span>· {{ _("Created %(when)s.", when=user['created_at']|datetime) }}</span>
       <span>· {{ _("last sign-in %(when)s", when=user['last_login']|datetime) }}</span>
     </div>
   </div>
 </div>
+
+<form id="user-form" method="post" hidden>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+</form>
+
+<div class="user-layout">
+<div class="user-main stack">
+
+  <section class="card form-grid" aria-labelledby="sec-profile">
+    <h2 id="sec-profile" class="card-title span2">{{ _("Profile") }}</h2>
+    <label>{{ _("Display name") }}
+      <input form="user-form" type="text" name="display_name" value="{{ form.display_name or '' }}" maxlength="200"{% if from_provider %} readonly class="from-provider"{% endif %}>
+    </label>
+    <label>{{ _("Email") }}
+      <input form="user-form" type="email" name="email" value="{{ form.email or '' }}" maxlength="200"{% if from_provider %} readonly class="from-provider"{% endif %}>
+    </label>
+    {% if from_provider %}<p class="muted small span2">{{ _("The name and the email come from %(source)s and are updated on each sign-in: change them there.", source=SOURCE_LABELS[user['source']]) }}</p>
+    {% elif is_sso %}<p class="muted small span2">{{ _("The name is updated from %(source)s on each sign-in.", source=SOURCE_LABELS[user['source']]) }}</p>{% endif %}
+  </section>
+
+  <section class="card stack" aria-labelledby="sec-access">
+    <div>
+      <h2 id="sec-access" class="card-title">{{ _("Access") }}</h2>
+      <p class="muted small">{{ _("The role says what they can do; the groups, which shared folders they see. The result is in Effective access.") }}</p>
+    </div>
+    <label class="user-role">{{ _("Role") }}
+      <select form="user-form" name="role">
+        {% for r in ROLES %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}
+      </select>
+    </label>
+    <div>
+      <span class="label">{{ _("Groups") }}</span>
+      {{ group_chips(user, memberships, unknown_groups, addable_groups, request.path, unknown_names) }}
+      {% if auth_method(user['source']) and auth_method(user['source']).external_groups %}<p class="muted small">{{ _("Groups with a padlock come from %(source)s and are updated on each sign-in: change them there. The others are assigned here and are kept when the user signs in again.", source=SOURCE_LABELS[user['source']]) }}</p>{% endif %}
+    </div>
+  </section>
+
+  <section class="card form-grid" aria-labelledby="sec-folder">
+    <h2 id="sec-folder" class="card-title span2">{{ _("Personal folder") }}</h2>
+    <label class="span2">{{ _("Path") }} <small class="muted">({{ _("empty = default template") }})</small>
+      <input form="user-form" type="text" name="home_path" value="{{ form.home_path or '' }}" placeholder="/srv/storageweb/homes/{{ _('user') }}" class="mono">
+    </label>
+    <label>{{ _("Quota (MB)") }}
+      <input form="user-form" type="number" name="quota_mb" min="0" value="{{ '' if form.quota_mb is none else form.quota_mb }}"
+             placeholder="{{ _('default: %(mb)s', mb=default_quota_mb) if default_quota_mb else _('default: no quota') }}">
+      <small class="muted">{{ _("Empty = the one of their groups or the default one; 0 = no quota.") }}</small></label>
+    <div class="field">
+      {% if home_quota %}{{ quota_meter(home_quota) }}
+      {% else %}<span class="label">{{ _("In use") }}</span>
+      <span>{{ ('≥ ' if not home_usage.complete else '') ~ home_usage.used }} <span class="muted small">· {{ _("default: no quota") }}</span></span>{% endif %}
+    </div>
+  </section>
+
+  {# Un solo modelo de guardar para lo editable de arriba: aparece al cambiar algo (sin JS, siempre a la vista) #}
+  <div class="save-bar is-idle" data-user-save>
+    <span class="small" data-user-save-status>{{ _("Unsaved changes") }}</span>
+    <span class="toolbar-spacer"></span>
+    <button class="btn btn-ghost" type="reset" form="user-form">{{ _("Discard") }}</button>
+    <button class="btn btn-primary" type="submit" form="user-form">{{ _("Save changes") }}</button>
+  </div>
+
+  <section class="card stack" aria-labelledby="sec-signin">
+    <h2 id="sec-signin" class="card-title">{{ _("Sign-in and security") }}</h2>
+    {% if not stores_pw %}
+    <p class="muted small">{{ _("Signs in with %(source)s: the password is managed there.", source=SOURCE_LABELS[user['source']]) }}
+      {% if user['external_id'] %}<code>{{ user['external_id'] }}</code>{% endif %}</p>
+    {% endif %}
+    {% if not user['enabled'] and user['disabled_reason'] == 'directory' %}
+    <p class="muted small">{{ _("Disabled automatically because %(source)s removed or disabled the account, or it is no longer in the allowed groups. It is enabled again on its own when %(source)s lets it in.", source=SOURCE_LABELS[user['source']]) }}</p>
+    {% endif %}
+
+    {% if mfa_applies %}
+    <div class="user-row">
+      <div>
+        <strong>{{ _("Two-step verification") }}</strong>
+        {% if mfa.enrolled %}<span class="badge badge-ok">{{ _("On") }}</span>{% else %}<span class="badge">{{ _("Off") }}</span>{% endif %}
+        <p class="muted small">
+          {% if mfa.enrolled %}{% if mfa.totp %}{{ _("authenticator app since %(date)s", date=mfa.since|datetime) }} · {% endif %}{% if mfa.passkeys %}{{ ngettext("%(num)s passkey", "%(num)s passkeys", mfa.passkeys|length) }} · {% endif %}{{ ngettext("%(num)s recovery code left", "%(num)s recovery codes left", mfa.recovery_left) }}
+          {% elif mfa_required %}{{ _("required: they will set it up on their next sign-in") }}{% endif %}</p>
+      </div>
+      {% if mfa.enrolled and user['id'] != current_user['id'] %}
+      <form method="post" action="{{ url_for('admin.user_mfa_reset', user_uid=user['uid']) }}" class="inline js-confirm"
+            data-confirm="{{ _('Remove the two-step verification of «%(name)s»?', name=user['username']) }}"
+            title="{{ _('For someone who lost their phone, their passkeys and their recovery codes. It removes all of them: they will sign in with just their password (or set it up again if it is required). Only they can turn it on again: nobody can set it up for someone else.') }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button class="btn btn-small btn-danger" type="submit">{{ _("Remove two-step verification") }}</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div>
+      <div class="user-row">
+        <strong>{{ _("Sessions and API tokens") }}</strong>
+        {% if user_sessions %}
+        <form method="post" action="{{ url_for('settings.user_sessions_close', user_uid=user['uid']) }}" class="inline">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+          <button class="btn btn-small" type="submit">{{ _("Close all their sessions") }}</button></form>
+        {% endif %}
+      </div>
+      <ul class="access-list">
+        {% for s in user_sessions %}
+        <li><svg class="icon" aria-hidden="true"><use href="#i-monitor"></use></svg>
+          <span class="access-text"><strong>{{ s['user_agent']|ua_summary }}</strong>
+            <span class="muted small">{{ s['ip'] or '—' }} · {{ _("active %(when)s", when=s['last_seen']|datetime) }}</span></span>
+          <form method="post" action="{{ url_for('settings.session_close', sid=s['id']) }}" class="inline">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+            <button class="link-btn small" type="submit">{{ _("Close") }}</button></form></li>
+        {% else %}
+        <li class="muted small">{{ _("No open sessions.") }}</li>
+        {% endfor %}
+        {% for t in user_tokens %}
+        <li><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg>
+          <span class="access-text"><strong>{{ t['name'] }}</strong>
+            <span class="muted small"><code>{{ t['prefix'] }}…</code> · {{ t['scope'] }} · {{ _("last used %(when)s", when=t['last_used_at']|datetime) }}</span></span>
+          <form method="post" action="{{ url_for('settings.user_token_delete', user_uid=user['uid'], token_id=t['id']) }}" class="inline js-confirm"
+                data-confirm="{{ _('Revoke the token «%(name)s»?', name=t['name']) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+            <button class="link-btn small" type="submit">{{ _("Revoke") }}</button></form></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+
+  {% if user['id'] != current_user['id'] %}
+  <section class="danger-zone" aria-label="{{ _('Access') }}">
+    <div class="danger-row">
+      <div>
+        <strong>{{ _("Disable access") if user['enabled'] else _("Account disabled") }}</strong>
+        <p class="muted small">
+          {% if user['enabled'] %}
+            {{ _("The user will not be able to sign in and their open session ends on the next request. Their files and settings are kept.") }}
+          {% else %}
+            {{ _("The user cannot sign in. Enable the account to restore access.") }}
+          {% endif %}
+          {% if not stores_pw %}
+            {{ _("This also applies to %(source)s: the identity stays valid there, but StorageWeb rejects it.", source=SOURCE_LABELS[user['source']]) }}
+          {% endif %}
+        </p>
+      </div>
+      <form method="post" action="{{ url_for('admin.user_status', user_uid=user['uid']) }}" class="inline{% if user['enabled'] %} js-confirm{% endif %}"
+            {% if user['enabled'] %}data-confirm="{{ _('Disable «%(name)s»? They will not be able to sign in, not even with %(source)s.', name=user['username'], source=SOURCE_LABELS[user['source']]) }}"{% endif %}>
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="enabled" value="{{ '0' if user['enabled'] else '1' }}">
+        <button class="btn{% if user['enabled'] %} btn-danger{% else %} btn-primary{% endif %}" type="submit">{{ _("Disable user") if user['enabled'] else _("Enable user") }}</button>
+      </form>
+    </div>
+    <div class="danger-row">
+      <div>
+        <strong>{{ _("Delete user") }}</strong>
+        <p class="muted small">
+          {{ _("Removes the account. Their files are not removed.") }}
+          {% if is_sso %}
+            {{ _("Warning: if automatic creation of %(source)s users is enabled, the account is created again on their next sign-in. To block access, disable it instead.", source=SOURCE_LABELS[user['source']]) }}
+          {% endif %}
+        </p>
+      </div>
+      <form method="post" action="{{ url_for('admin.user_delete', user_uid=user['uid']) }}" class="inline js-confirm"
+            data-confirm="{{ _('Delete the user «%(name)s»? Their files will not be removed.', name=user['username']) }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button class="btn btn-danger" type="submit">{{ _("Delete user") }}</button>
+      </form>
+    </div>
+  </section>
+  {% else %}
+  {# La propia cuenta: se ve que existe, pero no se puede (nadie se queda fuera desactivándose a sí mismo) #}
+  <section class="danger-zone" aria-label="{{ _('Access') }}">
+    <div class="danger-row">
+      <div>
+        <strong>{{ _("Disable access") }}</strong>
+        <p class="muted small">{{ _("You cannot disable or delete your own account: another administrator has to do it. This way nobody locks themselves out.") }}</p>
+      </div>
+      <button class="btn btn-danger" type="button" disabled title="{{ _('You cannot disable your own account.') }}">{{ _("Disable user") }}</button>
+    </div>
+  </section>
+  {% endif %}
+
+</div>
+
+<aside class="user-side">
+  <section class="card" aria-labelledby="access-title">
+    <h2 id="access-title" class="card-title">{{ _("Effective access") }}</h2>
+    <p class="muted small">{{ _("What they see when they sign in, and why.") }}</p>
+    {{ access_list(user, access, role_permissions) }}
+  </section>
+  <section class="card" aria-labelledby="activity-title">
+    <h2 id="activity-title" class="card-title">{{ _("Recent activity") }}</h2>
+    {{ activity_list(user, activity) }}
+  </section>
+</aside>
+</div>
+
 {% else %}
+{# Alta: no hay nada inmediato todavía, así que un formulario normal, en el orden en que se piensa una cuenta nueva #}
 <div class="page-head">
   <h1>{{ _("New user") }}</h1>
   <a class="btn btn-ghost" href="{{ url_for('admin.users_index') }}">← {{ _("Back") }}</a>
 </div>
-{% endif %}
-
-<div class="{% if user %}user-layout{% endif %}">
-<div class="user-main">
-<form method="post" class="card form-grid">
+<form method="post" class="stack user-new">
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-
-  <h2 class="card-title span2">{{ _("Account") }}</h2>
-  {% if user %}
-    <div class="field"><span class="label">{{ _("User") }}</span><strong>{{ user['username'] }}</strong></div>
-    <div class="field"><span class="label">{{ _("Source") }}</span>{{ SOURCE_LABELS[user['source']] }}
-      {% if auth_method(user['source']) and auth_method(user['source']).sso and not user['external_id'] %}<small class="muted">({{ _("will be linked on first sign-in") }})</small>{% endif %}</div>
-  {% else %}
+  <section class="card form-grid" aria-labelledby="sec-account">
+    <h2 id="sec-account" class="card-title span2">{{ _("Account") }}</h2>
     <label>{{ _("User") }}
       <input type="text" name="username" value="{{ form.username or '' }}" required maxlength="128" autofocus
              pattern="[A-Za-z0-9][A-Za-z0-9._@+\-]*">
@@ -43,199 +245,36 @@
         {% for s in sources %}<option value="{{ s }}" {% if form.source == s %}selected{% endif %}>{{ SOURCE_LABELS[s] }}</option>{% endfor %}
       </select>
     </label>
-  {% endif %}
-  {% set from_provider = user and auth_method(user['source']) and auth_method(user['source']).profile_from_provider %}
-  <label>{{ _("Display name") }}
-    <input type="text" name="display_name" value="{{ form.display_name or '' }}" maxlength="200"{% if from_provider %} readonly class="from-provider"{% endif %}>
-  </label>
-  <label>{{ _("Email") }}
-    <input type="email" name="email" value="{{ form.email or '' }}" maxlength="200"{% if from_provider %} readonly class="from-provider"{% endif %}>
-  </label>
-  {% if user %}<p class="muted small span2">{{ _("Created %(when)s.", when=user['created_at']|datetime) }}
-    {% if from_provider %}{{ _("The name and the email come from %(source)s and are updated on each sign-in: change them there.", source=SOURCE_LABELS[user['source']]) }}
-    {% elif auth_method(user['source']) and auth_method(user['source']).sso %}{{ _("The name is updated from %(source)s on each sign-in.", source=SOURCE_LABELS[user['source']]) }}{% endif %}</p>{% endif %}
-
-  <h2 class="card-title span2">{{ _("Role and access") }}</h2>
-  <label>{{ _("Role") }}
-    <select name="role">
-      {% for r in ROLES %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}
-    </select>
-  </label>
-  {% if user and user['id'] == current_user['id'] %}
-  {# La propia cuenta siempre activa: la casilla se ve bloqueada y el valor va oculto (una casilla desactivada no se envía) #}
-  <input type="hidden" name="enabled" value="on">
-  <label class="check" title="{{ _('You cannot disable your own account.') }}"><input type="checkbox" checked disabled> {{ _("Account enabled") }}</label>
-  {% else %}
-  <label class="check"><input type="checkbox" name="enabled" {% if form.enabled %}checked{% endif %}> {{ _("Account enabled") }}</label>
-  {% endif %}
-  {% if user and not user['enabled'] and user['disabled_reason'] == 'directory' %}
-  <p class="muted small span2">{{ _("Disabled automatically because %(source)s removed or disabled the account, or it is no longer in the allowed groups. It is enabled again on its own when %(source)s lets it in.", source=SOURCE_LABELS[user['source']]) }}</p>
-  {% endif %}
-  {% if not user %}
-  <label class="span2">{{ _("Groups") }} <small class="muted">({{ _("comma separated; unknown ones are created as local groups") }})</small>
-    <input type="text" name="groups" value="{{ (form.groups or []) | join(', ') }}">
-  </label>
-  {% endif %}
-
-  <h2 class="card-title span2">{{ _("Personal folder") }}</h2>
-  <label class="span2">{{ _("Path") }} <small class="muted">({{ _("empty = default template") }})</small>
-    <input type="text" name="home_path" value="{{ form.home_path or '' }}" placeholder="/srv/storageweb/homes/{{ _('user') }}" class="mono">
-  </label>
-  {% if user %}
-  <label>{{ _("Quota (MB)") }}
-    <input type="number" name="quota_mb" min="0" value="{{ '' if form.quota_mb is none else form.quota_mb }}"
-           placeholder="{{ _('default: %(mb)s', mb=default_quota_mb) if default_quota_mb else _('default: no quota') }}">
-    <small class="muted">{{ _("Empty = the one of their groups or the default one; 0 = no quota.") }}</small></label>
-  <div class="field">
-    <span class="label">{{ _("In use") }}</span>
-    <span>{{ ('≥ ' if not home_usage.complete else '') ~ home_usage.used }}{% if home_quota %} · {{ _("%(percent)s%% of the quota", percent=home_quota.percent) }}{% endif %}</span>
-    {% if home_quota and home_quota.level == 'over' %}<span class="text-danger small">{{ _("Quota exceeded") }}</span>{% endif %}
-  </div>
-  {% endif %}
-
-  <h2 class="card-title span2">{{ _("Sign-in") }}</h2>
-  {% if not user or (auth_method(user['source']) and auth_method(user['source']).stores_password) %}
-  <label class="js-local-only">{{ _("New password") if user else _("Password") }}
-    <input type="password" name="password" autocomplete="new-password" minlength="10"
-           {% if not user %}required{% endif %} placeholder="{{ _('Leave empty to keep it') if user else _('At least 10 characters') }}">
-  </label>
-  {% endif %}
-  {% if user and not (auth_method(user['source']) and auth_method(user['source']).stores_password) %}
-  <p class="muted small span2">{{ _("Signs in with %(source)s: the password is managed there.", source=SOURCE_LABELS[user['source']]) }}
-    {% if user['external_id'] %}<code>{{ user['external_id'] }}</code>{% endif %}</p>
-  {% endif %}
-  {% if user and mfa_applies %}
-  <p class="small span2"><strong>{{ _("Two-step verification") }}:</strong>
-    {% if mfa.enrolled %}<span class="badge badge-ok">{{ _("On") }}</span>
-      <span class="muted">{{ _("since %(date)s", date=mfa.since|datetime) }} · {{ ngettext("%(num)s recovery code left", "%(num)s recovery codes left", mfa.recovery_left) }}</span>
-    {% else %}<span class="badge">{{ _("Off") }}</span>
-      {% if mfa_required %}<span class="muted">{{ _("required: they will set it up on their next sign-in") }}</span>{% endif %}
-    {% endif %}</p>
-  {% endif %}
-
-  <div class="span2 form-actions">
-    <button class="btn btn-primary" type="submit">{{ _("Save changes") if user else _("Create user") }}</button>
+    <label class="js-local-only">{{ _("Password") }}
+      <input type="password" name="password" autocomplete="new-password" minlength="10" required
+             placeholder="{{ _('At least 10 characters') }}">
+    </label>
+    <label class="check"><input type="checkbox" name="enabled" {% if form.enabled %}checked{% endif %}> {{ _("Account enabled") }}</label>
+    <label>{{ _("Display name") }}
+      <input type="text" name="display_name" value="{{ form.display_name or '' }}" maxlength="200">
+    </label>
+    <label>{{ _("Email") }}
+      <input type="email" name="email" value="{{ form.email or '' }}" maxlength="200">
+    </label>
+  </section>
+  <section class="card form-grid" aria-labelledby="sec-access">
+    <h2 id="sec-access" class="card-title span2">{{ _("Access") }}</h2>
+    <label>{{ _("Role") }}
+      <select name="role">
+        {% for r in ROLES %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>{{ _("Groups") }} <small class="muted">({{ _("comma separated; unknown ones are created as local groups") }})</small>
+      <input type="text" name="groups" value="{{ (form.groups or []) | join(', ') }}">
+    </label>
+    <label class="span2">{{ _("Personal folder") }} <small class="muted">({{ _("empty = default template") }})</small>
+      <input type="text" name="home_path" value="{{ form.home_path or '' }}" placeholder="/srv/storageweb/homes/{{ _('user') }}" class="mono">
+    </label>
+  </section>
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">{{ _("Create user") }}</button>
   </div>
 </form>
-
-{% if user %}
-<section class="card section-gap" aria-labelledby="user-groups-title">
-  <h2 id="user-groups-title" class="card-title">{{ _("Groups") }}</h2>
-  <p class="muted small">{{ _("They give access to shared folders.") }}</p>
-  {{ group_chips(user, memberships, unknown_groups, addable_groups, request.path, unknown_names) }}
-  {% if auth_method(user['source']) and auth_method(user['source']).external_groups %}<p class="muted small">{{ _("Groups with a padlock come from %(source)s and are updated on each sign-in: change them there. The others are assigned here and are kept when the user signs in again.", source=SOURCE_LABELS[user['source']]) }}</p>{% endif %}
-</section>
 {% endif %}
-
-{% if user and user['id'] != current_user['id'] %}
-<section class="danger-zone" aria-label="{{ _('Access') }}">
-  <div class="danger-row">
-    <div>
-      <strong>{{ _("Disable access") if user['enabled'] else _("Account disabled") }}</strong>
-      <p class="muted small">
-        {% if user['enabled'] %}
-          {{ _("The user will not be able to sign in and their open session ends on the next request. Their files and settings are kept.") }}
-        {% else %}
-          {{ _("The user cannot sign in. Enable the account to restore access.") }}
-        {% endif %}
-        {% if not (auth_method(user['source']) and auth_method(user['source']).stores_password) %}
-          {{ _("This also applies to %(source)s: the identity stays valid there, but StorageWeb rejects it.", source=SOURCE_LABELS[user['source']]) }}
-        {% endif %}
-      </p>
-    </div>
-    <form method="post" action="{{ url_for('admin.user_status', user_uid=user['uid']) }}" class="inline{% if user['enabled'] %} js-confirm{% endif %}"
-          {% if user['enabled'] %}data-confirm="{{ _('Disable «%(name)s»? They will not be able to sign in, not even with %(source)s.', name=user['username'], source=SOURCE_LABELS[user['source']]) }}"{% endif %}>
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <input type="hidden" name="enabled" value="{{ '0' if user['enabled'] else '1' }}">
-      <button class="btn{% if user['enabled'] %} btn-danger{% else %} btn-primary{% endif %}" type="submit">{{ _("Disable user") if user['enabled'] else _("Enable user") }}</button>
-    </form>
-  </div>
-  {% if mfa.enrolled %}
-  <div class="danger-row">
-    <div>
-      <strong>{{ _("Remove two-step verification") }}</strong>
-      <p class="muted small">{{ _("For someone who lost their phone and their recovery codes. They will sign in with just their password (or set it up again if it is required). Only they can turn it on again: nobody can set it up for someone else.") }}</p>
-    </div>
-    <form method="post" action="{{ url_for('admin.user_mfa_reset', user_uid=user['uid']) }}" class="inline js-confirm"
-          data-confirm="{{ _('Remove the two-step verification of «%(name)s»?', name=user['username']) }}">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <button class="btn btn-danger" type="submit">{{ _("Remove") }}</button>
-    </form>
-  </div>
-  {% endif %}
-  <div class="danger-row">
-    <div>
-      <strong>{{ _("Delete user") }}</strong>
-      <p class="muted small">
-        {{ _("Removes the account. Their files are not removed.") }}
-        {% if auth_method(user['source']) and auth_method(user['source']).sso %}
-          {{ _("Warning: if automatic creation of %(source)s users is enabled, the account is created again on their next sign-in. To block access, disable it instead.", source=SOURCE_LABELS[user['source']]) }}
-        {% endif %}
-      </p>
-    </div>
-    <form method="post" action="{{ url_for('admin.user_delete', user_uid=user['uid']) }}" class="inline js-confirm"
-          data-confirm="{{ _('Delete the user «%(name)s»? Their files will not be removed.', name=user['username']) }}">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <button class="btn btn-danger" type="submit">{{ _("Delete user") }}</button>
-    </form>
-  </div>
-</section>
-{% elif user %}
-{# La propia cuenta: se ve que existe, pero no se puede (nadie se queda fuera desactivándose a sí mismo) #}
-<section class="danger-zone" aria-label="{{ _('Access') }}">
-  <div class="danger-row">
-    <div>
-      <strong>{{ _("Disable access") }}</strong>
-      <p class="muted small">{{ _("You cannot disable or delete your own account: another administrator has to do it. This way nobody locks themselves out.") }}</p>
-    </div>
-    <button class="btn btn-danger" type="button" disabled title="{{ _('You cannot disable your own account.') }}">{{ _("Disable user") }}</button>
-  </div>
-</section>
-{% endif %}
-</div>
-
-{% if user %}
-<aside class="user-side">
-  <section class="card" aria-labelledby="access-title">
-    <h2 id="access-title" class="card-title">{{ _("Effective access") }}</h2>
-    <p class="muted small">{{ _("What they see when they sign in, and why.") }}</p>
-    {{ access_list(user, access, role_permissions) }}
-  </section>
-  <section class="card" aria-labelledby="sessions-title">
-    <h2 id="sessions-title" class="card-title">{{ _("Sessions and API tokens") }}</h2>
-    <ul class="access-list">
-      {% for s in user_sessions %}
-      <li><svg class="icon" aria-hidden="true"><use href="#i-monitor"></use></svg>
-        <span class="access-text"><strong>{{ s['user_agent']|ua_summary }}</strong>
-          <span class="muted small">{{ s['ip'] or '—' }} · {{ _("active %(when)s", when=s['last_seen']|datetime) }}</span></span>
-        <form method="post" action="{{ url_for('settings.session_close', sid=s['id']) }}" class="inline">
-          <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
-          <button class="link-btn small" type="submit">{{ _("Close") }}</button></form></li>
-      {% else %}
-      <li class="muted small">{{ _("No open sessions.") }}</li>
-      {% endfor %}
-      {% for t in user_tokens %}
-      <li><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg>
-        <span class="access-text"><strong>{{ t['name'] }}</strong>
-          <span class="muted small"><code>{{ t['prefix'] }}…</code> · {{ t['scope'] }} · {{ _("last used %(when)s", when=t['last_used_at']|datetime) }}</span></span>
-        <form method="post" action="{{ url_for('settings.user_token_delete', user_uid=user['uid'], token_id=t['id']) }}" class="inline js-confirm"
-              data-confirm="{{ _('Revoke the token «%(name)s»?', name=t['name']) }}">
-          <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
-          <button class="link-btn small" type="submit">{{ _("Revoke") }}</button></form></li>
-      {% endfor %}
-    </ul>
-    {% if user_sessions %}
-    <form method="post" action="{{ url_for('settings.user_sessions_close', user_uid=user['uid']) }}" class="inline">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
-      <button class="btn btn-small" type="submit">{{ _("Close all their sessions") }}</button></form>
-    {% endif %}
-  </section>
-  <section class="card" aria-labelledby="activity-title">
-    <h2 id="activity-title" class="card-title">{{ _("Recent activity") }}</h2>
-    {{ activity_list(user, activity) }}
-  </section>
-</aside>
-{% endif %}
-</div>
 {% endblock %}
 {% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/user-form.js') }}"></script>{% endblock %}

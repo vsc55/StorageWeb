@@ -34,15 +34,18 @@ Cada evento tiene un nivel, según su acción (columna *Nivel* de la tabla de ac
 
 | Acción | Nivel | Cuándo | `detail` |
 |---|---|---|---|
-| `login` | `info` | Inicio de sesión correcto | Origen: `local`, `pam` o `entra`; con verificación en dos pasos, `+totp` (código de la aplicación) o `+recovery` (código de recuperación): `local+totp` |
+| `login` | `info` | Inicio de sesión correcto | Origen: `local`, `pam` o `entra`; con verificación en dos pasos, `+totp` (código de la aplicación), `+passkey` o `+recovery` (código de recuperación): `local+totp` |
 | `login_failed` | `warning` | Contraseña incorrecta, error del proveedor SSO o credenciales de la unidad de red no válidas | `entra:<código>` en SSO; en WebDAV, `webdav:bad_token`, `webdav:bad_password`, `webdav:password_not_allowed` (se usó la contraseña de la cuenta sin estar admitida) o `webdav:mfa_requires_token` (contraseña correcta de una cuenta con verificación en dos pasos: en la unidad de red solo valen tokens) |
 | `login_blocked` | `critical` | Intento durante un bloqueo por intentos fallidos | `mfa` si fue al escribir el código del segundo paso |
-| `mfa_enrolled` | `info` | Verificación en dos pasos activada | `self` (desde *Mi perfil*) o `forced` (la política la exigía y se configuró al iniciar sesión) |
+| `mfa_enrolled` | `info` | Verificación en dos pasos activada (el primer factor de la cuenta) | `self` (desde *Mi perfil*) o `forced` (la política la exigía y se configuró al iniciar sesión), seguido de ` passkey` si fue con una passkey |
 | `mfa_enrol_started` | `debug` | Empezó a configurar la verificación en dos pasos en *Mi perfil* (aún sin activar) |  |
-| `mfa_failed` | `warning` | Código del segundo paso rechazado (cuenta como intento fallido) | `stage=verify` (al entrar), `enrol` (al activarla) o `manage` (al cambiarla en *Mi perfil*), y `error=empty` o `bad_code` |
+| `mfa_failed` | `warning` | Código o passkey del segundo paso rechazados (cuenta como intento fallido) | `stage=verify` (código al entrar), `passkey` (passkey al entrar), `enrol` (al activarla o añadir una passkey) o `manage` (al cambiarla en *Mi perfil*), y `error=empty`, `bad_code` o, con una passkey, la comprobación que falló (`signature_does_not_verify`, `challenge_does_not_match`, `no_challenge`, `unknown_credential`…) |
 | `mfa_recovery_used` | `info` | Se gastó un código de recuperación | `left=<los que quedan>` |
 | `mfa_recovery_regenerated` | `info` | Juego nuevo de códigos de recuperación (los anteriores dejan de valer) | |
-| `mfa_disabled` | `warning` | Verificación en dos pasos desactivada por su dueño | `self` |
+| `mfa_disabled` | `warning` | Verificación en dos pasos desactivada por su dueño | `self` (todo: app, passkeys y códigos) o `self app` (solo la app de códigos) |
+| `passkey_added` | `info` | Passkey añadida a la cuenta (objetivo: su nombre) | |
+| `passkey_renamed` | `info` | Passkey renombrada (objetivo: el nombre nuevo) | `from=<nombre anterior>` |
+| `passkey_removed` | `warning` | Passkey quitada por su dueño (objetivo: su nombre) | |
 | `mfa_reset_by_admin` | `critical` | Un administrador (o `cli`, con `mfa-reset`) quitó la verificación en dos pasos de otra cuenta | |
 | `login_denied` | `warning` | Cuenta de Entra rechazada (tenant, grupo, conflicto, no dada de alta, desactivada) | `entra:<motivo>` |
 | `logout` | `info` | Cierre de sesión | `entra:frontchannel` si la cerró Microsoft (cierre de sesión de canal frontal) |
@@ -56,7 +59,7 @@ Cada evento tiene un nivel, según su acción (columna *Nivel* de la tabla de ac
 | `user_rename_failed` | `warning` | No se pudo renombrar: el nombre nuevo ya es de otra cuenta, o las carpetas compartidas que la nombran están fijadas en `config.json` | Motivo |
 | `directory_synced` | `info` | Revisión periódica de las cuentas contra Entra ID que cambió algo | Recuento: revisadas, desactivadas, reactivadas, actualizadas, sin respuesta, grupos |
 | `user_created` | `info` | Alta de usuario desde la web | `origen:rol` |
-| `user_updated` | `info` | Edición de usuario desde la web | Rol, estado y cambio de contraseña |
+| `user_updated` | `info` | Edición de usuario desde la web | Rol y estado (`role=… enabled=…`); la contraseña va aparte, en `password_reset_by_admin` |
 | `user_deleted` | `critical` | Baja de usuario desde la web | |
 | `user_disabled` | `info` | Cuenta desactivada desde la web (botón *Desactivar*) o por la revisión contra Entra ID (*usuario* = `system`) | Origen de la cuenta, o `entra:deleted` / `entra:disabled` / `entra:not_allowed` y las sesiones cerradas |
 | `user_enabled` | `info` | Cuenta activada de nuevo desde la web, o sola cuando Entra ID la vuelve a dejar entrar | Origen de la cuenta, o `entra:directory` / `entra:signin` |
@@ -77,6 +80,7 @@ ecurso`) |
 | `profile_updated` | `info` | El usuario guarda su perfil | Campos guardados |
 | `preference_changed` | `debug` | Cambio de tema o de idioma (desde el menú; también antes de entrar) | `theme=<tema>` o `locale=<idioma>` |
 | `password_changed` | `info` | El usuario cambia su contraseña desde su perfil | |
+| `password_reset_by_admin` | `warning` | Un administrador pone una contraseña nueva a otra cuenta (*Cambiar contraseña* en *Personas*); se cierran sus sesiones | `sessions_closed=<n>` |
 | `password_change_failed` | `warning` | Intento de cambio de contraseña con la contraseña actual incorrecta | |
 | `settings_updated` | `info` | Ajustes web guardados | Sección (`general`, `auth`…) o paso del asistente de Entra ID |
 | `entra_app_registered` | `info` | Aplicación creada en Entra ID con *Registrar en Entra ID* (*target* = Client ID) | Tenant |

@@ -31,12 +31,54 @@ test("Ctrl+K abre el buscador de la administración y encuentra ajustes", async 
 });
 
 test("cambiar un ajuste marca el campo y despierta la barra de guardar", async () => {
-  await page.go(`${BASE}/admin/settings/storage`);
+  await page.go(`${BASE}/admin/settings/files`);
   assert.ok(await page.evaluate("document.querySelector('[data-save-bar]').classList.contains('is-idle')"));
   await page.evaluate(`(() => { const i = document.querySelector('input[name=page_size]');
                                i.value = '300'; i.dispatchEvent(new Event('input', {bubbles: true}));
                                i.dispatchEvent(new Event('change', {bubbles: true})); })()`);
   await page.waitFor("!document.querySelector('[data-save-bar]').classList.contains('is-idle')");
   assert.ok(await page.evaluate("!!document.querySelector('.is-dirty')"));
+  noErrors();
+});
+
+test("auditoría: pulsar una línea abre un modal con sus datos", async () => {
+  await page.go(`${BASE}/admin/audit?action=login`);
+  const row = "document.querySelector('tr.audit-row')";
+  const entry = JSON.parse(await page.evaluate(`${row}.dataset.entry`));
+  assert.equal(entry.action, "login");
+  await page.evaluate(`${row}.click()`);
+  await page.waitFor("document.querySelector('dialog.sw-modal[open] .audit-fields')");
+  const text = await page.evaluate("document.querySelector('dialog.sw-modal[open]').textContent");
+  assert.match(text, /login/);
+  assert.match(text, new RegExp(entry.user));
+  assert.ok(await page.evaluate("!!document.querySelector('dialog.sw-modal[open] a[href*=\"action=login\"]')"));
+  await page.evaluate("document.querySelector('dialog.sw-modal[open] button[value=ok]').click()");
+  await page.waitFor("!document.querySelector('dialog.sw-modal[open]')");
+  // Con el teclado: Enter sobre la fila
+  await page.evaluate(`${row}.focus()`);
+  await page.send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+  await page.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+  await page.waitFor("document.querySelector('dialog.sw-modal[open] .audit-fields')");
+  await page.evaluate("document.querySelector('dialog.sw-modal[open] button[value=ok]').click()");
+  noErrors();
+});
+
+test("ficha de usuario: la barra de guardar sale al cambiar algo y se va al descartar", async () => {
+  await page.go(`${BASE}/admin/users`);
+  const href = await page.evaluate("document.querySelector('.user-actions a.btn-icon')?.getAttribute('href')");
+  assert.ok(href, "hay un enlace a una ficha");
+  await page.go(`${BASE}${href}`);
+  const bar = "document.querySelector('[data-user-save]')";
+  assert.ok(await page.evaluate(`${bar}.classList.contains('is-idle')`), "sin cambios, sin barra");
+  await page.evaluate(`(() => { const s = document.querySelector('select[name=role][form=user-form]');
+    s.value = s.value === 'admin' ? 'user' : 'admin'; s.dispatchEvent(new Event('change', {bubbles: true})); })()`);
+  await page.waitFor(`!${bar}.classList.contains('is-idle')`);
+  await page.evaluate(`${bar}.querySelector('button[type=reset]').click()`);
+  await page.waitFor(`${bar}.classList.contains('is-idle')`);
+  await page.evaluate(`(() => { const i = document.querySelector('input[name=display_name]');
+    i.value = 'Nombre desde el navegador'; i.dispatchEvent(new Event('input', {bubbles: true})); })()`);
+  await page.waitFor(`!${bar}.classList.contains('is-idle')`);
+  await page.navigating(`${bar}.querySelector('button[type=submit]').click()`);
+  assert.equal(await page.evaluate("document.querySelector('input[name=display_name]').value"), "Nombre desde el navegador");
   noErrors();
 });

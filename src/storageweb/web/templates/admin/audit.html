@@ -60,7 +60,13 @@
              <th>IP</th><th>{{ _("Detail") }}</th></tr></thead>
   <tbody>
     {% for r in rows %}
-    <tr>
+    {# Pulsar la fila (o Enter) abre sus datos en un modal (admin/audit.js); los datos van en JSON en data-entry #}
+    {% set entry = {"id": r['id'], "ts": r['ts'], "when": r['ts']|datetime("medium"), "level": r['level'],
+                    "level_label": level_label(r['level']), "user": r['username'] or '', "action": r['action'],
+                    "target": r['target'] or '', "ip": r['ip'] or '', "detail": r['detail'] or '',
+                    "user_url": url_for('admin.audit_log', user=r['username']) if r['username'] else '',
+                    "action_url": url_for('admin.audit_log', action=r['action'])} %}
+    <tr class="audit-row" tabindex="0" data-entry='{{ entry|tojson }}' aria-label="{{ _('Show the entry') }}">
       <td class="nowrap" title="{{ r['ts'] }}">{{ r['ts']|datetime("medium") }}</td>
       <td><span class="level level-{{ r['level'] }}">{{ level_label(r['level']) }}</span></td>
       <td>{{ r['username'] or '—' }}</td>
@@ -76,4 +82,22 @@
 </table>
 
 {{ pager('bottom') }}
+
+{# Lo que enseña el modal de una entrada: los rótulos los traduce el servidor y audit.js pone los valores (data-f) #}
+<template id="audit-detail">
+  <div class="audit-detail">
+    <dl class="audit-fields">
+      <dt>{{ _("Date") }}</dt><dd><span data-f="when"></span> <span class="muted small mono" data-f="ts"></span></dd>
+      <dt>{{ _("Level") }}</dt><dd><span class="level" data-f="level_label"></span></dd>
+      <dt>{{ _("User") }}</dt><dd><span data-f="user"></span> <a class="small" data-href="user_url">{{ _("Filter by this user") }}</a></dd>
+      <dt>{{ _("Action") }}</dt><dd><code data-f="action"></code> <a class="small" data-href="action_url">{{ _("Filter by this action") }}</a></dd>
+      <dt>{{ _("Object") }}</dt><dd class="audit-long" data-f="target"></dd>
+      <dt>IP</dt><dd class="mono" data-f="ip"></dd>
+      <dt>{{ _("Detail") }}</dt><dd class="audit-long"><span data-f="detail"></span><dl class="audit-pairs" hidden></dl></dd>
+      <dt>{{ _("Entry") }}</dt><dd class="muted small mono" data-f="id"></dd>
+    </dl>
+    <button type="button" class="btn btn-small audit-copy">{{ _("Copy as JSON") }}</button>
+  </div>
+</template>
 {% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/audit.js') }}"></script>{% endblock %}

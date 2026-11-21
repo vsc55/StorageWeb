@@ -403,7 +403,7 @@ KEEP = object()  # parámetro que no se cambia
 
 def update_account(conn: Connection, user, actor, *, role: str, enabled: bool, display_name: str | None,
                    email: str | None, home_path: str | None, groups: list[str] | None = None,
-                   password: str | None = None, quota_mb=KEEP) -> None:
+                   quota_mb=KEEP) -> None:
     """Edita la cuenta. ``groups`` (si se pasa) son sus grupos manuales; los sincronizados no cambian. El nombre y
     el email de las cuentas cuyo proveedor los pone (Entra ID) no se tocan."""
     _check_role(role)
@@ -422,19 +422,31 @@ def update_account(conn: Connection, user, actor, *, role: str, enabled: bool, d
         if quota_mb is not None and (not isinstance(quota_mb, int) or quota_mb < 0):
             raise AccountError(_("The quota must be a whole number of MB (0 = no quota; empty = the default one)."))
         fields["quota_mb"] = quota_mb
-    if password:
-        m = providers.get(user["source"])
-        if m is None or not m.stores_password:
-            raise AccountError(_("Only local users have a password that can be changed."))
-        try:
-            fields["password_hash"] = hash_password(password)
-        except ValueError as exc:
-            raise AccountError(str(exc)) from exc
     users.update(conn, user["id"], **fields)
     if groups is not None:
         _set_groups(conn, user["id"], groups)
-    if not enabled or password:
+    if not enabled:
         sessions.delete_for_user(conn, user["id"])  # fuera las sesiones abiertas
+
+
+def set_password(conn: Connection, user, actor, password: str) -> int:
+    """Pone una contraseña nueva a OTRA cuenta que la guarda aquí (un administrador a otra persona) y cierra todas sus
+    sesiones abiertas. Devuelve cuántas cerró.
+
+    Las reglas están aquí y no en la página: el botón desactivado de la lista es solo una pista, y una petición
+    hecha a mano llega igual. La propia se cambia en Mi perfil, que pide la actual (si no, una sesión olvidada
+    abierta bastaría para quedarse con la cuenta)."""
+    if actor is not None and user["id"] == actor["id"]:
+        raise AccountError(_("Change your own password in My profile, with the current one."))
+    m = providers.get(user["source"])
+    if m is None or not m.stores_password:
+        raise AccountError(_("Only local users have a password that can be changed."))
+    try:
+        password_hash = hash_password(password or "")
+    except ValueError as exc:
+        raise AccountError(str(exc)) from exc
+    users.update(conn, user["id"], password_hash=password_hash)
+    return sessions.delete_for_user(conn, user["id"])
 
 
 def set_role(conn: Connection, user, actor, role: str) -> None:

@@ -106,18 +106,88 @@ def test_edit_user(app, admin, tmp_path):
 def test_reset_password(app, admin):
     client, token = admin
     uid = add_user(app, "ana")
+    ana_client = app.test_client()
+    assert login(ana_client, "ana").status_code == 302
+    # Editar ya no cambia la contraseña: tiene su propio botón, en la lista y en los paneles
     client.post(f"/admin/users/{U(uid)}", data={"_csrf": token, "role": "user", "enabled": "on",
-                                             "password": "nueva-contraseña-1"})
-    other = app.test_client()
-    assert login(other, "ana", "nueva-contraseña-1").status_code == 302
+                                             "password": "otra-contraseña-9"})
+    assert login(app.test_client(), "ana", "otra-contraseña-9").status_code == 200
+    url = f"/admin/users/{U(uid)}/password"
+    assert url in client.get("/admin/users").get_data(as_text=True)
+    record = client.get(f"/admin/users/{U(uid)}").get_data(as_text=True)
+    assert url not in record and 'name="password"' not in record                # ni campo ni botón en la ficha
+    for title in ("Perfil", "Acceso", "Carpeta personal", "Cuota (MB)", "Inicio de sesión y seguridad"):
+        assert title in record
+    page = client.get(url).get_data(as_text=True)
+    assert 'name="repeat_password"' in page
+    html = client.post(url, data={"_csrf": token, "password": "nueva-contraseña-1",
+                                  "repeat_password": "otra"}).get_data(as_text=True)
+    assert "no coinciden" in html
+    assert "10" in client.post(url, data={"_csrf": token, "password": "corta", "repeat_password": "corta"}).get_data(
+        as_text=True)
+    resp = client.post(url, data={"_csrf": token, "password": "nueva-contraseña-1", "repeat_password": "nueva-contraseña-1",
+                                  "next": "/admin/users"})
+    assert resp.status_code == 302 and resp.location.endswith("/admin/users")
+    assert login(app.test_client(), "ana", "nueva-contraseña-1").status_code == 302
+    assert ana_client.get("/f/home/").status_code == 302                       # sus sesiones se cerraron
+    with app.app_context():
+        from storageweb.db.repositories import audit
+        row = audit.recent(get_db(), 5, action="password_reset_by_admin")[0]
+    assert row["target"] == "ana" and row["detail"] == "sessions_closed=1"
+
+
+def test_reset_password_not_for_self_or_sso(app, admin):
+    """El servidor no se fía de los botones desactivados: las peticiones hechas a mano también se rechazan."""
+    client, token = admin
+    me = _user(app, "root")
+    new = {"_csrf": token, "password": "x" * 12, "repeat_password": "x" * 12}
+    assert client.get(f"/admin/users/{U(me['id'])}/password").location.endswith("/profile/security#password")
+    assert client.post(f"/admin/users/{U(me['id'])}/password", data=new).status_code == 403
+    assert login(app.test_client(), "root").status_code == 302                  # la suya no cambió
+    uid = add_user(app, "juan@contoso.com", password=None, source="entra", external_id="oid-1")
+    page = client.get("/admin/users").get_data(as_text=True)
+    assert f"/admin/users/{U(uid)}/password" not in page and "disabled" in page   # el botón está, desactivado
+    assert client.post(f"/admin/users/{U(uid)}/password", data=new).status_code == 403
+    assert client.get(f"/admin/users/{U(uid)}/password").status_code == 403
+    assert _user(app, "juan@contoso.com")["password_hash"] is None
+    with app.app_context():
+        from storageweb.db.repositories import audit
+        assert audit.recent(get_db(), 1, action="access_denied")
+    # Tampoco por el núcleo, venga de donde venga la llamada
+    from storageweb.core import accounts
+    with app.app_context():
+        with pytest.raises(accounts.AccountError):
+            accounts.set_password(get_db(), me, me, "y" * 12)
+        with pytest.raises(accounts.AccountError):
+            accounts.set_password(get_db(), _user(app, "juan@contoso.com"), me, "y" * 12)
+
+
+def test_disable_is_checked_by_the_server(app, admin):
+    """Desactivarse a uno mismo o al último administrador, a mano (fila, en bloque o editando), no cuela."""
+    client, token = admin
+    me = _user(app, "root")
+    client.post(f"/admin/users/{U(me['id'])}/status", data={"_csrf": token, "enabled": "0"})
+    client.post("/admin/users/bulk", data={"_csrf": token, "action": "disable", "ids": [U(me["id"])]})
+    client.post(f"/admin/users/{U(me['id'])}", data={"_csrf": token, "role": "admin"})
+    assert _user(app, "root")["enabled"]
+    with app.app_context():
+        from storageweb.core import accounts
+        with pytest.raises(accounts.AccountError):
+            accounts.set_enabled(get_db(), me, me, False)
 
 
 def test_disable_user(app, admin):
     client, token = admin
     uid = add_user(app, "ana")
-    client.post(f"/admin/users/{U(uid)}", data={"_csrf": token, "role": "user"})  # sin 'enabled'
+    # Editar no activa ni desactiva (una sola forma de hacerlo: su botón, con confirmación)
+    client.post(f"/admin/users/{U(uid)}", data={"_csrf": token, "role": "user"})
+    assert _user(app, "ana")["enabled"]
+    assert 'name="enabled"' not in client.get(f"/admin/users/{U(uid)}").get_data(as_text=True).split("danger-zone")[0]
+    client.post(f"/admin/users/{U(uid)}/status", data={"_csrf": token, "enabled": "0"})
     assert not _user(app, "ana")["enabled"]
     assert "incorrectos" in login(app.test_client(), "ana").get_data(as_text=True)
+    client.post(f"/admin/users/{U(uid)}", data={"_csrf": token, "role": "user", "enabled": "on"})
+    assert not _user(app, "ana")["enabled"]                                       # ni con la casilla a mano
 
 
 def test_cannot_demote_or_disable_self(app, admin):
@@ -126,7 +196,7 @@ def test_cannot_demote_or_disable_self(app, admin):
     html = client.post(f"/admin/users/{U(me['id'])}", data={"_csrf": token, "role": "user", "enabled": "on"},
                        follow_redirects=True).get_data(as_text=True)
     assert "No puedes quitarte" in html
-    html = client.post(f"/admin/users/{U(me['id'])}", data={"_csrf": token, "role": "admin"},
+    html = client.post(f"/admin/users/{U(me['id'])}/status", data={"_csrf": token, "enabled": "0"},
                        follow_redirects=True).get_data(as_text=True)
     assert "No puedes deshabilitar" in html
     assert _user(app, "root")["role"] == "admin" and _user(app, "root")["enabled"]

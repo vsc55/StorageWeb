@@ -12,6 +12,7 @@ from ...i18n import normalize as normalize_locale
 from ...providers import local
 from ..context import external_url, get_db, settings
 from ..guards import audit_event, client_ip, login_required, safe_next
+from . import mfa as mfa_views
 
 bp = Blueprint("profile", __name__)
 
@@ -96,7 +97,8 @@ def _render(section: str):
     elif section == "security":
         context.update(my_sessions=session_repo.list_all(get_db(), user["id"]), current_sid=g.get("session_id"),
                        mfa_applies=mfa.applies(user), mfa=mfa.status(get_db(), user),
-                       mfa_required=mfa.required(cfg, user))
+                       mfa_required=mfa.required(cfg, user), passkeys_on=mfa_views.passkeys_available(),
+                       mfa_unlocked=mfa_views.proof_ok(user), mfa_proof_minutes=mfa_views.PROOF_SECONDS // 60)
     elif section == "tokens":
         context.update(my_tokens=api_tokens.list_for_user(get_db(), user["id"]),
                        new_token=session.pop("new_token", None),

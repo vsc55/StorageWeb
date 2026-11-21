@@ -152,6 +152,9 @@ DEFAULTS: dict = {
         "webdav_passwords": False,
         # Quién debe tener la verificación en dos pasos (MFA_POLICIES): off, admins o all. Quien la tenga la usa siempre
         "mfa_required": "off",
+        # Passkeys (WebAuthn) como segundo paso, además de la app de códigos. Necesitan network.public_url con un
+        # nombre (no una IP) y HTTPS, salvo en localhost
+        "passkeys": True,
     },
     # Visor de archivos de texto y Markdown en el navegador (/view/…, core/preview.py)
     "preview": {

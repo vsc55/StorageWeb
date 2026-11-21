@@ -62,20 +62,38 @@
       <td>{{ status_badge(u) }}</td>
       <td>{% if u['id'] in mfa_users %}<span class="badge badge-ok">{{ _("On") }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
       <td class="small">{{ u['last_login']|datetime }}</td>
-      <td class="actions">
+      {# Acciones como botones de icono (el texto va en title y aria-label): las tres en todas las filas, y la que no se
+         puede usar, desactivada y diciendo por qué #}
+      <td class="actions"><div class="user-actions">
+        <a class="btn btn-icon btn-small" href="{{ url_for('admin.user_edit', user_uid=u['uid']) }}"
+           title="{{ _('Edit') }}" aria-label="{{ _('Edit') }} {{ u['username'] }}"><svg class="icon" aria-hidden="true"><use href="#i-rename"></use></svg></a>
+        {% set pw = auth_method(u['source']) and auth_method(u['source']).stores_password %}
+        {% if not pw %}
+        <button class="btn btn-icon btn-small" type="button" disabled
+                title="{{ _('Signs in with %(source)s: the password is managed there.', source=SOURCE_LABELS[u['source']]) }}"
+                aria-label="{{ _('Change password') }}"><svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg></button>
+        {% elif u['id'] == current_user['id'] %}
+        <a class="btn btn-icon btn-small" href="{{ url_for('profile.section', section='security') }}#password"
+           title="{{ _('Yours is changed in My profile, with the current one.') }}" aria-label="{{ _('Change password') }}"><svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg></a>
+        {% else %}
+        <a class="btn btn-icon btn-small" href="{{ url_for('admin.user_password', user_uid=u['uid'], next=request.full_path) }}"
+           title="{{ _('Change password') }}" aria-label="{{ _('Change password') }} {{ u['username'] }}"><svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg></a>
+        {% endif %}
         {% if u['id'] != current_user['id'] %}
         <form method="post" action="{{ url_for('admin.user_status', user_uid=u['uid']) }}" class="inline{% if u['enabled'] %} js-confirm{% endif %}"
               {% if u['enabled'] %}data-confirm="{{ _('Disable «%(name)s»? They will not be able to sign in, not even with %(source)s.', name=u['username'], source=SOURCE_LABELS[u['source']]) }}"{% endif %}>
           <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
           <input type="hidden" name="enabled" value="{{ '0' if u['enabled'] else '1' }}">
           <input type="hidden" name="next" value="{{ request.full_path }}">
-          <button class="btn btn-small{% if u['enabled'] %} btn-danger{% endif %}" type="submit">{{ _("Disable") if u['enabled'] else _("Enable") }}</button>
+          <button class="btn btn-icon btn-small{% if u['enabled'] %} btn-danger{% endif %}" type="submit"
+                  title="{{ _('Disable') if u['enabled'] else _('Enable') }}"
+                  aria-label="{{ _('Disable') if u['enabled'] else _('Enable') }} {{ u['username'] }}"><svg class="icon" aria-hidden="true"><use href="#{{ 'i-ban' if u['enabled'] else 'i-check-circle' }}"></use></svg></button>
         </form>
         {% else %}
-        <button class="btn btn-small btn-danger" type="button" disabled title="{{ _('You cannot disable your own account.') }}">{{ _("Disable") }}</button>
+        <button class="btn btn-icon btn-small btn-danger" type="button" disabled title="{{ _('You cannot disable your own account.') }}"
+                aria-label="{{ _('Disable') }}"><svg class="icon" aria-hidden="true"><use href="#i-ban"></use></svg></button>
         {% endif %}
-        <a class="btn btn-small" href="{{ url_for('admin.user_edit', user_uid=u['uid']) }}">{{ _("Edit") }}</a>
-      </td>
+      </div></td>
     </tr>
     {% else %}
     <tr><td colspan="9" class="muted">{{ _("No users.") }}</td></tr>

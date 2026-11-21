@@ -230,7 +230,6 @@ def _user_form_data() -> dict:
         "role": f.get("role", "user"),
         "home_path": f.get("home_path", "").strip(),
         "enabled": f.get("enabled") == "on",
-        "password": f.get("password", ""),
         **_quota_field(f),
     }
 
@@ -252,6 +251,7 @@ def user_new():
     form = {"source": accounts.default_source(), "role": "user", "enabled": True}
     if request.method == "POST":
         form = {**_user_form_data(), "username": request.form.get("username", "").strip(),
+                "password": request.form.get("password", ""),
                 "source": request.form.get("source", accounts.default_source()), "groups": split_list(request.form.get("groups", ""))}
         try:
             form.pop("quota_mb", None)
@@ -275,14 +275,16 @@ def user_edit(user_uid: str):
     user = _user_or_404(user_uid)
     form = {**dict(user), "enabled": bool(user["enabled"])}
     if request.method == "POST":
-        data = _user_form_data()
+        # Activar o desactivar no es «editar»: tiene su botón (admin.user_status), con su confirmación y sus
+        # reglas. Aquí se conserva como está, venga lo que venga en el formulario
+        data = {**_user_form_data(), "enabled": bool(user["enabled"])}
         try:
             accounts.update_account(get_db(), user, g.user, **data)
         except accounts.AccountError as exc:
             flash(exc.message, "error")
-            form.update({k: v for k, v in data.items() if k != "password"})
+            form.update(data)
         else:
-            detail = f"role={data['role']} enabled={data['enabled']}" + (" password" if data["password"] else "")
+            detail = f"role={data['role']} enabled={data['enabled']}"
             audit_event("user_updated", user["username"], detail)
             flash(_("Changes saved."), "info")
             return back(url_for("admin.user_edit", user_uid=user_uid))
@@ -290,6 +292,38 @@ def user_edit(user_uid: str):
             return back(url_for("admin.user_edit", user_uid=user_uid))
     return render_template("admin/user_form.html", user=user, form=form, sources=accounts.sources(),
                            **_user_detail(user))
+
+
+@bp.route("/users/<user_uid>/password", methods=["GET", "POST"])
+@admin_required
+def user_password(user_uid: str):
+    """Poner una contraseña nueva a otra cuenta (la olvidó, o hay que cortarle el paso). La propia se cambia en Mi
+    perfil, que pide la actual."""
+    user = _user_or_404(user_uid)
+    done_url = back(url_for("admin.user_edit", user_uid=user_uid))
+    # Se comprueba aquí (y otra vez en accounts.set_password), no se da por bueno que el botón estuviera
+    # desactivado: un POST a mano sobre la propia cuenta o una de SSO es un 403 y queda en la auditoría
+    if user["id"] == g.user["id"]:
+        if request.method == "POST":
+            abort(403, description=_("Change your own password in My profile, with the current one."))
+        return redirect(url_for("profile.section", section="security") + "#password")
+    if not accounts.stores_password(user["source"]):
+        abort(403, description=_("Only local users have a password that can be changed."))
+    if request.method == "POST":
+        new = request.form.get("password", "")
+        if new != request.form.get("repeat_password", ""):
+            flash(_("The new passwords do not match."), "error")
+        else:
+            try:
+                closed = accounts.set_password(get_db(), user, g.user, new)
+            except accounts.AccountError as exc:
+                flash(exc.message, "error")
+            else:
+                audit_event("password_reset_by_admin", user["username"], f"sessions_closed={closed}")
+                flash(_("New password for «%(name)s». Their open sessions have been closed.", name=user["username"]),
+                      "info")
+                return done_url
+    return render_template("admin/user_password.html", user=user, next_url=request.values.get("next", ""))
 
 
 def _user_groups_context(user) -> dict:

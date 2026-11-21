@@ -60,31 +60,32 @@ La clave de cifrado es, por orden, la variable de entorno `STORAGEWEB_SECRETS_KE
 
 ## Verificación en dos pasos
 
-Además de la contraseña, un código de seis dígitos de una aplicación de autenticación del móvil (TOTP, RFC 6238: Microsoft Authenticator, Google Authenticator, FreeOTP…). Es para las cuentas que entran con contraseña, **locales y del sistema (PAM)**; quien entra con **Microsoft Entra ID** usa el segundo factor de Microsoft y StorageWeb no le pide otro.
+Además de la contraseña, un código de seis dígitos de una aplicación de autenticación del móvil (TOTP, RFC 6238: Microsoft Authenticator, Google Authenticator, FreeOTP…) o una **passkey** (WebAuthn: Windows Hello, Touch ID, el móvil o una llave de seguridad). Una cuenta puede tener la app, una o varias passkeys o las dos, y cualquiera completa el segundo paso. Es para las cuentas que entran con contraseña, **locales y del sistema (PAM)**; quien entra con **Microsoft Entra ID** usa el segundo factor de Microsoft y StorageWeb no le pide otro.
 
 ```mermaid
 flowchart TD
     pw["Usuario y contraseña<br/>correctos"] --> q{"¿Tiene la verificación<br/>activada?"}
-    q -- Sí --> code["Pide el código<br/>(aún no hay sesión)"]
+    q -- Sí --> code["Pide el código o la passkey<br/>(aún no hay sesión)"]
     q -- No --> pol{"¿La política se la exige?"}
     pol -- No --> ok[Sesión abierta]
-    pol -- Sí --> enrol["La configura ahora:<br/>QR, clave y un código"]
+    pol -- Sí --> enrol["La configura ahora:<br/>passkey, o QR y un código"]
     enrol --> codes[Códigos de recuperación] --> ok
-    code --> valid{"¿Código válido<br/>y no usado?"}
+    code --> valid{"¿Código válido y no usado,<br/>o passkey de la cuenta?"}
     valid -- Sí --> ok
     valid -- No --> fail["Intento fallido<br/>(bloqueo e IPs, como una contraseña)"]
 ```
 
-- **Quién la activa:** cada persona desde *Mi perfil → Seguridad*: escanea el QR (o escribe la clave), confirma con un código y guarda los **diez códigos de recuperación** que se enseñan una sola vez. Cada uno vale una vez en lugar del código de la aplicación, por si pierde el móvil; desde el perfil se generan otros (anulan los anteriores) o se desactiva, siempre con un código válido.
+- **Quién la activa:** cada persona desde *Mi perfil → Seguridad*: añade una passkey (con un nombre, p. ej. «Portátil del trabajo») o escanea el QR (o escribe la clave) y confirma con un código. Con el primer método recibe los **diez códigos de recuperación**, que se enseñan una sola vez: cada uno vale una vez en lugar de la app o la passkey, por si pierde el móvil o la llave, y sirven con cualquier método. Con la verificación ya activa, **añadir o quitar un método, generar códigos nuevos (anulan los anteriores) o desactivarla pide confirmar antes** con un código o una passkey: la sesión sola no basta (alguien con la sesión abierta en un equipo ajeno no puede añadir su propia passkey). La confirmación vale 5 minutos. Quitar la última passkey sin app (o la app sin passkeys) desactiva la verificación y borra los códigos.
 
 ![Seguridad → Inicio de sesión: quién debe tener la verificación en dos pasos y cuántos la tienen](../img/admin/inicio-sesion.webp)
 
 - **Quién debe tenerla:** *Seguridad → Inicio de sesión → Verificación en dos pasos obligatoria para* (`security.mfa_required`): *nadie* (`off`, por defecto: opcional), *administradores* (`admins`) o *todas las cuentas que entran con contraseña* (`all`). Activarlo **no deja fuera a nadie**: quien debe tenerla y no la tiene la configura en ese momento, al iniciar sesión. Y quien la tiene la usa siempre, valga lo que valga el ajuste.
 - **Sin sesión hasta el código:** con la contraseña correcta solo queda una nota en la cookie que caduca a los **5 minutos**; los códigos equivocados cuentan como contraseñas equivocadas (`security.max_login_failures` y el bloqueo de IPs), y acertar la contraseña no reinicia la cuenta. Cada código vale **una sola vez** (también los de recuperación), aunque siga dentro de sus 30 segundos.
+- **Passkeys** (`security.passkeys`, activado por defecto, en *Seguridad → Inicio de sesión*): necesitan que la dirección pública (`network.public_url`, *Sistema → Red y HTTPS*) tenga **un nombre** (no una IP) y **HTTPS**, salvo `localhost`. La passkey queda atada a ese nombre (el *RP ID*) y **no se puede mover**: si un día cambia, las passkeys dejan de valer y esas cuentas entran con la app o un código de recuperación. Por eso el nombre sale de `network.public_url` y nunca de la petición (detrás de un proxy, la petición dice lo que diga el proxy). La página avisa si aún no están disponibles. Se comprueban el challenge (de un solo uso, 5 minutos), el tipo de ceremonia, el origen exacto, el nombre, que alguien tocó la llave y el **contador de firmas** (si no avanza, la credencial se ha clonado); no se comprueba de qué fabricante es la llave (*attestation*). Algoritmos: ES256, EdDSA y RS256 (de 2048 bits o más). De cada passkey se guarda solo la clave pública.
 - **La unidad de red** (WebDAV) no pide códigos: a una cuenta con la verificación activada (u obligada a tenerla) no se le admite la contraseña aunque esté `security.webdav_passwords`, solo **tokens de API**. Los tokens y la extensión de VS Code siguen igual (el token se crea con la sesión iniciada, código incluido).
-- **Si alguien pierde el móvil y los códigos:** un administrador la quita en la ficha del usuario (*Quitar la verificación en dos pasos*; `mfa_reset_by_admin` en la auditoría) y esa persona vuelve a entrar con su contraseña (y la configura otra vez si es obligatoria). Nadie puede activarla por otro. Desde el servidor, cuando ya no queda nadie que pueda entrar: `storageweb-admin mfa-reset <usuario>`; `mfa-status` lista quién la tiene.
+- **Si alguien pierde el móvil (o sus passkeys) y los códigos:** un administrador la quita entera en la ficha del usuario (*Quitar la verificación en dos pasos*; `mfa_reset_by_admin` en la auditoría) y esa persona vuelve a entrar con su contraseña (y la configura otra vez si es obligatoria). Nadie puede activarla por otro. Desde el servidor, cuando ya no queda nadie que pueda entrar: `storageweb-admin mfa-reset <usuario>`; `mfa-status` lista quién la tiene.
 - **Dónde se ve:** la lista de usuarios tiene la columna *2FA*, la ficha de cada usuario su estado y *Inicio de sesión* cuántas cuentas la tienen.
-- **Cómo se guarda:** la semilla, **cifrada** con la clave de los secretos (`secrets.key`), como los demás secretos; se vuelve a cifrar con `rotate-secrets-key` y al restaurar una copia de otro servidor. De los códigos de recuperación solo se guarda el hash. Una copia de seguridad lleva las dos cosas, así que restaurarla deja la verificación como estaba.
+- **Cómo se guarda:** la semilla de la app, **cifrada** con la clave de los secretos (`secrets.key`), como los demás secretos; se vuelve a cifrar con `rotate-secrets-key` y al restaurar una copia de otro servidor. De los códigos de recuperación solo se guarda el hash, y de las passkeys su clave pública (que no es un secreto). Una copia de seguridad lleva las dos cosas, así que restaurarla deja la verificación como estaba.
 
 Los parámetros (SHA-1, 6 dígitos, 30 segundos y medio minuto de tolerancia de reloj) son los que entienden todas las aplicaciones y no se configuran: una aplicación que recibe otros suele ignorarlos y los códigos fallarían sin explicación.
 
@@ -105,7 +106,7 @@ curl -H "Authorization: Bearer $TOKEN" -F files=@informe.pdf https://files.midom
 
 ## Reenviar la auditoría a un SIEM
 
-La auditoría se guarda en la base de datos (*Seguridad → Auditoría*, exportable a CSV). Para tenerla además en el SIEM de la empresa, o fuera del servidor donde nadie que entre en él pueda borrarla, en *Seguridad → Registro de auditoría*:
+La auditoría se guarda en la base de datos (*Seguridad → Auditoría*, exportable a CSV). Al pulsar una línea (o Enter sobre ella) se abre con todos sus datos: la fecha exacta, el detalle entero (separado en campos si es del tipo `stage=passkey error=…`), enlaces para filtrar por ese usuario o esa acción y *Copiar como JSON*. Para tenerla además en el SIEM de la empresa, o fuera del servidor donde nadie que entre en él pueda borrarla, en *Seguridad → Registro de auditoría*:
 
 - **Syslog** (`audit.syslog`): `udp://host:514`, `tcp://host:514` (un mensaje por línea) o `tls://host:6514` (RFC 5425, con la longitud delante). Con TLS se comprueba el certificado del colector (`audit.tls_verify`); si lo firma una CA propia, indica su fichero PEM en `audit.syslog_ca`.
 - **Formato** (`audit.syslog_format`), siempre con cabecera RFC 5424 (facilidad `audit.syslog_facility`, `local0` por defecto; severidad *warning* para fallos, bloqueos y rechazos —`login_failed`, `login_blocked`, `ip_banned`…— e *informational* para lo demás; `MSGID` = la acción):

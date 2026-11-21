@@ -2,7 +2,8 @@
 
 Prueban lo que solo existe en el navegador: el JavaScript de las páginas, la CSP (cualquier error de la consola
 falla), el modal propio, cargar más al bajar y el filtro del servidor, el visor con un diagrama Mermaid en su
-marco aislado, el editor con Ctrl+S, el buscador Ctrl+K y la barra de guardar de los ajustes.
+marco aislado, el editor con Ctrl+S, el buscador Ctrl+K, la barra de guardar de los ajustes y las passkeys (con un
+autenticador virtual del navegador, en ``http://localhost``: el único origen sin HTTPS donde se admiten).
 
 Hace falta Node 18 o posterior y Edge o Chrome (``STORAGEWEB_BROWSER``). Sin ellos se omite, salvo con
 ``STORAGEWEB_REQUIRE_BROWSER=1`` (la CI), que entonces falla: así no se deja de probar sin darse cuenta.
@@ -18,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.helpers import PASSWORD, add_user
+from tests.helpers import PASSWORD, add_user, update_settings
 from tests.integration.test_vscode_extension import NODE
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -55,6 +56,7 @@ def test_in_a_real_browser(make_app, home):
                     "permissions": {"user": {"edit": True}}})
     add_user(app, "ana")
     add_user(app, "root", role="admin")
+    add_user(app, "pepa")      # la de las passkeys (tests/browser/passkeys.test.mjs)
     many = home / "Muchos"
     many.mkdir(parents=True)
     for i in range(120):
@@ -70,10 +72,13 @@ def test_in_a_real_browser(make_app, home):
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
     sock.close()
+    # Las passkeys se atan al nombre de network.public_url: localhost, que el navegador admite sin HTTPS
+    update_settings(app, network={"public_url": f"http://localhost:{port}"})
     server = create_server(app, host="127.0.0.1", port=port, threads=4)
     threading.Thread(target=server.run, daemon=True).start()
     try:
         env = {**os.environ, "STORAGEWEB_TEST_URL": f"http://127.0.0.1:{port}", "STORAGEWEB_TEST_PASSWORD": PASSWORD,
+               "STORAGEWEB_TEST_LOCALHOST_URL": f"http://localhost:{port}",
                "STORAGEWEB_BROWSER": BROWSER}
         tests = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / "tests" / "browser").glob("*.test.mjs"))
         result = subprocess.run([NODE, "--test", "--test-concurrency=1", *tests], cwd=ROOT, env=env,

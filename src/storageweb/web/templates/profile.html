@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_space.html" import quota_meter, space_meter with context %}
+{% from "_passkeys.html" import passkey_create, passkey_get with context %}
 {% block title %}{{ section_label }} · {{ _("My profile") }} · {{ app_name }}{% endblock %}
 {% block content %}
 {# Mi perfil: submenú lateral como las zonas de la administración y una sección por página (views/profile.py SECTIONS) #}
@@ -94,39 +95,133 @@
         </div>
 
         {% if mfa_applies %}
+        {# Verificación en dos pasos: la app de códigos, las passkeys y los códigos de recuperación. Con algún factor
+           activo, cambiar cualquiera pide demostrarlo antes (views/mfa.py: _proved, vale unos minutos). #}
         <div class="profile-row" id="mfa">
           <div class="profile-row-info">
             <strong>{{ _("Two-step verification") }}</strong>
             {% if mfa.enrolled %}<span class="badge badge-ok">{{ _("On") }}</span>{% else %}<span class="badge">{{ _("Off") }}</span>{% endif %}
             {% if mfa.enrolled %}
-            <p class="muted small">{{ _("A code from your authenticator app besides the password, since %(date)s.", date=mfa.since|datetime) }}
+            <p class="muted small">{% if mfa.totp %}{{ _("Authenticator app since %(date)s.", date=mfa.since|datetime) }} {% endif %}
+              {% if mfa.passkeys %}{{ ngettext("%(num)s passkey.", "%(num)s passkeys.", mfa.passkeys|length) }} {% endif %}
               {{ ngettext("%(num)s recovery code left.", "%(num)s recovery codes left.", mfa.recovery_left) }}</p>
             {% else %}
-            <p class="muted small">{{ _("Besides your password, signing in will ask for a code from an app on your phone (Microsoft Authenticator, Google Authenticator…). Someone who learns your password still cannot get in.") }}</p>
+            <p class="muted small">{{ _("Besides your password, signing in will ask for a code from an app on your phone (Microsoft Authenticator, Google Authenticator…) or a passkey (Windows Hello, Touch ID, your phone or a security key). Someone who learns your password still cannot get in.") }}</p>
             {% if mfa_required %}<p class="text-danger small">{{ _("Your organization requires it: you will be asked to set it up on your next sign-in.") }}</p>{% endif %}
             {% endif %}
             {% if webdav and webdav_passwords and own_password %}<p class="muted small">{{ _("With two-step verification on, the network drive only accepts API tokens, not your password.") }}</p>{% endif %}
           </div>
-          {% if mfa.enrolled %}
-          <details class="profile-more">
-            <summary class="btn">{{ _("Recovery codes or turn off") }}</summary>
-            <form method="post" action="{{ url_for('mfa.regenerate') }}" class="profile-more-body mfa-manage">
+          {% if not mfa.enrolled %}
+          <div class="mfa-actions">
+            <form method="post" action="{{ url_for('mfa.begin') }}" class="inline">
               <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-              <label>{{ _("Code from the app (or a recovery code)") }}
-                <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" required></label>
-              <div class="form-actions">
-                <button class="btn" type="submit">{{ _("New recovery codes") }}</button>
-                <button class="btn btn-danger" type="submit" formaction="{{ url_for('mfa.disable') }}">{{ _("Turn off") }}</button>
-              </div>
+              <button class="btn btn-primary" type="submit">{{ _("Use an authenticator app") }}</button>
             </form>
-          </details>
+            {% if passkeys_on %}{{ passkey_create(url_for('mfa.passkey_options'), url_for('mfa.passkey_register')) }}{% endif %}
+          </div>
+          {% endif %}
+        </div>
+
+        {% if mfa.enrolled %}
+        <div class="profile-row mfa-unlock">
+          {% if mfa_unlocked %}
+          <p class="muted small">{{ ngettext("Confirmed: you can change your two-step verification for %(num)s minute.", "Confirmed: you can change your two-step verification for %(num)s minutes.", mfa_proof_minutes) }}</p>
+          {% else %}
+          <div class="profile-row-info">
+            <strong>{{ _("Confirm it is you") }}</strong>
+            <p class="muted small">{{ _("To add or remove a method, get new recovery codes or turn it off, confirm it is you first.") }}</p>
+          </div>
+          <div class="mfa-actions">
+            <form method="post" action="{{ url_for('mfa.prove') }}" class="mfa-confirm">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <input type="text" name="code" class="mfa-code-small" autocomplete="one-time-code" maxlength="20" required
+                     aria-label="{{ _('Code from the app (or a recovery code)') if mfa.totp else _('Recovery code') }}"
+                     placeholder="{{ _('Code from the app (or a recovery code)') if mfa.totp else _('Recovery code') }}">
+              <button class="btn" type="submit">{{ _("Confirm") }}</button>
+            </form>
+            {% if passkeys_on and mfa.passkeys %}{{ passkey_get(url_for('mfa.passkey_options'), url_for('mfa.passkey_prove'), purpose="prove") }}{% endif %}
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="profile-row">
+          <div class="profile-row-info">
+            <strong>{{ _("Authenticator app") }}</strong>
+            {% if mfa.totp %}<span class="badge badge-ok">{{ _("On") }}</span>{% else %}<span class="badge">{{ _("Off") }}</span>{% endif %}
+            <p class="muted small">{{ _("A 6-digit code that changes every 30 seconds.") }}</p>
+          </div>
+          {% if mfa_unlocked %}
+          {% if mfa.totp %}
+          <form method="post" action="{{ url_for('mfa.totp_remove') }}" class="inline js-confirm"
+                data-confirm="{{ _('Remove the authenticator app? The codes it shows will stop working.') }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="btn" type="submit">{{ _("Remove") }}</button>
+          </form>
           {% else %}
           <form method="post" action="{{ url_for('mfa.begin') }}" class="inline">
             <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <button class="btn btn-primary" type="submit">{{ _("Turn on two-step verification") }}</button>
+            <button class="btn" type="submit">{{ _("Set up") }}</button>
           </form>
           {% endif %}
+          {% endif %}
         </div>
+
+        <div class="profile-row">
+          <div class="profile-row-info">
+            <strong>{{ _("Passkeys") }}</strong> <span class="muted">· {{ mfa.passkeys|length }}</span>
+            <p class="muted small">{{ _("Windows Hello, Touch ID, your phone or a security key: you confirm with your fingerprint, face or PIN instead of typing a code.") }}</p>
+            {% if not passkeys_on %}<p class="muted small">{{ _("Passkeys are not available on this server.") }}{% if mfa.passkeys %} {{ _("Sign in with the authenticator app or a recovery code.") }}{% endif %}</p>{% endif %}
+            {% if mfa.passkeys %}
+            <ul class="passkey-list">
+              {% for k in mfa.passkeys %}
+              <li>
+                <svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg>
+                <span class="passkey-name"><strong>{{ k.name }}</strong>
+                  <span class="muted small">{{ _("Added %(date)s", date=k.created_at|datetime) }} ·
+                    {% if k.last_used_at %}{{ _("last used %(date)s", date=k.last_used_at|datetime) }}{% else %}{{ _("never used") }}{% endif %}</span></span>
+                {% if mfa_unlocked %}
+                <details class="passkey-edit">
+                  <summary class="link-btn small">{{ _("Rename") }}</summary>
+                  <form method="post" action="{{ url_for('mfa.passkey_rename', passkey_id=k.id) }}" class="mfa-confirm">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    <input type="text" name="name" value="{{ k.name }}" maxlength="64" required aria-label="{{ _('Passkey name') }}">
+                    <button class="btn" type="submit">{{ _("Save") }}</button>
+                  </form>
+                </details>
+                <form method="post" action="{{ url_for('mfa.passkey_remove', passkey_id=k.id) }}" class="inline js-confirm"
+                      data-confirm="{{ _('Remove the passkey «%(name)s»? It will no longer let you sign in.', name=k.name) }}">
+                  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                  <button class="link-btn small text-danger" type="submit">{{ _("Remove") }}</button>
+                </form>
+                {% endif %}
+              </li>
+              {% endfor %}
+            </ul>
+            {% endif %}
+          </div>
+          {% if mfa_unlocked and passkeys_on %}{{ passkey_create(url_for('mfa.passkey_options'), url_for('mfa.passkey_register')) }}{% endif %}
+        </div>
+
+        {% if mfa_unlocked %}
+        <div class="profile-row">
+          <div class="profile-row-info">
+            <strong>{{ _("Recovery codes") }}</strong>
+            <p class="muted small">{{ _("For the day you lose the phone or the key: each one works once, with any method.") }}
+              {{ ngettext("%(num)s recovery code left.", "%(num)s recovery codes left.", mfa.recovery_left) }}</p>
+          </div>
+          <form method="post" action="{{ url_for('mfa.regenerate') }}" class="inline js-confirm"
+                data-confirm="{{ _('Generate new recovery codes? The current ones will stop working.') }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="btn" type="submit">{{ _("New recovery codes") }}</button>
+          </form>
+          <form method="post" action="{{ url_for('mfa.disable') }}" class="inline js-confirm"
+                data-confirm="{{ _('Turn off two-step verification? The app, all your passkeys and the recovery codes are removed.') }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="btn btn-danger" type="submit">{{ _("Turn off") }}</button>
+          </form>
+        </div>
+        {% endif %}
+        {% endif %}
         {% endif %}
       </div>
 
@@ -228,3 +323,4 @@
   </div>
 </div>
 {% endblock %}
+{% block scripts %}{% if section == 'security' and mfa_applies %}<script src="{{ url_for('static', filename='js/passkeys.js') }}"></script>{% endif %}{% endblock %}

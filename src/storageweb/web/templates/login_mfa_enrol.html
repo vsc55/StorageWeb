@@ -1,9 +1,18 @@
 {% extends "_login_frame.html" %}
+{% from "_passkeys.html" import passkey_create with context %}
 {% block title %}{{ _("Set up two-step verification") }} · {{ app_name }}{% endblock %}
 {% block panel_class %} login-panel-wide{% endblock %}
 {% block panel %}
 <h1>{{ _("Set up two-step verification") }}</h1>
-<p class="muted">{{ _("Your organization requires a second step to sign in to %(name)s: a code from an app on your phone. It only takes a minute.", name=user['username']) }}</p>
+<p class="muted">{{ _("Your organization requires a second step to sign in to %(name)s: a code from an app on your phone or a passkey. It only takes a minute.", name=user['username']) }}</p>
+{% if passkeys_on %}
+<div class="mfa-choice stack">
+  <h2 class="card-title">{{ _("With a passkey") }}</h2>
+  <p class="muted small">{{ _("Windows Hello, Touch ID, your phone or a security key: you confirm with your fingerprint, face or PIN instead of typing a code.") }}</p>
+  {{ passkey_create(url_for('mfa.login_enrol_passkey_options'), url_for('mfa.login_enrol_passkey'), primary=true) }}
+</div>
+<h2 class="card-title">{{ _("Or with an authenticator app") }}</h2>
+{% endif %}
 {% set action = url_for('mfa.login_enrol') %}
 {% include "_mfa_setup.html" %}
 <form method="post" action="{{ url_for('mfa.login_cancel') }}" class="inline">
@@ -11,3 +20,4 @@
   <button class="btn btn-ghost" type="submit">{{ _("Back to sign-in") }}</button>
 </form>
 {% endblock %}
+{% block scripts %}{% if passkeys_on %}<script src="{{ url_for('static', filename='js/passkeys.js') }}"></script>{% endif %}{% endblock %}

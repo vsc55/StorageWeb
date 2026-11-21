@@ -1,19 +1,31 @@
 {% extends "_login_frame.html" %}
+{% from "_passkeys.html" import passkey_get with context %}
 {% block title %}{{ _("Two-step verification") }} · {{ app_name }}{% endblock %}
 {% block panel %}
 <h1>{{ _("Two-step verification") }}</h1>
-<p class="muted">{{ _("Enter the 6-digit code from your authenticator app for %(name)s.", name=user['username']) }}</p>
+{% if passkeys_on %}
+<p class="muted">{{ _("Confirm with your passkey that it is you, %(name)s.", name=user['username']) }}</p>
+{{ passkey_get(url_for('mfa.login_passkey_options'), url_for('mfa.login_passkey'), primary=true) }}
+{% endif %}
+{% if mfa.totp %}
+<p class="muted">{% if passkeys_on %}{{ _("Or enter the 6-digit code from your authenticator app.") }}{% else %}{{ _("Enter the 6-digit code from your authenticator app for %(name)s.", name=user['username']) }}{% endif %}</p>
+{% elif not passkeys_on %}
+<p class="muted">{{ _("Passkeys are not available on this server right now. Enter one of your recovery codes, %(name)s.", name=user['username']) }}</p>
+{% endif %}
 <form method="post" action="{{ url_for('mfa.login_verify') }}" class="stack">
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-  <label>{{ _("Code") }}
-    <input type="text" name="code" class="mfa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="20"
-           required autofocus placeholder="123 456">
+  <label>{{ _("Code") if mfa.totp else _("Recovery code") }}
+    <input type="text" name="code" class="mfa-code" autocomplete="one-time-code" maxlength="20"
+           {% if mfa.totp %}inputmode="numeric"{% endif %} required{% if not passkeys_on %} autofocus{% endif %}
+           placeholder="{{ '123 456' if mfa.totp else 'XXXXX-XXXXX' }}">
   </label>
-  <button class="btn btn-primary btn-lg" type="submit">{{ _("Verify") }}</button>
+  <button class="btn{% if passkeys_on %}{% else %} btn-primary btn-lg{% endif %}" type="submit">{{ _("Verify") }}</button>
 </form>
-<p class="muted small">{{ _("No phone at hand? Enter one of your recovery codes instead (XXXXX-XXXXX).") }}</p>
+{% if mfa.totp %}<p class="muted small">{{ _("No phone at hand? Enter one of your recovery codes instead (XXXXX-XXXXX).") }}</p>
+{% elif passkeys_on %}<p class="muted small">{{ _("Lost your passkey? Enter one of your recovery codes instead (XXXXX-XXXXX).") }}</p>{% endif %}
 <form method="post" action="{{ url_for('mfa.login_cancel') }}" class="inline">
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
   <button class="btn btn-ghost" type="submit">{{ _("Back to sign-in") }}</button>
 </form>
 {% endblock %}
+{% block scripts %}{% if passkeys_on %}<script src="{{ url_for('static', filename='js/passkeys.js') }}"></script>{% endif %}{% endblock %}

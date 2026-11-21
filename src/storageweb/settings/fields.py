@@ -273,6 +273,15 @@ FIELDS: dict[str, Field] = {
         label=_l("Two-step verification required for"),
         page="auth",
         words="mfa 2fa totp verificación dos pasos segundo factor autenticador authenticator two-step"),
+    "security.passkeys": Field(
+        doc=("Permitir **passkeys** (WebAuthn: Windows Hello, Touch ID, el móvil o una llave de seguridad) como "
+             "segundo paso, además de la app de códigos; cada cuenta puede tener varias. Necesitan que "
+             "`network.public_url` tenga un nombre (no una IP) y HTTPS, salvo `localhost`: la passkey queda atada a "
+             "ese nombre y no se puede mover a otro. Desactivado, no se ofrecen ni se aceptan (las cuentas que solo "
+             "tengan passkeys entran con sus códigos de recuperación)."),
+        label=_l("Allow passkeys"),
+        page="auth",
+        words="passkey passkeys webauthn fido llave seguridad windows hello touch id huella security key"),
     "preview.enabled": Field(
         doc=("Abrir en el navegador, sin descargarlos, los archivos de texto y Markdown (doble clic en el explorador). "
              "Desactivado, todos se descargan como cualquier otro archivo."),

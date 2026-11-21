@@ -357,6 +357,7 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     if sec["api_token_max_days"] > 3650:
         raise ConfigError(_("security.api_token_max_days cannot be more than %(num)s", num=3650),
                           "security.api_token_max_days")
+    sec["passkeys"] = bool(sec.get("passkeys", True))
     sec["mfa_required"] = str(sec.get("mfa_required") or "off").strip().lower()
     if sec["mfa_required"] not in MFA_POLICIES:
         # Rechazado al guardar: un valor desconocido se leería como «nadie», que falla ABIERTO

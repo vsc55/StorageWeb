@@ -53,6 +53,9 @@
       {% else %}
       <button class="btn btn-small btn-danger" type="button" disabled title="{{ _('You cannot disable your own account.') }}">{{ _("Disable") }}</button>
       {% endif %}
+      {% if current['id'] != current_user['id'] and auth_method(current['source']) and auth_method(current['source']).stores_password %}
+      <a class="btn btn-small" href="{{ url_for('admin.user_password', user_uid=current['uid'], next=here) }}">{{ _("Change password") }}</a>
+      {% endif %}
     </div>
 
     <nav class="tabs" aria-label="{{ _('Sections of the user') }}">
@@ -73,12 +76,9 @@
           <select name="role">{% for r in ROLES %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></label>
         <label>{{ _("Personal folder") }} <small class="muted">({{ _("empty = default template") }})</small>
           <input type="text" name="home_path" value="{{ form.home_path or '' }}" class="mono"></label>
-        {% if auth_method(current['source']) and auth_method(current['source']).stores_password %}
-        <label>{{ _("New password") }}<input type="password" name="password" autocomplete="new-password" minlength="10" placeholder="{{ _('Leave empty to keep it') }}"></label>
-        {% else %}
+        {% if not (auth_method(current['source']) and auth_method(current['source']).stores_password) %}
         <p class="muted small">{{ _("Signs in with %(source)s: the password is managed there.", source=SOURCE_LABELS[current['source']]) }}</p>
         {% endif %}
-        <label class="check"><input type="checkbox" name="enabled" {% if form.enabled %}checked{% endif %}> {{ _("Account enabled") }}</label>
   {% if current and not current['enabled'] and current['disabled_reason'] == 'directory' %}
   <p class="muted small span2">{{ _("Disabled automatically because %(source)s removed or disabled the account, or it is no longer in the allowed groups. It is enabled again on its own when %(source)s lets it in.", source=SOURCE_LABELS[current['source']]) }}</p>
   {% endif %}

@@ -164,7 +164,20 @@ summary.avatar { box-shadow: 0 0 0 2px var(--rail-bg); }
 .mfa-recovery { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
                 gap: 8px 24px; font-size: 16px; }
 .mfa-recovery code { letter-spacing: .08em; }
-.mfa-manage { display: flex; flex-direction: column; gap: 10px; }
+.mfa-actions { display: flex; gap: 8px 12px; flex-wrap: wrap; align-items: center; }
+.mfa-unlock { background: var(--bg-soft, transparent); }
+.mfa-code-small { width: 17em; max-width: 100%; }
+.mfa-choice { padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 16px; }
+.passkey-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.passkey-form input[name="passkey_name"] { width: 15em; max-width: 100%; }
+.passkey-form .btn .icon { margin-right: 6px; }
+.passkey-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.passkey-list li { display: flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; }
+.passkey-list .passkey-name { display: flex; flex-direction: column; flex: 1 1 200px; min-width: 0; }
+.passkey-edit > summary { list-style: none; cursor: pointer; }
+.passkey-edit > summary::-webkit-details-marker { display: none; }
+.passkey-edit[open] { flex: 1 0 100%; order: 5; }
+.passkey-edit .mfa-confirm { margin-top: 6px; }
 
 @media (max-width: 860px) {
   .login-split { flex-direction: column; }

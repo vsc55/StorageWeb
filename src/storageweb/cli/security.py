@@ -3,7 +3,7 @@ from __future__ import annotations
 
 
 from ..db.repositories import audit
-from ..i18n import _, _l
+from ..i18n import _, _l, ngettext
 from .common import _fail, _get, command
 
 
@@ -110,7 +110,9 @@ def cmd_mfa_status(cfg, conn, args):
             continue
         state = mfa.status(conn, user)
         if state["enrolled"]:
-            text = _("on (%(num)s recovery codes left)", num=state["recovery_left"])
+            how = ([_("app")] if state["totp"] else []) + (
+                [ngettext("%(num)s passkey", "%(num)s passkeys", len(state["passkeys"]))] if state["passkeys"] else [])
+            text = _("on: %(how)s (%(num)s recovery codes left)", how=", ".join(how), num=state["recovery_left"])
         else:
             text = _("required, not set up") if mfa.required(cfg, user) else _("off")
         print(f"{user['username']:<32} {text}")

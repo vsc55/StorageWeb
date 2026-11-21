@@ -308,7 +308,15 @@ def fake_webdav_client(root: Path, location: dict | None = None):
             path = urllib.parse.unquote(urllib.parse.urlsplit(url).path)
             base = urllib.parse.unquote(urllib.parse.urlsplit(self.base_url).path)
             assert path.startswith(base.rstrip("/")), (path, base)
-            return root.joinpath(*[p for p in path[len(base.rstrip("/")):].split("/") if p])
+            target = root.joinpath(*[p for p in path[len(base.rstrip("/")):].split("/") if p])
+            # Como un servidor de verdad, nunca sale de su raíz: en Windows un trozo como «C:Windows» cambia de
+            # unidad al unirlo (si los temporales de los tests están en otra), y eso sería un fallo del fake, no
+            # de StorageWeb. Lo de fuera no existe (404)
+            try:
+                target.relative_to(root)
+            except ValueError:
+                return root / ".fake-outside-root"
+            return target
 
         def _href(self, p: Path) -> str:
             rel = "/".join(p.relative_to(root).parts)

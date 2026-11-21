@@ -28,18 +28,22 @@ Tus preferencias se guardan en tu cuenta. En la página de inicio de sesión tam
 
 ### Verificación en dos pasos
 
-Si entras con usuario y contraseña, puedes añadir un segundo paso: un código de seis dígitos que genera una aplicación del móvil (Microsoft Authenticator, Google Authenticator, FreeOTP…). Así, aunque alguien sepa tu contraseña, no puede entrar.
+Si entras con usuario y contraseña, puedes añadir un segundo paso: un código de seis dígitos que genera una aplicación del móvil (Microsoft Authenticator, Google Authenticator, FreeOTP…) o una **passkey** (Windows Hello, Touch ID, el móvil o una llave de seguridad, que confirmas con la huella, la cara o el PIN). Así, aunque alguien sepa tu contraseña, no puede entrar. Puedes tener las dos cosas y varias passkeys (la del portátil, la del móvil…).
 
-1. En *Mi perfil → Seguridad*, junto a *Verificación en dos pasos*, pulsa **Activar**.
+**Con una passkey:** en *Mi perfil → Seguridad*, escribe un nombre para reconocerla y pulsa **Añadir una passkey**; el navegador te pide la huella, la cara o el PIN. Si es lo primero que activas, guarda los códigos de recuperación que aparecen. Al entrar, después de la contraseña pulsa **Usar una passkey**. (Si el botón no aparece, el servidor aún no tiene su dirección con HTTPS: avisa al administrador.)
+
+**Con una aplicación:**
+
+1. En *Mi perfil → Seguridad*, junto a *Verificación en dos pasos*, pulsa **Usar una aplicación de autenticación**.
 2. Escanea el código QR con la aplicación (o escribe la clave que aparece debajo).
 3. Escribe el código que muestra la aplicación y pulsa **Activar**.
-4. **Guarda los códigos de recuperación** que aparecen: se enseñan una sola vez. Cada uno te deja entrar una vez si no tienes el móvil a mano.
+4. **Guarda los códigos de recuperación** que aparecen: se enseñan una sola vez. Cada uno te deja entrar una vez si no tienes el móvil (o la passkey) a mano.
 
 ![Activar la verificación en dos pasos: el QR, la clave y el código](../img/uso/mfa-alta.webp)
 
 ![Al entrar, el código después de la contraseña](../img/uso/mfa-codigo.webp)
 
-Desde entonces, al entrar se te pide el código después de la contraseña. Si tu organización la exige, se te pedirá configurarla la primera vez que entres. En el perfil puedes generar códigos de recuperación nuevos (anulan los anteriores) o desactivarla, siempre con un código. Si pierdes el móvil y los códigos, pide a un administrador que te la quite. Con la verificación activada, la [unidad de red](unidad-de-red.md) solo admite tokens de API, no tu contraseña.
+Desde entonces, al entrar se te pide el código después de la contraseña. Si tu organización la exige, se te pedirá configurarla la primera vez que entres. Para cambiar algo en el perfil (añadir o quitar la app o una passkey, renombrarla, generar códigos de recuperación nuevos —anulan los anteriores— o desactivarla) primero confirmas que eres tú con un código o una passkey; durante 5 minutos ya no se vuelve a pedir. Si pierdes el móvil, las passkeys y los códigos, pide a un administrador que te la quite. Con la verificación activada, la [unidad de red](unidad-de-red.md) solo admite tokens de API, no tu contraseña.
 
 Si entras con Microsoft, la verificación en dos pasos la gestiona tu organización en Microsoft.
 
