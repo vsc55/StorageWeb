@@ -6,7 +6,7 @@ from storageweb import audit_levels
 from storageweb.db.repositories import audit
 from storageweb.web.context import get_db
 
-from tests.helpers import add_user, get_csrf, login
+from tests.helpers import signed_in
 
 
 def _events(app, **filters):
@@ -46,10 +46,7 @@ def test_everything_is_recorded_with_its_level(app, logged, home):
 
 def test_quota_exceeded_is_a_warning(make_app, home):
     app = make_app({"storage": {"home_quota_mb": 1}})
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
-    csrf = get_csrf(client, "/f/home/")
+    client, csrf = signed_in(app, "ana")
     import io
     client.post("/upload/home/", data={"_csrf": csrf, "files": (io.BytesIO(b"x" * (2 * 1024 * 1024)), "grande.bin")},
                 content_type="multipart/form-data")
@@ -58,9 +55,7 @@ def test_quota_exceeded_is_a_warning(make_app, home):
 
 def test_min_level_and_audit_page(make_app, home):
     app = make_app({"audit": {"min_level": "info"}})
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
+    client, _ = signed_in(app, "root", role="admin", csrf_url=None)
     try:
         client.get("/f/home/")                                                  # debug: no se guarda
         assert "folder_listed" not in _actions(app) and "login" in _actions(app)

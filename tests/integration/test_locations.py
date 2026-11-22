@@ -7,22 +7,13 @@ from storageweb.core import backends
 from storageweb.db.repositories import audit
 from storageweb.web.context import get_db, settings
 
-from tests.fakes import FakeS3, FakeSMB
-from tests.helpers import add_user, get_csrf, login, visible
+from tests.fakes import FakeSMB
+from tests.helpers import get_csrf, visible, signed_in, audit_actions
 
 S3_LOC = {"name": "s3", "label": "Bucket", "type": "s3", "bucket": "bucket", "prefix": "sw",
           "access_key": "AK", "secret_key": "SECRETO"}
 NAS_LOC = {"name": "nas", "label": "NAS", "type": "smb", "server": "nas", "share": "files", "path": "sw",
            "username": "u", "password": "CLAVE"}
-
-
-@pytest.fixture
-def s3(monkeypatch):
-    fake = FakeS3()
-    monkeypatch.setitem(backends.CLIENT_FACTORIES, "s3", lambda loc: fake)
-    backends.clear_clients()
-    yield fake
-    backends.clear_clients()
 
 
 @pytest.fixture
@@ -49,10 +40,7 @@ def _api(client, token, method, url, body=None):
 
 def test_shared_folder_in_s3(make_app, s3, nas):
     app = make_app(_storage(shares=[{"name": "docs", "label": "Docs", "location": "s3", "path": "docs"}]))
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
-    token = get_csrf(client, "/f/home/")
+    client, token = signed_in(app, "ana")
 
     # La carpeta se crea en el bucket al entrar (create_shares) y se puede usar como cualquier otra
     assert client.get("/f/docs/").status_code == 200
@@ -91,17 +79,13 @@ def test_shared_folder_in_s3(make_app, s3, nas):
     assert "sw/docs/informes/b.txt" in s3.objects and "sw/docs/informes/a.txt" not in s3.objects
     client.post("/delete/docs/informes", data={"_csrf": token})
     assert not [k for k in s3.objects if k.startswith("sw/docs/informes")]
-    with app.app_context():
-        actions = [r["action"] for r in audit.recent(get_db(), 20)]
+    actions = audit_actions(app, 20)
     assert {"upload", "download", "mkdir", "rename", "delete"} <= set(actions)
 
 
 def test_personal_folders_in_smb(make_app, s3, nas):
     app = make_app(_storage(home_location="nas", home_template="homes/{username}"))
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
-    token = get_csrf(client, "/f/home/")
+    client, token = signed_in(app, "ana")
     from io import BytesIO
     client.post("/upload/home/", data={"_csrf": token, "files": (BytesIO(b"x"), "nota.txt")},
                 content_type="multipart/form-data")
@@ -111,9 +95,7 @@ def test_personal_folders_in_smb(make_app, s3, nas):
 
 def test_unreachable_location_only_breaks_its_folder(make_app, s3, nas):
     app = make_app(_storage(shares=[{"name": "docs", "label": "Docs", "location": "s3", "path": "docs"}]))
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
+    client, _ = signed_in(app, "ana", csrf_url=None)
     s3.fail = "AccessDenied"
     r = client.get("/f/docs/")
     assert r.status_code == 404 and "S3 ha denegado el acceso" in r.get_data(as_text=True)
@@ -122,10 +104,7 @@ def test_unreachable_location_only_breaks_its_folder(make_app, s3, nas):
 
 def test_admin_manages_locations(make_app, s3, nas):
     app = make_app({"storage": {"create_shares": True}})
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
-    token = get_csrf(client, "/admin/storage/")
+    client, token = signed_in(app, "root", role="admin", csrf_url="/admin/storage/")
     assert "No hay ubicaciones de almacenamiento" in client.get("/admin/storage/").get_data(as_text=True)
     # Sin ubicaciones, la carpeta nueva ya ofrece dónde guardar (solo el disco) y cómo añadir una
     page = client.get("/admin/access/folders/new").get_data(as_text=True)
@@ -183,10 +162,7 @@ def test_admin_sftp_location_form(make_app, tmp_path, monkeypatch):
     monkeypatch.setitem(backends.CLIENT_FACTORIES, "sftp", lambda loc: FakeSFTPSession(remote))
     backends.clear_clients()
     app = make_app()
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
-    token = get_csrf(client, "/admin/storage/")
+    client, token = signed_in(app, "root", role="admin", csrf_url="/admin/storage/")
     page = client.get("/admin/storage/new?type=sftp").get_data(as_text=True)
     assert 'name="private_key"' in page and "<textarea" in page and 'name="host_key"' in page
     index = client.get("/admin/storage/").get_data(as_text=True)
@@ -214,9 +190,7 @@ def test_locations_locked_by_config_file(write_config, s3):
     from storageweb import create_app
     app = create_app(str(write_config(_storage())))
     app.testing = True
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
+    client, _ = signed_in(app, "root", role="admin", csrf_url=None)
     page = visible(client.get("/admin/storage/").get_data(as_text=True))
     assert "config.json</span>" in page and "Nueva ubicación" in page            # se pueden añadir otras
     assert '<fieldset class="plain-fieldset" disabled>' in client.get("/admin/storage/s3").get_data(as_text=True)

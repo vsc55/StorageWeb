@@ -2,18 +2,14 @@
 patrones no llega a los clientes (solo una marca en la ruta concreta que pide un cliente)."""
 from __future__ import annotations
 
-import base64
 import io
 
 import pytest
 
 from storageweb import patterns
-from storageweb.core import tokens
-from storageweb.db.repositories import users
 from storageweb.settings.errors import ConfigError
-from storageweb.web.context import get_db
 
-from tests.helpers import add_user, get_csrf, login, settings_form
+from tests.helpers import add_user, get_csrf, login, settings_form, api_token, basic_auth
 
 HIDDEN = ["Thumbs.db", "*.tmp", ".git/", "/privado", "docs/borradores/*.bak"]
 
@@ -32,10 +28,8 @@ def hidden_app(make_app, tmp_path):
 
 
 def _dav(app):
-    with app.app_context():
-        plain, _ = tokens.create(get_db(), users.get_by_username(get_db(), "ana"), name="t", scope="write", days=0)
     client = app.test_client()
-    auth = {"Authorization": "Basic " + base64.b64encode(f"ana:{plain}".encode()).decode()}
+    auth = basic_auth("ana", api_token(app, name="t"))
 
     def call(method, path, data=b"", extra=None):
         return client.open(path, method=method, data=data, headers={**auth, **(extra or {})})

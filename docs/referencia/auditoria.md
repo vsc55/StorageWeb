@@ -111,7 +111,7 @@ ecurso`) |
 | `audit_purged` | `critical` | Entradas de auditoría borradas por la retención | Número de entradas |
 | `audit_exported` | `info` | Auditoría exportada a CSV | Número de filas |
 | `db_vacuum` | `info` | Base de datos compactada | Tamaño antes→después (bytes) |
-| `backup_created` | `info` | Copia de seguridad creada (web o automática) | `web` o `auto` |
+| `backup_created` | `info` | Copia de seguridad creada (web, automática o `storageweb backup`) | `web`, `auto` o `cli` |
 | `backup_downloaded` | `info` | Copia de seguridad descargada desde la web |  |
 | `backup_deleted` | `info` | Copia de seguridad borrada desde la web |  |
 | `backup_uploaded` | `info` | Copia de seguridad subida desde la web (de este u otro servidor) | Tamaño en bytes |
@@ -152,7 +152,6 @@ ecurso`) |
 | `favorites_cleared_by_admin` | `info` | Un administrador quita todos los favoritos de otra persona; *objetivo* = la persona | `removed=N` |
 | `upload_started` | `debug` | Empezó una subida por partes (la API o el explorador); al terminar, `upload` | Tamaño en bytes |
 | `quota_exceeded` | `warning` | Algo no se subió, copió, movió o guardó porque no cabía en la cuota de la carpeta | Tamaño en bytes; `api:`, `edit:`, `copy:`, `move:` o `webdav:` delante según por dónde |
-| `backup` | `info` | Copia de seguridad creada | |
 | `restore` | `critical` | Copia restaurada | Fecha y versión de la copia |
 
 **Con qué programa.** Si la acción con archivos se hizo con un token de API, su detalle termina en `token=<nombre del token>`. Es el caso de la unidad de red, la extensión de VS Code y los scripts. Así se distingue, por ejemplo, un guardado desde VS Code (`webdav:1532 token=Visual Studio Code (PORTATIL-ANA)`, el nombre que pone la extensión al conectarse) de uno desde el Explorador de Windows con otro token. Con la contraseña de la cuenta, o desde la web, no hay token y el detalle no lo lleva. Pon a cada token un nombre que diga dónde se usa.

@@ -1,14 +1,11 @@
 {% extends "admin/settings/_layout.html" %}
-{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock, tab with context %}
 {% block section %}
 {% set pv = cfg.preview %}
 {{ form_start() }}
   {# Una pestaña por sección (admin/forms.js); el formulario y la barra de guardar, para todas #}
   <div class="js-tabs">
-  <fieldset class="tab-panel">
-    <legend>{{ _("Viewer") }}</legend>
-  <div class="card form-grid">
-    <h3 class="card-title span2">{{ _("Viewer") }}</h3>
+  {% call tab(_("Viewer")) %}
     <label class="check span2"><input{{ lock('preview.enabled') }} type="checkbox" name="preview_enabled" {% if pv.enabled %}checked{% endif %}>
       <span>{{ _("Open files in the browser") }} {{ origin('preview.enabled') }}
         <small class="muted">{{ _("A double click opens them without downloading them: Markdown with its format, text and code with line numbers, and the images, PDF, videos and audio below. HTML and SVG are always shown as code. Disabled, every file is downloaded.") }}</small></span></label>
@@ -16,12 +13,8 @@
       <input{{ lock('preview.max_mb') }} type="number" name="preview_max_mb" value="{{ pv.max_mb }}" min="1" max="20">
       <small class="muted">{{ _("For text files: larger ones are downloaded. The viewer reads the whole file to show it.") }}</small>
       {{ field_error('preview.max_mb') }}</label>
-  </div>
-  </fieldset>
-  <fieldset class="tab-panel">
-    <legend>{{ _("Images, PDF, video and audio") }}</legend>
-  <div class="card form-grid">
-    <h3 class="card-title span2">{{ _("Images, PDF, video and audio") }}</h3>
+  {% endcall %}
+  {% call tab(_("Images, PDF, video and audio")) %}
     <p class="muted small span2">{{ _("They are shown with what the browser has (its image, PDF, video and audio viewers), always with the type the server gives them and never as a page. There is no size limit: the browser asks for them in parts.") }}</p>
     <label class="check"><input{{ lock('preview.images') }} type="checkbox" name="preview_images" {% if pv.images %}checked{% endif %}>
       <span>{{ _("Show images") }} {{ origin('preview.images') }}
@@ -35,12 +28,8 @@
     <label class="check"><input{{ lock('preview.audio') }} type="checkbox" name="preview_audio" {% if pv.audio %}checked{% endif %}>
       <span>{{ _("Play audio") }} {{ origin('preview.audio') }}
         <small class="muted">{{ _("MP3, WAV, Ogg, Opus, M4A, AAC, FLAC and WebM.") }}</small></span></label>
-  </div>
-  </fieldset>
-  <fieldset class="tab-panel">
-    <legend>{{ _("Thumbnails") }}</legend>
-  <div class="card form-grid" id="thumbnails">
-    <h3 class="card-title span2">{{ _("Thumbnails") }}</h3>
+  {% endcall %}
+  {% call tab(_("Thumbnails"), id='thumbnails') %}
     <label class="check span2"><input{{ lock('preview.thumbnails') }} type="checkbox" name="preview_thumbnails" {% if pv.thumbnails %}checked{% endif %}>
       <span>{{ _("Thumbnails in the file browser") }} {{ origin('preview.thumbnails') }}
         <small class="muted">{{ _("The images are seen small in the list and larger in the details panel. The server makes them and keeps them apart, never in anyone's folder; only of the images the viewer opens.") }}</small></span></label>
@@ -57,24 +46,16 @@
       <input{{ lock('preview.thumbnail_cache_mb') }} type="number" name="preview_thumbnail_cache_mb" value="{{ pv.thumbnail_cache_mb }}" min="10" max="100000">
       <small class="muted">{{ _("Every day the ones nobody asked for in 60 days are deleted and, if they still take more, the least used. About 10 KB each.") }}</small>
       {{ field_error('preview.thumbnail_cache_mb') }}</label>
-  </div>
-  </fieldset>
-  <fieldset class="tab-panel">
-    <legend>{{ _("Diagrams and code colors") }}</legend>
-  <div class="card form-grid">
-    <h3 class="card-title span2">{{ _("Diagrams and code colors") }}</h3>
+  {% endcall %}
+  {% call tab(_("Diagrams and code colors")) %}
     <label class="check span2"><input{{ lock('preview.diagrams') }} type="checkbox" name="preview_diagrams" {% if pv.diagrams %}checked{% endif %}>
       <span>{{ _("Draw Mermaid diagrams") }} {{ origin('preview.diagrams') }}
         <small class="muted">{{ _("The mermaid blocks of a .md are drawn with Mermaid, inside a frame isolated from the page and the session. Disabled, their code is shown and Mermaid is never sent to the browser.") }}</small></span></label>
     <label class="check span2"><input{{ lock('preview.highlight') }} type="checkbox" name="preview_highlight" {% if pv.highlight %}checked{% endif %}>
       <span>{{ _("Color the code") }} {{ origin('preview.highlight') }}
         <small class="muted">{{ _("Python, PHP, JavaScript, SQL, YAML, PowerShell… and the code blocks of a .md, with highlight.js in the browser. Files over 1 MB are shown without colors. Disabled, highlight.js is never sent to the browser.") }}</small></span></label>
-  </div>
-  </fieldset>
-  <fieldset class="tab-panel">
-    <legend>{{ _("Which files") }}</legend>
-  <div class="card form-grid">
-    <h3 class="card-title span2">{{ _("Which files") }}</h3>
+  {% endcall %}
+  {% call tab(_("Which files")) %}
     <label class="span2 {{ err_class('preview.extensions') }}"><span class="label-row">{{ _("Extensions that open in the viewer") }} {{ origin('preview.extensions') }}</span>
       <textarea{{ lock('preview.extensions') }} name="preview_extensions" rows="5" class="mono" data-list spellcheck="false">{{ pv.extensions|join(', ') }}</textarea>
       <small class="muted">{{ _("Type an extension (without the dot) and press Enter to add it; the × removes it. Markdown (md…) is shown with its format; HTML and SVG (html, svg…) always as code; the rest, as text. Files such as README or Dockerfile always open.") }}</small>
@@ -83,8 +64,7 @@
       <textarea{{ lock('preview.blocked_extensions') }} name="preview_blocked_extensions" rows="2" class="mono" data-list spellcheck="false">{{ pv.blocked_extensions|join(', ') }}</textarea>
       <small class="muted">{{ _("They are downloaded even if they are in the list above. By default, text files that usually hold secrets or keys; .env counts as env. Type one and press Enter to add it.") }}</small>
       {{ field_error('preview.blocked_extensions') }}</label>
-  </div>
-  </fieldset>
+  {% endcall %}
   </div>
   {{ save_bar() }}
 </form>

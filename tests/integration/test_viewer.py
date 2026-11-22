@@ -5,7 +5,7 @@ from __future__ import annotations
 from storageweb.db.repositories import audit
 from storageweb.web.context import get_db
 
-from tests.helpers import add_user, login, visible
+from tests.helpers import login, visible, signed_in
 
 
 def _files(home):
@@ -82,16 +82,12 @@ def test_previous_next_and_audit(app, logged, home):
 
 def test_permissions_hidden_and_folders(app, make_app, client, home):
     app = make_app({"permissions": {"user": {"download": False}}, "storage": {"hidden": ["secreto.md"]}})
-    add_user(app, "ana")
-    c = app.test_client()
-    login(c, "ana")
+    c, _ = signed_in(app, "ana", csrf_url=None)
     docs = _files(home)
     (docs / "secreto.md").write_text("x", encoding="utf-8")
     assert c.get("/view/home/docs/guia.md").status_code == 403                    # el permiso de descargar
     other = make_app({"storage": {"hidden": ["secreto.md"]}})
-    c2 = other.test_client()
-    add_user(other, "luis")
-    login(c2, "luis")
+    c2, _ = signed_in(other, "luis", csrf_url=None)
     luis = home.parent / "luis"
     (luis / "d").mkdir(parents=True)
     (luis / "d" / "secreto.md").write_text("x", encoding="utf-8")
@@ -132,9 +128,7 @@ def test_diagrams_are_drawn_in_an_isolated_frame(app, logged, home):
 def test_preview_settings(make_app, home):
     """preview.*: desactivar el visor, los diagramas, extensiones de más o excluidas y el tamaño máximo."""
     app = make_app({"preview": {"enabled": False}})
-    add_user(app, "ana")
-    c = app.test_client()
-    login(c, "ana")
+    c, _ = signed_in(app, "ana", csrf_url=None)
     docs = _files(home)
     resp = c.get("/view/home/docs/guia.md")                       # sin visor: a la descarga
     assert resp.status_code == 302 and resp.location.endswith("/download/home/docs/guia.md")
@@ -180,9 +174,7 @@ def test_preview_settings_page(app, admin):
 def test_large_text_is_shown_by_parts(make_app, home):
     """Un texto más grande que preview.max_mb se ve por trozos (de entrada, el final) con líneas enteras."""
     app = make_app({"preview": {"max_mb": 1}})
-    add_user(app, "ana")
-    c = app.test_client()
-    login(c, "ana")
+    c, _ = signed_in(app, "ana", csrf_url=None)
     docs = home / "docs"
     docs.mkdir(parents=True)
     lines = [f"2026-11-20 linea {i:06d} INFO todo bien" for i in range(60000)]   # ~2,2 MB
@@ -203,9 +195,7 @@ def test_code_colors(make_app, home):
     """preview.highlight: el código lleva su lenguaje y la página carga highlight.js (con el lenguaje extra si hace
     falta); los logs, los archivos grandes y el ajuste desactivado, sin colores."""
     app = make_app()
-    add_user(app, "ana")
-    c = app.test_client()
-    login(c, "ana")
+    c, _ = signed_in(app, "ana", csrf_url=None)
     home.mkdir(parents=True, exist_ok=True)
     (home / "app.py").write_text("def f():\n    return 1\n", encoding="utf-8")
     (home / "deploy.ps1").write_text("Get-Item .\n", encoding="utf-8")

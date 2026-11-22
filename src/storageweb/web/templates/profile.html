@@ -1,11 +1,12 @@
 {% extends "base.html" %}
 {% from "_space.html" import quota_meter, space_meter with context %}
 {% from "_passkeys.html" import passkey_create, passkey_get with context %}
+{% from "_forms.html" import post_button, copy_field, new_password_fields with context %}
 {% block title %}{{ section_label }} · {{ _("My profile") }} · {{ app_name }}{% endblock %}
 {% block content %}
 {# Mi perfil: submenú lateral como las zonas de la administración y una sección por página (views/profile.py SECTIONS) #}
 {% set shown_name = user['display_name'] or user['username'] %}
-{% set shown_initials = (shown_name.split()|map('first')|join)[:2]|upper if ' ' in shown_name else shown_name[:2]|upper %}
+{% set shown_initials = user|initials %}
 {% set method = auth_method(user['source']) %}
 <div class="zone-layout">
   <nav class="zone-nav" aria-label="{{ _('My profile') }}">
@@ -83,12 +84,7 @@
               <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
               <label class="span2">{{ _("Current password") }}
                 <input type="password" name="current_password" autocomplete="current-password" required></label>
-              <label>{{ _("New password") }}
-                <input type="password" name="new_password" autocomplete="new-password" minlength="{{ password_min_length() }}" required
-                       placeholder="{{ _('At least %(num)s characters', num=password_min_length()) }}">
-             <small class="muted">{{ password_rules_text() }}</small></label>
-              <label>{{ _("Repeat the new password") }}
-                <input type="password" name="repeat_password" autocomplete="new-password" minlength="{{ password_min_length() }}" required></label>
+              {{ new_password_fields('new_password') }}
               <div class="span2"><button class="btn btn-primary" type="submit">{{ _("Change password") }}</button></div>
             </form>
           </details>
@@ -114,10 +110,7 @@
           </div>
           {% if not mfa.enrolled %}
           <div class="mfa-actions">
-            <form method="post" action="{{ url_for('mfa.begin') }}" class="inline">
-              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-              <button class="btn btn-primary" type="submit">{{ _("Use an authenticator app") }}</button>
-            </form>
+            {{ post_button(url_for('mfa.begin'), _("Use an authenticator app"), btn='btn btn-primary') }}
             {% if passkeys_on %}{{ passkey_create(url_for('mfa.passkey_options'), url_for('mfa.passkey_register')) }}{% endif %}
           </div>
           {% endif %}
@@ -153,16 +146,10 @@
           </div>
           {% if mfa_unlocked %}
           {% if mfa.totp %}
-          <form method="post" action="{{ url_for('mfa.totp_remove') }}" class="inline js-confirm"
-                data-confirm="{{ _('Remove the authenticator app? The codes it shows will stop working.') }}">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <button class="btn" type="submit">{{ _("Remove") }}</button>
-          </form>
+          {{ post_button(url_for('mfa.totp_remove'), _("Remove"),
+                         confirm=_('Remove the authenticator app? The codes it shows will stop working.')) }}
           {% else %}
-          <form method="post" action="{{ url_for('mfa.begin') }}" class="inline">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <button class="btn" type="submit">{{ _("Set up") }}</button>
-          </form>
+          {{ post_button(url_for('mfa.begin'), _("Set up")) }}
           {% endif %}
           {% endif %}
         </div>
@@ -190,11 +177,8 @@
                     <button class="btn" type="submit">{{ _("Save") }}</button>
                   </form>
                 </details>
-                <form method="post" action="{{ url_for('mfa.passkey_remove', passkey_id=k.id) }}" class="inline js-confirm"
-                      data-confirm="{{ _('Remove the passkey «%(name)s»? It will no longer let you sign in.', name=k.name) }}">
-                  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-                  <button class="link-btn small text-danger" type="submit">{{ _("Remove") }}</button>
-                </form>
+                {{ post_button(url_for('mfa.passkey_remove', passkey_id=k.id), _("Remove"), btn='link-btn small text-danger',
+                               confirm=_('Remove the passkey «%(name)s»? It will no longer let you sign in.', name=k.name)) }}
                 {% endif %}
               </li>
               {% endfor %}
@@ -211,16 +195,10 @@
             <p class="muted small">{{ _("For the day you lose the phone or the key: each one works once, with any method.") }}
               {{ ngettext("%(num)s recovery code left.", "%(num)s recovery codes left.", mfa.recovery_left) }}</p>
           </div>
-          <form method="post" action="{{ url_for('mfa.regenerate') }}" class="inline js-confirm"
-                data-confirm="{{ _('Generate new recovery codes? The current ones will stop working.') }}">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <button class="btn" type="submit">{{ _("New recovery codes") }}</button>
-          </form>
-          <form method="post" action="{{ url_for('mfa.disable') }}" class="inline js-confirm"
-                data-confirm="{{ _('Turn off two-step verification? The app, all your passkeys and the recovery codes are removed.') }}">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <button class="btn btn-danger" type="submit">{{ _("Turn off") }}</button>
-          </form>
+          {{ post_button(url_for('mfa.regenerate'), _("New recovery codes"),
+                         confirm=_('Generate new recovery codes? The current ones will stop working.')) }}
+          {{ post_button(url_for('mfa.disable'), _("Turn off"), btn='btn btn-danger',
+                         confirm=_('Turn off two-step verification? The app, all your passkeys and the recovery codes are removed.')) }}
         </div>
         {% endif %}
         {% endif %}
@@ -231,9 +209,7 @@
         <div class="profile-block-head">
           <h2 class="card-title">{{ _("Open sessions") }} <span class="muted">· {{ my_sessions|length }}</span></h2>
           {% if my_sessions|length > 1 %}
-          <form method="post" action="{{ url_for('profile.sessions_close_others') }}" class="inline">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <button class="link-btn small" type="submit">{{ _("Close the other sessions") }}</button></form>
+          {{ post_button(url_for('profile.sessions_close_others'), _("Close the other sessions"), btn='link-btn small') }}
           {% endif %}
         </div>
         <ul class="profile-list">
@@ -243,9 +219,7 @@
             <span class="profile-list-text"><strong>{{ s['user_agent']|ua_summary }}</strong>{% if s['id'] == current_sid %} <span class="badge">{{ _("this one") }}</span>{% endif %}
               <span class="muted small">{{ s['ip'] or '—' }} · {{ _("active %(when)s", when=s['last_seen']|datetime) }}</span></span>
             {% if s['id'] != current_sid %}
-            <form method="post" action="{{ url_for('profile.session_close', sid=s['id']) }}" class="inline">
-              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-              <button class="btn btn-small" type="submit">{{ _("Close") }}</button></form>
+            {{ post_button(url_for('profile.session_close', sid=s['id']), _("Close"), btn='btn btn-small') }}
             {% endif %}
           </li>
           {% endfor %}
@@ -256,8 +230,7 @@
       {% if new_token %}
       <div class="flash token-new" role="alert">
         <strong>{{ _("Copy it now: it will not be shown again.") }}</strong>
-        <div class="copy-row"><input type="text" readonly value="{{ new_token }}" id="new-token" class="mono" aria-label="{{ _('New token') }}">
-          <button type="button" class="btn js-copy" data-copy="#new-token">{{ _("Copy") }}</button></div>
+        {{ copy_field('new-token', new_token, _('New token')) }}
         <code class="small">curl -H "Authorization: Bearer {{ new_token[:10] }}…" {{ url_for('files.browse', root='home', sub='', _external=True) }}</code>
       </div>
       {% endif %}
@@ -273,14 +246,10 @@
               <td class="muted">{{ t['last_used_at']|datetime if t['last_used_at'] else '—' }}</td>
               <td class="muted">{% set exp = token_expiry(t) %}{{ exp|datetime if exp else _("never") }}</td>
               <td class="cell-end"><div class="token-actions">
-                <form method="post" action="{{ url_for('profile.token_rotate', token_id=t['id']) }}" class="inline js-confirm"
-                      data-confirm="{{ _('Rotate the token «%(name)s»? You get a new secret with the same name, scope and expiry, and the current one stops working at once: whatever uses it (scripts, network drive, VS Code) needs the new one.', name=t['name']) }}">
-                  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-                  <button class="link-btn small" type="submit">{{ _("Rotate") }}</button></form>
-                <form method="post" action="{{ url_for('profile.token_delete', token_id=t['id']) }}" class="inline js-confirm"
-                      data-confirm="{{ _('Revoke the token «%(name)s»?', name=t['name']) }}">
-                  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-                  <button class="link-btn small text-danger" type="submit">{{ _("Revoke") }}</button></form>
+                {{ post_button(url_for('profile.token_rotate', token_id=t['id']), _("Rotate"), btn='link-btn small',
+                               confirm=_('Rotate the token «%(name)s»? You get a new secret with the same name, scope and expiry, and the current one stops working at once: whatever uses it (scripts, network drive, VS Code) needs the new one.', name=t['name'])) }}
+                {{ post_button(url_for('profile.token_delete', token_id=t['id']), _("Revoke"), btn='link-btn small text-danger',
+                               confirm=_('Revoke the token «%(name)s»?', name=t['name'])) }}
               </div></td>
             </tr>
             {% endfor %}
@@ -302,7 +271,7 @@
       </form>
 
 {% elif section == 'links' %}
-      {% from "_link_filter.html" import link_filter, deleted_table with context %}
+      {% from "_link_filter.html" import link_filter, deleted_table, link_state, link_kind, link_expires, link_uses, link_visits, revoke_link with context %}
       {% if link_counts['all'] or link_counts['deleted'] %}{{ link_filter(link_show, link_counts, 'profile.section', {'section': 'links'}) }}{% endif %}
       {% if link_show == 'deleted' %}
       <div class="card stack">{{ deleted_table(deleted_links) }}</div>
@@ -315,21 +284,13 @@
             <tr>
               <td><strong>{{ l.rel.split('/')[-1] if l.rel else l.folder }}</strong><br><span class="muted">{{ l.folder }}{% if l.rel %}: /{{ l.rel }}{% endif %}</span>
                 {% if l.note %}<br><span class="muted">«{{ l.note }}»</span>{% endif %}</td>
-              <td>{{ MODE_LABELS[l.mode] }}{% if l.password_hash %} · {{ _("with password") }}{% endif %}</td>
-              <td><span class="badge{% if l.state != 'ok' %} badge-err{% else %} badge-ok{% endif %}">{{ STATE_LABELS[l.state] }}</span></td>
-              <td class="muted">{{ l.expires_at|datetime if l.expires_at else _("never") }}</td>
-              <td class="num">{% if l.mode == 'upload' %}{{ ngettext("%(num)s upload", "%(num)s uploads", l.uploads) }}{% else %}{{ l.downloads }}{% if l.max_downloads %} / {{ l.max_downloads }}{% endif %}{% endif %}</td>
-              {% set act = link_activity.get(l.uid, {}) %}
-              <td class="nowrap"><a href="{{ url_for('links.activity', uid=l.uid, next=request.full_path) }}">{{ ngettext("%(num)s visit", "%(num)s visits", act.get('opened', 0)) }}</a>
-                {% if act.get('last') %}<br><span class="muted">{{ act.get('last')|datetime }}</span>{% endif %}</td>
-              <td>{% if l.url and l.state == 'ok' %}<div class="copy-row"><input type="text" readonly value="{{ l.url }}" id="link-{{ l.uid }}" class="mono" aria-label="{{ _('Link') }}">
-                <button type="button" class="btn btn-small js-copy" data-copy="#link-{{ l.uid }}">{{ _("Copy") }}</button></div>{% else %}—{% endif %}</td>
-              <td class="cell-end">{% if l.state != 'revoked' %}
-                <form method="post" action="{{ url_for('links.revoke', uid=l.uid) }}" class="inline js-confirm"
-                      data-confirm="{{ _('Stop sharing? The link stops working at once.') }}">
-                  <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.full_path }}">
-                  <button class="link-btn small text-danger" type="submit">{{ _("Stop sharing") }}</button></form>{% endif %}
-              </td>
+              <td>{{ link_kind(l.mode, l.password_hash) }}</td>
+              <td>{{ link_state(l.state) }}</td>
+              {{ link_expires(l) }}
+              {{ link_uses(l) }}
+              {{ link_visits(l.uid, link_activity.get(l.uid, {}), last=True) }}
+              <td>{% if l.url and l.state == 'ok' %}{{ copy_field('link-' ~ l.uid, l.url, _('Link'), small=True) }}{% else %}—{% endif %}</td>
+              <td class="cell-end">{{ revoke_link(l, _("Stop sharing"), _('Stop sharing? The link stops working at once.')) }}</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -343,8 +304,7 @@
 
 {% elif section == 'drive' %}
       <div class="card stack" id="webdav">
-        <div class="copy-row profile-copy"><input type="text" readonly value="{{ webdav_url }}" id="webdav-url" class="mono" aria-label="{{ _('Address') }}">
-          <button type="button" class="btn js-copy" data-copy="#webdav-url">{{ _("Copy") }}</button></div>
+        {{ copy_field('webdav-url', webdav_url, _('Address'), cls='profile-copy') }}
         <dl class="profile-facts">
           <dt>{{ _("User") }}</dt><dd><code>{{ user['username'] }}</code></dd>
           <dt>{{ _("Password") }}</dt>

@@ -1,8 +1,6 @@
 """Acceso → Roles (core/roles.py, migración 007): roles propios con sus permisos, asignados a personas y a grupos."""
 from __future__ import annotations
 
-import subprocess
-import sys
 
 import pytest
 
@@ -12,12 +10,7 @@ from storageweb.core.permissions import permissions_for
 from storageweb.db.repositories import groups as group_repo
 from storageweb.db.repositories import users
 from storageweb.web.context import get_db, settings
-from tests.helpers import G, U, add_user, get_csrf, login
-
-
-def _user(app, name):
-    with app.app_context():
-        return users.get_by_username(get_db(), name)
+from tests.helpers import G, U, add_user, get_csrf, login, signed_in, get_user
 
 
 def test_create_edit_and_delete_a_role(app, admin):
@@ -51,7 +44,7 @@ def test_create_edit_and_delete_a_role(app, admin):
     add_user(app, "ana", role="editores")
     resp = client.post("/admin/access/roles/editores/delete", data={"_csrf": token}, follow_redirects=True)
     assert "1 persona se queda sin permisos" in resp.get_data(as_text=True)
-    assert _user(app, "ana")["role"] == "none"
+    assert get_user(app, "ana")["role"] == "none"
 
 
 def test_permissions_of_a_person_and_of_their_groups(app, admin):
@@ -82,11 +75,11 @@ def test_assign_a_role_to_a_person(app, admin):
     with app.app_context():
         roles.create(get_db(), "Lectores", permissions=["download"])
     add_user(app, "ana")
-    ana = _user(app, "ana")
+    ana = get_user(app, "ana")
     page = client.get(f"/admin/users/{U(ana)}").get_data(as_text=True)
     assert '<option value="lectores"' in page
     client.post(f"/admin/users/{U(ana)}", data={"_csrf": token, "role": "lectores"})
-    assert _user(app, "ana")["role"] == "lectores"
+    assert get_user(app, "ana")["role"] == "lectores"
     assert "Lectores" in client.get("/admin/users").get_data(as_text=True)           # su nombre, no la clave
     with app.app_context():
         with pytest.raises(accounts.AccountError):
@@ -94,7 +87,7 @@ def test_assign_a_role_to_a_person(app, admin):
                               "no-existe")
     # En bloque
     client.post("/admin/users/bulk", data={"_csrf": token, "action": "role:user", "ids": [U(ana)]})
-    assert _user(app, "ana")["role"] == "user"
+    assert get_user(app, "ana")["role"] == "user"
     # Y lo que ve: con «lectores» no puede subir
     client.post(f"/admin/users/{U(ana)}", data={"_csrf": token, "role": "lectores"})
     ana_client = app.test_client()
@@ -112,12 +105,9 @@ def test_entra_mapping_can_give_a_role(app):
     assert accounts.resolve_role(section, set()) == "user"
 
 
-def test_the_cli(app, write_config):
-    from tests.integration.test_cli import ENV, ROOT
-    cfg = write_config()
+def test_the_cli(app, cli):
     def run(*args):
-        return subprocess.run([sys.executable, "-m", "storageweb", "--config", str(cfg), *args],
-                              capture_output=True, text=True, encoding="utf-8", cwd=ROOT, env=ENV)
+        return cli(*args, ok=False)
     assert run("user-add", "ana", "--password", "contraseña-larga", "--role", "no-existe").returncode != 0
     assert run("user-add", "ana", "--password", "contraseña-larga").returncode == 0
     res = run("user-set", "ana", "--role", "tampoco")
@@ -166,9 +156,7 @@ def test_user_role_and_none(app, admin, write_config, make_app):
     from storageweb import create_app
     fixed = create_app(str(write_config()))
     fixed.testing = True
-    add_user(fixed, "jefa", role="admin")
-    root = fixed.test_client()
-    login(root, "jefa")
+    root, _ = signed_in(fixed, "jefa", role="admin", csrf_url=None)
     html = root.get("/admin/access/roles/user").get_data(as_text=True)
     assert 'value="upload" checked disabled' in html and 'value="share"  >' not in html and "bloqueado" in html
     tok = get_csrf(root, "/admin/access/roles/user")

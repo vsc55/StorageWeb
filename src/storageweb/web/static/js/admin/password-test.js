@@ -11,8 +11,6 @@
   var box = document.querySelector(".password-test-result");
   var summary = box.querySelector(".password-test-summary");
   var list = box.querySelector(".password-checks");
-  var meta = document.querySelector('meta[name="csrf-token"]');
-  var csrf = meta ? meta.getAttribute("content") : "";
   var password = form.querySelector('input[name="test_password"]');
   var settingsForm = document.querySelector("form.settings-form");
   // El campo del usuario solo tiene sentido con la regla del nombre de usuario (la casilla de la página)
@@ -28,15 +26,7 @@
     password.classList.toggle("is-masked", !event.target.checked);
   });
 
-  function icon(name) {
-    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("class", "icon icon-sm");
-    svg.setAttribute("aria-hidden", "true");
-    var use = document.createElementNS("http://www.w3.org/2000/svg", "use");
-    use.setAttribute("href", "#i-" + name);
-    svg.appendChild(use);
-    return svg;
-  }
+  function icon(name) { return window.SW.icon(name, "icon-sm"); }
 
   function paint(data) {
     list.innerHTML = "";
@@ -70,10 +60,7 @@
   function run() {
     if (!password.value) { password.focus(); return; }
     button.disabled = true;
-    fetch(form.dataset.action, {
-      method: "POST", credentials: "same-origin", body: body(),
-      headers: { "Accept": "application/json", "X-CSRF-Token": csrf },
-    }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    window.SW.getJSON(form.dataset.action, { method: "POST", body: body() })
       .then(paint)
       .catch(function () {
         list.innerHTML = "";

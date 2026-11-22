@@ -1,5 +1,4 @@
 """Internacionalización sin Flask: idioma activo, catálogos, plurales, formatos."""
-import importlib.util
 import re
 from datetime import datetime
 from pathlib import Path
@@ -8,6 +7,7 @@ import pytest
 
 from storageweb import i18n
 from storageweb.core.permissions import PERMISSION_LABELS, ROLE_LABELS
+from tests.helpers import load_tool
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATES = ROOT / "src" / "storageweb" / "web" / "templates"
@@ -116,9 +116,7 @@ def test_core_errors_are_translated(locale):
 
 # --------------------------------------------------------------------------- catálogos
 
-_spec = importlib.util.spec_from_file_location("i18n_tool", ROOT / "tools" / "i18n.py")
-i18n_tool = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(i18n_tool)
+i18n_tool = load_tool("tools/i18n.py", "i18n_tool")
 
 
 def test_catalogs_complete_and_up_to_date():

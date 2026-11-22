@@ -21,11 +21,12 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
 
 from .. import metrics
 from ..i18n import _, format_age, format_size
 from . import backends
+from ..settings.errors import UserError
+from ..clock import iso_from_ts
 
 MB = 1024 * 1024
 WARN_PERCENT = 90        # a partir de aquí se avisa (storage.quota_warn_percent; este, sin ajustes)
@@ -65,12 +66,8 @@ def _key(root: dict) -> str:
     return str(root.get("where") or f"{root.get('location', '')}:{root.get('path')}")
 
 
-class QuotaExceeded(Exception):
+class QuotaExceeded(UserError):
     """No cabe en la cuota de la carpeta. ``message`` es para la persona (HTTP 507)."""
-
-    def __init__(self, message: str):
-        super().__init__(message)
-        self.message = message
 
 
 def limit_bytes(root: dict) -> int:
@@ -233,5 +230,5 @@ def status(root: dict) -> dict | None:
     at = measured_at(root)
     return {"used": used, "limit": limit, "percent": percent, "level": level, "complete": complete,
             "used_text": format_size(used), "limit_text": format_size(limit), "measuring": measuring(root),
-            "measured_at": datetime.fromtimestamp(at, timezone.utc).isoformat(timespec="seconds") if at else None,
+            "measured_at": iso_from_ts(at) if at else None,
             "measured_text": format_age(time.time() - at) if at else ""}

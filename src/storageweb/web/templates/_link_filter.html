@@ -1,6 +1,7 @@
 {# El filtro elegido se recuerda en la sesión (web/forms.remembered): cada enlace lleva su ?show=.
    Filtro de las listas de enlaces para compartir (Mi perfil → Enlaces y Acceso → Enlaces para compartir) y la
    tabla de los «borrados»: ya no existen, solo queda su historial. Importar «with context». #}
+{% from "_forms.html" import post_button with context %}
 
 {% macro link_filter(show, counts, endpoint, args) -%}
 <nav class="segmented link-filter" aria-label="{{ _('Show links') }}">
@@ -33,4 +34,37 @@
 {% else %}
 <p class="muted">{{ _("No deleted link keeps history.") }}</p>
 {% endif %}
+{%- endmacro %}
+
+{# Celdas de las tablas de enlaces (Mi perfil → Enlaces y Acceso → Enlaces para compartir) y la cabecera de su
+   actividad. ``sortable`` añade el valor por el que ordena admin/sortable.js. #}
+
+{# Estado: activo (verde) o caducado, agotado, quitado… (rojo) #}
+{% macro link_state(state) -%}
+<span class="badge{% if state != 'ok' %} badge-err{% else %} badge-ok{% endif %}">{{ STATE_LABELS[state] }}</span>
+{%- endmacro %}
+
+{# Tipo: descarga o buzón, y si lleva contraseña #}
+{% macro link_kind(mode, password) -%}
+{{ MODE_LABELS[mode] }}{% if password %} · {{ _("with password") }}{% endif %}
+{%- endmacro %}
+
+{% macro link_expires(l, sortable=False) -%}
+<td class="muted"{% if sortable %} data-sort-value="{{ l.expires_at or '9999' }}"{% endif %}>{{ l.expires_at|datetime if l.expires_at else _("never") }}</td>
+{%- endmacro %}
+
+{# Descargas (con el límite) o archivos recibidos (buzones) #}
+{% macro link_uses(l, sortable=False) -%}
+<td class="num"{% if sortable %} data-sort-value="{{ l.downloads }}"{% endif %}>{% if l.mode == 'upload' %}{{ ngettext("%(num)s upload", "%(num)s uploads", l.uploads) }}{% else %}{{ l.downloads }}{% if l.max_downloads %} / {{ l.max_downloads }}{% endif %}{% endif %}</td>
+{%- endmacro %}
+
+{# Visitas, con enlace a la actividad; ``last`` añade debajo la fecha del último acceso #}
+{% macro link_visits(uid, act, sortable=False, last=False) -%}
+<td class="nowrap"{% if sortable %} data-sort-value="{{ act.get('opened', 0) }}"{% endif %}><a href="{{ url_for('links.activity', uid=uid, next=request.full_path) }}">{{ ngettext("%(num)s visit", "%(num)s visits", act.get('opened', 0)) }}</a>
+  {%- if last and act.get('last') %}<br><span class="muted">{{ act.get('last')|datetime }}</span>{% endif %}</td>
+{%- endmacro %}
+
+{# Quitar el enlace (si no está quitado ya): vuelve a la misma lista #}
+{% macro revoke_link(l, label, confirm) -%}
+{% if l.state != 'revoked' %}{{ post_button(url_for('links.revoke', uid=l.uid), label, btn='link-btn small text-danger', confirm=confirm, next=request.full_path) }}{% endif %}
 {%- endmacro %}

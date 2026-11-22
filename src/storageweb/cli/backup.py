@@ -8,7 +8,7 @@ from ..db import connect
 from ..db.repositories import audit
 from ..i18n import _, _l
 from ..settings import ConfigError, load_config
-from .common import _fail, command
+from .common import _fail, command, effective
 
 
 def _backup_dir(cfg, args) -> Path:
@@ -25,19 +25,14 @@ def _backup_args(p):
 @command("backup", _l("Back up the database, config.json and secret_key"), _backup_args, order=140)
 def cmd_backup(cfg, conn, args):
     from ..core import backup, maintenance
-    from ..settings.runtime import open_runtime
 
     try:
         path = backup.create(cfg, _backup_dir(cfg, args), keep=args.keep)
     except backup.BackupError as exc:
         _fail(_("Error: %(error)s", error=exc))
-    audit.log(conn, "backup", str(path), username="cli")
     print(path)
-    if args.no_offsite:
-        return
     # La ubicación puede estar elegida desde la web: con los ajustes efectivos, no solo config.json
-    runtime, _boot = open_runtime(args.config, create_key=False)
-    error = maintenance.send_offsite(conn, runtime.current(conn), path, "cli")
+    error = maintenance.backup_made(conn, effective(cfg, conn, args), path, "cli", "cli", send=not args.no_offsite)
     if error:
         _fail(_("The backup was made, but it could not be sent outside the server: %(error)s", error=error))
 

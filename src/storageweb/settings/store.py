@@ -19,26 +19,13 @@ from ..db.repositories import catalog
 from ..db.repositories import roles as roles_repo
 from ..db.repositories import settings as state_repo
 from ..db.repositories import settings_values as repo
-from .defaults import LEAF_PATHS
-from .layers import _set
+from .layers import _set, flatten, without_origin
 
 DEFAULT_PROFILE = "default"
 _MISSING = object()
 
 
 # --------------------------------------------------------------------------- árbol ↔ campos
-
-def flatten(tree: dict, path: tuple = ()) -> dict:
-    """``{"auth.entra.tenant_id": valor, "storage.shares": [...]}`` a partir del árbol de ajustes."""
-    out = {}
-    for key, value in tree.items():
-        here = path + (key,)
-        if isinstance(value, dict) and here not in LEAF_PATHS:
-            out.update(flatten(value, here))  # un diccionario vacío no aporta ningún campo
-        else:
-            out[".".join(here)] = value
-    return out
-
 
 def unflatten(flat: dict) -> dict:
     tree: dict = {}
@@ -137,8 +124,7 @@ def read_entities(conn: Connection, profile: str = DEFAULT_PROFILE) -> dict:
             _QUOTAS: catalog.group_quotas(conn)}
 
 
-def _plain(item: dict) -> dict:
-    return {k: v for k, v in item.items() if k != "origin"}
+_plain = without_origin
 
 
 def apply_entities(conn: Connection, profile: str, current: dict, target: dict, username: str | None,

@@ -1,10 +1,19 @@
-{# Piezas comunes de las vistas de usuarios (importar «with context») #}
+{# Piezas comunes de las vistas de usuarios (importar «with context»). La cabecera y la búsqueda de Lista y Paneles
+   son las de admin/_panels.html, con lo propio de usuarios #}
+{% import "admin/_panels.html" as panels with context %}
+{% from "_forms.html" import post_button with context %}
+{% from "_space.html" import quota_meter with context %}
 
 {% macro view_switch(view) -%}
-<nav class="segmented view-switch" aria-label="{{ _('Users view') }}">
-  <a class="segment{% if view == 'list' %} active{% endif %}" href="{{ url_for('admin.users_list') }}"{% if view == 'list' %} aria-current="page"{% endif %}>{{ _("List") }}</a>
-  <a class="segment{% if view == 'panel' %} active{% endif %}" href="{{ url_for('admin.users_panel') }}"{% if view == 'panel' %} aria-current="page"{% endif %}>{{ _("Panels") }}</a>
-</nav>
+{{ panels.view_switch(view, _('Users view'), ('admin.users_list', 'admin.users_panel')) }}
+{%- endmacro %}
+
+{# La cabecera de Lista y Paneles: el resumen (``summary``), la vista, importar y «Nuevo usuario» #}
+{% macro page_head(view, summary) -%}
+{% call panels.page_head(_("Users"), summary, view_switch(view)) %}
+  {% for key, label in importers %}<a class="btn" href="{{ url_for('admin.user_import', source=key) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Import from %(method)s", method=label) }}</a>
+  {% endfor %}<a class="btn btn-primary" href="{{ url_for('admin.user_new') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New user") }}</a>
+{% endcall %}
 {%- endmacro %}
 
 {% macro avatar(u, size='') -%}
@@ -20,12 +29,11 @@
 <span class="badge badge-{{ u['role'] }}">{{ role_label(u['role']) }}</span>
 {%- endmacro %}
 
-{# Filtros comunes (lista y paneles); ``target`` = endpoint del formulario #}
+{# Filtros comunes (lista y paneles); ``target`` = endpoint del formulario; con «{% call %}», más desplegables #}
 {% macro filters_form(filters, target, extra='') -%}
-<form method="get" action="{{ url_for(target) }}" class="inline search user-filters">
-  {{ extra }}
-  <input type="text" name="q" value="{{ filters.q }}" placeholder="{{ _('Search by user name, name or email') }}"
-         aria-label="{{ _('Search by user name, name or email') }}">
+{% set more = caller %}
+{% call panels.search_form(target, filters.q, _('Search by user name, name or email'),
+                           filters.q or filters.status != 'all' or filters.source or filters.role or filters.group, extra, 'user-filters') %}
   <select name="status" aria-label="{{ _('Status') }}">
     <option value="all" {% if filters.status == 'all' %}selected{% endif %}>{{ _("All") }}</option>
     <option value="active" {% if filters.status == 'active' %}selected{% endif %}>{{ _("Active") }}</option>
@@ -39,10 +47,8 @@
     <option value="">{{ _("Any role") }}</option>
     {% for r, r_label in role_choices() %}<option value="{{ r }}" {% if filters.role == r %}selected{% endif %}>{{ r_label }}</option>{% endfor %}
   </select>
-  {{ caller() if caller else '' }}
-  <button class="btn" type="submit">{{ _("Search") }}</button>
-  {% if filters.q or filters.status != 'all' or filters.source or filters.role or filters.group %}<a class="btn btn-ghost" href="{{ url_for(target) }}">{{ _("Clear") }}</a>{% endif %}
-</form>
+  {{ more() if more else '' }}
+{% endcall %}
 {%- endmacro %}
 
 {# Grupos como fichas: candado = del proveedor o del rol; × = manual #}
@@ -60,11 +66,8 @@
     {% else %}
     <span class="chip">
       <a href="{{ url_for('groups.edit', group_uid=m['uid']) }}">{{ (m|group_label) }}</a>
-      <form method="post" action="{{ url_for('groups.member_remove', group_uid=m['uid'], user_uid=user['uid']) }}" class="inline">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <input type="hidden" name="next" value="{{ next }}">
-        <button class="chip-remove" type="submit" aria-label="{{ _('Remove from the group %(name)s', name=(m|group_label)) }}">×</button>
-      </form>
+      {{ post_button(url_for('groups.member_remove', group_uid=m['uid'], user_uid=user['uid']), '×', btn='chip-remove', next=next,
+                     aria_label=_('Remove from the group %(name)s', name=(m|group_label))) }}
     </span>
     {% endif %}
   {% endfor %}
@@ -132,10 +135,8 @@
         <span class="muted small">{{ f.root_label }} · <code>/{{ f.rel }}</code>
           {% if f.state == 'no_access' %} · <span class="badge badge-err">{{ _("no access any more") }}</span>
           {% elif f.state == 'hidden' %} · <span class="badge badge-err">{{ _("hidden") }}</span>{% endif %}</span></span>
-      <form method="post" action="{{ url_for('admin.user_favorite_remove', user_uid=user['uid']) }}" class="inline">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ next }}">
-        <input type="hidden" name="root" value="{{ f.root }}"><input type="hidden" name="rel" value="{{ f.rel }}">
-        <button class="link-btn small" type="submit">{{ _("Remove") }}</button></form></li>
+      {{ post_button(url_for('admin.user_favorite_remove', user_uid=user['uid']), _("Remove"), btn='link-btn small', next=next,
+                     hidden={'root': f.root, 'rel': f.rel}) }}</li>
     {% else %}
     <li class="muted small">{{ _("No favorites.") }}</li>
     {% endfor %}
@@ -168,13 +169,8 @@
 {# Inicio de sesión y seguridad de una persona: verificación en dos pasos (y quitarla), sesiones y tokens. La ficha y
    la pestaña de los paneles; las acciones vuelven a ``next`` #}
 {% macro signin_security(user, mfa, mfa_applies, mfa_required, user_sessions, user_tokens, next) -%}
-  {% if not (auth_method(user['source']) and auth_method(user['source']).stores_password) %}
-  <p class="muted small">{{ _("Signs in with %(source)s: the password is managed there.", source=SOURCE_LABELS[user['source']]) }}
-    {% if user['external_id'] %}<code>{{ user['external_id'] }}</code>{% endif %}</p>
-  {% endif %}
-  {% if not user['enabled'] and user['disabled_reason'] == 'directory' %}
-  <p class="muted small">{{ _("Disabled automatically because %(source)s removed or disabled the account, or it is no longer in the allowed groups. It is enabled again on its own when %(source)s lets it in.", source=SOURCE_LABELS[user['source']]) }}</p>
-  {% endif %}
+  {{ password_elsewhere(user, external_id=True) }}
+  {{ directory_disabled(user) }}
 
   {% if mfa_applies %}
   <div class="user-row">
@@ -186,12 +182,9 @@
         {% elif mfa_required %}{{ _("required: they will set it up on their next sign-in") }}{% endif %}</p>
     </div>
     {% if mfa.enrolled and user['id'] != current_user['id'] %}
-    <form method="post" action="{{ url_for('admin.user_mfa_reset', user_uid=user['uid']) }}" class="inline js-confirm"
-          data-confirm="{{ _('Remove the two-step verification of «%(name)s»?', name=user['username']) }}"
-          title="{{ _('For someone who lost their phone, their passkeys and their recovery codes. It removes all of them: they will sign in with just their password (or set it up again if it is required). Only they can turn it on again: nobody can set it up for someone else.') }}">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ next }}">
-      <button class="btn btn-small btn-danger" type="submit">{{ _("Remove two-step verification") }}</button>
-    </form>
+    {{ post_button(url_for('admin.user_mfa_reset', user_uid=user['uid']), _("Remove two-step verification"), btn='btn btn-small btn-danger',
+                   next=next, confirm=_('Remove the two-step verification of «%(name)s»?', name=user['username']),
+                   title=_('For someone who lost their phone, their passkeys and their recovery codes. It removes all of them: they will sign in with just their password (or set it up again if it is required). Only they can turn it on again: nobody can set it up for someone else.')) }}
     {% endif %}
   </div>
   {% endif %}
@@ -200,9 +193,7 @@
     <div class="user-row">
       <strong>{{ _("Sessions and API tokens") }}</strong>
       {% if user_sessions %}
-      <form method="post" action="{{ url_for('settings.user_sessions_close', user_uid=user['uid']) }}" class="inline">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ next }}">
-        <button class="btn btn-small" type="submit">{{ _("Close all their sessions") }}</button></form>
+      {{ post_button(url_for('settings.user_sessions_close', user_uid=user['uid']), _("Close all their sessions"), btn='btn btn-small', next=next) }}
       {% endif %}
     </div>
     <ul class="access-list">
@@ -210,9 +201,7 @@
       <li><svg class="icon" aria-hidden="true"><use href="#i-monitor"></use></svg>
         <span class="access-text"><strong>{{ s['user_agent']|ua_summary }}</strong>
           <span class="muted small">{{ s['ip'] or '—' }} · {{ _("active %(when)s", when=s['last_seen']|datetime) }}</span></span>
-        <form method="post" action="{{ url_for('settings.session_close', sid=s['id']) }}" class="inline">
-          <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ next }}">
-          <button class="link-btn small" type="submit">{{ _("Close") }}</button></form></li>
+        {{ post_button(url_for('settings.session_close', sid=s['id']), _("Close"), btn='link-btn small', next=next) }}</li>
       {% else %}
       <li class="muted small">{{ _("No open sessions.") }}</li>
       {% endfor %}
@@ -220,11 +209,104 @@
       <li><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg>
         <span class="access-text"><strong>{{ t['name'] }}</strong>
           <span class="muted small"><code>{{ t['prefix'] }}…</code> · {{ t['scope'] }} · {{ _("last used %(when)s", when=t['last_used_at']|datetime) }}</span></span>
-        <form method="post" action="{{ url_for('settings.user_token_delete', user_uid=user['uid'], token_id=t['id']) }}" class="inline js-confirm"
-              data-confirm="{{ _('Revoke the token «%(name)s»?', name=t['name']) }}">
-          <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ next }}">
-          <button class="link-btn small" type="submit">{{ _("Revoke") }}</button></form></li>
+        {{ post_button(url_for('settings.user_token_delete', user_uid=user['uid'], token_id=t['id']), _("Revoke"), btn='link-btn small',
+                       next=next, confirm=_('Revoke the token «%(name)s»?', name=t['name'])) }}</li>
       {% endfor %}
     </ul>
   </div>
+{%- endmacro %}
+
+{# La cabecera de la ficha (``heading`` h1) y la de los paneles (h2.md-title): avatar, ``title``, ``subtitle``, etiquetas,
+   estado y, si ``facts``, origen y fechas. Con «{% call %}», los botones de la derecha #}
+{% macro user_head(user, title, subtitle, heading='h1', heading_cls='', facts=True) -%}
+<div class="user-head">
+  {{ avatar(user, 'xl') }}
+  <div class="user-head-text">
+    <{{ heading }}{% if heading_cls %} class="{{ heading_cls }}"{% endif %}>{{ title }}</{{ heading }}>
+    <div class="inline small muted">{% if subtitle %}<span>{{ subtitle }}</span>{% endif %} {{ badges(user) }} {{ status(user) }}</div>
+    {% if facts %}{{ user_facts(user) }}{% endif %}
+  </div>
+  {{ caller() if caller else '' }}
+</div>
+{%- endmacro %}
+
+{# Activar o desactivar la cuenta (desactivar pide confirmación). ``labels`` = (texto para desactivar, para activar);
+   ``icon`` = botón de icono (la lista), con el texto en title y aria-label #}
+{% macro status_form(user, btn, labels, next=None, icon=False) -%}
+{% set on = user['enabled'] %}
+{% set label = labels[0] if on else labels[1] %}
+{% set confirm = _('Disable «%(name)s»? They will not be able to sign in, not even with %(source)s.', name=user['username'], source=SOURCE_LABELS[user['source']]) if on else None %}
+{% set fields = {'enabled': '0' if on else '1'} %}
+{% if icon %}
+{%- call post_button(url_for('admin.user_status', user_uid=user['uid']), btn=btn, confirm=confirm, next=next, hidden=fields,
+                     title=label, aria_label=label ~ ' ' ~ user['username']) -%}
+<svg class="icon" aria-hidden="true"><use href="#{{ 'i-ban' if on else 'i-check-circle' }}"></use></svg>
+{%- endcall %}
+{% else %}
+{{- post_button(url_for('admin.user_status', user_uid=user['uid']), label, btn=btn, confirm=confirm, next=next, hidden=fields) }}
+{% endif %}
+{%- endmacro %}
+
+{# Eliminar la cuenta (pide confirmación) #}
+{% macro delete_form(user, btn, next=None) -%}
+{{ post_button(url_for('admin.user_delete', user_uid=user['uid']), _("Delete user"), btn=btn, next=next,
+               confirm=_('Delete the user «%(name)s»? Their files will not be removed.', name=user['username'])) }}
+{%- endmacro %}
+
+{# Quitar todos sus favoritos (pide confirmación) #}
+{% macro favorites_clear(user, next) -%}
+{{ post_button(url_for('admin.user_favorites_clear', user_uid=user['uid']), _("Remove all"), btn='btn btn-small', next=next,
+               confirm=_('Remove all the favorites of «%(name)s»? Their files are not touched.', name=user['username'])) }}
+{%- endmacro %}
+
+{# Nombre y correo; con ``from_provider``, de solo lectura y con su aviso (``sso_note``: el de que el nombre se
+   actualiza al entrar, sin ``from_provider``). ``form_id``: el formulario al que pertenecen (la ficha: user-form) #}
+{% macro profile_fields(user, form, from_provider, form_id=None, sso_note=False) -%}
+<label>{{ _("Display name") }}
+  <input{% if form_id %} form="{{ form_id }}"{% endif %} type="text" name="display_name" value="{{ form.display_name or '' }}" maxlength="200"{% if from_provider %} readonly class="from-provider"{% endif %}></label>
+<label>{{ _("Email") }}
+  <input{% if form_id %} form="{{ form_id }}"{% endif %} type="email" name="email" value="{{ form.email or '' }}" maxlength="200"{% if from_provider %} readonly class="from-provider"{% endif %}></label>
+{% if from_provider %}<p class="muted small span2">{{ _("The name and the email come from %(source)s and are updated on each sign-in: change them there.", source=SOURCE_LABELS[user['source']]) }}</p>
+{% elif sso_note %}<p class="muted small span2">{{ _("The name is updated from %(source)s on each sign-in.", source=SOURCE_LABELS[user['source']]) }}</p>{% endif %}
+{%- endmacro %}
+
+{# El desplegable de rol #}
+{% macro role_select(selected, form_id=None) -%}
+<select{% if form_id %} form="{{ form_id }}"{% endif %} name="role">
+  {% for r, r_label in role_choices() %}<option value="{{ r }}" {% if selected == r %}selected{% endif %}>{{ r_label }}</option>{% endfor %}
+</select>
+{%- endmacro %}
+
+{# Atributos del campo de la carpeta personal: el selector de rutas (admin/path-picker.js) en la ubicación de las
+   carpetas personales #}
+{% macro home_picker() -%}
+{{ " " }}data-browse="{{ url_for('admin.browse', scope='location') }}" data-location="{{ pick_start().home_location }}" data-start="{{ pick_start().home }}" data-pick-title="{{ _('Personal folder') }}"
+{%- endmacro %}
+
+{# Cuota de la carpeta personal y lo que ocupa (con cuota, su barra) #}
+{% macro quota_fields(form, home_quota, home_usage, default_quota_mb, form_id=None) -%}
+<label>{{ _("Quota (MB)") }}
+  <input{% if form_id %} form="{{ form_id }}"{% endif %} type="number" name="quota_mb" min="0" value="{{ '' if form.quota_mb is none else form.quota_mb }}"
+         placeholder="{{ _('default: %(mb)s', mb=default_quota_mb) if default_quota_mb else _('default: no quota') }}">
+  <small class="muted">{{ _("Empty = the one of their groups or the default one; 0 = no quota.") }}</small></label>
+<div class="field">
+  {% if home_quota %}{{ quota_meter(home_quota) }}
+  {% else %}<span class="label">{{ _("In use") }}</span>
+  <span>{{ ('≥ ' if not home_usage.complete else '') ~ home_usage.used }} <span class="muted small">· {{ _("default: no quota") }}</span></span>{% endif %}
+</div>
+{%- endmacro %}
+
+{# Avisos de la cuenta: la contraseña se gestiona en su proveedor (``external_id``: con su id) y la desactivó la
+   sincronización del directorio #}
+{% macro password_elsewhere(user, external_id=False) -%}
+{% if not (auth_method(user['source']) and auth_method(user['source']).stores_password) %}
+<p class="muted small">{{ _("Signs in with %(source)s: the password is managed there.", source=SOURCE_LABELS[user['source']]) }}
+  {% if external_id and user['external_id'] %}<code>{{ user['external_id'] }}</code>{% endif %}</p>
+{% endif %}
+{%- endmacro %}
+
+{% macro directory_disabled(user, cls='') -%}
+{% if not user['enabled'] and user['disabled_reason'] == 'directory' %}
+<p class="muted small{% if cls %} {{ cls }}{% endif %}">{{ _("Disabled automatically because %(source)s removed or disabled the account, or it is no longer in the allowed groups. It is enabled again on its own when %(source)s lets it in.", source=SOURCE_LABELS[user['source']]) }}</p>
+{% endif %}
 {%- endmacro %}

@@ -10,10 +10,10 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, u
 
 from ...core import locations as core
 from ...i18n import _, _l
-from ..context import get_db, runtime, settings
+from ..context import settings
 from ..guards import admin_required, audit_event
 from .. import search
-from .access import entity_lock
+from .access import lock_context, refuse_if_locked
 from .settings.common import save_partial
 
 bp = Blueprint("locations", __name__, url_prefix="/admin/storage")
@@ -26,15 +26,11 @@ def _locations() -> list[dict]:
 
 
 def _lock_context(loc: dict | None = None) -> dict:
-    return {"locations_origin": None, "locked_message": entity_lock("locations", loc)}
+    return lock_context("locations", loc)
 
 
 def _refuse_if_locked(loc: dict | None):
-    notice = entity_lock("locations", loc)
-    if notice:
-        flash(notice, "error")
-        return redirect(url_for("locations.index"))
-    return None
+    return refuse_if_locked("locations", loc, "locations.index")
 
 
 def _render(loc: dict, original: str | None, status: int = 200, error: str | None = None):

@@ -31,6 +31,8 @@ from pathlib import Path
 
 from ..i18n import _
 from . import backends, maintenance, preview
+from ..settings.errors import UserError
+from ..fsutil import atomic_write
 
 log = logging.getLogger(__name__)
 
@@ -44,12 +46,11 @@ DIR_NAME = "thumbnails"
 _SLOTS = threading.BoundedSemaphore(WORKERS)
 
 
-class ThumbnailError(Exception):
+class ThumbnailError(UserError):
     """No hay miniatura de ese archivo (no se puede, es demasiado grande o falló): el explorador enseña el icono."""
 
     def __init__(self, message: str, busy: bool = False):
         super().__init__(message)
-        self.message = message
         self.busy = busy
 
 
@@ -194,9 +195,7 @@ def _render(data: bytes, fmt: str, target: Path) -> None:
         log.info("No thumbnail: %s", exc)
         raise ThumbnailError(_("The image cannot be read.")) from exc
     target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_name(f"{target.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-    tmp.write_bytes(buffer.getvalue())
-    os.replace(tmp, target)
+    atomic_write(target, buffer.getvalue())
 
 
 def _touch(path: Path) -> None:

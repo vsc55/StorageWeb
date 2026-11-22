@@ -19,6 +19,7 @@ from typing import BinaryIO
 from ..i18n import _
 from .security import UPLOAD_TMP_PREFIX
 from .backends import Backend, BackendError
+from ..settings.errors import UserError
 
 MB = 1024 * 1024
 MAX_CHUNK = 32 * MB          # tamaño de parte que usa el navegador
@@ -26,10 +27,9 @@ COPY_BLOCK = 1 * MB
 DISK_MARGIN = 64 * MB        # espacio libre mínimo que se deja en el disco
 
 
-class UploadError(Exception):
+class UploadError(UserError):
     def __init__(self, message: str, status: int = 400, **extra):
         super().__init__(message)
-        self.message = message
         self.status = status
         self.extra = extra
 

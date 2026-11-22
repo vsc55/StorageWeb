@@ -1,4 +1,5 @@
 {% extends "admin/settings/_layout.html" %}
+{% from "_forms.html" import post_button with context %}
 {% block section %}
 {# Una pestaña por sección (admin/forms.js) #}
 <div class="js-tabs">
@@ -15,15 +16,9 @@
     {% if maint_state.audit_purge %}<dt>{{ _("Last audit cleanup") }}</dt><dd>{{ maint_state.audit_purge|datetime }}</dd>{% endif %}
   </dl>
   <div class="form-actions section-gap">
-    <form method="post" action="{{ url_for('settings.maintenance_vacuum') }}" class="inline">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <button class="btn" type="submit">{{ _("Compact the database") }}</button>
-    </form>
-    <form method="post" action="{{ url_for('settings.maintenance_purge') }}" class="inline js-confirm"
-          data-confirm="{{ _('Remove the audit entries older than %(days)s days?', days=cfg.maintenance.audit_retention_days) }}">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <button class="btn" type="submit" {% if not cfg.maintenance.audit_retention_days %}disabled{% endif %}>{{ _("Clean the audit log now") }}</button>
-    </form>
+    {{ post_button(url_for('settings.maintenance_vacuum'), _("Compact the database")) }}
+    {{ post_button(url_for('settings.maintenance_purge'), _("Clean the audit log now"), disabled=not cfg.maintenance.audit_retention_days,
+                   confirm=_('Remove the audit entries older than %(days)s days?', days=cfg.maintenance.audit_retention_days)) }}
     <a class="btn btn-ghost" href="{{ url_for('admin.audit_export') }}">{{ _("Export the audit log (CSV)") }}</a>
   </div>
 </section>
@@ -33,10 +28,7 @@
 <section class="card" id="backups" aria-labelledby="backups-title">
   <div class="page-head">
     <h3 class="card-title" id="backups-title">{{ _("Backups") }}</h3>
-    <form method="post" action="{{ url_for('settings.backup_create') }}" class="inline">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <button class="btn btn-primary" type="submit">{{ _("Create a backup now") }}</button>
-    </form>
+    {{ post_button(url_for('settings.backup_create'), _("Create a backup now"), btn='btn btn-primary') }}
   </div>
   <p class="muted small">{{ _("Database, config.json and secret_key, in %(folder)s. Files are not included: back them up with your usual tool.", folder=backup_folder) }}</p>
   <div class="table-scroll">
@@ -52,16 +44,11 @@
           <a class="btn btn-small" href="{{ url_for('settings.backup_restore', name=b.name) }}">{{ _("Restore") }}</a>
           <a class="btn btn-small" href="{{ url_for('settings.backup_download', name=b.name) }}">{{ _("Download") }}</a>
           {% if offsite_where %}
-          <form method="post" action="{{ url_for('settings.backup_send', name=b.name) }}" class="inline">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <button class="btn btn-small" type="submit" title="{{ _('Send it to %(where)s', where=offsite_where) }}">{{ _("Send outside") }}</button>
-          </form>
+          {{ post_button(url_for('settings.backup_send', name=b.name), _("Send outside"), btn='btn btn-small',
+                         title=_('Send it to %(where)s', where=offsite_where)) }}
           {% endif %}
-          <form method="post" action="{{ url_for('settings.backup_delete', name=b.name) }}" class="inline js-confirm"
-                data-confirm="{{ _('Delete the backup %(name)s?', name=b.name) }}">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <button class="btn btn-small btn-danger" type="submit">{{ _("Delete") }}</button>
-          </form>
+          {{ post_button(url_for('settings.backup_delete', name=b.name), _("Delete"), btn='btn btn-small btn-danger',
+                         confirm=_('Delete the backup %(name)s?', name=b.name)) }}
         </td>
       </tr>
       {% else %}
@@ -114,11 +101,7 @@
           <td class="actions">
             {% if b.name in here %}<span class="muted small">{{ _("Also in this server") }}</span>
             {% else %}
-            <form method="post" action="{{ url_for('settings.backup_fetch') }}" class="inline">
-              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-              <input type="hidden" name="name" value="{{ b.name }}">
-              <button class="btn btn-small" type="submit">{{ _("Bring to this server") }}</button>
-            </form>
+            {{ post_button(url_for('settings.backup_fetch'), _("Bring to this server"), btn='btn btn-small', hidden={'name': b.name}) }}
             {% endif %}
           </td>
         </tr>

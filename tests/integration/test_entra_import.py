@@ -7,9 +7,8 @@ import pytest
 from storageweb.db.repositories import users
 from storageweb.providers.entra import directory as entra_directory
 from storageweb.web.context import get_db
-from tests.helpers import add_user, get_csrf, login
-from tests.integration.test_entra_directory_sync import _login
-from tests.integration.test_mfa import last_audit
+from tests.helpers import add_user, last_audit, signed_in
+from tests.sso_helpers import sso_login
 
 G_IT = "22222222-2222-2222-2222-222222222222"
 JUAN = {"id": "oid-juan", "displayName": "Juan Pérez", "userPrincipalName": "Juan@Contoso.com",
@@ -47,10 +46,7 @@ def graph(monkeypatch):
 
 
 def _admin(app):
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
-    return client, get_csrf(client, "/admin/users")
+    return signed_in(app, "root", role="admin", csrf_url="/admin/users")
 
 
 def test_search_and_import_before_they_sign_in(entra_app, graph, token_endpoint):
@@ -76,7 +72,7 @@ def test_search_and_import_before_they_sign_in(entra_app, graph, token_endpoint)
     assert "ya importada" in client.get("/admin/users/import?source=entra&q=ju").get_data(as_text=True)
     # Su primer inicio de sesión entra en ESA cuenta (no crea otra)
     person = app.test_client()
-    assert _login(person, token_endpoint).status_code == 302
+    assert sso_login(person, token_endpoint).status_code == 302
     with app.app_context():
         assert len([u for u in users.list_all(get_db()) if u["source"] == "entra"]) == 1
 

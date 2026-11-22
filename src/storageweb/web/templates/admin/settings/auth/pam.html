@@ -1,16 +1,9 @@
 {# Tarjeta del método «pam» en Inicio de sesión (la incluye auth.html con su contexto). #}
-{% from "admin/settings/_macros.html" import origin, err_class, field_error, lock with context %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, lock, provider_head with context %}
 {% set pam = cfg.auth.pam %}
   {# --- PAM #}
   <section class="provider-card{% if pam.enabled %} is-on{% endif %}{{ err_class('auth.pam') }}" aria-labelledby="p-pam">
-    <div class="provider-head">
-      <span class="provider-icon provider-pam" aria-hidden="true"><svg class="icon"><use href="#i-monitor"></use></svg></span>
-      <div class="provider-text">
-        <strong id="p-pam">{{ _("System users (PAM)") }}</strong>
-        <span class="muted small">{{ _("Accounts of the Linux/macOS server") }} · {{ ngettext("%(num)s user", "%(num)s users", user_counts.get('pam', 0)) }}</span>
-      </div>
-      <label class="switch"><input{{ lock('auth.pam.enabled') }} type="checkbox" name="pam_enabled" {% if pam.enabled %}checked{% endif %}> <span>{{ _("Enabled") }}</span></label>
-    </div>
+    {{ provider_head('pam', _("System users (PAM)"), 'monitor', _("Accounts of the Linux/macOS server"), icon_cls='provider-pam', badge=False) }}
     {{ field_error('auth.pam') }}
     <details class="provider-body"{% if pam.enabled or err_class('auth.pam') %} open{% endif %}>
       <summary>{{ _("Configure") }}</summary>

@@ -14,16 +14,46 @@ from __future__ import annotations
 
 import re
 import sqlite3
-from datetime import datetime, timezone
 from pathlib import Path
+from .. import clock
 
 MIGRATIONS_DIR = Path(__file__).with_name("migrations")
 _MIGRATION_RE = re.compile(r"^(\d{3})_[a-z0-9_]+\.sql$")
 FK_OFF_MARKER = "-- foreign_keys: off"
 
 
-def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+now_iso = clock.now_iso      # los repositorios lo importan de aquí
+
+
+def db_size(path: str) -> int:
+    """Lo que ocupa la base de datos en el disco, con su WAL (lo escrito y aún no pasado al fichero)."""
+    return sum(p.stat().st_size for p in (Path(path), Path(f"{path}-wal")) if p.exists())
+
+
+def subtree(column: str, rel: str) -> tuple[str, tuple]:
+    """``(condición, argumentos)`` SQL de «``rel`` y lo que tiene dentro» en la columna ``column`` (rutas
+    relativas: ``informes`` casa con ``informes`` e ``informes/2026/a.pdf``, no con ``informes-viejos``)."""
+    like = rel.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "/%"
+    return f"({column} = ? OR {column} LIKE ? ESCAPE '\\')", (rel, like)
+
+
+def owner_filter(user_id: int | None, column: str = "user_id") -> tuple[str, tuple]:
+    """``(condición, argumentos)`` para quedarse con las filas de ``user_id`` (``None``: todas). En la carpeta
+    personal cada uno tiene la suya: lo que se mueve o se borra allí solo toca las filas de quien lo hace."""
+    return ("", ()) if user_id is None else (f" AND {column} = ?", (user_id,))
+
+
+def update_row(conn: sqlite3.Connection, table: str, row_id: int, fields: dict, allowed: set[str]) -> None:
+    """``UPDATE <table> SET … WHERE id = ?`` con ``fields`` (ya preparados por el repositorio). Las columnas salen de
+    ``allowed`` (nunca de quien llama: ``ValueError`` si pide otra); ``table`` es siempre un literal del repositorio."""
+    unknown = set(fields) - allowed
+    if unknown:
+        raise ValueError(f"Campos no actualizables: {', '.join(sorted(unknown))}")
+    if not fields:
+        return
+    sets = ", ".join(f"{k} = ?" for k in fields)  # claves validadas contra ``allowed``
+    conn.execute(f"UPDATE {table} SET {sets} WHERE id = ?", (*fields.values(), row_id))  # noqa: S608
+    conn.commit()
 
 
 def connect(db_path: str) -> sqlite3.Connection:

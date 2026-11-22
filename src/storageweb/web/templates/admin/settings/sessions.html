@@ -1,4 +1,5 @@
 {% extends "admin/settings/_layout.html" %}
+{% from "_forms.html" import post_button with context %}
 {% block section %}
 {# Una pestaña por sección (admin/forms.js) #}
 <div class="js-tabs">
@@ -12,11 +13,8 @@
         {{ _("A session ends after %(hours)s hours without activity (session.lifetime_hours in config.json).", hours=lifetime_hours) }}</p>
     </div>
     {% if sessions|length > 1 %}
-    <form method="post" action="{{ url_for('settings.sessions_close_all') }}" class="inline js-confirm"
-          data-confirm="{{ _('Close every session except yours? Everybody will have to sign in again.') }}">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <button class="btn btn-danger" type="submit">{{ _("Close all except mine") }}</button>
-    </form>
+    {{ post_button(url_for('settings.sessions_close_all'), _("Close all except mine"), btn='btn btn-danger',
+                   confirm=_('Close every session except yours? Everybody will have to sign in again.')) }}
     {% endif %}
   </div>
   {% set others = sessions|rejectattr('id', 'equalto', current_sid)|list %}
@@ -59,23 +57,13 @@
         <td class="nowrap small">{{ s['last_seen']|datetime }}</td>
         <td class="actions">
           {% if s['id'] != current_sid %}
-          <form method="post" action="{{ url_for('settings.session_close', sid=s['id']) }}" class="inline">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <input type="hidden" name="next" value="{{ request.path }}">
-            <button class="btn btn-small" type="submit">{{ _("Close") }}</button>
-          </form>
-          <form method="post" action="{{ url_for('settings.user_sessions_close', user_uid=s['user_uid']) }}" class="inline">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <input type="hidden" name="next" value="{{ request.path }}">
-            <button class="btn btn-small btn-ghost" type="submit" title="{{ _('Close all the sessions of %(name)s', name=s['username']) }}">{{ _("All of the user") }}</button>
-          </form>
+          {{ post_button(url_for('settings.session_close', sid=s['id']), _("Close"), btn='btn btn-small', next=request.path) }}
+          {{ post_button(url_for('settings.user_sessions_close', user_uid=s['user_uid']), _("All of the user"), btn='btn btn-small btn-ghost',
+                         next=request.path, title=_('Close all the sessions of %(name)s', name=s['username'])) }}
           {% else %}
           {# La propia también se puede cerrar: es salir de la aplicación #}
-          <form method="post" action="{{ url_for('auth.logout') }}" class="inline js-confirm"
-                data-confirm="{{ _('Close your own session? You will have to sign in again.') }}">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <button class="btn btn-small" type="submit">{{ _("Close (sign out)") }}</button>
-          </form>
+          {{ post_button(url_for('auth.logout'), _("Close (sign out)"), btn='btn btn-small',
+                         confirm=_('Close your own session? You will have to sign in again.')) }}
           {% endif %}
         </td>
       </tr>
@@ -107,12 +95,8 @@
         <td class="nowrap">{{ t['last_used_at']|datetime }}{% if t['last_ip'] %} <span class="muted">· {{ t['last_ip'] }}</span>{% endif %}</td>
         <td class="nowrap">{% set exp = token_expiry(t) %}{{ exp|datetime if exp else _("never") }}</td>
         <td class="actions">
-          <form method="post" action="{{ url_for('settings.user_token_delete', user_uid=t['user_uid'], token_id=t['id']) }}" class="inline js-confirm"
-                data-confirm="{{ _('Revoke the token «%(name)s»?', name=t['name']) }}">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <input type="hidden" name="next" value="{{ request.path }}">
-            <button class="btn btn-small btn-danger" type="submit">{{ _("Revoke") }}</button>
-          </form>
+          {{ post_button(url_for('settings.user_token_delete', user_uid=t['user_uid'], token_id=t['id']), _("Revoke"), btn='btn btn-small btn-danger',
+                         next=request.path, confirm=_('Revoke the token «%(name)s»?', name=t['name'])) }}
         </td>
       </tr>
       {% else %}

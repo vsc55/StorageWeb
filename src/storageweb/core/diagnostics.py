@@ -19,14 +19,14 @@ import shutil
 import sqlite3
 import sys
 import time
-from datetime import datetime, timezone
 from importlib import metadata
 from importlib.util import find_spec
 from pathlib import Path
 
 from .. import __version__
-from ..db.connection import available_migrations
+from ..db.connection import available_migrations, db_size
 from ..settings import location_types
+from ..clock import iso_from_ts
 
 # Cuándo arrancó este proceso, más o menos: el módulo se importa una vez, al arrancar (storageweb importa core)
 STARTED = time.time()
@@ -132,7 +132,7 @@ def system(debug: bool = False, threads: int = 0) -> dict:
         "run_mode": run_mode(debug),
         "container": container(),
         "pid": os.getpid(),
-        "started": datetime.fromtimestamp(STARTED, timezone.utc).isoformat(timespec="seconds"),
+        "started": iso_from_ts(STARTED),
         "uptime_seconds": int(now - STARTED),
         "threads": int(threads or 0),
         "python": _safe(platform.python_version),
@@ -149,7 +149,7 @@ def system(debug: bool = False, threads: int = 0) -> dict:
         # de verificación dependen del reloj)
         "timezone": _short_zone(),
         "utc_offset": _safe(lambda: time.strftime("%z")),
-        "now": datetime.fromtimestamp(now, timezone.utc).isoformat(timespec="seconds"),
+        "now": iso_from_ts(now),
     }
 
 
@@ -157,12 +157,12 @@ def system(debug: bool = False, threads: int = 0) -> dict:
 
 def database(conn: sqlite3.Connection, path: str) -> dict:
     """El motor, la versión del esquema frente a las migraciones que trae esta versión, el modo y el tamaño."""
-    files = [Path(path + suffix) for suffix in ("", "-wal")]
+    wal = Path(f"{path}-wal")
     latest = _safe(lambda: available_migrations()[-1][0], default=0)
     schema = _safe(lambda: conn.execute("PRAGMA user_version").fetchone()[0], default=0)
     return {"engine": f"SQLite {sqlite3.sqlite_version}", "path": path,
-            "size": sum(_safe(lambda f=f: f.stat().st_size, default=0) for f in files),
-            "wal_size": _safe(lambda: files[1].stat().st_size, default=0),
+            "size": _safe(lambda: db_size(path), default=0),
+            "wal_size": _safe(lambda: wal.stat().st_size, default=0),
             "schema": int(schema), "latest": int(latest),
             "journal": str(_safe(lambda: conn.execute("PRAGMA journal_mode").fetchone()[0])).upper()}
 

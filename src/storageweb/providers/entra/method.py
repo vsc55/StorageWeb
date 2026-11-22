@@ -22,16 +22,6 @@ GUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 _log = logging.getLogger(__name__)
 
 
-def _int_between(value, low: int, high: int, field: str) -> int:
-    try:
-        number = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ConfigError(_("%(field)s must be an integer", field=field), field) from exc
-    if not low <= number <= high:
-        raise ConfigError(_("%(field)s must be between %(low)s and %(high)s", field=field, low=low, high=high), field)
-    return number
-
-
 def _validate(section: dict, cfg: dict) -> None:
     checks.one_of(section["provider"], list(SSO_PROVIDERS), "auth.entra.provider")
     section["scopes"] = checks.str_list(section["scopes"], "auth.entra.scopes")
@@ -41,17 +31,11 @@ def _validate(section: dict, cfg: dict) -> None:
     section["role_mappings"] = checks.role_mappings(section["role_mappings"], "auth.entra.role_mappings")
     section["timeout_seconds"] = checks.positive_int(section["timeout_seconds"], "auth.entra.timeout_seconds")
     section["secret_expires"] = checks.iso_datetime(section.get("secret_expires"), "auth.entra.secret_expires")
-    section["secret_months"] = _int_between(section.get("secret_months"), 1, 24, "auth.entra.secret_months")
-    section["secret_warn_days"] = _int_between(section.get("secret_warn_days"), 1, 365, "auth.entra.secret_warn_days")
+    section["secret_months"] = checks.int_range(section.get("secret_months"), 1, 24, "auth.entra.secret_months")
+    section["secret_warn_days"] = checks.int_range(section.get("secret_warn_days"), 1, 365, "auth.entra.secret_warn_days")
     section["auto_login"] = bool(section.get("auto_login"))
-    try:
-        section["directory_sync_minutes"] = int(section.get("directory_sync_minutes", 0) or 0)
-    except (TypeError, ValueError) as exc:
-        raise ConfigError(_("%(field)s must be an integer", field="auth.entra.directory_sync_minutes"),
-                          "auth.entra.directory_sync_minutes") from exc
-    if section["directory_sync_minutes"] < 0:
-        raise ConfigError(_("%(field)s cannot be negative", field="auth.entra.directory_sync_minutes"),
-                          "auth.entra.directory_sync_minutes")
+    section["directory_sync_minutes"] = checks.non_negative_int(section.get("directory_sync_minutes", 0) or 0,
+                                                                "auth.entra.directory_sync_minutes")
     if section["enabled"]:
         required = ["client_id", "client_secret"]
         custom_endpoints = all(section.get(k) for k in ("authorize_url", "token_url", "issuer"))

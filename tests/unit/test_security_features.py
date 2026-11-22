@@ -7,6 +7,7 @@ import pytest
 from storageweb.core import branding, ipban, maintenance, tokens
 from storageweb.db.repositories import api_tokens, audit, ip_rules, sessions, users
 from storageweb.settings import load_config
+from tests.helpers import config_file
 
 
 @pytest.fixture
@@ -18,11 +19,7 @@ def cfg(tmp_path):
     return load_config(p)
 
 
-@pytest.fixture(autouse=True)
-def fresh_cache():
-    ipban.invalidate()
-    yield
-    ipban.invalidate()
+pytestmark = pytest.mark.usefixtures("fresh_ipban")
 
 
 # --------------------------------------------------------------------------- IPs
@@ -188,8 +185,7 @@ def test_login_image_is_separate_from_the_logo_and_allows_more(cfg):
 
 
 def test_stylesheet_and_color_validation(tmp_path):
-    p = tmp_path / "c.json"
-    p.write_text(json.dumps({"branding": {"primary_color": "#AA3300"}}), encoding="utf-8")
+    p = config_file(tmp_path, {"branding": {"primary_color": "#AA3300"}}, name="c.json")
     css = branding.stylesheet(load_config(p))
     assert "--primary: #aa3300" in css and "color-mix" in css
     p.write_text(json.dumps({"branding": {"primary_color": "rojo"}}), encoding="utf-8")

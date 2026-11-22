@@ -2,20 +2,17 @@
 un trozo y el resto llega al bajar, por páginas o buscando con el filtro; la API sigue listando entera."""
 from __future__ import annotations
 
-import json
 
 import pytest
 
 from storageweb.settings import ConfigError, load_config
 
-from tests.helpers import add_user, login
+from tests.helpers import signed_in, config_file
 
 
 def _browser(make_app, home, mode, count=120):
     app = make_app({"storage": {"page_size": 50, "listing_mode": mode}})
-    add_user(app, "ana")
-    c = app.test_client()
-    login(c, "ana")
+    c, _ = signed_in(app, "ana", csrf_url=None)
     home.mkdir(parents=True, exist_ok=True)
     for i in range(count):
         (home / f"f{i:03d}.txt").write_text("x", encoding="utf-8")
@@ -78,8 +75,7 @@ def test_small_folders_are_whole(make_app, home):
 
 def test_settings_are_validated(tmp_path):
     def load(storage):
-        path = tmp_path / "config.json"
-        path.write_text(json.dumps({"storage": storage}), encoding="utf-8")
+        path = config_file(tmp_path, {"storage": storage})
         return load_config(path)
     assert load({})["storage"]["listing_mode"] == "scroll"
     with pytest.raises(ConfigError, match="page_size"):

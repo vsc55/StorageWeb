@@ -67,13 +67,13 @@
     if (numbersButton) numbersButton.setAttribute("aria-pressed", on ? "true" : "false");
   }
   var numbersOn = true;
-  try { numbersOn = window.localStorage.getItem(NUMBERS_KEY) !== "0"; } catch (e) { /* sin almacenamiento */ }
+  numbersOn = window.SW.store(NUMBERS_KEY) !== "0";
   setNumbers(numbersOn);
   if (numbersButton) {
     numbersButton.addEventListener("click", function () {
       numbersOn = !numbersOn;
       setNumbers(numbersOn);
-      try { window.localStorage.setItem(NUMBERS_KEY, numbersOn ? "1" : "0"); } catch (e) { /* sin almacenamiento */ }
+      window.SW.store(NUMBERS_KEY, numbersOn ? "1" : "0");
       sync();
       box.focus();
     });
@@ -330,16 +330,11 @@
   document.addEventListener("keydown", function (e) {
     if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === "s" || e.key === "S")) {
       e.preventDefault();
-      if (form.requestSubmit) form.requestSubmit(); else form.submit();
+      window.SW.submit(form);
     }
   });
 
   form.addEventListener("submit", function () { saving = true; });
-  window.addEventListener("beforeunload", function (e) {
-    if (dirty && !saving) {
-      e.preventDefault();
-      e.returnValue = "";   // el navegador muestra su propio aviso
-    }
-  });
+  window.SW.guardUnload(function () { return dirty && !saving; });
   box.focus();
 })();

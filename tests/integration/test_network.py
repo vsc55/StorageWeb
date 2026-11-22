@@ -4,17 +4,14 @@ import re
 import pytest
 
 from storageweb.settings import ConfigError, load_config
-from tests.helpers import PASSWORD, add_user, get_csrf, login
+from tests.helpers import PASSWORD, add_user, get_csrf, signed_in, config_file
 from tests.sso_helpers import entra_cfg, start_login
 
 PROXY = {"X-Forwarded-For": "203.0.113.7", "X-Forwarded-Proto": "https", "X-Forwarded-Host": "files.example.com"}
 
 
 def _admin(app):
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
-    return client
+    return signed_in(app, "root", role="admin", csrf_url=None)[0]
 
 
 @pytest.mark.parametrize("value, expected", [
@@ -25,18 +22,14 @@ def _admin(app):
     ("http://localhost:8080", "http://localhost:8080"),
 ])
 def test_public_url_normalized(tmp_path, value, expected):
-    import json
-    p = tmp_path / "c.json"
-    p.write_text(json.dumps({"network": {"public_url": value}}), encoding="utf-8")
+    p = config_file(tmp_path, {"network": {"public_url": value}}, name="c.json")
     assert load_config(p)["network"]["public_url"] == expected
 
 
 @pytest.mark.parametrize("value", ["files example.com", "ftp://x", "x/?a=1", "https://", "user@host.com",
                                    "-bad-.com"])
 def test_public_url_invalid(tmp_path, value):
-    import json
-    p = tmp_path / "c.json"
-    p.write_text(json.dumps({"network": {"public_url": value}}), encoding="utf-8")
+    p = config_file(tmp_path, {"network": {"public_url": value}}, name="c.json")
     with pytest.raises(ConfigError) as exc:
         load_config(p)
     assert exc.value.field == "network.public_url"
@@ -117,9 +110,7 @@ def test_diagnostics_all_consistent(make_app):
 def test_apache_example_with_the_configured_values(make_app):
     """La página de red genera también el ejemplo de Apache con el nombre, la subruta y el tamaño máximo."""
     app = make_app({"network": {"public_url": "www.example.com/archivos"}, "server": {"max_upload_mb": 100}})
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
+    client, _ = signed_in(app, "root", role="admin", csrf_url=None)
     html = client.get("/admin/settings/network").get_data(as_text=True)
     assert "Ejemplo para Apache 2.4 con estos valores" in html
     assert "ServerName www.example.com" in html
@@ -133,9 +124,7 @@ def test_apache_example_with_the_configured_values(make_app):
 def test_traefik_example_with_a_subpath(make_app):
     """Bajo una subruta, Traefik quita la del cliente y luego stripprefix pone la buena (en ese orden)."""
     app = make_app({"network": {"public_url": "www.example.com/archivos"}})
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
+    client, _ = signed_in(app, "root", role="admin", csrf_url=None)
     html = client.get("/admin/settings/network").get_data(as_text=True)
     assert "Host(`www.example.com`) &amp;&amp; PathPrefix(`/archivos`)" in html
     assert "routers.storageweb.middlewares=storageweb-noprefix,storageweb-prefix" in html
@@ -145,9 +134,7 @@ def test_traefik_example_with_a_subpath(make_app):
 def test_proxy_examples_never_pass_a_client_prefix(make_app):
     """Sin subruta, los ejemplos quitan la X-Forwarded-Prefix que pudiera mandar el cliente; con subruta, la ponen."""
     app = make_app({"network": {"public_url": "files.example.com"}})
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
+    client, _ = signed_in(app, "root", role="admin", csrf_url=None)
     html = client.get("/admin/settings/network").get_data(as_text=True)
     assert 'proxy_set_header X-Forwarded-Prefix "";' in html                  # nginx
     assert "RequestHeader unset X-Forwarded-Prefix" in html                    # Apache

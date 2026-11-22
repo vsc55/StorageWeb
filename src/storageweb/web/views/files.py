@@ -4,26 +4,25 @@ Las operaciones van al ``backend`` de cada raíz (disco local, S3 o SMB) con rut
 """
 from __future__ import annotations
 
-import secrets
-from datetime import datetime, timezone
-from urllib.parse import quote, unquote, urlsplit
+from datetime import datetime
+from urllib.parse import unquote, urlsplit
 
-from flask import (Blueprint, Response, abort, current_app, flash, g, jsonify, make_response, redirect,
-                   render_template, request, send_file, stream_with_context, url_for)
+from flask import (Blueprint, Response, abort, current_app, flash, g, jsonify, make_response, redirect, render_template, request, send_file, url_for)
 from markupsafe import Markup, escape
 
 from ... import patterns
 from ... import metrics
-from ...core import backends, favorites, links, markdown, preview, storage, thumbnails, tokens
+from ...core import backends, favorites, links, markdown, preview, storage, thumbnails
 from ...core import files as files_core
 from ...core import quota
-from ...core.permissions import PERMISSION_LABELS, effective_for_root, permissions_for
-from ...core.security import UPLOAD_TMP_PREFIX, PathError, safe_filename
-from ...db.repositories import audit
+from ...core.permissions import PERMISSION_LABELS
+from ...core.security import PathError, safe_filename
 from ...i18n import _, format_datetime, format_size, ngettext
 from ..context import boot_config, get_db, settings
-from ..downloads import SANDBOX, etag, send_entry
-from ..guards import client_ip, login_required, safe_next, with_token
+from ..downloads import SANDBOX, etag, send_entry, zip_response
+from ..forms import choice, flash_outcome, next_url, page_of
+from ..guards import audit_path, login_required, root_perms, safe_next, wants_json
+from ...clock import iso_from_ts
 
 bp = Blueprint("files", __name__)
 
@@ -53,7 +52,7 @@ def _stat(root: dict, rel: str):
 
 
 def _perms(root: dict) -> frozenset[str]:
-    return tokens.restrict(effective_for_root(permissions_for(g.user, settings()), root), g.get("api_token"))
+    return root_perms(root)
 
 
 def _require(root: dict, perm: str) -> None:
@@ -64,9 +63,7 @@ def _require(root: dict, perm: str) -> None:
     abort(403, description=_("You are not allowed to: %(action)s.", action=str(PERMISSION_LABELS[perm]).lower()))
 
 
-def _audit(action: str, root: dict, rel: str, detail: str | None = None) -> None:
-    audit.log(get_db(), action, f"{root['name']}:/{rel}", username=g.user["username"], ip=client_ip(),
-              detail=with_token(detail))
+_audit = audit_path
 
 
 def _viewable(name: str) -> bool:
@@ -79,12 +76,44 @@ def _thumbable(name: str) -> bool:
     return thumbnails.can_thumb(name, settings()["preview"])
 
 
-def _wants_json() -> bool:
-    return request.headers.get("Accept", "").startswith("application/json")
-
-
 def _back(root: dict, rel: str):
     return redirect(url_for("files.browse", root=root["name"], sub=rel))
+
+
+def _file(root_name: str, sub: str, *perms: str) -> tuple[dict, str, backends.Entry]:
+    """Lo que piden las vistas de un archivo: su raíz, los permisos (``download`` y los que se añadan), la ruta
+    limpia y el archivo (404 si no existe o es una carpeta)."""
+    r = _root(root_name)
+    for perm in ("download", *perms):
+        _require(r, perm)
+    rel = _rel(sub)
+    entry = _stat(r, rel)
+    if entry is None or entry.is_dir:
+        abort(404)
+    return r, rel, entry
+
+
+def _read_text(r: dict, rel: str, entry, limit: int) -> preview.Content:
+    """El texto del archivo para el visor o el editor (``preview.read_text``): 404 si ya no está, 502 si el
+    almacenamiento falla."""
+    try:
+        return preview.read_text(r["backend"], rel, entry.size, limit=limit)
+    except FileNotFoundError:
+        abort(404)
+    except backends.BackendError as exc:
+        abort(502, description=exc.message)
+
+
+def _lang_label(name: str) -> str:
+    """El nombre del lenguaje del archivo para la etiqueta del visor y del editor («Python»), o ``""``."""
+    lang = preview.language_of(name)
+    return preview.language_label(lang) if lang else ""
+
+
+def _entry_json(e: dict, **extra) -> dict:
+    """Un elemento de un listado o de una búsqueda en el JSON de la API (el mismo formato en los dos)."""
+    return {"name": e["name"], "type": "dir" if e["is_dir"] else "file", "size": e["bytes"],
+            "modified": iso_from_ts(e["ts"]), **extra}
 
 
 def _require_dir(root: dict, rel: str) -> None:
@@ -111,8 +140,7 @@ def browse(root, sub):
     if entry is None:
         abort(404)
     try:
-        sort = request.args.get("sort", "name")
-        sort = sort if sort in storage.SORT_KEYS else "name"
+        sort = choice("sort", storage.SORT_KEYS, "name")
         descending = request.args.get("order") == "desc"
         hidden = patterns.of(settings())
         entries = storage.list_directory(r, rel, settings()["storage"]["show_hidden"], sort, descending,
@@ -121,17 +149,14 @@ def browse(root, sub):
         abort(403, description=_("The service is not allowed to read this folder."))
     except backends.BackendError as exc:
         abort(502, description=exc.message)
-    if _wants_json() or g.get("api_token") is not None:
+    if wants_json() or g.get("api_token") is not None:
         _audit("folder_listed", r, rel, "api")
         space = storage.space_of(r, rel)
         q = quota.status(r)
         return jsonify(root=r["name"], path=rel, permissions=sorted(_perms(r)),
                        space={k: space[k] for k in ("unlimited", "total", "free") if k in space} if space else None,
                        quota={"used": q["used"], "limit": q["limit"], "complete": q["complete"]} if q else None,
-                       entries=[
-            {"name": e["name"], "type": "dir" if e["is_dir"] else "file", "size": e["bytes"],
-             "modified": datetime.fromtimestamp(e["ts"], timezone.utc).isoformat(timespec="seconds"),
-             "path": e["rel"]} for e in entries])
+                       entries=[_entry_json(e, path=e["rel"]) for e in entries])
     listing = _listing(entries, sort, descending)
     _audit("folder_listed", r, rel, ", ".join(f"{k}={request.args[k]}" for k in ("page", "q", "rows")
                                               if request.args.get(k)) or None)
@@ -143,7 +168,7 @@ def browse(root, sub):
         resp.headers["X-Total"] = str(listing["total"])
         resp.headers["X-Next"] = listing["next_rows"] or ""
         return resp
-    parent = "/".join(rel.split("/")[:-1]) if rel else None
+    parent = backends.parent_rel(rel) if rel else None
     return render_template("browse.html", roots=storage.available_roots(g.user, settings()),
                            rel=rel, crumbs=storage.breadcrumbs(rel), parent=parent, entries=entries,
                            listing=listing, **rows,
@@ -177,8 +202,7 @@ def _listing(entries: list[dict], sort: str, descending: bool) -> dict:
     query = request.args.get("q", "").strip()
     matching = files_core.filter_by_name(entries, query) if query else entries
     total = len(matching)
-    pages = max(1, -(-total // size))
-    page = min(max(1, request.args.get("page", 1, type=int)), pages)
+    page, pages = page_of(total, size)
     if mode == "search" and not query:
         page = 1                       # sin filtro, solo los primeros
     start = (page - 1) * size
@@ -204,12 +228,7 @@ def _listing(entries: list[dict], sort: str, descending: bool) -> dict:
 @bp.route("/download/<root>/<path:sub>")
 @login_required
 def download(root, sub):
-    r = _root(root)
-    _require(r, "download")
-    rel = _rel(sub)
-    entry = _stat(r, rel)
-    if entry is None or entry.is_dir:
-        abort(404)
+    r, rel, entry = _file(root, sub)
     _audit("download", r, rel)
     return send_entry(r, rel, entry)
 
@@ -228,9 +247,9 @@ def favorite_toggle():
             abort(404)
         favorites.remove(get_db(), g.user, request.form.get("root", ""), rel)
         _audit("favorite_removed", {"name": request.form.get("root", "")}, rel, "list")
-        if _wants_json():
+        if wants_json():
             return jsonify(favorite=False)
-        return redirect(safe_next(request.form.get("next")) if request.form.get("next") else url_for("files.index"))
+        return redirect(next_url(url_for("files.index")))
     r = _root(request.form.get("root", ""))
     rel = _rel(request.form.get("path", ""))
     entry = _stat(r, rel) if rel else None
@@ -238,11 +257,10 @@ def favorite_toggle():
         abort(404)
     on = favorites.toggle(get_db(), g.user, r["name"], rel, True if not rel else entry.is_dir)
     _audit("favorite_added" if on else "favorite_removed", r, rel)
-    if _wants_json():
+    if wants_json():
         return jsonify(favorite=on)
-    return redirect(safe_next(request.form.get("next")) if request.form.get("next")
-                    else url_for("files.browse", root=r["name"], sub=rel if not entry or entry.is_dir
-                                 else backends.parent_rel(rel)))
+    return redirect(next_url(url_for("files.browse", root=r["name"], sub=rel if not entry or entry.is_dir
+                                 else backends.parent_rel(rel))))
 
 
 @bp.route("/recent")
@@ -312,7 +330,7 @@ def diagram_frame():
 def _neighbours(r: dict, rel: str, options: dict) -> tuple[dict | None, dict | None]:
     """El archivo que se puede ver anterior y siguiente en su carpeta (las flechas del visor)."""
     try:
-        siblings = storage.list_directory(r, "/".join(rel.split("/")[:-1]), settings()["storage"]["show_hidden"],
+        siblings = storage.list_directory(r, backends.parent_rel(rel), settings()["storage"]["show_hidden"],
                                           hidden=patterns.of(settings()))
     except (PermissionError, backends.BackendError):
         siblings = []
@@ -332,12 +350,7 @@ def inline(root, sub):
     """El contenido de una imagen, un PDF, un vídeo o un audio para el visor, en línea y con rangos (saltar en un
     vídeo). Solo lo que el visor abre con los ajustes de ahora (``preview.*``) y con el tipo de
     ``preview.MEDIA_TYPES``; cualquier otra cosa, 404 (los demás archivos se descargan, como adjunto)."""
-    r = _root(root)
-    _require(r, "download")
-    rel = _rel(sub)
-    entry = _stat(r, rel)
-    if entry is None or entry.is_dir:
-        abort(404)
+    r, rel, entry = _file(root, sub)
     name = backends.name_of(rel)
     kind = preview.kind_of(name, settings()["preview"])
     if kind not in preview.MEDIA_SETTINGS:
@@ -359,12 +372,7 @@ def thumbnail(root, sub):
     """La miniatura de una imagen (``core/thumbnails``) para el explorador. Con permiso de descargar, como el archivo.
     La dirección lleva la fecha del archivo (``?v=``): cambia con él, así que el navegador la puede guardar días.
     No se audita (al abrir una carpeta se piden decenas); si no puede haberla, 404 y el explorador deja el icono."""
-    r = _root(root)
-    _require(r, "download")
-    rel = _rel(sub)
-    entry = _stat(r, rel)
-    if entry is None or entry.is_dir:
-        abort(404)
+    r, rel, entry = _file(root, sub)
     try:
         path = thumbnails.get(settings(), r, rel, entry)
     except thumbnails.ThumbnailError as exc:
@@ -384,12 +392,7 @@ def view(root, sub):
     """El archivo en el navegador: Markdown renderizado (o su código), texto con números de línea, y la página que
     pone una imagen, un PDF, un vídeo o un audio en su elemento (el contenido llega de :func:`inline`). Nunca HTML del
     usuario: el Markdown pasa por ``core/markdown.py`` y el HTML y el SVG se ven como código."""
-    r = _root(root)
-    _require(r, "download")
-    rel = _rel(sub)
-    entry = _stat(r, rel)
-    if entry is None or entry.is_dir:
-        abort(404)
+    r, rel, entry = _file(root, sub)
     options = settings()["preview"]
     name = backends.name_of(rel)
     kind = preview.kind_of(name, options)
@@ -399,20 +402,15 @@ def view(root, sub):
         # Imagen, PDF, vídeo o audio: la página solo los pone en su sitio; el contenido lo sirve files.inline
         previous, following = _neighbours(r, rel, options)
         return render_template(
-            "view.html", root=r, rel=rel, name=name, parent="/".join(rel.split("/")[:-1]),
-            crumbs=storage.breadcrumbs("/".join(rel.split("/")[:-1])), kind=kind, media=kind,
+            "view.html", root=r, rel=rel, name=name, parent=backends.parent_rel(rel),
+            crumbs=storage.breadcrumbs(backends.parent_rel(rel)), kind=kind, media=kind,
             ext=preview.extension(name), size=format_size(entry.size),
             mtime=format_datetime(datetime.fromtimestamp(entry.mtime)) if entry.mtime else "",
             content=None, source=False, lines=[], html=None, toc=[], diagrams=0, lang="", lang_label="",
             highlight_md=False, previous=previous, following=following, window=None, can_edit=False,
             inline_url=url_for("files.inline", root=r["name"], sub=rel))
     source = kind != "markdown" or request.args.get("source") == "1"
-    try:
-        content = preview.read_text(r["backend"], rel, entry.size, limit=options["max_mb"] * 1024 * 1024)
-    except FileNotFoundError:
-        abort(404)
-    except backends.BackendError as exc:
-        abort(502, description=exc.message)
+    content = _read_text(r, rel, entry, options["max_mb"] * 1024 * 1024)
     window = None
     if content.reason == "too_large" and kind != "markdown":
         # Texto grande (un log): se ve por trozos, de entrada el final; el Markdown necesita el documento entero
@@ -431,7 +429,7 @@ def view(root, sub):
             except Exception:  # noqa: BLE001 — un documento raro no puede romper el visor: se ve su código
                 current_app.logger.exception("Could not render %s:/%s as Markdown", r["name"], rel)
                 source = True
-    parent = "/".join(rel.split("/")[:-1])
+    parent = backends.parent_rel(rel)
     previous, following = _neighbours(r, rel, options)
     is_log = preview.extension(name) in preview.LOG
     # Colores del código (highlight.js en el navegador): no en los logs (tienen los suyos), ni por partes, ni en
@@ -451,7 +449,7 @@ def view(root, sub):
         html=Markup(rendered.html) if rendered else None,   # seguro: lo genera core/markdown (todo escapado)
         toc=rendered.toc if rendered else [],
         diagrams=rendered.diagrams if rendered and options["diagrams"] else 0,   # desactivados: se ve el código
-        lang=lang, lang_label=preview.language_label(preview.language_of(name)) if preview.language_of(name) else "",
+        lang=lang, lang_label=_lang_label(name),
         highlight_md=bool(rendered and options["highlight"] and 'class="language-' in rendered.html),
         extra_languages=sorted(preview.EXTRA_LANGUAGES), needs_extra=lang in preview.EXTRA_LANGUAGES,
         previous=previous, following=following, max_mb=options["max_mb"], window=window,
@@ -471,25 +469,14 @@ def edit(root, sub):
     un token de lectura). Se guarda solo si nadie lo cambió desde que se abrió (su ETag, como WebDAV); si cambió,
     se avisa y se conserva lo escrito. Se guarda en UTF-8 con los finales de línea, el salto final y el BOM del
     original."""
-    r = _root(root)
-    _require(r, "download")
-    _require(r, "edit")
-    rel = _rel(sub)
-    entry = _stat(r, rel)
-    if entry is None or entry.is_dir:
-        abort(404)
+    r, rel, entry = _file(root, sub, "edit")
     options = settings()["preview"]
     name = backends.name_of(rel)
     view_url = url_for("files.view", root=root, sub=rel)
     if preview.kind_of(name, options) not in preview.TEXT_KINDS:     # no se abre, o no es texto (una imagen…)
         return redirect(view_url)
     limit = options["max_mb"] * 1024 * 1024
-    try:
-        content = preview.read_text(r["backend"], rel, entry.size, limit=limit)
-    except FileNotFoundError:
-        abort(404)
-    except backends.BackendError as exc:
-        abort(502, description=exc.message)
+    content = _read_text(r, rel, entry, limit)
     if not _editable(content):
         flash(_("This file cannot be edited here: it is too large, it is not text or it is not in UTF-8."), "error")
         return redirect(view_url)
@@ -516,7 +503,7 @@ def edit(root, sub):
     return render_template(
         "edit.html", root=r, rel=rel, name=name, parent=parent, crumbs=storage.breadcrumbs(parent), text=text,
         version=version, conflict=conflict, view_url=view_url, crlf=content.crlf, lang=lang,
-        lang_label=preview.language_label(preview.language_of(name)) if preview.language_of(name) else "",
+        lang_label=_lang_label(name),
         needs_extra=lang in preview.EXTRA_LANGUAGES, is_markdown=preview.kind_of(name, options) == "markdown",
         comment=preview.COMMENTS.get(preview.language_of(name), ("", ""))), status
 
@@ -531,7 +518,7 @@ def _save_text(root: dict, rel: str, data: bytes, old_size: int, limit: int) -> 
         _audit("quota_exceeded", root, rel, f"edit:{len(data)}")
         return exc.message
     backend = root["backend"]
-    tmp = backend.staging_dir(backends.parent_rel(rel)) / f"{UPLOAD_TMP_PREFIX}{secrets.token_hex(8)}.part"
+    tmp = backend.staging_file(backends.parent_rel(rel))
     try:
         tmp.write_bytes(data)
         backend.store(tmp, rel)
@@ -552,7 +539,6 @@ def upload(root, sub):
     _require(r, "upload")
     rel = _rel(sub)
     _require_dir(r, rel)
-    backend = r["backend"]
 
     saved, errors = [], []
     cfg = settings()
@@ -560,48 +546,27 @@ def upload(root, sub):
         if not item or not item.filename:
             continue
         try:
-            name = safe_filename(item.filename)
-            storage.check_visible_name(settings(), backends.join_rel(rel, name))
-        except ValueError as exc:
-            errors.append(f"{item.filename}: {exc}")
-            continue
-        tmp = backend.staging_dir(rel) / f"{UPLOAD_TMP_PREFIX}{secrets.token_hex(8)}.part"
-        try:
-            item.save(tmp)
-            size = tmp.stat().st_size
-            quota.check(r, cfg, size)
-            final = backend.unique_rel(rel, name)
-            backend.store(tmp, final)
-        except quota.QuotaExceeded as exc:
-            _audit("quota_exceeded", r, backends.join_rel(rel, name), str(size))
-            errors.append(f"{name}: {exc.message}")
-            tmp.unlink(missing_ok=True)
-            continue
-        except (OSError, backends.BackendError) as exc:
-            current_app.logger.exception("Error saving %s", name)
-            # Fuera del f-string: antes de Python 3.12 el extractor de textos no ve un _() dentro de uno
-            reason = _reason(exc) or _("write error")
-            errors.append(f"{name}: {reason}")
-            tmp.unlink(missing_ok=True)
+            final, size = files_core.receive(cfg, r, rel, item.filename, item.save)
+        except files_core.UploadRefused as exc:
+            if exc.reason == "quota":
+                _audit("quota_exceeded", r, backends.join_rel(rel, exc.name), str(exc.size))
+            elif exc.reason == "write":
+                current_app.logger.error("Error saving %s", exc.name, exc_info=exc.__cause__)
+            errors.append(f"{exc.name}: {exc.message}")
             continue
         saved.append(backends.name_of(final))
         quota.record(r, size)
         metrics.inc("storageweb_upload_bytes_total", size, via="web")
         _audit("upload", r, final, detail=str(size))
 
-    if _wants_json():
+    if wants_json():
         return jsonify(saved=saved, errors=errors), (200 if saved or not errors else 400)
-    if saved:
-        flash(ngettext("%(num)d file uploaded.", "%(num)d files uploaded.", len(saved)), "info")
-    for e in errors:
-        flash(e, "error")
+    flash_outcome(ngettext("%(num)d file uploaded.", "%(num)d files uploaded.", len(saved)) if saved else None,
+                  errors)
     return _back(r, rel)
 
 
-def _reason(exc: Exception) -> str:
-    if isinstance(exc, backends.BackendError):
-        return exc.message
-    return getattr(exc, "strerror", None) or str(exc)
+_reason = backends.error_text
 
 
 @bp.route("/mkdir/<root>/", defaults={"sub": ""}, methods=["POST"])
@@ -641,8 +606,7 @@ def rename(root, sub):
         new_name = safe_filename(request.form.get("name", ""))
         storage.check_visible_name(settings(), backends.join_rel(parent, new_name))
         r["backend"].rename(rel, new_name)
-        favorites.moved(get_db(), g.user, r["name"], rel, r["name"], backends.join_rel(parent, new_name))
-        links.moved(get_db(), g.user, r["name"], rel, r["name"], backends.join_rel(parent, new_name))
+        files_core.path_moved(get_db(), g.user, r["name"], rel, r["name"], backends.join_rel(parent, new_name))
         _audit("rename", r, rel, detail=new_name)
         flash(_("Renamed."), "info")
     except ValueError as exc:
@@ -668,8 +632,7 @@ def delete(root, sub):
     try:
         r["backend"].delete(rel)
         quota.invalidate(r)
-        favorites.deleted(get_db(), g.user, r["name"], rel)
-        links.deleted(get_db(), g.user, r["name"], rel)
+        files_core.path_deleted(get_db(), g.user, r["name"], rel)
         _audit("delete", r, rel)
         flash(_("«%(name)s» deleted.", name=backends.name_of(rel)), "info")
     except (OSError, backends.BackendError) as exc:
@@ -733,20 +696,16 @@ def transfer():
             continue
         done.append(backends.name_of(new_rel))
         if move:
-            favorites.moved(get_db(), g.user, src["name"], rel, dst["name"], new_rel)
-            links.moved(get_db(), g.user, src["name"], rel, dst["name"], new_rel)
+            files_core.path_moved(get_db(), g.user, src["name"], rel, dst["name"], new_rel)
         if size:
             quota.record(dst, size)
             if move:
                 quota.record(src, -size)
         _audit("rename" if move else "upload", src, rel, detail=f"{action}:{dst['name']}:/{new_rel}")
-    if _wants_json():
+    if wants_json():
         return jsonify(done=done, errors=errors), (200 if done or not errors else 400)
-    if done:
-        flash(ngettext("%(num)d item moved.", "%(num)d items moved.", len(done)) if move
-              else ngettext("%(num)d item copied.", "%(num)d items copied.", len(done)), "info")
-    for e in errors:
-        flash(e, "error")
+    flash_outcome((ngettext("%(num)d item moved.", "%(num)d items moved.", len(done)) if move
+                   else ngettext("%(num)d item copied.", "%(num)d items copied.", len(done))) if done else None, errors)
     return redirect(safe_next(request.form.get("next")))
 
 
@@ -764,12 +723,7 @@ def roots_json():
 def _zip_response(items: list[tuple[dict, str]]):
     for root, _rel_ in items:
         _require(root, "download")
-    name = files_core.zip_name(items)
-    fallback = "".join(c if c.isascii() and c.isprintable() and c not in '"\\' else "_" for c in name)
-    rv = Response(stream_with_context(files_core.zip_stream(settings(), items)), mimetype="application/zip")
-    rv.headers["Content-Disposition"] = f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(name)}"
-    rv.headers["Content-Security-Policy"] = SANDBOX
-    rv.headers["Cache-Control"] = "no-store"
+    rv = zip_response(settings(), items)
     for root, rel in items:
         _audit("download", root, rel, detail="zip")
     return rv
@@ -832,11 +786,9 @@ def search():
     if query:
         _audit("search", scope["root"] if scope else {"name": "*"}, scope["path"] if scope else "",
                f"{query} ({len(result.items)})")
-    if _wants_json() or g.get("api_token") is not None:
+    if wants_json() or g.get("api_token") is not None:
         return jsonify(query=query, truncated=result.truncated, items=[
-            {"root": i["root"]["name"], "path": i["rel"], "name": i["name"], "type": "dir" if i["is_dir"] else "file",
-             "size": i["bytes"], "modified": datetime.fromtimestamp(i["ts"], timezone.utc).isoformat(timespec="seconds")}
-            for i in result.items])
+            _entry_json(i, root=i["root"]["name"], path=i["rel"]) for i in result.items])
     perms = {r["name"]: _perms(r) for r in roots}
     return render_template("search.html", query=query, result=result, scope=scope, perms=perms, viewable=_viewable,
                            limit=st["search_max_results"])

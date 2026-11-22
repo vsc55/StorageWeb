@@ -1,11 +1,7 @@
 """Notas de la release sacadas del CHANGELOG (tools/release_notes.py)."""
-import importlib.util
-from pathlib import Path
+from tests.helpers import ROOT, load_tool
 
-ROOT = Path(__file__).resolve().parents[2]
-_spec = importlib.util.spec_from_file_location("release_notes", ROOT / "tools" / "release_notes.py")
-release_notes = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(release_notes)
+release_notes = load_tool("tools/release_notes.py")
 
 SAMPLE = """# Registro de cambios
 

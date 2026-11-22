@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from sqlite3 import Connection
 
-from ..connection import now_iso
+from ..connection import now_iso, owner_filter, subtree
 
 _SELECT = """SELECT l.*, u.username AS owner, u.enabled AS owner_enabled
              FROM share_links l JOIN users u ON u.id = l.user_id"""
@@ -71,21 +71,19 @@ def touch(conn: Connection, link_id: int) -> None:
 
 def moved(conn: Connection, root: str, old: str, new_root: str, new: str, user_id: int | None = None) -> None:
     """``old`` (y lo que haya dentro) pasa a ser ``new`` (en ``new_root``). Con ``user_id``, solo los suyos."""
-    owner = " AND user_id = ?" if user_id is not None else ""
-    args = (user_id,) if user_id is not None else ()
-    conn.execute(f"""UPDATE share_links SET root = ?, rel = ? || SUBSTR(rel, ?)
-                     WHERE root = ? AND (rel = ? OR rel LIKE ? ESCAPE '\\'){owner}""",
-                 (new_root, new, len(old) + 1, root, old, _like_prefix(old), *args))
+    owner, args = owner_filter(user_id)
+    inside, paths = subtree("rel", old)
+    conn.execute(f"UPDATE share_links SET root = ?, rel = ? || SUBSTR(rel, ?) WHERE root = ? AND {inside}{owner}",
+                 (new_root, new, len(old) + 1, root, *paths, *args))
     conn.commit()
 
 
 def matching(conn: Connection, root: str, rel: str, user_id: int | None = None) -> list:
     """Los enlaces activos (sin quitar) de ``rel`` y de lo que tiene dentro."""
-    owner = " AND l.user_id = ?" if user_id is not None else ""
-    args = (user_id,) if user_id is not None else ()
-    return conn.execute(f"""{_SELECT} WHERE l.revoked_at IS NULL AND l.root = ?
-                             AND (l.rel = ? OR l.rel LIKE ? ESCAPE '\\'){owner}""",
-                        (root, rel, _like_prefix(rel), *args)).fetchall()
+    owner, args = owner_filter(user_id, "l.user_id")
+    inside, paths = subtree("l.rel", rel)
+    return conn.execute(f"{_SELECT} WHERE l.revoked_at IS NULL AND l.root = ? AND {inside}{owner}",
+                        (root, *paths, *args)).fetchall()
 
 
 def revoke(conn: Connection, link_id: int, by: str | None, reason: str) -> None:
@@ -154,7 +152,3 @@ def purge_events(conn: Connection, before: str) -> int:
     cur = conn.execute("DELETE FROM share_link_events WHERE at < ?", (before,))
     conn.commit()
     return cur.rowcount
-
-
-def _like_prefix(rel: str) -> str:
-    return rel.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "/%"

@@ -1,4 +1,5 @@
 {% extends "admin/settings/_layout.html" %}
+{% from "_ui.html" import stat_tile with context %}
 {% block section %}
 {# Seguridad → Estado de la seguridad (security_status.py): el tablero, la lista de comprobación (core/posture.py) y
    los últimos sucesos de seguridad. Solo lectura: cada punto enlaza a la página donde se cambia #}
@@ -8,38 +9,21 @@
 
 {# El tablero: cada cifra con su etiqueta y una línea de contexto; el estado va con texto, nunca solo con el color #}
 <div class="stat-grid" role="list">
-  <a class="stat-tile{% if tl.vulns.value %} is-bad{% endif %}" role="listitem" href="{{ url_for('settings.section', name='vulnerabilities') }}">
-    <span class="stat-label">{{ _("Known vulnerabilities") }}</span>
-    <span class="stat-value">{{ tl.vulns.value if tl.vulns.value is not none else '—' }}</span>
-    <span class="stat-note">{% if tl.vulns.value is none %}{{ _("Never checked") if not tl.vulns.at else _("The last check could not ask") }}
+  {% call stat_tile(_("Known vulnerabilities"), tl.vulns.value if tl.vulns.value is not none else '—',
+                    href=url_for('settings.section', name='vulnerabilities'), state='bad' if tl.vulns.value else None) -%}
+    {% if tl.vulns.value is none %}{{ _("Never checked") if not tl.vulns.at else _("The last check could not ask") }}
       {% elif tl.vulns.value %}{{ _("worst: %(severity)s", severity=severity_names.get(tl.vulns.worst, tl.vulns.worst)) }} · {{ tl.vulns.at|datetime }}
-      {% else %}{{ _("checked %(date)s", date=tl.vulns.at|datetime) }}{% endif %}</span>
-  </a>
-  <a class="stat-tile" role="listitem" href="{{ url_for('settings.section', name='ips') }}">
-    <span class="stat-label">{{ _("Blocked IPs") }}</span>
-    <span class="stat-value">{{ tl.bans.value }}</span>
-    <span class="stat-note">{{ ngettext("%(num)s automatic", "%(num)s automatic", tl.bans.automatic) }}</span>
-  </a>
-  <a class="stat-tile{% if tl.failed.blocked %} is-warn{% endif %}" role="listitem" href="{{ url_for('admin.audit_log', action='login_failed') }}">
-    <span class="stat-label">{{ _("Failed sign-ins (24 h)") }}</span>
-    <span class="stat-value">{{ tl.failed.value }}</span>
-    <span class="stat-note">{{ ngettext("%(num)s lockout", "%(num)s lockouts", tl.failed.blocked) }}</span>
-  </a>
-  <a class="stat-tile" role="listitem" href="{{ url_for('settings.section', name='sessions') }}">
-    <span class="stat-label">{{ _("Open sessions") }}</span>
-    <span class="stat-value">{{ tl.sessions.value }}</span>
-    <span class="stat-note">{{ ngettext("%(num)s of an administrator", "%(num)s of administrators", tl.sessions.admins) }}</span>
-  </a>
-  <a class="stat-tile" role="listitem" href="{{ url_for('settings.section', name='auth') }}">
-    <span class="stat-label">{{ _("Two-step verification") }}</span>
-    <span class="stat-value">{{ tl.mfa.value }}<small> / {{ tl.mfa.total }}</small></span>
-    <span class="stat-note">{{ _("accounts with a password that have it") }}</span>
-  </a>
-  <a class="stat-tile" role="listitem" href="{{ url_for('settings.section', name='sessions') }}">
-    <span class="stat-label">{{ _("Valid API tokens") }}</span>
-    <span class="stat-value">{{ tl.tokens.value }}</span>
-    <span class="stat-note">{{ _("scripts, apps and network drives") }}</span>
-  </a>
+      {% else %}{{ _("checked %(date)s", date=tl.vulns.at|datetime) }}{% endif %}
+  {%- endcall %}
+  {{ stat_tile(_("Blocked IPs"), tl.bans.value, ngettext("%(num)s automatic", "%(num)s automatic", tl.bans.automatic),
+               href=url_for('settings.section', name='ips')) }}
+  {{ stat_tile(_("Failed sign-ins (24 h)"), tl.failed.value, ngettext("%(num)s lockout", "%(num)s lockouts", tl.failed.blocked),
+               href=url_for('admin.audit_log', action='login_failed'), state='warn' if tl.failed.blocked else None) }}
+  {{ stat_tile(_("Open sessions"), tl.sessions.value, ngettext("%(num)s of an administrator", "%(num)s of administrators", tl.sessions.admins),
+               href=url_for('settings.section', name='sessions')) }}
+  {% set mfa_value %}{{ tl.mfa.value }}<small> / {{ tl.mfa.total }}</small>{% endset %}
+  {{ stat_tile(_("Two-step verification"), mfa_value, _("accounts with a password that have it"), href=url_for('settings.section', name='auth')) }}
+  {{ stat_tile(_("Valid API tokens"), tl.tokens.value, _("scripts, apps and network drives"), href=url_for('settings.section', name='sessions')) }}
 </div>
 
 <section class="card section-gap" aria-labelledby="posture-title">

@@ -2,7 +2,7 @@
 import pytest
 
 from storageweb.providers.entra import register as er
-from tests.helpers import add_user, get_csrf, login
+from tests.helpers import signed_in
 
 JSON = {"Accept": "application/json"}
 
@@ -10,10 +10,8 @@ JSON = {"Accept": "application/json"}
 @pytest.fixture
 def admin_client(make_app):
     app = make_app({"network": {"public_url": "files.example.com"}})
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
-    return app, client, get_csrf(client, "/admin/settings/auth")
+    client, token = signed_in(app, "root", role="admin", csrf_url="/admin/settings/auth")
+    return app, client, token
 
 
 @pytest.fixture
@@ -105,10 +103,7 @@ def test_declined_and_cancel(admin_client, monkeypatch, microsoft):
 
 def test_http_public_name_is_refused(make_app, microsoft):
     app = make_app({"network": {"public_url": "http://files.example.com"}})
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
-    token = get_csrf(client, "/admin/settings/entra/register")
+    client, token = signed_in(app, "root", role="admin", csrf_url="/admin/settings/entra/register")
     html = client.get("/admin/settings/entra/register").get_data(as_text=True)
     assert "solo acepta direcciones de vuelta HTTPS" in html
     client.post("/admin/settings/entra/register", data={"_csrf": token, "app_name": "X"})

@@ -6,30 +6,56 @@ normalizado o lanza :class:`ConfigError` con esa ruta, para que la web muestre e
 from __future__ import annotations
 
 import re
+import urllib.parse
 from datetime import datetime, timezone
 
 from ..i18n import _
-from .defaults import ROLES
+from .defaults import ROLES, SYSLOG_PORTS
 from .errors import ConfigError
 
 
-def str_list(value, path: str, *, lower: bool = False) -> list[str]:
+# ``path`` es lo que se nombra en el mensaje; ``field`` (si es otra) la ruta junto a la que la web enseña el error
+
+def str_list(value, path: str, *, lower: bool = False, field: str | None = None) -> list[str]:
     """Lista de textos; admite también un texto separado por comas o espacios."""
     if isinstance(value, str):
         value = [x for x in re.split(r"[,\s]+", value) if x]
     if not isinstance(value, list):
-        raise ConfigError(_("%(field)s must be a list", field=path), path)
+        raise ConfigError(_("%(field)s must be a list", field=path), field or path)
     items = [str(x).strip() for x in value if str(x).strip()]
     return [x.lower() for x in items] if lower else items
 
 
-def positive_int(value, path: str) -> int:
+def _integer(value, path: str, field: str | None) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(_("%(field)s must be an integer", field=path), field or path) from exc
+
+
+def positive_int(value, path: str, field: str | None = None) -> int:
+    number = _integer(value, path, field)
+    if number < 1:
+        raise ConfigError(_("%(field)s must be greater than 0", field=path), field or path)
+    return number
+
+
+def non_negative_int(value, path: str, field: str | None = None) -> int:
+    number = _integer(value, path, field)
+    if number < 0:
+        raise ConfigError(_("%(field)s cannot be negative", field=path), field or path)
+    return number
+
+
+def int_range(value, low: int, high: int, path: str, field: str | None = None) -> int:
+    """Un entero entre ``low`` y ``high`` (ambos incluidos)."""
     try:
         number = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ConfigError(_("%(field)s must be an integer", field=path), path) from exc
-    if number < 1:
-        raise ConfigError(_("%(field)s must be greater than 0", field=path), path)
+    except (TypeError, ValueError):
+        number = None
+    if number is None or not low <= number <= high:
+        raise ConfigError(_("%(field)s must be a whole number between %(low)s and %(high)s", field=path, low=low,
+                            high=high), field or path) from None
     return number
 
 
@@ -70,3 +96,18 @@ def role_mappings(value, path: str) -> dict[str, str]:
                                 role=repr(role), values=", ".join(ROLES)), path)
         mappings[str(key).strip().lower()] = role
     return mappings
+
+
+def syslog_target(url: str) -> tuple[str, str, int] | None:
+    """``udp://host:514`` → ``("udp", "host", 514)`` (sin puerto, el de serie del esquema); ``None`` si no es un
+    destino syslog válido (esquema udp/tcp/tls, un host, sin ruta y un puerto de 1 a 65535)."""
+    parts = urllib.parse.urlsplit(str(url or "").strip())
+    try:
+        port = parts.port
+    except ValueError:
+        return None
+    if (parts.scheme not in SYSLOG_PORTS or not parts.hostname or parts.path not in ("", "/")
+            or (port is not None and not 1 <= port <= 65535)):
+        return None
+    return parts.scheme, parts.hostname, port or SYSLOG_PORTS[parts.scheme]
+

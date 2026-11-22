@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 import logging
-import sys
 from pathlib import Path
 
 from .. import i18n
 from ..i18n import _, _l
-from .common import command
+from .common import command, config_error
 from ..settings import ConfigError, default_config_path
 
 
@@ -48,8 +47,7 @@ def cmd_serve(args) -> int:
     try:
         app = create_app(args.config)
     except ConfigError as exc:
-        print(_("Configuration error: %(error)s", error=exc), file=sys.stderr)
-        return 2
+        return config_error(exc)
     srv = app.config["SW"]["server"]
     host = args.host or srv["host"]
     port = args.port or srv["port"]

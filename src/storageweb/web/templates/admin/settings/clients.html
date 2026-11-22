@@ -1,14 +1,11 @@
 {% extends "admin/settings/_layout.html" %}
-{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock, tab with context %}
 {% block section %}
 {% set sec = cfg.security %}
 {{ form_start() }}
   {# Una pestaña por sección (admin/forms.js); el formulario y la barra de guardar, para todas #}
   <div class="js-tabs">
-  <fieldset class="tab-panel">
-    <legend>{{ _("API tokens") }}</legend>
-  <div class="card form-grid">
-    <h3 class="card-title span2">{{ _("API tokens") }}</h3>
+  {% call tab(_("API tokens")) %}
     <label class="check span2"><input{{ lock('security.api_tokens') }} type="checkbox" name="api_tokens" {% if sec.api_tokens %}checked{% endif %}>
       <span>{{ _("Allow personal API tokens") }} {{ origin('security.api_tokens') }}
         <small class="muted">{{ _("Users create them in their profile to list, download and upload files from scripts. Disabling this stops every existing token.") }}</small></span></label>
@@ -20,8 +17,7 @@
       <input{{ lock('security.api_token_unused_days') }} type="number" name="api_token_unused_days" value="{{ sec.api_token_unused_days }}" min="0" max="3650">
       <small class="muted">{{ _("The Overview warns about valid tokens nobody has used for that long: better revoke them. 0 = no warning.") }}</small>
       {{ field_error('security.api_token_unused_days') }}</label>
-  </div>
-  </fieldset>
+  {% endcall %}
   <fieldset class="tab-panel">
     <legend>{{ _("Network drive") }}</legend>
   <div class="card form-grid">

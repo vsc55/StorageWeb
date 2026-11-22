@@ -12,8 +12,8 @@ from storageweb.db.repositories import audit, sessions, users
 from storageweb.db.repositories import groups as group_repo
 from storageweb.providers.entra import directory as entra_directory
 from storageweb.web.context import get_db, settings
-from tests.helpers import add_user, get_csrf, U, G
-from tests.sso_helpers import entra_cfg, finish_login, start_login
+from tests.helpers import add_user, U, G
+from tests.sso_helpers import entra_cfg, sso_login
 
 G_SALES, G_IT = "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"
 
@@ -50,18 +50,12 @@ def _sync(app):
         return accounts.sync_directory(get_db(), settings())
 
 
-def _login(client, token_endpoint, **claims):
-    token_endpoint.claims_extra = claims
-    _, q = start_login(client, token_endpoint)
-    return finish_login(client, q["state"])
-
-
 # --------------------------------------------------------------------------- revisión periódica (1)
 
 def test_accounts_with_access_are_checked_and_disabled(entra_app, token_endpoint, directory):
     app = entra_app(role_mappings={G_IT: "admin"})
     browser = app.test_client()
-    _login(browser, token_endpoint, groups=[G_SALES])
+    sso_login(browser, token_endpoint, groups=[G_SALES])
     juan = _user(app)
     with app.app_context():
         plain, _id = tokens.create(get_db(), juan, name="vscode", scope="write", days=0)
@@ -113,7 +107,7 @@ def users_exists(app, name):
 
 def test_deleted_or_not_allowed_accounts_and_unknown_state(entra_app, token_endpoint, directory):
     app = entra_app(allowed_groups=[G_SALES])
-    _login(app.test_client(), token_endpoint, groups=[G_SALES])
+    sso_login(app.test_client(), token_endpoint, groups=[G_SALES])
     directory.states["oid-juan"] = None                          # Graph no responde: no se toca nada
     assert _sync(app)["entra"]["unknown"] == 1 and _user(app)["enabled"]
     directory.states["oid-juan"] = {"exists": True, "enabled": True, "groups": [G_IT]}   # fuera del grupo permitido
@@ -128,16 +122,16 @@ def test_deleted_or_not_allowed_accounts_and_unknown_state(entra_app, token_endp
 def test_directory_disabled_account_comes_back_on_sign_in_but_not_a_manual_one(entra_app, token_endpoint, directory):
     app = entra_app()
     client = app.test_client()
-    _login(client, token_endpoint)
+    sso_login(client, token_endpoint)
     with app.app_context():
         users.update(get_db(), _user(app)["id"], enabled=False, disabled_reason="directory")
     client = app.test_client()
-    assert _login(client, token_endpoint).status_code == 302 and client.get("/f/home/").status_code == 200
+    assert sso_login(client, token_endpoint).status_code == 302 and client.get("/f/home/").status_code == 200
     assert _user(app)["enabled"] and _user(app)["disabled_reason"] is None
     with app.app_context():                                     # desactivada por un admin: no entra
         accounts.set_enabled(get_db(), _user(app), {"id": -1}, False)
     client = app.test_client()
-    _login(client, token_endpoint)
+    sso_login(client, token_endpoint)
     assert client.get("/f/home/").status_code == 302 and not _user(app)["enabled"]
 
 
@@ -161,10 +155,10 @@ def test_groups_overage_reads_them_from_graph(entra_app, token_endpoint, directo
     app = entra_app()
     overage = {"_claim_names": {"groups": "src1"}, "_claim_sources": {"src1": {"endpoint": "https://graph"}}}
     directory.groups = [G_SALES, G_IT]
-    _login(app.test_client(), token_endpoint, roles=["StorageWeb.User"], **overage)
+    sso_login(app.test_client(), token_endpoint, roles=["StorageWeb.User"], **overage)
     assert gc.split(_user(app)["external_groups"]) == {G_SALES, G_IT, "storageweb.user"}
     directory.groups = None                                      # no se pueden leer: se conservan los de antes
-    _login(app.test_client(), token_endpoint, **overage)
+    sso_login(app.test_client(), token_endpoint, **overage)
     assert gc.split(_user(app)["external_groups"]) == {G_SALES, G_IT, "storageweb.user"}
 
 
@@ -172,12 +166,12 @@ def test_groups_overage_with_allowed_groups_and_no_graph_is_denied(entra_app, to
     app = entra_app(allowed_groups=[G_SALES])
     client = app.test_client()
     directory.groups = None
-    _login(client, token_endpoint, hasgroups=True)
+    sso_login(client, token_endpoint, hasgroups=True)
     assert _user(app) is None
     assert ("login_denied", "entra:groups_unknown") in _actions(app)
     assert "No se pudieron leer tus grupos" in client.get("/login?manual=1").get_data(as_text=True)
     directory.groups = [G_SALES]
-    _login(client, token_endpoint, hasgroups=True)
+    sso_login(client, token_endpoint, hasgroups=True)
     assert _user(app) is not None
 
 
@@ -186,9 +180,9 @@ def test_groups_overage_with_allowed_groups_and_no_graph_is_denied(entra_app, to
 def test_frontchannel_logout_closes_the_sessions_of_that_microsoft_session(entra_app, token_endpoint):
     app = entra_app()
     browser = app.test_client()
-    _login(browser, token_endpoint, sid="ms-session-1")
+    sso_login(browser, token_endpoint, sid="ms-session-1")
     other = app.test_client()
-    _login(other, token_endpoint, sid="ms-session-2")
+    sso_login(other, token_endpoint, sid="ms-session-2")
     with app.app_context():
         assert {r["provider_sid"] for r in sessions.list_all(get_db())} == {"ms-session-1", "ms-session-2"}
     entra = app.test_client()                                    # el marco de Microsoft: sin la cookie
@@ -207,7 +201,7 @@ def test_signin_records_whether_the_token_has_sid(entra_app, token_endpoint):
     from storageweb.providers.entra import check
     app = entra_app()
     token_endpoint.response = None
-    _login(app.test_client(), token_endpoint)
+    sso_login(app.test_client(), token_endpoint)
     with app.app_context():
         last = accounts.last_signin_scopes(get_db(), "entra")
     # El token del endpoint simulado no trae «scope»: no se apunta nada; con él, sí
@@ -227,7 +221,7 @@ def test_registered_groups_follow_the_directory(entra_app, token_endpoint, direc
         gid = gc.create_group(get_db(), name="ventas", label="Ventas", description="", source="entra",
                               external_id=G_SALES)
     directory.details[G_SALES] = {"name": "Ventas España", "description": "Equipo comercial"}
-    _login(app.test_client(), token_endpoint, groups=[G_SALES])         # al entrar
+    sso_login(app.test_client(), token_endpoint, groups=[G_SALES])         # al entrar
     with app.app_context():
         group = group_repo.get_by_id(get_db(), gid)
     assert (group["label"], group["description"]) == ("Ventas España", "Equipo comercial")
@@ -253,7 +247,7 @@ def test_upn_change_renames_the_account_its_home_and_shares(make_app, token_endp
                         {"name": "obra", "label": "Obra", "path": str(tmp_path / "obra"),
                          "users": ["juan@contoso.com"], "read_only_users": ["juan@contoso.com"], "groups": []}]}})
     client = app.test_client()
-    _login(client, token_endpoint)
+    sso_login(client, token_endpoint)
     juan = _user(app)
     with app.app_context():
         from storageweb.core.storage import home_path_for
@@ -261,7 +255,7 @@ def test_upn_change_renames_the_account_its_home_and_shares(make_app, token_endp
     old_home.mkdir(parents=True, exist_ok=True)
     (old_home / "nota.txt").write_text("hola", encoding="utf-8")
 
-    _login(app.test_client(), token_endpoint, preferred_username="Juan.Perez@Contoso.com")
+    sso_login(app.test_client(), token_endpoint, preferred_username="Juan.Perez@Contoso.com")
     juan = _user(app)
     assert juan["username"] == "juan.perez@contoso.com" and juan["home_path"] is None
     with app.app_context():
@@ -276,7 +270,7 @@ def test_upn_change_renames_the_account_its_home_and_shares(make_app, token_endp
 
 def test_upn_change_keeps_an_existing_home_and_skips_a_taken_name(entra_app, token_endpoint):
     app = entra_app()
-    _login(app.test_client(), token_endpoint)
+    sso_login(app.test_client(), token_endpoint)
     juan = _user(app)
     with app.app_context():
         from storageweb.core.storage import home_path_for
@@ -284,11 +278,11 @@ def test_upn_change_keeps_an_existing_home_and_skips_a_taken_name(entra_app, tok
         new_home = Path(home_path_for({**dict(juan), "username": "jp@contoso.com"}, settings()))
     old_home.mkdir(parents=True, exist_ok=True)
     new_home.mkdir(parents=True, exist_ok=True)                 # la nueva ya existe: se conserva la antigua
-    _login(app.test_client(), token_endpoint, preferred_username="jp@contoso.com")
+    sso_login(app.test_client(), token_endpoint, preferred_username="jp@contoso.com")
     juan = _user(app)
     assert juan["username"] == "jp@contoso.com" and juan["home_path"] == str(old_home)
 
     add_user(app, "otro@contoso.com", password=None, source="entra", external_id="oid-otro")
-    _login(app.test_client(), token_endpoint, preferred_username="otro@contoso.com")
+    sso_login(app.test_client(), token_endpoint, preferred_username="otro@contoso.com")
     assert _user(app)["username"] == "jp@contoso.com"           # el nombre ya es de otra cuenta: no se cambia
     assert any(a == "user_rename_failed" for a, _d in _actions(app))

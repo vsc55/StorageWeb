@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_ui.html" import entry_icon, entry_href with context %}
 {% block title %}{{ _("Recent") }} · {{ app_name }}{% endblock %}
 {% block content %}
 {# Lo último que el usuario abrió, descargó o subió desde la web (de la auditoría; files.recent) #}
@@ -10,9 +11,9 @@
   <h2 class="section-label">{{ _("Favorites") }}</h2>
   <ul class="fav-chips">
     {% for f in favorites %}
-    <li><a class="fav-chip" href="{{ url_for('files.browse', root=f.root, sub=f.rel) if f.is_dir else url_for('files.view' if viewable(f.name) else 'files.download', root=f.root, sub=f.rel) }}"
+    <li><a class="fav-chip" href="{{ entry_href(f.root, f.rel, f.name, f.is_dir) }}"
            title="{{ f.root_label }}{% if f.rel %} / {{ f.rel }}{% endif %}">
-      <svg class="icon icon-sm {{ 'folder-icon' if f.is_dir else 'file-icon' }}" aria-hidden="true"><use href="#i-{{ 'folder' if f.is_dir else 'file' }}"></use></svg>{{ f.name }}</a></li>
+      {{ entry_icon(f.is_dir, 'sm') }}{{ f.name }}</a></li>
     {% endfor %}
   </ul>
   {% endif %}
@@ -24,8 +25,8 @@
       {% for i in items %}
       <tr>
         <td class="name"><span class="name-cell">
-          <svg class="icon file-icon" aria-hidden="true"><use href="#i-file"></use></svg>
-          <a href="{{ url_for('files.view' if viewable(i.name) else 'files.download', root=i.root, sub=i.rel) }}">{{ i.name }}</a></span></td>
+          {{ entry_icon(False) }}
+          <a href="{{ entry_href(i.root, i.rel, i.name) }}">{{ i.name }}</a></span></td>
         <td><a href="{{ url_for('files.browse', root=i.root, sub=i.folder) }}" class="muted">{{ i.root_label }}{% if i.folder %} / {{ i.folder }}{% endif %}</a></td>
         <td class="muted">{{ _("Uploaded") if i.action == 'upload' else _("Edited") if i.action == 'edit' else _("Opened or downloaded") }}</td>
         <td class="col-date">{{ i.ts|datetime }}</td>

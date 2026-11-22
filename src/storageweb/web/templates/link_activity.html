@@ -2,18 +2,20 @@
 {# La actividad de un enlace para compartir (links.activity): su dueño o un administrador. El historial
    (share_link_events) se conserva aunque el enlace se quite o se borre #}
 {% block title %}{{ _("Link activity") }} · {{ app_name }}{% endblock %}
+{% from "_link_filter.html" import link_state, link_kind with context %}
+{% from "_ui.html" import stat_tile with context %}
 {% block content %}
 <div class="page link-activity stack">
   <p class="small"><a href="{{ back }}">← {{ _("Back") }}</a></p>
   <div class="page-head">
     <div>
       <h1>{{ link['rel'].split('/')[-1] if link['rel'] else link['root'] }}</h1>
-      <p class="muted small"><span class="mono">{{ link['root'] }}:/{{ link['rel'] }}</span> · {{ MODE_LABELS[link['mode']] }}{% if link['password_hash'] %} · {{ _("with password") }}{% endif %}
+      <p class="muted small"><span class="mono">{{ link['root'] }}:/{{ link['rel'] }}</span> · {{ link_kind(link['mode'], link['password_hash']) }}
         · {{ _("shared by %(name)s", name=link['owner']) }} · {{ _("created %(when)s", when=link['created_at']|datetime) }}
         {% if state != 'deleted' %}· {{ _("expires %(when)s", when=link['expires_at']|datetime) if link['expires_at'] else _("never expires") }}{% endif %}</p>
     </div>
     <div class="inline">
-      <span class="badge{% if state == 'ok' %} badge-ok{% else %} badge-err{% endif %}">{{ STATE_LABELS[state] }}</span>
+      {{ link_state(state) }}
       <a class="btn" href="{{ url_for('links.activity_csv', uid=link['uid']) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Download CSV") }}</a>
     </div>
   </div>
@@ -26,15 +28,14 @@
   {% endif %}
 
   <div class="stat-grid" role="list">
-    <div class="stat-tile" role="listitem"><span class="stat-label">{{ _("Visits") }}</span><span class="stat-value">{{ summary.opened }}</span></div>
+    {{ stat_tile(_("Visits"), summary.opened) }}
     {% if link['mode'] == 'upload' %}
-    <div class="stat-tile" role="listitem"><span class="stat-label">{{ _("Files received") }}</span><span class="stat-value">{{ summary.uploads }}</span></div>
+    {{ stat_tile(_("Files received"), summary.uploads) }}
     {% else %}
-    <div class="stat-tile" role="listitem"><span class="stat-label">{{ _("Downloads") }}</span><span class="stat-value">{{ summary.downloads }}</span>
-      {% if link['max_downloads'] %}<span class="stat-note">{{ _("of %(num)s allowed", num=link['max_downloads']) }}</span>{% endif %}</div>
+    {{ stat_tile(_("Downloads"), summary.downloads, _("of %(num)s allowed", num=link['max_downloads']) if link['max_downloads'] else None) }}
     {% endif %}
-    <div class="stat-tile{% if summary.refused %} is-warn{% endif %}" role="listitem"><span class="stat-label">{{ _("Refused") }}</span><span class="stat-value">{{ summary.refused }}</span></div>
-    <div class="stat-tile" role="listitem"><span class="stat-label">{{ _("Last access") }}</span><span class="stat-note">{{ summary.last|datetime if summary.last else '—' }}</span></div>
+    {{ stat_tile(_("Refused"), summary.refused, state='warn' if summary.refused else None) }}
+    {{ stat_tile(_("Last access"), note=summary.last|datetime if summary.last else '—') }}
   </div>
 
   <div class="card stack">

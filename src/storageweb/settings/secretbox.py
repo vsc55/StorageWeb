@@ -30,6 +30,7 @@ from . import location_types
 from .defaults import SECRET_FIELDS
 from .errors import ConfigError
 from .layers import _get, _set
+from ..fsutil import write_private
 
 PREFIX = "enc:v1:"
 KEY_FILE = "secrets.key"
@@ -76,21 +77,14 @@ def load_key(data_dir: str | Path, environ=None, create: bool = True) -> bytes |
         return None
     path.parent.mkdir(parents=True, exist_ok=True)
     text = generate_key()
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        fh.write(text)
+    write_private(path, text)
     return parse_key(text)
 
 
 def write_key(data_dir: str | Path, text: str) -> None:
     """Sustituye el fichero de la clave (al rotarla o al restaurar una copia en un servidor nuevo)."""
     parse_key(text)
-    path = key_path(data_dir)
-    tmp = path.with_name(f".{KEY_FILE}.nuevo")
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        fh.write(text.strip())
-    os.replace(tmp, path)
+    write_private(key_path(data_dir), text.strip(), exclusive=False)
 
 
 # --------------------------------------------------------------------------- un valor
@@ -184,6 +178,19 @@ def _locations(conn: Connection, profile: str, fn: Callable[[str], str]) -> int:
     return changed
 
 
+def _reseal(value: str, old: bytes | None, new: bytes, what: str) -> str | None:
+    """``value`` (cifrado con ``old``) cifrado con ``new``; ``None`` si no se puede descifrar con ``old`` (si tampoco
+    está ya con ``new``, se avisa en el registro: se deja como está)."""
+    try:
+        return encrypt(new, decrypt(old, value))
+    except SecretError:
+        try:
+            decrypt(new, value)  # ya estaba con la clave nueva
+        except SecretError:
+            _log.warning("%s cannot be decrypted with either key: it is kept as is", what)
+        return None
+
+
 def rekey(conn: Connection, old: bytes | None, new: bytes) -> int:
     """Vuelve a cifrar los secretos guardados (ajustes y ubicaciones) de la clave ``old`` a ``new`` (rotación, o una
     copia restaurada de otro servidor). Lo que esté en claro también queda cifrado. Un secreto que no se pueda
@@ -194,14 +201,8 @@ def rekey(conn: Connection, old: bytes | None, new: bytes) -> int:
         def convert(value: str, name=name) -> str:
             if not is_encrypted(value):
                 return encrypt(new, value)
-            try:
-                return encrypt(new, decrypt(old, value))
-            except SecretError:
-                try:
-                    decrypt(new, value)  # ya estaba con la clave nueva
-                except SecretError:
-                    _log.warning("A secret in %s cannot be decrypted with either key: it is kept as is", name)
-                return value
+            sealed = _reseal(value, old, new, f"A secret in {name}")
+            return value if sealed is None else sealed
         doc = store.read_doc(conn, name)
         sealed = _map(doc, convert)
         if sealed != doc:
@@ -216,13 +217,8 @@ def _mfa_seeds(conn: Connection, old: bytes | None, new: bytes) -> int:
     from ..db.repositories import mfa  # noqa: PLC0415
     changed = 0
     for row in mfa.secrets(conn):
-        try:
-            sealed = encrypt(new, decrypt(old, row["secret"]))
-        except SecretError:
-            try:
-                decrypt(new, row["secret"])   # ya estaba con la clave nueva
-            except SecretError:
-                _log.warning("A two-step verification seed cannot be decrypted with either key: it is kept as is")
+        sealed = _reseal(row["secret"], old, new, "A two-step verification seed")
+        if sealed is None:
             continue
         mfa.set_secret(conn, row["user_id"], sealed)
         changed += 1

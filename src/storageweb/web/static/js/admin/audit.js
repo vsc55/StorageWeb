@@ -21,23 +21,7 @@
   }
 
   function copy(text, button) {
-    var done = function () { button.textContent = t("Copied"); };
-    // Sin contexto seguro (http fuera de localhost) no hay portapapeles asíncrono, y con él el navegador puede
-    // negarlo (permiso, foco): en los dos casos, la forma antigua
-    var fallback = function () {
-      var area = document.createElement("textarea");
-      area.value = text;
-      area.className = "sr-only";
-      button.parentNode.appendChild(area);
-      area.select();
-      try { if (document.execCommand("copy")) done(); } catch (e) { /* no se pudo */ }
-      area.remove();
-    };
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text).then(done, fallback);
-      return;
-    }
-    fallback();
+    window.SW.copy(text).then(function (ok) { if (ok) button.textContent = t("Copied"); });
   }
 
   function show(row) {

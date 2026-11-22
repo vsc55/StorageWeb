@@ -17,6 +17,7 @@
   <script type="application/json" id="i18n-messages">{{ js_messages()|tojson }}</script>
 </head>
 <body class="{{ 'in-app' if current_user else 'public' }}">
+{% from "_ui.html" import brand_logo with context %}
 {% include "_icons.html" %}
 
 {# Selector segmentado de idioma: un formulario, un botón por idioma #}
@@ -50,11 +51,11 @@
 
 {% if current_user %}
 {% set display = current_user['display_name'] or current_user['username'] %}
-{% set initials = (display.split()|map('first')|join)[:2]|upper if ' ' in display else display[:2]|upper %}
+{% set initials = current_user|initials %}
 <div class="app">
   <nav class="rail" aria-label="{{ _('Main') }}">
     <a class="rail-brand{% if brand.logo %} has-logo{% endif %}" href="{{ url_for('files.index') }}" title="{{ app_name }}">
-      {% if brand.logo %}<img src="{{ url_for('brand.logo', v=brand.version) }}" alt="">{% else %}<svg class="icon" aria-hidden="true"><use href="#i-logo"></use></svg>{% endif %}
+      {{ brand_logo() }}
       <span class="sr-only">{{ app_name }}</span>
     </a>
     <a class="rail-item{% if request.blueprint == 'files' %} active{% endif %}" href="{{ url_for('files.index') }}"
@@ -116,7 +117,7 @@
 {% else %}
 <header class="public-bar">
   <a class="brand" href="{{ url_for('files.index') }}">
-    <span class="brand-mark{% if brand.logo %} has-logo{% endif %}">{% if brand.logo %}<img src="{{ url_for('brand.logo', v=brand.version) }}" alt="">{% else %}<svg class="icon" aria-hidden="true"><use href="#i-logo"></use></svg>{% endif %}</span>{{ app_name }}
+    <span class="brand-mark{% if brand.logo %} has-logo{% endif %}">{{ brand_logo() }}</span>{{ app_name }}
   </a>
   <div class="public-tools">
     {{ themebox(false) }}

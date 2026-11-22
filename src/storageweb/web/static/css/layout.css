@@ -22,8 +22,6 @@
 
 /* --- menú de cuenta --- */
 .account { position: relative; margin-top: 8px; }
-.account summary { list-style: none; }
-.account summary::-webkit-details-marker { display: none; }
 .avatar { width: 40px; height: 40px; border-radius: 50%; background: #7c5cdb; color: #fff; display: flex;
           align-items: center; justify-content: center; font-weight: 600; font-size: 13px; cursor: pointer;
           flex: 0 0 auto; }
@@ -64,8 +62,6 @@ summary.avatar { box-shadow: 0 0 0 2px var(--rail-bg); }
 .profile-row-info p { margin: 2px 0 0; }
 .profile-more { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; }
 .profile-more[open] { flex: 1 0 100%; }
-.profile-more > summary { list-style: none; }
-.profile-more > summary::-webkit-details-marker { display: none; }
 .profile-more[open] > summary { background: var(--bg-hover); }
 .profile-more-body { align-self: stretch; margin-top: 10px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius);
                      background: var(--bg-soft); }
@@ -149,7 +145,6 @@ summary.avatar { box-shadow: 0 0 0 2px var(--rail-bg); }
 .login-local { margin-top: 20px; padding-top: 6px; border-top: 1px solid var(--line); }
 .login-local > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 2px;
                          list-style: none; cursor: pointer; color: var(--muted); font-weight: 500; border-radius: 6px; }
-.login-local > summary::-webkit-details-marker { display: none; }
 .login-local > summary:hover { color: var(--fg); }
 .login-local > summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .login-local[open] > summary .icon { transform: rotate(180deg); }
@@ -198,8 +193,7 @@ summary.avatar { box-shadow: 0 0 0 2px var(--rail-bg); }
 .passkey-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .passkey-list li { display: flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; }
 .passkey-list .passkey-name { display: flex; flex-direction: column; flex: 1 1 200px; min-width: 0; }
-.passkey-edit > summary { list-style: none; cursor: pointer; }
-.passkey-edit > summary::-webkit-details-marker { display: none; }
+.passkey-edit > summary { cursor: pointer; }
 .passkey-edit[open] { flex: 1 0 100%; order: 5; }
 .passkey-edit .mfa-confirm { margin-top: 6px; }
 

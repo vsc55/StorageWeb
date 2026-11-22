@@ -2,14 +2,12 @@
 el contenido de una carpeta en JSON. A qué mira lo dice el campo (``scope``); lo resuelve ``core/pathpicker``."""
 from __future__ import annotations
 
-import hmac
 
-from flask import abort, jsonify, request, session
+from flask import abort, jsonify, request
 
 from ....core import pathpicker, storage
-from ....db.repositories import users
-from ...context import get_db, settings
-from ...guards import admin_required
+from ...context import settings
+from ...guards import admin_required, csrf_ok, user_or_404
 from . import bp
 
 
@@ -21,16 +19,13 @@ def browse():
     # Una petición GET, pero que recorre carpetas y se conecta a ubicaciones: solo desde el JavaScript de la propia
     # página (lleva el token CSRF en la cabecera). Si no, otra web podría hacer que el navegador de un administrador
     # navegara aquí (la cookie va con SameSite=Lax) y provocar ese trabajo, aunque no pudiera leer la respuesta
-    sent, expected = request.headers.get("X-CSRF-Token", ""), session.get("_csrf", "")
-    if not expected or not hmac.compare_digest(sent.encode(), str(expected).encode()):
+    if not csrf_ok(request.headers.get("X-CSRF-Token")):
         abort(403)
     cfg = settings()
     scope = request.args.get("scope", "")
     path = request.args.get("path", "")[:4096]
     if scope == "root":
-        user = users.get_by_uid(get_db(), request.args.get("user", ""))
-        if user is None:
-            abort(404)
+        user = user_or_404(request.args.get("user", ""))
         root = next((r for r in storage.available_roots(user, cfg) if r["name"] == request.args.get("root")), None)
         if root is None:
             abort(404)

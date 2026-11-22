@@ -18,7 +18,6 @@ personas editen a la vez. Clase DAV 1 y 2.
 from __future__ import annotations
 
 import mimetypes
-import secrets
 import urllib.parse
 import uuid
 import xml.etree.ElementTree as ET
@@ -31,15 +30,13 @@ from werkzeug.exceptions import HTTPException
 
 from ... import patterns
 from ... import metrics
-from ...core import backends, favorites, links, quota, storage, tokens
-from ...core.permissions import effective_for_root, permissions_for
-from ...core.security import UPLOAD_TMP_PREFIX, PathError, safe_filename
+from ...core import backends, files as files_core, quota, storage
+from ...core.security import PathError, safe_filename
 from ...core.uploads import UploadError, check_space
-from ...db.repositories import audit
 from ...i18n import _
 from ..context import get_db, settings
 from ..downloads import SANDBOX, etag, send_entry
-from ..guards import client_ip, with_token
+from ..guards import audit_path, root_perms
 
 bp = Blueprint("dav", __name__, url_prefix="/dav")
 
@@ -93,7 +90,7 @@ def _root(name: str) -> dict:
 
 
 def _perms(root: dict) -> frozenset[str]:
-    return tokens.restrict(effective_for_root(permissions_for(g.user, settings()), root), g.get("api_token"))
+    return root_perms(root)
 
 
 def _require(root: dict, *needed: str) -> None:
@@ -109,8 +106,7 @@ def _stat(root: dict, rel: str):
 
 
 def _audit(action: str, root: dict, rel: str, detail: str = "webdav") -> None:
-    audit.log(get_db(), action, f"{root['name']}:/{rel}", username=g.user["username"], ip=client_ip(),
-              detail=with_token(detail))
+    audit_path(action, root, rel, detail)
 
 
 def _etags(header: str) -> set[str]:
@@ -360,7 +356,7 @@ def _put(root: dict, rel: str) -> Response:
             check_space(backend, parent, length)
     except UploadError:
         raise InsufficientStorage()
-    tmp = backend.staging_dir(parent) / f"{UPLOAD_TMP_PREFIX}{secrets.token_hex(8)}.part"
+    tmp = backend.staging_file(parent)
     received = 0
     try:
         with open(tmp, "wb") as out:
@@ -407,21 +403,27 @@ def _mkcol(root: dict, rel: str) -> Response:
     return _empty(201)
 
 
-def _delete(root: dict, rel: str) -> Response:
-    _require(root, "delete")
+def _existing(root: dict, rel: str):
+    """Lo que se va a borrar, mover o copiar: nunca la raíz de una carpeta (403), tiene que existir (404) y cumplir
+    las condiciones de la petición (``If-Match``…)."""
     if not rel:
-        abort(403)  # la raíz de una carpeta no se borra desde aquí
+        abort(403)
     entry = _stat(root, rel)
     if entry is None:
         abort(404)
     _preconditions(entry)
+    return entry
+
+
+def _delete(root: dict, rel: str) -> Response:
+    _require(root, "delete")
+    _existing(root, rel)
     try:
         root["backend"].delete(rel)
     except (backends.BackendError, OSError):
         abort(502)
     quota.invalidate(root)
-    favorites.deleted(get_db(), g.user, root["name"], rel)
-    links.deleted(get_db(), g.user, root["name"], rel)
+    files_core.path_deleted(get_db(), g.user, root["name"], rel)
     _audit("delete", root, rel)
     return _empty(204)
 
@@ -442,12 +444,7 @@ def _destination() -> tuple[dict, str]:
 
 
 def _copy_move(root: dict, rel: str, move: bool) -> Response:
-    if not rel:
-        abort(403)
-    entry = _stat(root, rel)
-    if entry is None:
-        abort(404)
-    _preconditions(entry)
+    entry = _existing(root, rel)
     dst_root, dst_rel = _destination()
     _check_name(dst_rel)
     if storage.is_hidden(settings(), dst_rel):
@@ -493,8 +490,7 @@ def _copy_move(root: dict, rel: str, move: bool) -> Response:
         abort(502)
     quota.invalidate(root, dst_root)
     if move:
-        favorites.moved(get_db(), g.user, root["name"], rel, dst_root["name"], dst_rel)
-        links.moved(get_db(), g.user, root["name"], rel, dst_root["name"], dst_rel)
+        files_core.path_moved(get_db(), g.user, root["name"], rel, dst_root["name"], dst_rel)
     target = f"{dst_root['name']}:/{dst_rel}"
     _audit("rename" if move else "upload", root, rel, f"webdav:{'move' if move else 'copy'}:{target}")
     return _empty(204 if existing is not None else 201)
@@ -515,7 +511,7 @@ def _lock(root: dict, rel: str) -> Response:
         backend = root["backend"]
         if not backend.is_dir(backends.parent_rel(rel)):
             abort(409)
-        tmp = backend.staging_dir(backends.parent_rel(rel)) / f"{UPLOAD_TMP_PREFIX}{secrets.token_hex(8)}.part"
+        tmp = backend.staging_file(backends.parent_rel(rel))
         tmp.write_bytes(b"")
         try:
             backend.store(tmp, rel)

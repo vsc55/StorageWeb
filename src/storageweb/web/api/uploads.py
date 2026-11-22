@@ -18,14 +18,12 @@ from ... import metrics
 
 from ...core import backends, storage
 from ...core import uploads as core
-from ...core import quota, tokens
-from ...core.permissions import effective_for_root, permissions_for
+from ...core import quota
 from ...core.security import PathError, safe_filename
-from ...db.repositories import audit
 from ...db.repositories import uploads as repo
 from ...i18n import _
 from ..context import boot_config, get_db, settings
-from ..guards import client_ip, with_token
+from ..guards import audit_path, root_perms
 from . import json_api
 
 bp = Blueprint("uploads", __name__, url_prefix="/api/uploads")
@@ -62,7 +60,7 @@ def _writable_dir(root_name: str, rel: str) -> tuple[dict, str]:
         abort(502, description=exc.message)
     if not is_dir:
         abort(404, description=_("Folder not found"))
-    if "upload" not in tokens.restrict(effective_for_root(permissions_for(g.user, cfg), root), g.get("api_token")):
+    if "upload" not in root_perms(root):
         abort(403, description=_("You are not allowed to upload files here"))
     return root, dir_rel
 
@@ -74,7 +72,7 @@ def _make_folders(root: dict, dir_rel: str, folders: str) -> str:
     """Crea (si faltan) las subcarpetas ``a/b/c`` bajo ``dir_rel`` y devuelve la última. Cada nombre pasa por
     las mismas reglas que una carpeta nueva; hace falta el permiso de crear carpetas."""
     cfg = settings()
-    perms = tokens.restrict(effective_for_root(permissions_for(g.user, cfg), root), g.get("api_token"))
+    perms = root_perms(root)
     parts = [p for p in folders.split("/") if p]
     if len(parts) > MAX_DEPTH:
         abort(400, description=_("Too many nested folders."))
@@ -95,8 +93,7 @@ def _make_folders(root: dict, dir_rel: str, folders: str) -> str:
             except (FileExistsError, backends.BackendError):
                 if not root["backend"].is_dir(current):   # otra subida de la misma carpeta pudo crearla antes
                     raise
-            audit.log(get_db(), "mkdir", f"{root['name']}:/{current}", username=g.user["username"],
-                      ip=client_ip(), detail=with_token("upload"))
+            audit_path("mkdir", root, current, "upload")
         except backends.BackendError as exc:
             abort(502, description=exc.message)
         except FileExistsError:
@@ -140,8 +137,7 @@ def init():
     try:
         quota.check(root, settings(), size)  # al empezar: no se sube lo que no va a caber
     except quota.QuotaExceeded as exc:
-        audit.log(get_db(), "quota_exceeded", f"{root['name']}:/{backends.join_rel(dir_rel, filename)}",
-                  username=g.user["username"], ip=client_ip(), detail=with_token(f"api:{size}"))
+        audit_path("quota_exceeded", root, backends.join_rel(dir_rel, filename), f"api:{size}")
         raise core.UploadError(exc.message, 507) from exc
     core.check_space(root["backend"], dir_rel, size)
     _cleanup_stale()
@@ -151,8 +147,7 @@ def init():
     core.part_path(staging, upload_id).touch(exist_ok=False)
     repo.create(get_db(), upload_id=upload_id, user_id=g.user["id"], root=root["name"],
                 dir_rel=dir_rel, dir_path=str(staging), filename=filename, size=size)
-    audit.log(get_db(), "upload_started", f"{root['name']}:/{backends.join_rel(dir_rel, filename)}",
-              username=g.user["username"], ip=client_ip(), detail=with_token(str(size)))
+    audit_path("upload_started", root, backends.join_rel(dir_rel, filename), str(size))
     return {"id": upload_id, "chunk_size": _chunk_size(), "received": 0}, 201
 
 
@@ -182,8 +177,7 @@ def complete(upload_id: str):
     quota.record(root, row["size"])
     metrics.inc("storageweb_upload_bytes_total", row["size"], via="api" if g.get("api_token") else "web")
     repo.delete(get_db(), upload_id)
-    audit.log(get_db(), "upload", f"{root['name']}:/{final}",
-              username=g.user["username"], ip=client_ip(), detail=with_token(str(row["size"])))
+    audit_path("upload", root, final, str(row["size"]))
     return {"name": backends.name_of(final), "size": row["size"]}
 
 

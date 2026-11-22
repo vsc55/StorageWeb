@@ -9,9 +9,9 @@ from storageweb.core.mfa import webauthn as wa
 from storageweb.db.repositories import mfa as mfa_repo
 from storageweb.db.repositories import users
 from storageweb.web.context import get_db
-from tests.helpers import add_user, get_csrf, login, settings_form
-from tests.integration.test_mfa import code, enrol, last_audit, submit
-from tests.webauthn_fabric import ORIGIN, _assertion, _registration
+from tests.helpers import add_user, get_csrf, login, settings_form, signed_in, get_user, last_audit
+from tests.mfa_helpers import code, enrol, post_json, register, submit
+from tests.webauthn_fabric import ORIGIN, _assertion
 
 PUBLIC = {"network": {"public_url": ORIGIN}}
 
@@ -19,22 +19,6 @@ PUBLIC = {"network": {"public_url": ORIGIN}}
 @pytest.fixture
 def pk_app(make_app):
     return make_app(PUBLIC)
-
-
-def post_json(client, url: str, body: dict, token: str):
-    return client.post(url, json=body, headers={"X-CSRF-Token": token})
-
-
-def register(client, token: str, *, name: str = "Portátil", cred_id: bytes = b"cred-0001", count: int = 1,
-             options="/profile/mfa/passkey/options", verify="/profile/mfa/passkey/register"):
-    """Registra una passkey como el navegador. Devuelve ``(clave privada, respuesta)``."""
-    opts = post_json(client, options, {"for": "register"}, token)
-    assert opts.status_code == 200, opts.get_json()
-    challenge = opts.get_json()["challenge"]
-    priv, _key, att, cdj = _registration(challenge, cred_id=cred_id, count=count)
-    resp = post_json(client, verify, {"attestation_object": wa.b64u_encode(att),
-                                      "client_data_json": wa.b64u_encode(cdj), "name": name}, token)
-    return priv, resp
 
 
 def assertion_body(priv, challenge: str, *, cred_id: bytes = b"cred-0001", count: int = 2, origin: str = ORIGIN):
@@ -58,15 +42,7 @@ def recovery_codes(client) -> list[str]:
 
 
 def logged_in(app, username: str = "ana"):
-    add_user(app, username)
-    client = app.test_client()
-    assert login(client, username).status_code == 302
-    return client, get_csrf(client, "/profile/security")
-
-
-def ana(app):
-    with app.app_context():
-        return users.get_by_username(get_db(), "ana")
+    return signed_in(app, username, csrf_url="/profile/security")
 
 
 def test_add_from_my_profile_then_sign_in_with_it(pk_app):
@@ -75,14 +51,14 @@ def test_add_from_my_profile_then_sign_in_with_it(pk_app):
     assert 'data-passkey="create"' in page and "/static/js/passkeys.js" in page
     opts = post_json(client, "/profile/mfa/passkey/options", {"for": "register"}, token).get_json()
     assert opts["rp"]["id"] == "panel.example.com" and opts["exclude"] == []
-    assert wa.b64u_decode(opts["user"]["id"]).decode() == ana(pk_app)["uid"]     # el uid, no el nombre
+    assert wa.b64u_decode(opts["user"]["id"]).decode() == get_user(pk_app)["uid"]     # el uid, no el nombre
     priv, resp = register(client, token)
     assert resp.get_json()["redirect"].endswith("/profile/mfa/codes")          # primer factor: códigos nuevos
     assert len(recovery_codes(client)) == 10
     assert last_audit(pk_app, "passkey_added")["target"] == "Portátil"
     assert last_audit(pk_app, "mfa_enrolled")["detail"] == "self passkey"
     with pk_app.app_context():
-        state = mfa.status(get_db(), ana(pk_app))
+        state = mfa.status(get_db(), get_user(pk_app))
     assert state["enrolled"] and not state["totp"] and [k["name"] for k in state["passkeys"]] == ["Portátil"]
 
     client = pk_app.test_client()
@@ -124,10 +100,7 @@ def test_wrong_origin_clone_and_another_account_are_refused(pk_app):
     resp, *_ = sign_in(pk_app.test_client(), priv, count=5)                     # el contador no avanza: clonada
     assert last_audit(pk_app, "mfa_failed")["detail"] == "stage=passkey error=the_signature_counter_went_backwards"
     # La credencial de ana no vale para otra cuenta
-    add_user(pk_app, "luis")
-    other = pk_app.test_client()
-    login(other, "luis")
-    t = get_csrf(other, "/profile/security")
+    other, t = signed_in(pk_app, "luis", csrf_url="/profile/security")
     register(other, t, cred_id=b"cred-luis")
     other = pk_app.test_client()
     login(other, "luis")
@@ -152,8 +125,8 @@ def test_adding_or_removing_needs_proof(pk_app):
     assert client.post("/profile/mfa/passkey/1/rename",
                        data={"_csrf": token, "name": "De otro"}).location.endswith("#mfa")
     with pk_app.app_context():
-        assert mfa_repo.passkey_count(get_db(), ana(pk_app)["id"]) == 1
-        assert [k["name"] for k in mfa.status(get_db(), ana(pk_app))["passkeys"]] == ["Portátil"]
+        assert mfa_repo.passkey_count(get_db(), get_user(pk_app)["id"]) == 1
+        assert [k["name"] for k in mfa.status(get_db(), get_user(pk_app))["passkeys"]] == ["Portátil"]
     assert last_audit(pk_app, "passkey_renamed") is None
     # Demostrarlo con la passkey abre unos minutos para cambiar cosas
     opts = post_json(client, "/profile/mfa/passkey/options", {"for": "prove"}, token).get_json()
@@ -165,16 +138,16 @@ def test_adding_or_removing_needs_proof(pk_app):
     client.post("/profile/mfa/passkey/1/rename", data={"_csrf": token, "name": "  Portátil   del trabajo "})
     assert last_audit(pk_app, "passkey_renamed")["target"] == "Portátil del trabajo"
     with pk_app.app_context():
-        names = [k["name"] for k in mfa.status(get_db(), ana(pk_app))["passkeys"]]
-        left = mfa.status(get_db(), ana(pk_app))["recovery_left"]
+        names = [k["name"] for k in mfa.status(get_db(), get_user(pk_app))["passkeys"]]
+        left = mfa.status(get_db(), get_user(pk_app))["recovery_left"]
     assert names == ["Portátil del trabajo", "Llave USB"] and left == 10
     # Quitar las dos: con la última se va la verificación entera (y los códigos)
     client.post("/profile/mfa/passkey/1/remove", data={"_csrf": token})
     client.post("/profile/mfa/passkey/2/remove", data={"_csrf": token})
     assert last_audit(pk_app, "passkey_removed")["target"] == "Llave USB"
     with pk_app.app_context():
-        state = mfa.status(get_db(), ana(pk_app))
-        assert not state["enrolled"] and mfa_repo.recovery_unused(get_db(), ana(pk_app)["id"]) == []
+        state = mfa.status(get_db(), get_user(pk_app))
+        assert not state["enrolled"] and mfa_repo.recovery_unused(get_db(), get_user(pk_app)["id"]) == []
     assert login(pk_app.test_client(), "ana").location.endswith("/")
 
 
@@ -205,12 +178,12 @@ def test_app_and_passkeys_together(pk_app):
     client.post("/profile/mfa/totp/remove", data={"_csrf": token})
     assert last_audit(pk_app, "mfa_disabled")["detail"] == "self app"
     with pk_app.app_context():
-        state = mfa.status(get_db(), ana(pk_app))
+        state = mfa.status(get_db(), get_user(pk_app))
     assert state["enrolled"] and not state["totp"] and state["recovery_left"] == 9
     # Volver a poner la app (con la prueba aún vigente) no cambia los códigos
     assert client.post("/profile/mfa/begin", data={"_csrf": token}).location.endswith("/profile/mfa")
     with pk_app.app_context():
-        setup = mfa.pending_setup(get_db(), pk_app.extensions["storageweb.runtime"].secrets_key, ana(pk_app), "x")
+        setup = mfa.pending_setup(get_db(), pk_app.extensions["storageweb.runtime"].secrets_key, get_user(pk_app), "x")
     resp = client.post("/profile/mfa/confirm", data={"_csrf": token, "code": code(setup["secret"])})
     assert resp.location.endswith("#mfa")
     # Cancelar un alta a medias de la app no toca las passkeys
@@ -218,12 +191,12 @@ def test_app_and_passkeys_together(pk_app):
     client.post("/profile/mfa/begin", data={"_csrf": token})
     client.post("/profile/mfa/cancel", data={"_csrf": token})
     with pk_app.app_context():
-        state = mfa.status(get_db(), ana(pk_app))
+        state = mfa.status(get_db(), get_user(pk_app))
     assert len(state["passkeys"]) == 1 and not state["pending"] and state["recovery_left"] == 9
     # Desactivar lo quita todo
     client.post("/profile/mfa/disable", data={"_csrf": token})
     with pk_app.app_context():
-        assert not mfa.enrolled(get_db(), ana(pk_app))
+        assert not mfa.enrolled(get_db(), get_user(pk_app))
     assert login(pk_app.test_client(), "ana").location.endswith("/")
 
 
@@ -243,7 +216,7 @@ def test_forced_enrolment_with_a_passkey(make_app):
     assert last_audit(app, "mfa_enrolled")["detail"] == "forced passkey"
     assert last_audit(app, "login")["detail"] == "local+passkey"
     with app.app_context():
-        state = mfa.status(get_db(), ana(app))
+        state = mfa.status(get_db(), get_user(app))
     assert not state["pending"] and len(state["passkeys"]) == 1               # el alta de la app a medias, fuera
 
 
@@ -261,9 +234,7 @@ def test_not_offered_without_a_usable_public_address(make_app):
 
 def test_the_setting(make_app):
     app = make_app(PUBLIC)
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
+    client, _ = signed_in(app, "root", role="admin", csrf_url=None)
     data = settings_form(client, "auth")
     assert data["passkeys"] == ["on"]
     assert "panel.example.com" in client.get("/admin/settings/auth").get_data(as_text=True)
@@ -277,10 +248,8 @@ def test_the_setting(make_app):
 def test_status_for_the_admin_and_the_cli(pk_app, capsys):
     client, token = logged_in(pk_app)
     register(client, token)
-    add_user(pk_app, "root", role="admin")
-    admin = pk_app.test_client()
-    login(admin, "root")
-    page = admin.get(f"/admin/users/{ana(pk_app)['uid']}").get_data(as_text=True)
+    admin, _ = signed_in(pk_app, "root", role="admin", csrf_url=None)
+    page = admin.get(f"/admin/users/{get_user(pk_app)['uid']}").get_data(as_text=True)
     assert "1 passkey" in page and "Quitar la verificación en dos pasos" in page
     from storageweb.cli.security import cmd_mfa_status
     with pk_app.app_context():
@@ -319,7 +288,7 @@ def test_a_clone_answering_zero_does_not_switch_the_counter_off(pk_app):
     assert resp.status_code == 400
     assert last_audit(pk_app, "mfa_failed")["detail"] == "stage=passkey error=the_signature_counter_went_backwards"
     with pk_app.app_context():
-        assert mfa_repo.passkeys(get_db(), ana(pk_app)["id"])[0]["sign_count"] == 6     # no bajó a 0
+        assert mfa_repo.passkeys(get_db(), get_user(pk_app)["id"])[0]["sign_count"] == 6     # no bajó a 0
     assert sign_in(pk_app.test_client(), priv, count=7)[0].status_code == 200
 
 
@@ -341,7 +310,7 @@ def test_the_same_credential_twice_at_once_is_a_refusal_not_a_500(pk_app, monkey
     assert resp.status_code == 400 and resp.get_json()["error"] == "No se ha podido añadir la passkey."
     assert last_audit(pk_app, "mfa_failed")["detail"] == "stage=enrol error=credential_already_registered"
     with pk_app.app_context():
-        assert mfa_repo.passkey_count(get_db(), ana(pk_app)["id"]) == 1
+        assert mfa_repo.passkey_count(get_db(), get_user(pk_app)["id"]) == 1
 
 
 def test_forced_enrolment_leaves_nothing_if_the_account_is_disabled_meanwhile(make_app, monkeypatch):
@@ -361,9 +330,9 @@ def test_forced_enrolment_leaves_nothing_if_the_account_is_disabled_meanwhile(ma
                            verify="/login/mfa/enrol/passkey")
     assert resp.get_json()["redirect"].endswith("/login?manual=1")
     with app.app_context():
-        state = mfa.status(get_db(), ana(app))
+        state = mfa.status(get_db(), get_user(app))
         assert not state["enrolled"] and state["passkeys"] == []
-        assert mfa_repo.recovery_unused(get_db(), ana(app)["id"]) == []
+        assert mfa_repo.recovery_unused(get_db(), get_user(app)["id"]) == []
     assert client.get("/profile/mfa/codes").status_code == 302
 
 

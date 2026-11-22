@@ -1,14 +1,15 @@
 """Logo e imagen del inicio de sesión propios (Sistema → General y marca)."""
 from __future__ import annotations
 
-from flask import flash, redirect, request, url_for
+from flask import flash
 
 from ....core import branding
 from ....i18n import _
 from ...context import boot_config
 from ...guards import admin_required, audit_event
 from . import bp
-from .common import save_partial
+from ...forms import uploaded
+from .common import save_partial, to_section
 
 # Imagen → (campo del formulario, acciones de auditoría al subir y al quitar, mensajes de subida y de borrado)
 _IMAGES = {
@@ -19,28 +20,24 @@ _IMAGES = {
 }
 
 
-def _back():
-    return redirect(url_for("settings.section", name="general"))
-
-
 def _upload(kind: str):
     field, updated, _removed, done, _gone = _IMAGES[kind]
-    item = request.files.get(field)
+    item = uploaded(field)
     cfg = boot_config()
     try:
-        if not item or not item.filename:
+        if item is None:
             raise branding.BrandingError(_("Choose an image."))
         name = branding.save_image(cfg, kind, item.filename, item.read(branding.IMAGES[kind].max_bytes + 1))
     except branding.BrandingError as exc:
         flash(str(exc), "error")
-        return _back()
+        return to_section("general")
     _draft, error = save_partial(lambda: {"branding": {kind: name}}, strict=True)
     if error:
         flash(str(error), "error")
     else:
         audit_event(updated, None, name)
         flash(done(), "info")
-    return _back()
+    return to_section("general")
 
 
 def _remove(kind: str):
@@ -49,7 +46,7 @@ def _remove(kind: str):
     save_partial(lambda: {"branding": {kind: ""}}, strict=True)
     audit_event(removed)
     flash(gone(), "info")
-    return _back()
+    return to_section("general")
 
 
 @bp.route("/branding/logo", methods=["POST"])

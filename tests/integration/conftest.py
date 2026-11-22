@@ -1,8 +1,20 @@
 """Fixtures de los tests de integración (aplicación Flask completa)."""
 import pytest
 
+from storageweb.core import backends
 from storageweb.providers.entra import oauth2
+from tests.fakes import FakeS3
 from tests.sso_helpers import base_claims, entra_cfg, make_jwt
+
+
+@pytest.fixture
+def s3(monkeypatch):
+    """Las ubicaciones S3 hablan con un S3 en memoria (tests/fakes.py); devuelve ese ``FakeS3``."""
+    fake = FakeS3()
+    monkeypatch.setitem(backends.CLIENT_FACTORIES, "s3", lambda loc: fake)
+    backends.clear_clients()
+    yield fake
+    backends.clear_clients()
 
 
 @pytest.fixture

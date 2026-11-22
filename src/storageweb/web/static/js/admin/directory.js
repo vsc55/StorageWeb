@@ -77,19 +77,13 @@
     // Sin directorio, menos de 2 letras o ya es un identificador (GUID): no se busca
     if (!url || text.length < 2 || GUID.test(text)) return;
     timer = setTimeout(function () {
-      fetch(url + "?q=" + encodeURIComponent(text), {
-        headers: { "Accept": "application/json" }, credentials: "same-origin"
-      }).then(function (r) { return r.json(); }).then(function (data) {
+      window.SW.getJSON(url + "?q=" + encodeURIComponent(text)).then(function (data) {
         var list = document.getElementById(input.getAttribute("list"));
         if (!list) return;
         list.innerHTML = "";
         (data.groups || []).forEach(function (g) {
           known[String(g.id).toLowerCase()] = g;
-          var opt = document.createElement("option");
-          opt.value = g.id;
-          opt.label = g.name;
-          opt.textContent = g.name;
-          list.appendChild(opt);
+          window.SW.option(list, g.id, g.name).label = g.name;
         });
       }).catch(function () {});
     }, 300);

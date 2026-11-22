@@ -12,8 +12,7 @@ from pathlib import Path
 from ...i18n import _, _l
 from ...settings.location_types import LocationSchema, Option
 from ..security import check_windows_parts
-from .base import BackendError, Entry, RemoteBackend, clean_rel, join_rel, name_of
-
+from .base import BackendError, Entry, RemoteBackend, clean_rel, join_rel, name_of, remove_tree
 COPY_BLOCK = 1024 * 1024
 
 
@@ -112,9 +111,7 @@ class SMBBackend(RemoteBackend):
         return entries
 
     def open(self, rel: str):
-        entry = self.stat(rel)
-        if entry is None or entry.is_dir:
-            raise FileNotFoundError(rel)
+        entry = self._file_entry(rel)
         try:
             return self.client.open_file(self._unc(rel), mode="rb"), entry.size, entry.mtime
         except OSError as exc:
@@ -134,22 +131,12 @@ class SMBBackend(RemoteBackend):
         except OSError as exc:
             raise _error(exc) from exc
 
-    def _remove_tree(self, rel: str) -> None:
-        for item in self.listdir(rel):
-            child = join_rel(rel, item.name)
-            if item.is_dir:
-                self._remove_tree(child)
-            else:
-                self.client.remove(self._unc(child))
-        self.client.rmdir(self._unc(rel))
-
     def delete(self, rel: str) -> None:
-        entry = self.stat(rel)
-        if entry is None:
-            raise FileNotFoundError(rel)
+        entry = self._existing(rel)
         try:
             if entry.is_dir:
-                self._remove_tree(clean_rel(rel))
+                remove_tree(clean_rel(rel), self.listdir, lambda r: self.client.remove(self._unc(r)),
+                            lambda r: self.client.rmdir(self._unc(r)))
             else:
                 self.client.remove(self._unc(rel))
         except OSError as exc:
@@ -162,9 +149,6 @@ class SMBBackend(RemoteBackend):
         except OSError as exc:
             raise _error(exc) from exc
         local.unlink(missing_ok=True)
-
-    def root_exists(self) -> bool:
-        return self.stat("") is not None
 
     def ensure_root(self, home: bool = False) -> None:
         try:

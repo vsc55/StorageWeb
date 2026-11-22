@@ -18,10 +18,48 @@ from . import backends
 from .groups import ADMINS_GROUP
 from .permissions import ADMIN
 from .security import UPLOAD_TMP_PREFIX, PathError, safe_username_for_path
+from ..settings.errors import UserError
+
+
+HOME = "home"       # el nombre de la raíz de la carpeta personal: la de cada uno
 
 
 class RootNotFound(Exception):
     pass
+
+
+class EntryError(UserError):
+    """Una ruta que no vale para señalarla (un favorito, un enlace para compartir)."""
+
+
+def existing_entry(cfg: dict, root: dict, rel: str):
+    """``(ruta limpia, Entry o None si no hay nada)`` en ``root``, para crear algo que la señale. :class:`EntryError`
+    si la ruta no es válida, está oculta para todos (``storage.hidden``) o el almacenamiento falla."""
+    try:
+        rel = backends.clean_rel(rel)
+    except PathError as exc:
+        raise EntryError(_("That path is not valid.")) from exc
+    if is_hidden(cfg, rel):
+        raise EntryError(_("That path is hidden for everyone (Hidden for everyone)."))
+    try:
+        return rel, root["backend"].stat(rel)
+    except backends.BackendError as exc:
+        raise EntryError(exc.message) from exc
+
+
+def home_owner(user, *roots: str) -> int | None:
+    """Para lo que se guarda por ruta (favoritos, enlaces) y hay que seguir al renombrar, mover o borrar: la carpeta
+    personal es de cada usuario, así que en ella solo cambian las filas de quien hace la operación (su id);
+    en una carpeta compartida, las de todos (``None``)."""
+    return user["id"] if HOME in roots else None
+
+
+def effective_groups(user) -> set[str]:
+    """Los grupos de la persona (los suyos y los del proveedor) y, si es administradora, el de serie ``admins``."""
+    names = groups_of(user)
+    if user["role"] == ADMIN:
+        names.add(ADMINS_GROUP)  # grupo de serie: lo da el rol
+    return names
 
 
 def home_path_for(user, cfg: dict) -> str:
@@ -122,9 +160,7 @@ def home_quota_mb(user, cfg: dict) -> int:
         return int(value)
     by_group = cfg["storage"].get("group_quotas") or {}
     if by_group:
-        names = groups_of(user)
-        if user["role"] == ADMIN:
-            names.add(ADMINS_GROUP)
+        names = effective_groups(user)
         found = [int(by_group[n]) for n in names if n in by_group]
         if found:
             return 0 if 0 in found else max(found)
@@ -136,9 +172,7 @@ def available_roots(user, cfg: dict) -> list[dict]:
     roots = [make_root(cfg, "home", _("My folder"), cfg["storage"].get("home_location", ""), home_path_for(user, cfg),
                        read_only=False, quota_mb=home_quota_mb(user, cfg))]
     uname = user["username"].lower()
-    ugroups = groups_of(user)
-    if user["role"] == ADMIN:
-        ugroups.add(ADMINS_GROUP)  # grupo de serie: lo da el rol
+    ugroups = effective_groups(user)
     for share in cfg["storage"]["shares"]:
         level = share_access(share, uname, ugroups)
         if level != "none":
@@ -175,9 +209,7 @@ def explain_access(user, cfg: dict, group_labels: dict[str, str] | None = None) 
     """
     labels = group_labels or {}
     uname = user["username"].lower()
-    ugroups = groups_of(user)
-    if user["role"] == ADMIN:
-        ugroups.add(ADMINS_GROUP)
+    ugroups = effective_groups(user)
     result = [{"name": "home", "label": _("My folder"), "level": "write", "reasons": [_("personal folder")]}]
     for root in available_roots(user, cfg)[1:]:
         share = next(s for s in cfg["storage"]["shares"] if s["name"] == root["name"])

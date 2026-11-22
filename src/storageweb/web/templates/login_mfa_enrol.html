@@ -1,5 +1,6 @@
 {% extends "_login_frame.html" %}
 {% from "_passkeys.html" import passkey_create with context %}
+{% from "_forms.html" import post_button with context %}
 {% block title %}{{ _("Set up two-step verification") }} · {{ app_name }}{% endblock %}
 {% block panel_class %} login-panel-wide{% endblock %}
 {% block panel %}
@@ -15,9 +16,6 @@
 {% endif %}
 {% set action = url_for('mfa.login_enrol') %}
 {% include "_mfa_setup.html" %}
-<form method="post" action="{{ url_for('mfa.login_cancel') }}" class="inline">
-  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-  <button class="btn btn-ghost" type="submit">{{ _("Back to sign-in") }}</button>
-</form>
+{{ post_button(url_for('mfa.login_cancel'), _("Back to sign-in"), btn='btn btn-ghost') }}
 {% endblock %}
 {% block scripts %}{% if passkeys_on %}<script src="{{ url_for('static', filename='js/passkeys.js') }}"></script>{% endif %}{% endblock %}

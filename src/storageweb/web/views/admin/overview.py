@@ -1,7 +1,6 @@
 """Resumen de la administración y buscador (Ctrl+K)."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 
 from flask import jsonify, render_template, request
 
@@ -14,13 +13,13 @@ from ....db.repositories import api_tokens, audit, users
 from ....db.repositories import groups as group_repo
 from ....db.repositories import ip_rules as ip_repo
 from ....db.repositories import sessions as session_repo
-from ....i18n import _
 from ....settings import PERMISSIONS
 from ... import nav
 from ... import search as admin_search
 from ...context import admin_alerts, boot_config, get_db, settings
 from ...guards import admin_required
 from . import bp
+from ....clock import iso_ago
 
 
 # --------------------------------------------------------------------------- Resumen y buscador
@@ -34,7 +33,7 @@ def index():
     sessions = session_repo.list_all(conn)
     bans = ip_repo.list_rules(conn, "ban")
     backups = maintenance.list_backups(boot_config())
-    day_ago = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(timespec="seconds")
+    day_ago = iso_ago(days=1)
     shares = [{"share": s, "exists": location_core.local_exists(s["location"], s["path"]) is not False
                          or cfg["storage"]["create_shares"],
                "entries": share_core.entries(s)} for s in cfg["storage"]["shares"]]

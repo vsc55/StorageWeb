@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_ui.html" import entry_icon with context %}
 {# Un enlace para compartir, visto por alguien de fuera (links.public): sin sesión y con el diseño público.
    state: locked (pide la contraseña) u open. El que no existe, caducó o ya no funciona es link_gone.html. #}
 {% block title %}{% if state == 'open' %}{{ (file.name if file else (crumbs[-1][1] if crumbs else _("Drop box"))) }} · {% endif %}{{ app_name }}{% endblock %}
@@ -55,7 +56,7 @@
         {% for r in rows %}
         <tr>
           <td class="name"><span class="name-cell">
-            <svg class="icon {{ 'folder-icon' if r.is_dir else 'file-icon' }}" aria-hidden="true"><use href="#i-{{ 'folder' if r.is_dir else 'file' }}"></use></svg>
+            {{ entry_icon(r.is_dir) }}
             {% if r.is_dir %}<a href="{{ url_for('links.public', token=token, p=r.p) }}">{{ r.name }}</a>
             {% else %}<a href="{{ url_for('links.public_download', token=token, p=r.p) }}">{{ r.name }}</a>{% endif %}
           </span></td>

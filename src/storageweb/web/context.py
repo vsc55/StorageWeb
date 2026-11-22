@@ -52,6 +52,15 @@ def throttle() -> LoginThrottle:
     return current_app.extensions["storageweb.throttle"]
 
 
+def login_limiter() -> LoginThrottle:
+    """El limitador de intentos (contraseñas, códigos, contraseñas de enlaces, la unidad de red) con los ajustes de
+    ahora: ``security.max_login_failures`` fallos y ``security.lockout_minutes`` de bloqueo."""
+    sec = settings()["security"]
+    limiter = throttle()
+    limiter.configure(sec["max_login_failures"], sec["lockout_minutes"] * 60)
+    return limiter
+
+
 def external_url(endpoint: str, **values) -> str:
     """URL absoluta para terceros (Entra ID, enlaces): usa ``network.public_url`` si está definida.
 

@@ -3,29 +3,16 @@
 El último test usa el backend WebDAV de StorageWeb (el que conecta ubicaciones externas) como cliente
 contra este servidor y le pasa la misma batería que a los demás almacenamientos.
 """
-import base64
 import io
 
 import pytest
 
-from storageweb.core import tokens
-from storageweb.db.repositories import audit, users
+from storageweb.db.repositories import audit
 from storageweb.web.context import get_db
 
-from tests.helpers import PASSWORD, add_user
+from tests.helpers import PASSWORD, add_user, signed_in, api_token, basic_auth
 
 PROPFIND = b'<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:allprop/></d:propfind>'
-
-
-def _basic(user: str, secret: str) -> dict:
-    return {"Authorization": "Basic " + base64.b64encode(f"{user}:{secret}".encode()).decode()}
-
-
-def _token(app, username: str, scope: str = "write") -> str:
-    with app.app_context():
-        user = users.get_by_username(get_db(), username)
-        plain, _id = tokens.create(get_db(), user, name="dav", scope=scope, days=0)
-    return plain
 
 
 @pytest.fixture
@@ -39,7 +26,7 @@ def dav(make_app, tmp_path):
     ], "create_shares": True}})
     add_user(app, "ana")
     client = app.test_client()
-    headers = _basic("ana", _token(app, "ana"))
+    headers = basic_auth("ana", api_token(app, "ana"))
 
     def call(method, path, data=b"", extra=None, **kw):
         return client.open(path, method=method, data=data, headers={**headers, **(extra or {})}, **kw)
@@ -53,13 +40,13 @@ def test_auth(dav):
     assert client.open("/dav/", method="OPTIONS").headers["DAV"] == "1, 2"
     assert "DAV" in client.open("/", method="OPTIONS").headers  # Windows pregunta antes en la raíz del sitio
     # La contraseña de la cuenta no vale por defecto; un token de otro usuario tampoco
-    assert client.open("/dav/", method="PROPFIND", headers=_basic("ana", PASSWORD)).status_code == 401
+    assert client.open("/dav/", method="PROPFIND", headers=basic_auth("ana", PASSWORD)).status_code == 401
     add_user(app, "beto")
-    assert client.open("/dav/", method="PROPFIND", headers=_basic("ana", _token(app, "beto"))).status_code == 401
+    assert client.open("/dav/", method="PROPFIND", headers=basic_auth("ana", api_token(app, "beto"))).status_code == 401
     with app.app_context():
         assert audit.recent(get_db(), 1)[0]["detail"] == "webdav:bad_token"
     # Con «Bearer» también (rclone, scripts) y la cookie del navegador no sirve aquí
-    plain = _token(app, "ana")
+    plain = api_token(app, "ana")
     assert client.open("/dav/", method="PROPFIND", headers={"Authorization": f"Bearer {plain}"}).status_code == 207
     from tests.helpers import login
     browser = app.test_client()
@@ -85,11 +72,11 @@ def test_passwords_when_allowed(make_app):
     add_user(app, "ana")
     client = app.test_client()
     for _ in range(3):  # la segunda y la tercera salen de la caché
-        assert client.open("/dav/", method="PROPFIND", headers=_basic("ana", PASSWORD)).status_code == 207
-    assert client.open("/dav/", method="PROPFIND", headers=_basic("EQUIPO\\ana", PASSWORD)).status_code == 207
-    assert client.open("/dav/", method="PROPFIND", headers=_basic("ana", "mala")).status_code == 401
+        assert client.open("/dav/", method="PROPFIND", headers=basic_auth("ana", PASSWORD)).status_code == 207
+    assert client.open("/dav/", method="PROPFIND", headers=basic_auth("EQUIPO\\ana", PASSWORD)).status_code == 207
+    assert client.open("/dav/", method="PROPFIND", headers=basic_auth("ana", "mala")).status_code == 401
     assert client.open("/dav/home/con-clave.txt", method="PUT", data=b"x",
-                       headers=_basic("ana", PASSWORD)).status_code == 201
+                       headers=basic_auth("ana", PASSWORD)).status_code == 201
     with app.app_context():                     # con la contraseña de la cuenta no hay token que anotar
         assert audit.recent(get_db(), 1, action="upload")[0]["detail"] == "webdav:1"
 
@@ -98,7 +85,7 @@ def test_disabled(make_app):
     app = make_app({"security": {"webdav": False}})
     add_user(app, "ana")
     assert app.test_client().open("/dav/", method="PROPFIND",
-                                  headers=_basic("ana", _token(app, "ana"))).status_code == 404
+                                  headers=basic_auth("ana", api_token(app, "ana"))).status_code == 404
 
 
 def test_listing_and_files(dav):
@@ -160,7 +147,7 @@ def test_permissions(make_app, tmp_path):
                                             "read_only": True}], "create_shares": True}})
     add_user(app, "ana")
     client = app.test_client()
-    write, read = _basic("ana", _token(app, "ana")), _basic("ana", _token(app, "ana", scope="read"))
+    write, read = basic_auth("ana", api_token(app, "ana")), basic_auth("ana", api_token(app, "ana", scope="read"))
 
     def call(method, path, headers, data=b"", extra=None):
         return client.open(path, method=method, data=data, headers={**headers, **(extra or {})})
@@ -196,7 +183,7 @@ def test_our_webdav_client_against_our_server(dav, tmp_path):
     """El backend WebDAV de StorageWeb como cliente de este servidor: la misma batería que los demás."""
     from storageweb.core.backends.webdav import Response, WebDAVBackend, WebDAVClient
     _app, client, _call, _tmp = dav
-    plain = _token(_app, "ana")
+    plain = api_token(_app, "ana")
 
     class TestClient(WebDAVClient):
         def send(self, method, url, headers, body=None, stream=False):
@@ -234,9 +221,7 @@ def test_profile_and_settings(make_app):
 def test_profile_without_webdav(make_app):
     from tests.helpers import login
     app = make_app({"security": {"webdav": False}})
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
+    client, _ = signed_in(app, "ana", csrf_url=None)
     assert "Unidad de red" not in client.get("/profile").get_data(as_text=True)
 
 
@@ -248,12 +233,12 @@ def test_failures_do_not_lock_the_web_login(make_app):
     client = app.test_client()
     # Contraseña de la cuenta con la opción desactivada: no cuenta como intento fallido
     for _ in range(10):
-        assert client.open("/dav/", method="PROPFIND", headers=_basic("ana", PASSWORD)).status_code == 401
-    good = _basic("ana", _token(app, "ana"))
+        assert client.open("/dav/", method="PROPFIND", headers=basic_auth("ana", PASSWORD)).status_code == 401
+    good = basic_auth("ana", api_token(app, "ana"))
     assert client.open("/dav/", method="PROPFIND", headers=good).status_code == 207
     # Tokens erróneos sí cuentan: bloquean la unidad, pero no el inicio de sesión en la web
     for _ in range(6):
-        client.open("/dav/", method="PROPFIND", headers=_basic("ana", "sw_malo"))
+        client.open("/dav/", method="PROPFIND", headers=basic_auth("ana", "sw_malo"))
     assert client.open("/dav/", method="PROPFIND", headers=good).status_code == 401  # bloqueada un rato
     assert login(app.test_client(), "ana").status_code == 302                     # la web, no
     with app.app_context():

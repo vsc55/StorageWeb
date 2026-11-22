@@ -5,19 +5,17 @@ from __future__ import annotations
 
 import copy
 
-from flask import flash, jsonify, redirect, request, url_for
+from flask import flash, jsonify, request
 
 from ....core import passwords
 from ....i18n import _, ngettext
 from ....providers import local
 from ....settings import ConfigError, loader
 from ...context import boot_config, runtime, settings
+from ...forms import uploaded
 from ...guards import admin_required, audit_event
 from . import bp, forms
-
-
-def _back():
-    return redirect(url_for("settings.section", name="passwords"))
+from .common import to_section
 
 
 @bp.route("/passwords/list/download", methods=["POST"])
@@ -28,27 +26,27 @@ def password_list_download():
         count = passwords.download(boot_config()["data_dir"], urls)
     except passwords.PasswordListError as exc:
         flash(exc.message, "error")
-        return _back()
+        return to_section("passwords")
     audit_event("password_list_updated", None, "download")
     flash(_("Common passwords list updated: %(num)s passwords.", num=count), "info")
-    return _back()
+    return to_section("passwords")
 
 
 @bp.route("/passwords/list/upload", methods=["POST"])
 @admin_required
 def password_list_upload():
-    file = request.files.get("file")
-    if file is None or not file.filename:
+    file = uploaded("file")
+    if file is None:
         flash(_("Choose a text file with one password per line."), "error")
-        return _back()
+        return to_section("passwords")
     try:
         count = passwords.upload(boot_config()["data_dir"], file.read(passwords.MAX_BYTES + 1), file.filename)
     except passwords.PasswordListError as exc:
         flash(exc.message, "error")
-        return _back()
+        return to_section("passwords")
     audit_event("password_list_updated", None, "upload")
     flash(_("Common passwords list updated: %(num)s passwords.", num=count), "info")
-    return _back()
+    return to_section("passwords")
 
 
 @bp.route("/passwords/list/reset", methods=["POST"])
@@ -57,7 +55,7 @@ def password_list_reset():
     if passwords.reset(boot_config()["data_dir"]):
         audit_event("password_list_reset")
         flash(_("The list that comes with StorageWeb is used again."), "info")
-    return _back()
+    return to_section("passwords")
 
 
 def _page_rules() -> dict:

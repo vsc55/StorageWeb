@@ -13,8 +13,10 @@ def b64(data: dict) -> str:
     return base64.urlsafe_b64encode(json.dumps(data).encode()).rstrip(b"=").decode()
 
 
-def make_jwt(claims: dict) -> str:
-    return f"{b64({'alg': 'RS256', 'typ': 'JWT'})}.{b64(claims)}.firma"
+def make_jwt(claims: dict | None = None, **more) -> str:
+    """Un id_token (o token de acceso) sin firma de verdad con esos claims: ``make_jwt({...})`` o
+    ``make_jwt(roles=[...])``. StorageWeb no comprueba la firma (ADR 0004): solo lee los claims."""
+    return f"{b64({'alg': 'RS256', 'typ': 'JWT'})}.{b64({**(claims or {}), **more})}.firma"
 
 
 def base_claims(expected_nonce: str, **extra) -> dict:
@@ -45,3 +47,11 @@ def start_login(client, token_endpoint, next_url=""):
 def finish_login(client, state, **params):
     query = "&".join(f"{k}={v}" for k, v in {"code": "codigo", "state": state, **params}.items())
     return client.get(f"/auth/entra/callback?{query}")
+
+
+def sso_login(client, token_endpoint, next_url="", **claims):
+    """Inicio de sesión completo con Entra ID: el id_token lleva ``claims`` además de los de :func:`base_claims`
+    (sin ``claims``, solo esos). Devuelve la respuesta de la vuelta (``/auth/entra/callback``)."""
+    token_endpoint.claims_extra = claims
+    _, q = start_login(client, token_endpoint, next_url)
+    return finish_login(client, q["state"])

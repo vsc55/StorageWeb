@@ -12,16 +12,10 @@ from flask import Blueprint, abort, g, jsonify, render_template, request
 
 from ...core import connect, ipban, tokens
 from ...db.repositories import audit
-from ...i18n import _
 from ..context import get_db, settings
-from ..guards import audit_event, client_ip, login_required
+from ..guards import audit_event, client_ip, login_required, require_api_tokens
 
 bp = Blueprint("connect", __name__)
-
-
-def _tokens_enabled() -> None:
-    if not settings()["security"]["api_tokens"]:
-        abort(403, description=_("API tokens are disabled."))
 
 
 @bp.route("/connect/token", methods=["POST"])
@@ -44,7 +38,7 @@ def token():
 @bp.route("/connect/<client>", methods=["GET", "POST"])
 @login_required
 def authorize(client: str):
-    _tokens_enabled()
+    require_api_tokens()
     values = request.values
     redirect_uri, state = values.get("redirect_uri", ""), values.get("state", "")
     try:

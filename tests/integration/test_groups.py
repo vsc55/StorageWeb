@@ -3,10 +3,10 @@ import pytest
 
 from storageweb.core import groups as gc
 from storageweb.core.storage import available_roots
-from storageweb.db.repositories import audit, users
+from storageweb.db.repositories import users
 from storageweb.db.repositories import groups as repo
 from storageweb.web.context import get_db, settings
-from tests.helpers import add_user, page_form, visible, U, G
+from tests.helpers import add_user, page_form, visible, U, G, audit_actions
 
 
 @pytest.fixture
@@ -26,11 +26,6 @@ def _group(app, name="it", **kw):
 def _get(app, gid):
     with app.app_context():
         return repo.get_by_id(get_db(), gid)
-
-
-def _actions(app):
-    with app.app_context():
-        return [r["action"] for r in audit.recent(get_db(), 20)]
 
 
 @pytest.mark.parametrize("url", ["/admin/groups/", "/admin/groups/list", "/admin/groups/panel",
@@ -74,7 +69,7 @@ def test_create_edit_delete_group(app, admin):
 
     client.post(f"/admin/groups/{G(group['id'])}/delete", data={"_csrf": token})
     assert _get(app, group["id"]) is None
-    assert {"group_created", "group_updated", "group_deleted"} <= set(_actions(app))
+    assert {"group_created", "group_updated", "group_deleted"} <= set(audit_actions(app))
 
 
 def test_members_manual_and_sync(app, admin):
@@ -98,7 +93,7 @@ def test_members_manual_and_sync(app, admin):
     html = client.post(f"/admin/groups/{G(gid)}/members", data={"_csrf": token, "username": "nadie"},
                        follow_redirects=True).get_data(as_text=True)
     assert "no existe" in html
-    assert {"group_member_added", "group_member_removed"} <= set(_actions(app))
+    assert {"group_member_added", "group_member_removed"} <= set(audit_actions(app))
 
 
 def test_detected_groups_can_be_registered(app, admin):
@@ -162,7 +157,7 @@ def test_matrix_changes_share_access(app, admin):
     assert "No había cambios" in html
     client.post("/admin/groups/matrix", data={"_csrf": token, f"access-{G(gid)}-software": "none"})
     assert "software" not in roots()
-    assert "group_access_updated" in _actions(app)
+    assert "group_access_updated" in audit_actions(app)
 
 
 def test_settings_page_keeps_read_only_groups(app, admin):
@@ -209,18 +204,16 @@ def test_new_user_groups_create_local_groups(app, admin):
 
 def test_sso_login_keeps_manual_groups(entra_app, token_endpoint):
     """Un grupo puesto a mano a un usuario de Entra ID ya no se pierde al volver a iniciar sesión."""
-    from tests.sso_helpers import finish_login, start_login
+    from tests.sso_helpers import sso_login
 
     app = entra_app()
     client = app.test_client()
-    _, q = start_login(client, token_endpoint)
-    finish_login(client, q["state"])
+    sso_login(client, token_endpoint)
     with app.app_context():
         user = users.get_by_username(get_db(), "juan@contoso.com")
         gc.set_manual_groups(get_db(), user["id"], ["finanzas"])
     other = app.test_client()
-    _, q = start_login(other, token_endpoint)
-    finish_login(other, q["state"])
+    sso_login(other, token_endpoint)
     with app.app_context():
         assert "finanzas" in users.get_by_username(get_db(), "juan@contoso.com")["groups"]
 
@@ -319,4 +312,4 @@ def test_register_all_detected(app, admin, directory):
     assert "ventas-espana" in groups_of_eva                                             # miembro sincronizado ya
     html = client.get("/admin/groups/list").get_data(as_text=True)
     assert "Grupos sin dar de alta" not in html
-    assert _actions(app).count("group_created") >= 3
+    assert audit_actions(app).count("group_created") >= 3

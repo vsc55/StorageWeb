@@ -5,7 +5,7 @@ import uuid
 from sqlite3 import Connection
 from typing import Iterable
 
-from ..connection import now_iso
+from ..connection import now_iso, update_row
 
 _UPDATABLE = {"label", "description", "source", "external_id", "role"}
 
@@ -65,16 +65,9 @@ def create(conn: Connection, *, name: str, label: str, description: str = "", so
 
 
 def update(conn: Connection, group_id: int, **fields) -> None:
-    unknown = set(fields) - _UPDATABLE
-    if unknown:
-        raise ValueError(f"Campos no actualizables: {', '.join(sorted(unknown))}")
-    if not fields:
-        return
     if "external_id" in fields:
         fields["external_id"] = fields["external_id"] or None
-    sets = ", ".join(f"{k} = ?" for k in fields)  # claves validadas contra _UPDATABLE
-    conn.execute(f"UPDATE groups SET {sets} WHERE id = ?", (*fields.values(), group_id))  # noqa: S608
-    conn.commit()
+    update_row(conn, "groups", group_id, fields, _UPDATABLE)
 
 
 def delete(conn: Connection, group_id: int) -> None:

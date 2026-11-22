@@ -4,17 +4,20 @@ from __future__ import annotations
 
 import json
 import threading
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
-from flask import Response, current_app, flash, g, jsonify, redirect, request, url_for
+from flask import current_app, flash, g, jsonify, request
+from ...downloads import attachment
 
 from ....core import advisories, backends, diagnostics, maintenance
 from ....i18n import _
 from ....settings import fields
 from ...context import boot_config, get_db, network_diagnosis, settings
-from ...guards import admin_required, audit_event, client_ip
+from ...guards import admin_required, audit_event, client_ip, wants_json
 from . import bp
+from .common import to_section
+from ....clock import now_iso
 
 FORMATS = {"txt": ("text/plain; charset=utf-8", "txt"), "json": ("application/json", "json")}
 
@@ -37,7 +40,7 @@ def collect() -> dict:
     boot, cfg = boot_config(), settings()
     net = network_diagnosis(cfg)
     return {
-        "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "generated": now_iso(),
         "system": diagnostics.system(debug=current_app.debug, threads=boot["server"]["threads"]),
         "database": diagnostics.database(get_db(), boot["database"]),
         "folders": _folders(boot, cfg),
@@ -63,23 +66,23 @@ def system_advisories():
     plano (``core.advisories.run_job``). Si ya hay una en marcha (otra pestaña, otro administrador o la automática),
     no empieza otra. El navegador sigue el avance con :func:`system_advisories_status`; sin JavaScript, se vuelve a la
     página."""
-    wants_json = request.accept_mimetypes.best == "application/json"
+    as_json = wants_json()
     rows = advisories.default_rows(Path(current_app.static_folder) / "vendor")
     if not advisories.try_start(g.user["username"], len(rows)):
-        if wants_json:
+        if as_json:
             return jsonify(advisories.job_status()), 409
         flash(_("A check is already running."), "info")
-        return redirect(url_for("settings.section", name="vulnerabilities") + "#advisories")
+        return to_section("vulnerabilities", "advisories")
     args = (rows, boot_config()["database"], g.user["username"], client_ip())
     # En los tests, de una vez (nada queda corriendo entre un test y otro), salvo que el test pida el hilo
     if current_app.config.get("SW_SYNC_JOBS", current_app.testing):
         advisories.run_job(*args)
     else:
         threading.Thread(target=advisories.run_job, args=args, name="storageweb-advisories", daemon=True).start()
-    if wants_json:
+    if as_json:
         return jsonify(advisories.job_status()), 202
     flash(_("Checking the libraries in the background: the result will be here when it finishes."), "info")
-    return redirect(url_for("settings.section", name="vulnerabilities") + "#advisories")
+    return to_section("vulnerabilities", "advisories")
 
 
 @bp.route("/system/advisories/status")
@@ -99,5 +102,4 @@ def system_report():
     body = json.dumps(data, indent=2, ensure_ascii=False) if ext == "json" else diagnostics.as_text(data)
     audit_event("system_report", None, ext)
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
-    return Response(body, mimetype=mimetype,
-                    headers={"Content-Disposition": f'attachment; filename="storageweb-informe-{stamp}.{ext}"'})
+    return attachment(body, mimetype, f"storageweb-informe-{stamp}.{ext}")

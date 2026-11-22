@@ -7,26 +7,25 @@ Aquí también la ficha de cada rol: crear, editar y borrar los propios; los per
 (``permissions.default_role``). Administrador y Sin permisos no se editan."""
 from __future__ import annotations
 
-from flask import Blueprint, abort, flash, g, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, g, redirect, render_template, request, url_for
 
 from ...core import roles
-from ...core.files import fold
 from ...core.permissions import ADMIN, PERMISSION_LABELS, ROLE_LABELS, USER, default_role
 from ...i18n import _, ngettext
 from ...settings import PERMISSIONS
+from ...text import fold
 from ..context import get_db, runtime, settings
-from ..forms import back
+from ..forms import back, choice, last_view, pick, use_view
 from ..guards import admin_required, audit_event
 
 bp = Blueprint("roles", __name__, url_prefix="/admin/access/roles")
 
-VIEWS = ("list", "panel")
 KINDS = ("builtin", "custom")
 
 
 def _list_url(r: str | None = None):
     """La lista de roles en la vista en la que estaba (Lista o Paneles, con el rol ``r`` elegido)."""
-    if session.get("roles_view") == "panel":
+    if last_view("roles_view") == "panel":
         return url_for("roles.panel_view", r=r)
     return url_for("roles.list_view")
 
@@ -50,8 +49,7 @@ def _render(role: dict | None, form: dict, status: int = 200):
 
 
 def _filters() -> dict:
-    kind = request.args.get("kind", "")
-    return {"q": request.args.get("q", "").strip(), "kind": kind if kind in KINDS else ""}
+    return {"q": request.args.get("q", "").strip(), "kind": choice("kind", KINDS, "")}
 
 
 def _filtered(all_roles: list[dict], f: dict) -> list[dict]:
@@ -78,7 +76,7 @@ def index():
 @bp.route("/list")
 @admin_required
 def list_view():
-    session["roles_view"] = "list"
+    use_view("roles_view", "list")
     cfg = settings()
     all_roles = roles.all_roles(get_db(), cfg)
     f = _filters()
@@ -100,17 +98,16 @@ def _tabs(role: dict) -> list[tuple[str, str]]:
 def panel_view():
     """Vista Paneles: los roles a la izquierda y la ficha del elegido (``?r=``) a la derecha, en pestañas
     (``?tab=``)."""
-    session["roles_view"] = "panel"
+    use_view("roles_view", "panel")
     cfg = settings()
     all_roles = roles.all_roles(get_db(), cfg)
     f = _filters()
     shown = _filtered(all_roles, f)
-    current = next((r for r in shown if r["key"] == request.args.get("r")), None) or (shown[0] if shown else None)
+    current = pick(shown, request.args.get("r"), key="key")
     form, usage, tabs, tab = {}, {"users": [], "groups": []}, [], ""
     if current is not None:
         tabs = _tabs(current)
-        tab = request.args.get("tab", "")
-        tab = tab if tab in dict(tabs) else tabs[0][0]
+        tab = choice("tab", dict(tabs), tabs[0][0])
         usage = roles.usage(get_db(), current["key"])
         if current["key"] == ADMIN:
             form = {"permissions": list(PERMISSIONS)}

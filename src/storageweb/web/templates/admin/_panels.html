@@ -1,0 +1,69 @@
+{# Piezas comunes de las vistas Lista y Paneles de usuarios, grupos y roles: el cambio de vista, la cabecera y la
+   búsqueda. Cada sección las envuelve en su _macros.html con sus endpoints, textos y desplegables, así que se
+   importan desde allí («{% import "admin/_panels.html" as panels with context %}»). #}
+
+{# Lista | Paneles. ``endpoints`` = (el de la lista, el de los paneles) #}
+{% macro view_switch(view, label, endpoints) -%}
+<nav class="segmented view-switch" aria-label="{{ label }}">
+  <a class="segment{% if view == 'list' %} active{% endif %}" href="{{ url_for(endpoints[0]) }}"{% if view == 'list' %} aria-current="page"{% endif %}>{{ _("List") }}</a>
+  <a class="segment{% if view == 'panel' %} active{% endif %}" href="{{ url_for(endpoints[1]) }}"{% if view == 'panel' %} aria-current="page"{% endif %}>{{ _("Panels") }}</a>
+</nav>
+{%- endmacro %}
+
+{# La cabecera: título y resumen a la izquierda; a la derecha el cambio de vista (``switch``, ya pintado) y los
+   botones de la sección (el cuerpo del «{% call %}»). ``summary`` puede llevar HTML (un «{% set %}…{% endset %}»). #}
+{% macro page_head(title, summary, switch) -%}
+<div class="page-head">
+  <div>
+    <h1>{{ title }}</h1>
+    {% if summary %}<p class="muted small">{{ summary }}</p>{% endif %}
+  </div>
+  <div class="inline">
+    {{ switch }}
+    {{ caller() if caller else '' }}
+  </div>
+</div>
+{%- endmacro %}
+
+{# La búsqueda: el texto (``q``) y, con «{% call %}», los desplegables de la sección; ``extra`` son campos ocultos
+   (la pestaña abierta en Paneles); «Limpiar» si hay algún filtro puesto (``active``). #}
+{% macro search_form(target, q, placeholder, active, extra='', cls='') -%}
+<form method="get" action="{{ url_for(target) }}" class="inline search{% if cls %} {{ cls }}{% endif %}">
+  {{ extra }}
+  <input type="text" name="q" value="{{ q }}" placeholder="{{ placeholder }}" aria-label="{{ placeholder }}">
+  {{ caller() if caller else '' }}
+  <button class="btn" type="submit">{{ _("Search") }}</button>
+  {% if active %}<a class="btn btn-ghost" href="{{ url_for(target) }}">{{ _("Clear") }}</a>{% endif %}
+</form>
+{%- endmacro %}
+
+{# La lista de la izquierda de Paneles: un <li> por elemento con lo que pinte el «{% call(item) %}» (normalmente un
+   md_item), o ``empty`` si no hay ninguno. ``li_cls``: clase de cada <li> (roles: «md-row», con la estrella) #}
+{% macro md_list(label, items, empty, li_cls='') -%}
+<aside class="md-list" aria-label="{{ label }}">
+  <ul>
+    {% for item in items %}
+    <li{% if li_cls %} class="{{ li_cls }}"{% endif %}>{{ caller(item) }}</li>
+    {% else %}
+    <li class="muted small md-empty">{{ empty }}</li>
+    {% endfor %}
+  </ul>
+</aside>
+{%- endmacro %}
+
+{# Un elemento de esa lista: el enlace a su ficha, marcado si es el elegido (``active``); ``cls``, clases de más #}
+{% macro md_item(href, active, cls='') -%}
+<a class="md-item{% if cls %} {{ cls }}{% endif %}{% if active %} active{% endif %}" href="{{ href }}"{% if active %} aria-current="true"{% endif %}>
+  {{- caller() -}}
+</a>
+{%- endmacro %}
+
+{# Las pestañas de la ficha: ``tabs`` = [(clave, texto)], ``active`` = la abierta; el «{% call(key) %}» devuelve la
+   dirección de cada una #}
+{% macro tab_nav(label, tabs, active) -%}
+<nav class="tabs" aria-label="{{ label }}">
+  {% for key, text in tabs %}
+  <a class="tab{% if active == key %} active{% endif %}" href="{{ caller(key) }}"{% if active == key %} aria-current="page"{% endif %}>{{ text }}</a>
+  {% endfor %}
+</nav>
+{%- endmacro %}

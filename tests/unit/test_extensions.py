@@ -2,7 +2,6 @@
 
 Cada uno se prueba registrando algo desde aquí: el código general lo recoge sin cambios.
 """
-import json
 
 import pytest
 
@@ -11,13 +10,13 @@ from storageweb.cli import build_parser, commands, main
 from storageweb.cli import common as cli_common
 from storageweb.core import alerts, maintenance
 from storageweb.settings import load_config
+from tests.helpers import config_file
 
 
 @pytest.fixture
 def cfg(tmp_path, db_conn):
     database = db_conn.execute("PRAGMA database_list").fetchone()["file"]
-    p = tmp_path / "c.json"
-    p.write_text(json.dumps({"data_dir": str(tmp_path / "d"), "database": database}), encoding="utf-8")
+    p = config_file(tmp_path, {"data_dir": str(tmp_path / "d"), "database": database}, name="c.json")
     return load_config(p)
 
 

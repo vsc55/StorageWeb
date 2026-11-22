@@ -74,8 +74,7 @@ def cmd_sessions_close(cfg, conn, args):
     from ..db.repositories import sessions
 
     if args.all:
-        closed = conn.execute("DELETE FROM sessions").rowcount
-        conn.commit()
+        closed = sessions.delete_all(conn)
     else:
         closed = sessions.delete_for_user(conn, _get(conn, args.username)["id"])
     audit.log(conn, "sessions_closed", args.username or "*", username="cli", detail=str(closed))

@@ -1,19 +1,10 @@
 {% extends "admin/_layout.html" %}
-{% from "admin/users/_macros.html" import view_switch, avatar, status as status_badge, badges, filters_form with context %}
+{% from "admin/users/_macros.html" import page_head, avatar, status as status_badge, badges, filters_form, status_form with context %}
 {% block title %}{{ _("Users") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
-<div class="page-head">
-  <div>
-    <h1>{{ _("Users") }}</h1>
-    <p class="muted small">{{ _("%(all)s users · %(active)s active · %(disabled)s disabled", all=counts.all, active=counts.active, disabled=counts.disabled) }}
-      · <a href="{{ url_for('settings.section', name='sessions') }}">{{ ngettext("%(num)s open session", "%(num)s open sessions", session_count) }}</a></p>
-  </div>
-  <div class="inline">
-    {{ view_switch('list') }}
-    {% for key, label in importers %}<a class="btn" href="{{ url_for('admin.user_import', source=key) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Import from %(method)s", method=label) }}</a>
-    {% endfor %}<a class="btn btn-primary" href="{{ url_for('admin.user_new') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New user") }}</a>
-  </div>
-</div>
+{% set summary %}{{ _("%(all)s users · %(active)s active · %(disabled)s disabled", all=counts.all, active=counts.active, disabled=counts.disabled) }}
+  · <a href="{{ url_for('settings.section', name='sessions') }}">{{ ngettext("%(num)s open session", "%(num)s open sessions", session_count) }}</a>{% endset %}
+{{ page_head('list', summary) }}
 
 {% call filters_form(filters, 'admin.users_list') %}
   <select name="group" aria-label="{{ _('Group') }}">
@@ -58,7 +49,7 @@
         <span><strong>{{ u['display_name'] or u['username'] }}</strong>{% if u['display_name'] and u['display_name'] != u['username'] %}<span class="muted small">{{ u['username'] }}</span>{% endif %}</span></a></td>
       <td><span class="badge badge-src badge-src-{{ u['source'] }}">{{ SOURCE_LABELS[u['source']] }}</span></td>
       <td><span class="badge badge-{{ u['role'] }}">{{ role_label(u['role']) }}</span></td>
-      <td><span class="tags">{% for name in group_names[u['id']] %}<span class="tag">{{ name }}</span>{% endfor %}</span></td>
+      <td><span class="group-tags">{% for name in group_names[u['id']] %}<span class="group-tag">{{ name }}</span>{% endfor %}</span></td>
       <td>{{ status_badge(u) }}</td>
       <td>{% if u['id'] in mfa_users %}<span class="badge badge-ok">{{ _("On") }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
       <td class="small">{{ u['last_login']|datetime }}</td>
@@ -80,15 +71,8 @@
            title="{{ _('Change password') }}" aria-label="{{ _('Change password') }} {{ u['username'] }}"><svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg></a>
         {% endif %}
         {% if u['id'] != current_user['id'] %}
-        <form method="post" action="{{ url_for('admin.user_status', user_uid=u['uid']) }}" class="inline{% if u['enabled'] %} js-confirm{% endif %}"
-              {% if u['enabled'] %}data-confirm="{{ _('Disable «%(name)s»? They will not be able to sign in, not even with %(source)s.', name=u['username'], source=SOURCE_LABELS[u['source']]) }}"{% endif %}>
-          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-          <input type="hidden" name="enabled" value="{{ '0' if u['enabled'] else '1' }}">
-          <input type="hidden" name="next" value="{{ request.full_path }}">
-          <button class="btn btn-icon btn-small{% if u['enabled'] %} btn-danger{% endif %}" type="submit"
-                  title="{{ _('Disable') if u['enabled'] else _('Enable') }}"
-                  aria-label="{{ _('Disable') if u['enabled'] else _('Enable') }} {{ u['username'] }}"><svg class="icon" aria-hidden="true"><use href="#{{ 'i-ban' if u['enabled'] else 'i-check-circle' }}"></use></svg></button>
-        </form>
+        {{ status_form(u, 'btn btn-icon btn-small btn-danger' if u['enabled'] else 'btn btn-icon btn-small', (_("Disable"), _("Enable")),
+                       next=request.full_path, icon=True) }}
         {% else %}
         <button class="btn btn-icon btn-small btn-danger" type="button" disabled title="{{ _('You cannot disable your own account.') }}"
                 aria-label="{{ _('Disable') }}"><svg class="icon" aria-hidden="true"><use href="#i-ban"></use></svg></button>

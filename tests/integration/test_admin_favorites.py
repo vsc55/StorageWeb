@@ -5,14 +5,12 @@ from __future__ import annotations
 from storageweb.db.repositories import favorites as repo
 from storageweb.db.repositories import users
 from storageweb.web.context import get_db
-from tests.helpers import U, add_user
-from tests.integration.test_mfa import last_audit
+from tests.helpers import U, add_user, get_user, last_audit
 
 
 def _ana(app):
     add_user(app, "ana")
-    with app.app_context():
-        return users.get_by_username(get_db(), "ana")
+    return get_user(app, "ana")
 
 
 def test_list_remove_and_clear(app, admin, home):

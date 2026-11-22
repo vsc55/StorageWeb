@@ -1,14 +1,12 @@
 """Favoritos y recientes del explorador (core/favorites.py, files.favorite_toggle y files.recent)."""
 from __future__ import annotations
 
-import base64
 
-from storageweb.core import tokens
 from storageweb.db.repositories import favorites as repo
 from storageweb.db.repositories import users
 from storageweb.web.context import get_db
 
-from tests.helpers import add_user, get_csrf, login
+from tests.helpers import add_user, get_csrf, login, api_token, basic_auth
 
 
 def _favs(app, username="ana"):
@@ -66,9 +64,7 @@ def test_home_is_per_user_and_webdav_keeps_them(app, logged, home):
     other.post("/rename/home/Docs", data={"_csrf": other_csrf, "name": "Otros"})   # su carpeta, no la de ana
     assert _favs(app) == [("home", "Docs", 1)]
 
-    with app.app_context():
-        plain, _id = tokens.create(get_db(), users.get_by_username(get_db(), "ana"), name="dav", scope="write", days=0)
-    auth = {"Authorization": "Basic " + base64.b64encode(f"ana:{plain}".encode()).decode()}
+    auth = basic_auth("ana", api_token(app, scope="write"))
     dav = app.test_client()
     assert dav.open("/dav/home/Docs", method="MOVE", headers={**auth, "Destination": "/dav/home/Movida"}).status_code == 201
     assert _favs(app) == [("home", "Movida", 1)]
@@ -82,9 +78,7 @@ def test_recent_from_the_web_only(app, logged, home):
     (home / "notas.md").write_text("# hola", encoding="utf-8")
     client.get("/download/home/informe.zip")
     client.get("/view/home/notas.md")
-    with app.app_context():
-        plain, _id = tokens.create(get_db(), users.get_by_username(get_db(), "ana"), name="dav", scope="read", days=0)
-    auth = {"Authorization": "Basic " + base64.b64encode(f"ana:{plain}".encode()).decode()}
+    auth = basic_auth("ana", api_token(app, scope="read"))
     (home / "sincronizado.txt").write_text("x", encoding="utf-8")
     app.test_client().get("/dav/home/sincronizado.txt", headers=auth)      # unidad de red: no cuenta
     page = client.get("/recent").get_data(as_text=True)

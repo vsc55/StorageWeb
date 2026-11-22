@@ -42,6 +42,12 @@ def _fail(message: str) -> None:
     sys.exit(message)
 
 
+def config_error(exc) -> int:
+    """Avisa de un error en la configuración y devuelve el código de salida (2) de todos los comandos."""
+    print(_("Configuration error: %(error)s", error=exc), file=sys.stderr)
+    return 2
+
+
 def _read_password(args) -> str | None:
     """Contraseña de --password, de --password-stdin o None (se preguntará)."""
     if getattr(args, "password_stdin", False):
@@ -56,22 +62,20 @@ def _prompt_password() -> str:
     return password
 
 
-def _ask_password(given: str | None, *, username: str = "", rules: dict | None = None) -> str:
-    try:
-        return local.hash_password(given or _prompt_password(), username=username, **(rules or {}))
-    except ValueError as exc:
-        _fail(str(exc))
-
-
 def effective(cfg: dict, conn, args) -> dict:
     """Los ajustes efectivos: los de config.json y los guardados desde la web (la CLI solo lee el archivo). Si no se
-    pueden leer los de la web, los del archivo."""
+    pueden leer los de la web, los del archivo. Se calculan una vez por orden (quedan en ``args``)."""
+    cached = getattr(args, "_effective", None)
+    if cached is not None:
+        return cached
     try:
         from ..settings.runtime import open_runtime
         runtime, _boot = open_runtime(args.config, create_key=False)
-        return runtime.current(conn)
+        result = runtime.current(conn)
     except Exception:  # noqa: BLE001
-        return cfg
+        result = cfg
+    args._effective = result
+    return result
 
 
 def password_rules(cfg: dict, conn, args) -> dict:

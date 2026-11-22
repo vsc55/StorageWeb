@@ -1,17 +1,12 @@
 """Idioma de la interfaz web y de la CLI."""
-import os
 import re
-import subprocess
-import sys
-from pathlib import Path
 
 import pytest
 
 from storageweb.db.repositories import users
 from storageweb.web.context import get_db
-from tests.helpers import add_user, get_csrf, login
+from tests.helpers import add_user, get_csrf, login, run_cli
 
-ROOT = Path(__file__).resolve().parents[2]
 EN = {"Accept-Language": "en-US,en;q=0.9"}
 SPANISH = re.compile(r"[áéíóúñÁÉÍÓÚÑ¿¡]")
 
@@ -155,10 +150,7 @@ def test_dates_follow_language(app, admin):
 # --------------------------------------------------------------------------- CLI
 
 def _cli(lang, *args, cfg):
-    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "STORAGEWEB_LANG": lang,
-           "PYTHONPATH": os.pathsep.join(filter(None, [str(ROOT / "src"), os.environ.get("PYTHONPATH")]))}
-    return subprocess.run([sys.executable, "-m", "storageweb", "--config", str(cfg), *args],
-                          capture_output=True, text=True, encoding="utf-8", cwd=ROOT, env=env)
+    return run_cli(cfg, *args, lang=lang)
 
 
 def test_cli_english(write_config):

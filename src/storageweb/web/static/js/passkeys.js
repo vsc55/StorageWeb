@@ -16,8 +16,6 @@
   if (!forms.length) return;
 
   var t = window.SW && SW.t ? SW.t : function (s) { return s; };
-  var meta = document.querySelector('meta[name="csrf-token"]');
-  var csrf = meta ? meta.getAttribute("content") : "";
 
   // Tres «no» distintos: navegador antiguo (sin navigator.credentials), página sin contexto seguro (http fuera de
   // localhost: sin PublicKeyCredential) o API a medias. En los tres, el botón no se pinta en vez de fallar luego.
@@ -41,10 +39,8 @@
   }
 
   function post(url, body) {
-    return fetch(url, {
-      method: "POST", credentials: "same-origin",
-      headers: { "Content-Type": "application/json", "Accept": "application/json", "X-CSRF-Token": csrf },
-      body: JSON.stringify(body || {})
+    return window.SW.fetch(url, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {})
     }).then(function (res) {
       return res.json().catch(function () { return { error: t("Network error.") }; });
     });

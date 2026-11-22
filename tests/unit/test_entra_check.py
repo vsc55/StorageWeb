@@ -1,19 +1,12 @@
 """Comprobación de la configuración de Entra ID (sin red: se simulan las respuestas de Microsoft)."""
-import base64
-import json
 
 import pytest
 
 from storageweb.providers.entra import check as entra_check, directory as entra_directory, oauth2
+from tests.sso_helpers import make_jwt  # la comprobación no verifica la firma: solo mira qué permisos tiene
 
 ECFG = {"tenant_id": "t1", "client_id": "c1", "client_secret": "s", "timeout_seconds": 5}
 REDIRECT = "https://files.example.com/auth/entra/callback"
-
-
-def _jwt(**claims):
-    """Un token con esos claims (la comprobación no verifica la firma: solo mira qué permisos tiene)."""
-    body = base64.urlsafe_b64encode(json.dumps(claims).encode()).rstrip(b"=").decode()
-    return f"h.{body}.s"
 
 
 def _msg(results, key):
@@ -26,7 +19,7 @@ def fake(monkeypatch):
     class Fake:
         metadata = (200, {}, "{}")
         authorize = (302, {"Location": REDIRECT + "?error=login_required"}, "")
-        token = {"access_token": _jwt(roles=["Group.Read.All", "User.Read.All"])}
+        token = {"access_token": make_jwt(roles=["Group.Read.All", "User.Read.All"])}
         urls: list = []
 
     f = Fake()
@@ -120,13 +113,13 @@ def test_new_secret_not_yet_active_is_pending_not_an_error(fake):
 
 def test_every_application_permission_and_extra_ones(fake):
     """Cada permiso de aplicación que usa StorageWeb, si falta (reparable) y los que sobran (aviso)."""
-    fake.token = {"access_token": _jwt(roles=[])}
+    fake.token = {"access_token": make_jwt(roles=[])}
     results = entra_check.check(ECFG, REDIRECT)
     groups = next(r for r in results if r["key"] == "groups")
     assert groups["ok"] is False and groups["fixable"] and "Group.Read.All" in groups["message"]
     assert entra_check.repairs(results) == {"new_secret": False}
 
-    fake.token = {"access_token": _jwt(roles=["Group.Read.All", "Directory.ReadWrite.All", "Mail.Send"])}
+    fake.token = {"access_token": make_jwt(roles=["Group.Read.All", "Directory.ReadWrite.All", "Mail.Send"])}
     results = entra_check.check(ECFG, REDIRECT)
     assert _by_key(results)["groups"] is True
     extra = next(r for r in results if r["key"] == "extra_permissions")

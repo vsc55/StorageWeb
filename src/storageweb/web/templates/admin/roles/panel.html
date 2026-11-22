@@ -1,5 +1,6 @@
 {% extends "admin/_layout.html" %}
-{% from "admin/roles/_macros.html" import page_head, filters_form, default_star, builtin_mark, clone_button, general_fields, perm_fields, tab_form, who_has with context %}
+{% from "admin/roles/_macros.html" import page_head, filters_form, default_star, builtin_mark, clone_button, general_fields, perm_fields, tab_form, who_has, delete_button with context %}
+{% from "admin/_panels.html" import md_list, md_item, tab_nav with context %}
 {% block title %}{{ _("Roles") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
 {# Acceso → Roles, vista Paneles (roles.panel_view): la lista de roles a la izquierda y la ficha del elegido a la
@@ -8,21 +9,14 @@
 {{ filters_form(filters, 'roles.panel_view') }}
 
 <div class="master-detail" data-partial>
-  <aside class="md-list" aria-label="{{ _('List of roles') }}">
-    <ul>
-      {% for r in roles_list %}
-      <li class="md-row">{{ default_star(r, request.full_path) }}<a class="md-item{% if current and r.key == current.key %} active{% endif %}"
-             href="{{ url_for('roles.panel_view', r=r.key, tab=tab or None, q=filters.q or None, kind=filters.kind or None) }}"
-             {% if current and r.key == current.key %}aria-current="true"{% endif %}>
+  {% call(r) md_list(_('List of roles'), roles_list, _("No role matches."), 'md-row') %}
+    {{- default_star(r, request.full_path) }}
+    {%- call md_item(url_for('roles.panel_view', r=r.key, tab=tab or None, q=filters.q or None, kind=filters.kind or None), current and r.key == current.key) %}
         <span class="md-item-text"><span class="md-item-line"><strong>{{ r.label }}</strong>{{ builtin_mark(r) }}</span>
           <span class="muted small">{{ ngettext("%(num)s person", "%(num)s people", r.users) }}
             · {% if r.key == 'admin' %}{{ _("everything") }}{% else %}{{ ngettext("%(num)s permission", "%(num)s permissions", r.permissions|length) }}{% endif %}</span></span>
-      </a></li>
-      {% else %}
-      <li class="muted small md-empty">{{ _("No role matches.") }}</li>
-      {% endfor %}
-    </ul>
-  </aside>
+    {% endcall -%}
+  {% endcall %}
 
   <section class="md-detail">
     {% if current %}
@@ -41,19 +35,13 @@
       {% endif %}
       {{ clone_button(current) }}
       {% if not current.builtin %}
-      <form method="post" action="{{ url_for('roles.delete', key=current.key) }}" class="inline js-confirm"
-            data-confirm="{{ _('Delete the role «%(name)s»? Its people are left with no permissions.', name=current.label) }}">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <button class="btn btn-small btn-danger" type="submit">{{ _("Delete role") }}</button>
-      </form>
+      {{ delete_button(current, 'btn btn-small btn-danger') }}
       {% endif %}
     </div>
 
-    <nav class="tabs" aria-label="{{ _('Sections of the role') }}">
-      {% for key, label in tabs %}
-      <a class="tab{% if tab == key %} active{% endif %}" href="{{ url_for('roles.panel_view', r=current.key, tab=key, q=filters.q or None, kind=filters.kind or None) }}"{% if tab == key %} aria-current="page"{% endif %}>{{ label }}</a>
-      {% endfor %}
-    </nav>
+    {% call(key) tab_nav(_('Sections of the role'), tabs, tab) -%}
+      {{ url_for('roles.panel_view', r=current.key, tab=key, q=filters.q or None, kind=filters.kind or None) }}
+    {%- endcall %}
 
     {% if tab == 'general' %}
       {% call tab_form(current, 'general', here) %}{{ general_fields(form) }}{% endcall %}

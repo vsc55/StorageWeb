@@ -1,5 +1,7 @@
 {% extends "admin/_layout.html" %}
 {% from "admin/groups/_macros.html" import source_badge, group_fields, member_list, share_chips with context %}
+{% from "admin/_page.html" import danger_zone, danger_row with context %}
+{% from "_forms.html" import post_button with context %}
 {% block title %}{{ _("Group «%(name)s»", name=(group|group_label)) if group else _("New group") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
 <div class="page-head">
@@ -44,20 +46,13 @@
 </section>
 
 {% if not group['builtin'] %}
-<section class="danger-zone" aria-label="{{ _('Delete group') }}">
-  <div class="danger-row">
-    <div>
-      <strong>{{ _("Delete group") }}</strong>
-      <p class="muted small">{{ _("Its members lose the access it gives. Users and files are not touched.") }}
-        {% if shares %}{{ _("Shared folders that use it: %(shares)s.", shares=shares|map(attribute='label')|join(', ')) }}{% endif %}</p>
-    </div>
-    <form method="post" action="{{ url_for('groups.delete', group_uid=group['uid']) }}" class="inline js-confirm"
-          data-confirm="{{ _('Delete the group «%(name)s»?', name=(group|group_label)) }}">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <button class="btn btn-danger" type="submit">{{ _("Delete group") }}</button>
-    </form>
-  </div>
-</section>
+{% call danger_zone(_('Delete group')) %}
+  {% call danger_row(_("Delete group"), post_button(url_for('groups.delete', group_uid=group['uid']), _("Delete group"), btn='btn btn-danger',
+                                                   confirm=_('Delete the group «%(name)s»?', name=(group|group_label)))) -%}
+    {{ _("Its members lose the access it gives. Users and files are not touched.") }}
+    {% if shares %}{{ _("Shared folders that use it: %(shares)s.", shares=shares|map(attribute='label')|join(', ')) }}{% endif %}
+  {%- endcall %}
+{% endcall %}
 {% endif %}
 {% endif %}
 {% endblock %}

@@ -4,25 +4,21 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 
-import { findBrowser, launch, sleep } from "../../tools/cdp.mjs";
+import { sleep } from "../../tools/cdp.mjs";
+import { noErrors, openBrowser } from "./common.mjs";
 
 const BASE = process.env.STORAGEWEB_TEST_LOCALHOST_URL;
 const PASSWORD = process.env.STORAGEWEB_TEST_PASSWORD;
 let page;
 
 before(async () => {
-  page = await launch(process.env.STORAGEWEB_BROWSER || findBrowser());
+  page = await openBrowser();
   await page.send("WebAuthn.enable");
   await page.send("WebAuthn.addVirtualAuthenticator", { options: {
     protocol: "ctap2", transport: "internal", hasResidentKey: true, hasUserVerification: true,
     isUserVerified: true, automaticPresenceSimulation: true } });
 });
 after(async () => { await page?.close(); });
-
-function noErrors() {
-  const found = page.errors.splice(0);
-  assert.deepEqual(found, [], "errores en la consola del navegador");
-}
 
 /** Espera a que se cumpla ``expression`` aunque la página navegue mientras tanto (el JS redirige al acabar). */
 async function until(expression, ms = 15000) {
@@ -45,7 +41,7 @@ test("passkeys: se añade en Mi perfil y con ella se entra", async () => {
   await page.evaluate(`(() => { const f = ${form}; f.passkey_name.value = 'Portátil de pruebas'; f.requestSubmit(); })()`);
   await until("location.pathname === '/profile/mfa/codes' && document.readyState === 'complete'");
   assert.equal(await page.evaluate("document.querySelectorAll('.mfa-recovery code').length"), 10);
-  noErrors();
+  noErrors(page);
 
   await page.send("Network.clearBrowserCookies");
   await page.login(BASE, "pepa", PASSWORD);
@@ -56,7 +52,7 @@ test("passkeys: se añade en Mi perfil y con ella se entra", async () => {
   await until("!location.pathname.startsWith('/login') && document.readyState === 'complete'");
   await page.go(`${BASE}/profile/security`);
   assert.match(await page.evaluate("document.querySelector('.passkey-list').textContent"), /Portátil de pruebas/);
-  noErrors();
+  noErrors(page);
 });
 
 test("entrar solo con la passkey: sin usuario ni contraseña", async () => {
@@ -68,5 +64,5 @@ test("entrar solo con la passkey: sin usuario ni contraseña", async () => {
   await page.evaluate(`${get}.requestSubmit()`);
   await until("location.pathname === '/profile/security' && document.readyState === 'complete'");
   assert.match(await page.evaluate("document.querySelector('.passkey-list').textContent"), /Portátil de pruebas/);
-  noErrors();
+  noErrors(page);
 });

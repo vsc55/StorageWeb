@@ -1,17 +1,16 @@
 """Almacenamiento en S3 o compatible (AWS, MinIO, Wasabi, Backblaze B2, Cloudflare R2…).
 
-Las carpetas son prefijos de clave: ``informes/2026/`` existe si hay objetos debajo o un objeto
-marcador vacío con esa clave (lo crea :meth:`S3Backend.mkdir`). Renombrar es copiar y borrar, así
-que renombrar una carpeta grande tarda (un objeto cada vez). Requiere ``boto3`` (extra ``[s3]``).
+Las carpetas son prefijos de clave y renombrar es copiar y borrar (lo común está en ``objects.py``; aquí, las
+llamadas a S3). Requiere ``boto3`` (extra ``[s3]``).
 """
 from __future__ import annotations
 
-import io
 from pathlib import Path
 
 from ...i18n import _, _l
 from ...settings.location_types import LocationSchema, Option
-from .base import BackendError, Entry, RangedReader, RemoteBackend, clean_rel, join_rel, name_of
+from .base import BackendError, Entry, clean_rel, join_rel, name_of
+from .objects import ObjectStoreBackend
 
 NOT_FOUND = {"404", "NoSuchKey", "NotFound"}
 
@@ -31,8 +30,7 @@ def _error(exc: Exception) -> BackendError:
     return BackendError(_("S3 error: %(error)s", error=code or exc))
 
 
-class S3Backend(RemoteBackend):
-    unlimited_space = True  # almacenamiento de objetos: sin tamaño fijo
+class S3Backend(ObjectStoreBackend):
     kind = "s3"
     schema = LocationSchema(
         kind="s3",
@@ -94,12 +92,31 @@ class S3Backend(RemoteBackend):
     def describe(self) -> str:
         return f"s3://{self.bucket}/{self.prefix}".rstrip("/")
 
-    def _key(self, rel: str) -> str:
-        return join_rel(self.prefix, clean_rel(rel))
+    # ------------------------------------------------------------------ las llamadas a S3 (objects.py)
+    def _fail(self, exc: Exception) -> BackendError:
+        return _error(exc)
 
-    def _dir_prefix(self, rel: str) -> str:
-        key = self._key(rel)
-        return f"{key}/" if key else ""
+    def _read_from(self, key: str, pos: int):
+        return self.client.get_object(Bucket=self.bucket, Key=key, Range=f"bytes={pos}-")["Body"]
+
+    def _put_empty(self, key: str) -> None:
+        self.client.put_object(Bucket=self.bucket, Key=key, Body=b"")
+
+    def _move_object(self, src: str, dst: str) -> None:
+        self.client.copy_object(Bucket=self.bucket, Key=dst, CopySource={"Bucket": self.bucket, "Key": src})
+        self.client.delete_object(Bucket=self.bucket, Key=src)
+
+    def _delete_keys(self, keys: list[str]) -> None:
+        for i in range(0, len(keys), 1000):  # máximo de delete_objects
+            self.client.delete_objects(Bucket=self.bucket,
+                                       Delete={"Objects": [{"Key": k} for k in keys[i:i + 1000]], "Quiet": True})
+
+    def _upload(self, local: Path, key: str) -> None:
+        self.client.upload_file(str(local), self.bucket, key)  # multipart automático si es grande
+
+    def _any_under(self, prefix: str) -> bool:
+        page = self.client.list_objects_v2(Bucket=self.bucket, Prefix=prefix, MaxKeys=1)
+        return bool(page.get("KeyCount", len(page.get("Contents", []))))
 
     def _keys_under(self, prefix: str):
         token = None
@@ -127,10 +144,10 @@ class S3Backend(RemoteBackend):
                         raise
             if not rel and not self.prefix:
                 return Entry("", True)
-            page = self.client.list_objects_v2(Bucket=self.bucket, Prefix=self._dir_prefix(rel), MaxKeys=1)
+            found = self._any_under(self._dir_prefix(rel))
         except Exception as exc:  # noqa: BLE001
             raise _error(exc) from exc
-        return Entry(name_of(rel), True) if page.get("KeyCount", len(page.get("Contents", []))) else None
+        return Entry(name_of(rel), True) if found else None
 
     def listdir(self, rel: str) -> list[Entry]:
         prefix = self._dir_prefix(rel)
@@ -152,76 +169,5 @@ class S3Backend(RemoteBackend):
                 if not page.get("IsTruncated"):
                     return entries
                 token = page.get("NextContinuationToken")
-        except Exception as exc:  # noqa: BLE001
-            raise _error(exc) from exc
-
-    def open(self, rel: str):
-        entry = self.stat(rel)
-        if entry is None or entry.is_dir:
-            raise FileNotFoundError(rel)
-        key = self._key(rel)
-
-        def fetch(pos: int):
-            try:
-                return self.client.get_object(Bucket=self.bucket, Key=key, Range=f"bytes={pos}-")["Body"]
-            except Exception as exc:  # noqa: BLE001
-                raise _error(exc) from exc
-        return io.BufferedReader(RangedReader(fetch, entry.size), 1024 * 1024), entry.size, entry.mtime
-
-    def mkdir(self, rel: str) -> None:
-        if self.exists(rel):
-            raise FileExistsError(rel)
-        try:
-            self.client.put_object(Bucket=self.bucket, Key=self._dir_prefix(rel), Body=b"")
-        except Exception as exc:  # noqa: BLE001
-            raise _error(exc) from exc
-
-    def _copy_delete(self, src: str, dst: str) -> None:
-        self.client.copy_object(Bucket=self.bucket, Key=dst, CopySource={"Bucket": self.bucket, "Key": src})
-        self.client.delete_object(Bucket=self.bucket, Key=src)
-
-    def _move(self, rel: str, new_rel: str, entry: Entry) -> None:
-        try:
-            if entry.is_dir:
-                old_prefix, new_prefix = self._dir_prefix(rel), self._dir_prefix(new_rel)
-                for key in list(self._keys_under(old_prefix)):
-                    self._copy_delete(key, new_prefix + key[len(old_prefix):])
-            else:
-                self._copy_delete(self._key(rel), self._key(new_rel))
-        except Exception as exc:  # noqa: BLE001
-            raise _error(exc) from exc
-
-    def delete(self, rel: str) -> None:
-        entry = self.stat(rel)
-        if entry is None:
-            raise FileNotFoundError(rel)
-        try:
-            keys = list(self._keys_under(self._dir_prefix(rel))) if entry.is_dir else [self._key(rel)]
-            for i in range(0, len(keys), 1000):  # máximo de delete_objects
-                self.client.delete_objects(Bucket=self.bucket,
-                                           Delete={"Objects": [{"Key": k} for k in keys[i:i + 1000]], "Quiet": True})
-        except Exception as exc:  # noqa: BLE001
-            raise _error(exc) from exc
-
-    def store(self, local: Path, rel: str) -> None:
-        try:
-            self.client.upload_file(str(local), self.bucket, self._key(rel))  # multipart automático si es grande
-        except Exception as exc:  # noqa: BLE001
-            raise _error(exc) from exc
-        local.unlink(missing_ok=True)
-
-    def root_exists(self) -> bool:
-        return self.stat("") is not None
-
-    def ensure_root(self, home: bool = False) -> None:
-        if self.prefix and not self.root_exists():
-            try:
-                self.client.put_object(Bucket=self.bucket, Key=self._dir_prefix(""), Body=b"")
-            except Exception as exc:  # noqa: BLE001
-                raise _error(exc) from exc
-
-    def check(self) -> None:
-        try:
-            self.client.list_objects_v2(Bucket=self.bucket, Prefix=self._dir_prefix(""), MaxKeys=1)
         except Exception as exc:  # noqa: BLE001
             raise _error(exc) from exc

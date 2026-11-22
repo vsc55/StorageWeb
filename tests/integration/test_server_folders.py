@@ -14,7 +14,7 @@ from storageweb.db.repositories import users
 from storageweb.settings import ConfigError, server_paths
 from storageweb.settings.loader import normalize
 from storageweb.web.context import get_db, settings
-from tests.helpers import U, add_user, login, page_form, settings_form, visible
+from tests.helpers import U, add_user, page_form, settings_form, visible, signed_in
 
 
 def test_inside_compares_the_real_path(tmp_path):
@@ -106,9 +106,7 @@ def test_the_picker_lists_only_inside(tmp_path):
 
 def test_the_page_and_the_route(make_app, tmp_path):
     app = make_app()
-    add_user(app, "jefa", role="admin")
-    client = app.test_client()
-    login(client, "jefa")
+    client, _ = signed_in(app, "jefa", role="admin", csrf_url=None)
     data = settings_form(client, "server_folders")
     # Lo que queda fuera se ve antes de guardar, y no deja guardar una lista que deja fuera las personales
     page = visible(client.get("/admin/settings/server_folders").get_data(as_text=True))
@@ -154,9 +152,7 @@ def test_locked_from_config_json(write_config, tmp_path):
     from storageweb import create_app
     path = write_config({"storage": {"allowed_folders": [str(tmp_path / "data")]}})
     app = create_app(str(path))
-    add_user(app, "jefa", role="admin")
-    client = app.test_client()
-    login(client, "jefa")
+    client, _ = signed_in(app, "jefa", role="admin", csrf_url=None)
     html = client.get("/admin/settings/server_folders").get_data(as_text=True)
     assert 'name="allowed_folders" rows="5" class="mono" spellcheck="false"' not in html or "disabled" in html
     data = settings_form(client, "server_folders")

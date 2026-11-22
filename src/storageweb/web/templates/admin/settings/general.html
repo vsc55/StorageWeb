@@ -1,15 +1,13 @@
 {% extends "admin/settings/_layout.html" %}
-{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock, tab with context %}
+{% from "_ui.html" import brand_logo with context %}
 {% block section %}
 {# Una tarjeta por tema. Todo se guarda con la barra salvo subir y quitar imágenes, que son formularios
    aparte (al final) a los que apuntan sus controles con form=: así cada control queda en su tema #}
 {{ form_start() }}
   {# Una pestaña por sección (admin/forms.js); el formulario y la barra de guardar, para todas #}
   <div class="js-tabs">
-  <fieldset class="tab-panel">
-    <legend>{{ _("Application") }}</legend>
-  <div class="card form-grid">
-    <h3 class="card-title span2">{{ _("Application") }}</h3>
+  {% call tab(_("Application")) %}
     <label class="{{ err_class('app_name') }}"><span class="label-row">{{ _("Application name") }} {{ origin('app_name') }}</span>
       <input{{ lock('app_name') }} type="text" name="app_name" value="{{ cfg.app_name }}" maxlength="80">
       {{ field_error('app_name') }}</label>
@@ -19,12 +17,8 @@
       </select>
       <small class="muted">{{ _("Used when the user has not chosen one and the browser does not ask for an available language.") }}</small>
       {{ field_error('default_locale') }}</label>
-  </div>
-  </fieldset>
-  <fieldset class="tab-panel">
-    <legend>{{ _("Main color") }}</legend>
-  <div class="card stack">
-    <h3 class="card-title">{{ _("Main color") }}</h3>
+  {% endcall %}
+  {% call tab(_("Main color"), 'card stack') %}
     <div class="brand-color{{ err_class('branding.primary_color') }}">
       <label class="check"><input{{ lock('branding.primary_color') }} type="checkbox" name="custom_color" {% if cfg.branding.primary_color %}checked{% endif %}>
         <span class="label-row">{{ _("Use my own main color") }} {{ origin('branding.primary_color') }}</span></label>
@@ -32,15 +26,14 @@
       <small class="muted">{{ _("Buttons, links and highlights. It is used in the light and the dark theme.") }}</small>
       {{ field_error('branding.primary_color') }}
     </div>
-  </div>
-  </fieldset>
+  {% endcall %}
   <fieldset class="tab-panel">
     <legend>{{ _("Logo") }}</legend>
   <div class="card stack">
     <h3 class="card-title">{{ _("Logo") }} {{ origin('branding.logo') }}</h3>
     <div class="brand-logo-row">
       <span class="rail-brand brand-preview{% if brand.logo %} has-logo{% endif %}" aria-hidden="true">
-        {% if brand.logo %}<img src="{{ url_for('brand.logo', v=brand.version) }}" alt="">{% else %}<svg class="icon"><use href="#i-logo"></use></svg>{% endif %}
+        {{ brand_logo() }}
       </span>
       <label class="sr-only" for="logo-file">{{ _("Logo") }}</label>
       <input{{ lock('branding.logo') }} type="file" id="logo-file" name="logo" form="logo-upload" accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml" required>

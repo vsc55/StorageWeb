@@ -21,17 +21,15 @@ import logging
 import os
 import queue
 import socket
-import ssl
 import threading
 import time
-from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlsplit
 
 from . import __version__, audit_levels, metrics
-from .settings.defaults import AUDIT_FORMATS as FORMATS
 from .settings.defaults import SYSLOG_FACILITIES as FACILITIES
-from .settings.defaults import SYSLOG_PORTS as SCHEMES
+from .clock import now_iso
+from .tls import client_context
+from .settings import checks
 QUEUE_SIZE = 10000
 TIMEOUT = 5.0
 SD_ID = "storageweb@32473"      # 32473: número de empresa reservado para ejemplos (RFC 5612)
@@ -49,10 +47,10 @@ def severity(event: dict) -> int:
 
 def parse_target(url: str) -> tuple[str, str, int]:
     """``udp://host:514`` → ``("udp", "host", 514)``. :class:`ValueError` si no vale."""
-    parts = urlsplit(url.strip())
-    if parts.scheme not in SCHEMES or not parts.hostname or parts.path not in ("", "/"):
+    found = checks.syslog_target(url)
+    if found is None:
         raise ValueError(url)
-    return parts.scheme, parts.hostname, parts.port or SCHEMES[parts.scheme]
+    return found
 
 
 # --------------------------------------------------------------------------- formatos
@@ -77,7 +75,7 @@ def _msgid(action: str) -> str:
 def format_syslog(event: dict, fmt: str, facility: str = "local0", host: str | None = None) -> str:
     """El evento como mensaje syslog RFC 5424 (sin el entramado del transporte)."""
     pri = FACILITIES.get(facility, FACILITIES["local0"]) * 8 + severity(event)
-    stamp = event.get("ts") or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    stamp = event.get("ts") or now_iso()
     head = f"<{pri}>1 {stamp} {host or socket.gethostname() or '-'} storageweb {os.getpid()} {_msgid(event['action'])}"
     fields = {k: event.get(k) for k in ("level", "user", "ip", "target", "detail") if event.get(k)}
     if fmt == "json":
@@ -126,10 +124,7 @@ class _Sender:
             return sock
         sock = socket.create_connection((host, port), timeout=TIMEOUT)
         if scheme == "tls":
-            context = ssl.create_default_context(cafile=self.options.get("syslog_ca") or None)
-            if not self.options.get("tls_verify", True):
-                context.check_hostname = False
-                context.verify_mode = ssl.CERT_NONE
+            context = client_context(self.options.get("tls_verify", True), self.options.get("syslog_ca"))
             sock = context.wrap_socket(sock, server_hostname=host)
         return sock
 
@@ -213,7 +208,7 @@ class Forwarder:
                 if sender is not None:
                     sender.send(event)
                     self.sent += 1
-                    self.last_ok_at = _now()
+                    self.last_ok_at = now_iso()
             except Exception as exc:  # noqa: BLE001 (el hilo no puede morir: se apunta y se sigue)
                 self._failed(exc)
             finally:
@@ -225,7 +220,7 @@ class Forwarder:
         message = str(exc) or exc.__class__.__name__
         if message != self.last_error:     # no llenar el registro con el mismo error en cada evento
             _log.warning("Could not forward the audit log: %s", message)
-        self.last_error, self.last_error_at = message, _now()
+        self.last_error, self.last_error_at = message, now_iso()
 
     def flush(self, timeout: float = 3.0) -> None:
         """Espera (como mucho ``timeout`` segundos) a que salga lo que hay en la cola (al acabar la CLI)."""
@@ -237,7 +232,7 @@ class Forwarder:
         """Envía un evento de prueba sin pasar por la cola. El error o ``None``."""
         sender = _Sender(options)
         try:
-            sender.send(event_of(_now(), None, "audit_forward_test", None, None, "StorageWeb", "info"))
+            sender.send(event_of(now_iso(), None, "audit_forward_test", None, None, "StorageWeb", "info"))
         except Exception as exc:  # noqa: BLE001 (DNS, red, certificado…: se muestra tal cual)
             return str(exc) or exc.__class__.__name__
         finally:
@@ -249,10 +244,6 @@ class Forwarder:
                 "queued": self._queue.qsize(), "last_error": self.last_error, "last_error_at": self.last_error_at,
                 "last_ok_at": self.last_ok_at,
                 "failing": bool(self.last_error_at and self.last_error_at >= (self.last_ok_at or ""))}
-
-
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 FORWARDER = Forwarder()

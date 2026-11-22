@@ -28,11 +28,17 @@ from .. import __version__
 from ..db import available_migrations, connect, init_db, schema_version
 from ..i18n import _
 from ..settings import secretbox
+from ..clock import file_stamp, now_iso
 
 FORMAT = 1
 PREFIX = "storageweb-backup-"
 SUFFIX = ".tar.gz"
 _MEMBERS = {"manifest.json", "storageweb.db", "config.json", "secret_key", secretbox.KEY_FILE}
+
+
+def is_backup_name(name: str) -> bool:
+    """Si ``name`` tiene la forma del nombre de una copia (``storageweb-backup-….tar.gz``)."""
+    return name.startswith(PREFIX) and name.endswith(SUFFIX)
 
 
 class BackupError(Exception):
@@ -59,7 +65,7 @@ def create(cfg: dict, output_dir: Path, keep: int | None = None, label: str = ""
     if not Path(cfg["database"]).exists():
         raise BackupError(_("The database %(path)s does not exist", path=cfg["database"]))
     output_dir.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    stamp = file_stamp()
     base = f"{PREFIX}{label}-{stamp}" if label else f"{PREFIX}{stamp}"
     final = output_dir / f"{base}{SUFFIX}"
     n = 1
@@ -91,7 +97,7 @@ def create(cfg: dict, output_dir: Path, keep: int | None = None, label: str = ""
             extra.append((key_copy, secretbox.KEY_FILE))
         included += [name for _, name in extra]
         manifest = {"format": FORMAT, "storageweb_version": __version__, "schema_version": version,
-                    "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    "created_at": now_iso(),
                     "files": included}
 
         partial = tmp_dir / "backup.tar.gz"
@@ -176,13 +182,42 @@ def _rekey(db_path: Path, tar: tarfile.TarFile, data_dir: str) -> None:
         conn.close()
 
 
+def _check_version(manifest: dict) -> None:
+    if manifest.get("schema_version", 0) > available_migrations()[-1][0]:
+        raise BackupError(_("The backup is from a newer StorageWeb version: upgrade before restoring"))
+
+
+def _extract_db(tar: tarfile.TarFile, path: Path) -> None:
+    """Saca la base de datos de la copia a ``path`` y comprueba que está sana (si no, :class:`BackupError`)."""
+    with open(path, "wb") as fh:
+        shutil.copyfileobj(tar.extractfile("storageweb.db"), fh)
+    check = sqlite3.connect(path)
+    try:
+        if check.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+            raise BackupError(_("The database in the backup is damaged"))
+    finally:
+        check.close()
+
+
+def _finish(db_path: Path, tar: tarfile.TarFile, cfg: dict, manifest: dict) -> dict:
+    """Lo común al final de restaurar: las migraciones pendientes, los secretos cifrados con la clave de este
+    servidor y la versión del esquema que queda (``restored_schema_version`` en el manifiesto, que se devuelve)."""
+    init_db(str(db_path))
+    _rekey(db_path, tar, cfg["data_dir"])
+    conn = connect(str(db_path))
+    try:
+        manifest["restored_schema_version"] = schema_version(conn)
+    finally:
+        conn.close()
+    return manifest
+
+
 def check_restorable(archive: Path) -> dict:
     """El manifiesto de una copia que se puede restaurar aquí; :class:`BackupError` si no (formato, contenido o
     una versión de StorageWeb más nueva que esta)."""
     tar, manifest = _open(archive)
     tar.close()
-    if manifest.get("schema_version", 0) > available_migrations()[-1][0]:
-        raise BackupError(_("The backup is from a newer StorageWeb version: upgrade before restoring"))
+    _check_version(manifest)
     return manifest
 
 
@@ -194,16 +229,12 @@ def restore_online(cfg: dict, archive: Path) -> dict:
     db_path = Path(cfg["database"])
     tar, manifest = _open(archive)
     with tar:
-        if manifest.get("schema_version", 0) > available_migrations()[-1][0]:
-            raise BackupError(_("The backup is from a newer StorageWeb version: upgrade before restoring"))
+        _check_version(manifest)
         with tempfile.TemporaryDirectory(dir=db_path.parent, prefix=".restore-") as tmp:
             source_path = Path(tmp) / "storageweb.db"
-            with open(source_path, "wb") as fh:
-                shutil.copyfileobj(tar.extractfile("storageweb.db"), fh)
+            _extract_db(tar, source_path)
             source = sqlite3.connect(source_path)
             try:
-                if source.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
-                    raise BackupError(_("The database in the backup is damaged"))
                 target = sqlite3.connect(db_path, timeout=60)
                 try:
                     source.backup(target)
@@ -211,14 +242,7 @@ def restore_online(cfg: dict, archive: Path) -> dict:
                     target.close()
             finally:
                 source.close()
-        init_db(str(db_path))
-        _rekey(db_path, tar, cfg["data_dir"])
-    conn = connect(str(db_path))
-    try:
-        manifest["restored_schema_version"] = schema_version(conn)
-    finally:
-        conn.close()
-    return manifest
+        return _finish(db_path, tar, cfg, manifest)
 
 
 def restore(cfg: dict, archive: Path, *, force: bool = False, config_to: Path | None = None) -> dict:
@@ -229,27 +253,18 @@ def restore(cfg: dict, archive: Path, *, force: bool = False, config_to: Path | 
     """
     tar, manifest = _open(archive)
     with tar:
-        latest = available_migrations()[-1][0]
-        if manifest.get("schema_version", 0) > latest:
-            raise BackupError(_("The backup is from a newer StorageWeb version: upgrade before restoring"))
+        _check_version(manifest)
 
         db_path = Path(cfg["database"])
         db_path.parent.mkdir(parents=True, exist_ok=True)
         if db_path.exists():
             if not force:
                 raise BackupError(_("%(path)s already exists; use --force to replace it", path=db_path))
-            stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+            stamp = file_stamp()
             shutil.copy2(db_path, db_path.with_name(f"{db_path.name}.antes-de-restaurar-{stamp}"))
 
         tmp_db = db_path.with_name(f".{db_path.name}.restaurando")
-        with open(tmp_db, "wb") as fh:
-            shutil.copyfileobj(tar.extractfile("storageweb.db"), fh)
-        check = sqlite3.connect(tmp_db)
-        try:
-            if check.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
-                raise BackupError(_("The database in the backup is damaged"))
-        finally:
-            check.close()
+        _extract_db(tar, tmp_db)
         # Los ficheros WAL de la base de datos anterior no deben aplicarse a la restaurada
         for suffix in ("-wal", "-shm"):
             Path(f"{db_path}{suffix}").unlink(missing_ok=True)
@@ -266,11 +281,4 @@ def restore(cfg: dict, archive: Path, *, force: bool = False, config_to: Path | 
                 raise BackupError(_("The backup does not include config.json"))
             config_to.write_bytes(tar.extractfile("config.json").read())
 
-        init_db(str(db_path))
-        _rekey(db_path, tar, cfg["data_dir"])
-    conn = connect(str(db_path))
-    try:
-        manifest["restored_schema_version"] = schema_version(conn)
-    finally:
-        conn.close()
-    return manifest
+        return _finish(db_path, tar, cfg, manifest)

@@ -9,8 +9,7 @@ from storageweb.core import alerts, backends, maintenance, offsite
 from storageweb.db.repositories import audit
 from storageweb.settings import ConfigError, load_config
 from storageweb.web.context import boot_config, get_db, settings
-from tests.fakes import FakeS3
-from tests.helpers import add_user, get_csrf, login
+from tests.helpers import get_csrf, signed_in, config_file
 
 BACKUPS = "/admin/settings/backups"
 S3 = {"name": "copias", "label": "Copias", "type": "s3", "bucket": "bucket", "prefix": "",
@@ -18,21 +17,10 @@ S3 = {"name": "copias", "label": "Copias", "type": "s3", "bucket": "bucket", "pr
 
 
 @pytest.fixture
-def s3(monkeypatch):
-    fake = FakeS3()
-    monkeypatch.setitem(backends.CLIENT_FACTORIES, "s3", lambda loc: fake)
-    backends.clear_clients()
-    yield fake
-    backends.clear_clients()
-
-
-@pytest.fixture
 def admin_app(make_app, s3):
     app = make_app({"storage": {"locations": [S3]},
                     "maintenance": {"offsite_location": "copias", "offsite_path": "sw/copias", "offsite_keep": 2}})
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
+    client, _ = signed_in(app, "root", role="admin", csrf_url=None)
     return app, client
 
 
@@ -94,9 +82,7 @@ def test_list_and_bring_back_to_another_server(admin_app, s3, make_app):
         name = maintenance.list_backups(boot_config())[0]["name"]
     other = make_app({"data_dir": "otro", "storage": {"locations": [S3]},
                       "maintenance": {"offsite_location": "copias", "offsite_path": "sw/copias"}})
-    add_user(other, "root2", role="admin")
-    c2 = other.test_client()
-    login(c2, "root2")
+    c2, _ = signed_in(other, "root2", role="admin", csrf_url=None)
     with other.app_context():
         assert maintenance.list_backups(boot_config()) == []          # otro servidor: sin copias propias
     page = c2.get(BACKUPS + "?remote=1").get_data(as_text=True)
@@ -123,11 +109,8 @@ def test_cli_backup_sends_it_too(admin_app, s3, tmp_path, capsys):
 
 
 def test_settings_are_validated(tmp_path):
-    import json
-
     def load(maint, locations=()):
-        p = tmp_path / "config.json"
-        p.write_text(json.dumps({"storage": {"locations": list(locations)}, "maintenance": maint}), encoding="utf-8")
+        p = config_file(tmp_path, {"storage": {"locations": list(locations)}, "maintenance": maint})
         return load_config(p)
     assert load({})["maintenance"]["offsite_location"] == ""
     with pytest.raises(ConfigError, match="offsite_location"):

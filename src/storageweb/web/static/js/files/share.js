@@ -24,13 +24,7 @@
     return label;
   }
 
-  function option(select, value, text, selected) {
-    var o = document.createElement("option");
-    o.value = value;
-    o.textContent = text;
-    o.selected = !!selected;
-    select.appendChild(o);
-  }
+  var option = window.SW.option;
 
   function daysText(d) {
     if (!d) return t("Never");
@@ -103,10 +97,7 @@
       var body = new URLSearchParams({ root: config.root, path: row.dataset.rel, mode: mode.value, days: days.value,
                                        password: password.value, max_downloads: mode.value === "upload" ? "" : limit.value,
                                        note: note.value });
-      fetch(config.url, {
-        method: "POST", body: body, credentials: "same-origin",
-        headers: { "X-CSRF-Token": files.csrf, "Accept": "application/json" }
-      }).then(function (r) {
+      window.SW.fetch(config.url, { method: "POST", body: body }).then(function (r) {
         return r.json().then(function (data) { return { ok: r.ok, data: data }; });
       }).then(function (res) {
         if (!res.ok) throw new Error(res.data.error || t("Network error."));
@@ -139,9 +130,7 @@
     copy.textContent = t("Copy");
     copy.addEventListener("click", function () {
       input.select();
-      var ok = function () { copy.textContent = t("Copied"); };
-      if (navigator.clipboard) navigator.clipboard.writeText(input.value).then(ok, function () {});
-      else if (document.execCommand("copy")) ok();
+      window.SW.copy(input.value).then(function (ok) { if (ok) copy.textContent = t("Copied"); });
     });
     row.appendChild(input);
     row.appendChild(copy);

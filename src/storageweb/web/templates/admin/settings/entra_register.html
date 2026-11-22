@@ -1,5 +1,6 @@
 {% extends "admin/_layout.html" %}
 {% from "admin/settings/_auth_tabs.html" import auth_tabs with context %}
+{% from "_forms.html" import post_button, copy_field with context %}
 {% block title %}{{ _("Register in Entra ID") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
 {# Dentro de la pestaña Entra ID de Inicio de sesión: las pestañas, a la izquierda, llevan a las demás #}
@@ -21,10 +22,7 @@
     <ol class="device-steps">
       <li>{{ _("Open %(link)s on any device.", link='<a href="%s" target="_blank" rel="noopener">%s</a>'|format(flow.verification_uri, flow.verification_uri.split('//')[-1])|safe) }}</li>
       <li>{{ _("Enter this code:") }}
-        <div class="copy-row device-code-row">
-          <input type="text" readonly value="{{ flow.user_code }}" id="device-code" class="device-code" aria-label="{{ _('Code') }}">
-          <button type="button" class="btn js-copy" data-copy="#device-code">{{ _("Copy") }}</button>
-        </div></li>
+        {{ copy_field('device-code', flow.user_code, _('Code'), cls='device-code-row', input_cls='device-code') }}</li>
       <li>{{ _("Sign in with an account that can register applications (Application Administrator or Global Administrator) and accept.") }}</li>
     </ol>
     <p class="register-status" id="register-status" role="status" aria-live="polite"
@@ -35,10 +33,7 @@
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
         <button class="btn btn-primary" type="submit">{{ _("I have signed in: continue") }}</button>
       </form>
-      <form method="post" action="{{ url_for('settings.entra_register_cancel') }}" class="inline">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <button class="btn btn-ghost" type="submit">{{ _("Cancel") }}</button>
-      </form>
+      {{ post_button(url_for('settings.entra_register_cancel'), _("Cancel"), btn='btn btn-ghost') }}
     </div>
   </div>
 

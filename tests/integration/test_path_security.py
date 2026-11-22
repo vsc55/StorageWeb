@@ -12,7 +12,7 @@ from storageweb.core import backends
 from storageweb.core.security import PathError
 
 from tests.fakes import FakeFTP, FakeS3, FakeSFTPSession, fake_webdav_client
-from tests.helpers import add_user, get_csrf, login
+from tests.helpers import get_csrf, signed_in
 
 SECRET = b"SECRETO-NO-DEBE-SALIR"
 
@@ -72,10 +72,7 @@ def world(make_app, tmp_path, monkeypatch):
             {"name": "lectura", "path": str(tmp_path / "shares" / "solo-lectura"), "read_only": True, **everyone},
             {"name": "privada", "path": str(tmp_path / "shares" / "privada"), "users": ["beto"]},
         ]}})
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
-    token = get_csrf(client, "/f/home/")
+    client, token = signed_in(app, "ana")
 
     def snapshot():
         """Todo lo que hay FUERA de las raíces de las carpetas (debe quedar igual)."""
@@ -197,9 +194,7 @@ def test_permission_escalation(world, make_app):
     # La subida de otro usuario no se puede continuar ni completar
     uid = client.post("/api/uploads", data=json.dumps({"root": "home", "path": "", "name": "a.txt", "size": 3}),
                       headers=headers, content_type="application/json").get_json()["id"]
-    add_user(app, "beto")
-    other = app.test_client()
-    login(other, "beto")
+    other, _ = signed_in(app, "beto", csrf_url=None)
     other_headers = {"X-CSRF-Token": get_csrf(other, "/f/home/"), "Accept": "application/json"}
     assert other.put(f"/api/uploads/{uid}?offset=0", data=b"abc", headers=other_headers,
                      content_type="application/octet-stream").status_code == 404
@@ -234,9 +229,7 @@ def test_windows_name_tricks(make_app, home):
     import threading
 
     app = make_app({"storage": {"hidden": ["secreto.md", "*.key"]}, "permissions": {"user": {"edit": True}}})
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
+    client, _ = signed_in(app, "ana", csrf_url=None)
     home.mkdir(parents=True, exist_ok=True)
     (home / "secreto.md").write_bytes(SECRET)
     (home / "clave.key").write_bytes(SECRET)
@@ -293,9 +286,7 @@ def test_windows_server_option(make_app, tmp_path, monkeypatch, kind):
     backends.clear_clients()
     app = make_app({"storage": {"locations": [{"name": "loc", **base, "windows_server": True}],
                                 "shares": [{"name": "rem", "location": "loc", "path": "carpeta", "users": ["*"]}]}})
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
+    client, _ = signed_in(app, "ana", csrf_url=None)
     assert client.get("/download/rem/nota.txt").status_code == 200
     for name in ("nota.txt.", "nota.txt ", "nota.txt::$DATA", "CON", "nul.txt"):
         for route in ("download", "view", "f"):

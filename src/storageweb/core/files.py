@@ -6,22 +6,83 @@ respetan lo oculto para todos (``storage.hidden``). Los permisos los comprueba q
 from __future__ import annotations
 
 import time
-import unicodedata
 import zipfile
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Iterator
 
 from .. import patterns
-from ..i18n import _
-from . import backends, storage
-from .security import UPLOAD_TMP_PREFIX, PathError
+from ..text import fold
+from ..i18n import _, format_size
+from . import backends, favorites, links, quota, storage
+from .security import UPLOAD_TMP_PREFIX, PathError, safe_filename
 
 CHUNK = 1024 * 1024
 
 
 class FilesError(Exception):
     """Algo que no se puede hacer con un elemento concreto (el mensaje es para el usuario)."""
+
+
+# --------------------------------------------------------------------------- lo que va por ruta
+
+def path_moved(conn, user, src_root: str, rel: str, dst_root: str, new_rel: str) -> None:
+    """Algo se movió o se renombró (web o WebDAV): los favoritos y los enlaces para compartir que lo señalaban
+    (también lo de dentro) lo siguen."""
+    favorites.moved(conn, user, src_root, rel, dst_root, new_rel)
+    links.moved(conn, user, src_root, rel, dst_root, new_rel)
+
+
+def path_deleted(conn, user, root: str, rel: str) -> None:
+    """Algo se borró: fuera sus favoritos y sus enlaces para compartir (también lo de dentro)."""
+    favorites.deleted(conn, user, root, rel)
+    links.deleted(conn, user, root, rel)
+
+
+# --------------------------------------------------------------------------- recibir un archivo subido
+
+class UploadRefused(FilesError):
+    """Un archivo subido que no se guarda. ``reason``: ``name`` (nombre no válido u oculto), ``too_large``,
+    ``quota`` o ``write`` (error al escribir: la excepción original va en ``__cause__``); ``name``: el nombre
+    limpio (o el recibido, si no valía); ``size``: lo que ocupa (0 si no se llegó a saber)."""
+
+    def __init__(self, message: str, reason: str, name: str, size: int = 0):
+        super().__init__(message)
+        self.message, self.reason, self.name, self.size = message, reason, name, size
+
+
+def receive(cfg: dict, root: dict, rel: str, filename: str, save, max_bytes: int = 0) -> tuple[str, int]:
+    """Guarda en la carpeta ``rel`` de ``root`` un archivo subido en un formulario (el explorador, el buzón de un
+    enlace): ``save(ruta)`` lo escribe en un temporal local; se comprueban el nombre (``storage.hidden``), el tamaño
+    (``max_bytes``, 0 = sin límite) y la cuota, y se guarda **sin sobrescribir** (``nombre (1).ext``). Devuelve
+    ``(ruta final, tamaño)``; :class:`UploadRefused` si no se guarda (el temporal se borra siempre). Quien llama
+    apunta lo guardado (``quota.record``, auditoría)."""
+    try:
+        name = safe_filename(filename)
+        storage.check_visible_name(cfg, backends.join_rel(rel, name))
+    except ValueError as exc:
+        raise UploadRefused(str(exc), "name", filename) from exc
+    backend = root["backend"]
+    tmp = backend.staging_file(rel)
+    size = 0
+    try:
+        save(tmp)
+        size = tmp.stat().st_size
+        if max_bytes and size > max_bytes:
+            raise UploadRefused(_("It is larger than %(size)s.", size=format_size(max_bytes)), "too_large", name, size)
+        quota.check(root, cfg, size)
+        final = backend.unique_rel(rel, name)
+        backend.store(tmp, final)
+    except UploadRefused:
+        tmp.unlink(missing_ok=True)
+        raise
+    except quota.QuotaExceeded as exc:
+        tmp.unlink(missing_ok=True)
+        raise UploadRefused(exc.message, "quota", name, size) from exc
+    except (OSError, backends.BackendError) as exc:
+        tmp.unlink(missing_ok=True)
+        raise UploadRefused(backends.error_text(exc), "write", name, size) from exc
+    return final, size
 
 
 # --------------------------------------------------------------------------- mover y copiar
@@ -164,12 +225,6 @@ def zip_name(items: list[tuple[dict, str]]) -> str:
 
 
 # --------------------------------------------------------------------------- buscar
-
-def fold(text: str) -> str:
-    """Sin mayúsculas ni tildes: «Informe Año» → «informe ano»."""
-    decomposed = unicodedata.normalize("NFKD", text)
-    return "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
-
 
 def filter_by_name(entries: list[dict], query: str) -> list[dict]:
     """Las entradas de un listado cuyo nombre contiene todas las palabras de ``query`` (como :func:`search`, sin

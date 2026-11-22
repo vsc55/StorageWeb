@@ -14,17 +14,15 @@ from pathlib import Path
 from ..i18n import _
 from ..settings import location_types
 from ..settings.location_types import LocationSchema
-from . import backends
+from . import backends, named
+from ..settings.errors import UserError
 
 
-class LocationError(Exception):
-    def __init__(self, message: str):
-        super().__init__(message)
-        self.message = message
+class LocationError(UserError):
+    pass
 
 
-def find(locations: list[dict], name: str) -> dict | None:
-    return next((loc for loc in locations if loc["name"] == name), None)
+find = named.find
 
 
 def schema(kind: str) -> LocationSchema:
@@ -61,16 +59,10 @@ def from_form(form: dict, original: dict | None) -> dict:
 
 
 def replace(locations: list[dict], original: str | None, loc: dict) -> list[dict]:
-    result = copy.deepcopy(locations)
-    if original is None:
-        if find(result, loc["name"]) is not None:
-            raise LocationError(_("Duplicate storage location name: %(name)s", name=repr(loc["name"])))
-        return result + [loc]
-    for i, current in enumerate(result):
-        if current["name"] == original:
-            result[i] = loc
-            return result
-    raise LocationError(_("The storage location %(name)s does not exist.", name=original))
+    return named.replace(
+        locations, original, loc,
+        duplicate=lambda: LocationError(_("Duplicate storage location name: %(name)s", name=repr(loc["name"]))),
+        missing=lambda: LocationError(_("The storage location %(name)s does not exist.", name=original)))
 
 
 def users_of(cfg: dict, name: str) -> list[str]:
@@ -118,8 +110,6 @@ def test(cfg: dict, loc: dict) -> str | None:
     """Comprueba la conexión y el acceso. Devuelve el error o ``None`` si todo va bien."""
     try:
         backends.backend_for(loc, "", backends.staging_dir(cfg)).check()
-    except backends.BackendError as exc:
-        return exc.message
     except Exception as exc:  # noqa: BLE001 (red, DNS, certificados…: se muestra tal cual)
-        return str(exc) or exc.__class__.__name__
+        return backends.error_text(exc)
     return None

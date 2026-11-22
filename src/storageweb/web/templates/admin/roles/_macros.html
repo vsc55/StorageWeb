@@ -1,41 +1,27 @@
 {# Piezas comunes de las vistas de roles (lista = admin/roles/list.html, paneles = admin/roles/panel.html, ficha =
-   admin/roles/form.html), con el mismo diseño que las de usuarios y grupos. Importar «with context». #}
-
-{% macro view_switch(view) -%}
-<nav class="segmented view-switch" aria-label="{{ _('Roles view') }}">
-  <a class="segment{% if view == 'list' %} active{% endif %}" href="{{ url_for('roles.list_view') }}"{% if view == 'list' %} aria-current="page"{% endif %}>{{ _("List") }}</a>
-  <a class="segment{% if view == 'panel' %} active{% endif %}" href="{{ url_for('roles.panel_view') }}"{% if view == 'panel' %} aria-current="page"{% endif %}>{{ _("Panels") }}</a>
-</nav>
-{%- endmacro %}
+   admin/roles/form.html), con el mismo diseño que las de usuarios y grupos: la cabecera y la búsqueda de Lista y
+   Paneles son las de admin/_panels.html. Importar «with context». #}
+{% import "admin/_panels.html" as panels with context %}
+{% from "admin/_page.html" import danger_zone, danger_row with context %}
+{% from "_forms.html" import post_button with context %}
 
 {# La cabecera de las dos vistas: título, resumen, vista y «Nuevo rol» #}
 {% macro page_head(view) -%}
-<div class="page-head">
-  <div>
-    <h1>{{ _("Roles") }}</h1>
-    <p class="muted small">{{ ngettext("%(num)s role", "%(num)s roles", counts.all) }} · {{ ngettext("%(num)s of your own", "%(num)s of your own", counts.custom) }}
-      · {{ _("new accounts: %(role)s", role=role_label(default_key)) }}</p>
-  </div>
-  <div class="inline">
-    {{ view_switch(view) }}
-    <a class="btn btn-primary" href="{{ url_for('roles.new') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New role") }}</a>
-  </div>
-</div>
+{% set summary %}{{ ngettext("%(num)s role", "%(num)s roles", counts.all) }} · {{ ngettext("%(num)s of your own", "%(num)s of your own", counts.custom) }}
+  · {{ _("new accounts: %(role)s", role=role_label(default_key)) }}{% endset %}
+{% call panels.page_head(_("Roles"), summary, panels.view_switch(view, _('Roles view'), ('roles.list_view', 'roles.panel_view'))) %}
+  <a class="btn btn-primary" href="{{ url_for('roles.new') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New role") }}</a>
+{% endcall %}
 {%- endmacro %}
 
 {% macro filters_form(filters, target, extra='') -%}
-<form method="get" action="{{ url_for(target) }}" class="inline search">
-  {{ extra }}
-  <input type="text" name="q" value="{{ filters.q }}" placeholder="{{ _('Search by name or description') }}"
-         aria-label="{{ _('Search by name or description') }}">
+{% call panels.search_form(target, filters.q, _('Search by name or description'), filters.q or filters.kind, extra) %}
   <select name="kind" aria-label="{{ _('Kind') }}">
     <option value="">{{ _("All roles") }}</option>
     <option value="builtin" {% if filters.kind == 'builtin' %}selected{% endif %}>{{ _("Built-in") }}</option>
     <option value="custom" {% if filters.kind == 'custom' %}selected{% endif %}>{{ _("Your own") }}</option>
   </select>
-  <button class="btn" type="submit">{{ _("Search") }}</button>
-  {% if filters.q or filters.kind %}<a class="btn btn-ghost" href="{{ url_for(target) }}">{{ _("Clear") }}</a>{% endif %}
-</form>
+{% endcall %}
 {%- endmacro %}
 
 {% macro perm_summary(r) -%}
@@ -51,12 +37,12 @@
 {% if r.key == default_key -%}
 <span class="role-star is-on" role="img" title="{{ _('Role of new accounts') }}" aria-label="{{ _('Role of new accounts') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-star"></use></svg></span>
 {%- else -%}
-<form method="post" action="{{ url_for('roles.make_default', key=r.key) }}" class="role-star-form{% if r.key == 'admin' %} js-confirm{% endif %}"
-      {% if r.key == 'admin' %}data-confirm="{{ _('Make «%(name)s» the role of new accounts? Every new account, also those created on their first sign-in, will be able to change everything.', name=r.label) }}"{% endif %}>
-  <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ next }}">
-  <button class="role-star" type="submit" aria-label="{{ _('Use «%(name)s» for new accounts', name=r.label) }}"
-          title="{{ _('Set in config.json or an environment variable: it cannot be changed from the web.') if default_locked else _('Use for new accounts') }}"{% if default_locked %} disabled{% endif %}><svg class="icon icon-sm" aria-hidden="true"><use href="#i-star"></use></svg></button>
-</form>
+{%- call post_button(url_for('roles.make_default', key=r.key), btn='role-star', cls='role-star-form', next=next,
+                     confirm=_('Make «%(name)s» the role of new accounts? Every new account, also those created on their first sign-in, will be able to change everything.', name=r.label) if r.key == 'admin' else None,
+                     aria_label=_('Use «%(name)s» for new accounts', name=r.label), disabled=default_locked,
+                     title=_('Set in config.json or an environment variable: it cannot be changed from the web.') if default_locked else _('Use for new accounts')) -%}
+<svg class="icon icon-sm" aria-hidden="true"><use href="#i-star"></use></svg>
+{%- endcall %}
 {%- endif %}
 {%- endmacro %}
 
@@ -152,17 +138,15 @@
 {%- endmacro %}
 
 {% macro delete_zone(role) -%}
-<section class="danger-zone">
-  <div class="danger-row">
-    <div>
-      <strong>{{ _("Delete role") }}</strong>
-      <p class="muted small">{{ _("The people who have it are left with no permissions (role «No permissions»); the groups that give it stop giving a role.") }}</p>
-    </div>
-    <form method="post" action="{{ url_for('roles.delete', key=role.key) }}" class="inline js-confirm"
-          data-confirm="{{ _('Delete the role «%(name)s»? Its people are left with no permissions.', name=role.label) }}">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <button class="btn btn-danger" type="submit">{{ _("Delete role") }}</button>
-    </form>
-  </div>
-</section>
+{% call danger_zone() %}
+  {% call danger_row(_("Delete role"), delete_button(role, 'btn btn-danger')) -%}
+    {{ _("The people who have it are left with no permissions (role «No permissions»); the groups that give it stop giving a role.") }}
+  {%- endcall %}
+{% endcall %}
+{%- endmacro %}
+
+{# Eliminar un rol propio (pide confirmación): la zona peligrosa de la ficha y la cabecera de Paneles #}
+{% macro delete_button(role, btn) -%}
+{{ post_button(url_for('roles.delete', key=role.key), _("Delete role"), btn=btn,
+               confirm=_('Delete the role «%(name)s»? Its people are left with no permissions.', name=role.label)) }}
 {%- endmacro %}

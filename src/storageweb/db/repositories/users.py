@@ -5,7 +5,8 @@ import uuid
 from sqlite3 import Connection
 from typing import Iterable
 
-from ..connection import now_iso
+from ..connection import now_iso, update_row
+from ...text import clean_names, csv_names
 
 _UPDATABLE = {"display_name", "email", "groups", "home_path", "enabled", "role", "password_hash",
               "external_id", "last_login", "locale", "theme", "external_groups", "quota_mb", "disabled_reason"}
@@ -13,11 +14,11 @@ DIRECTORY = "directory"  # disabled_reason: lo desactivó el proveedor (se react
 
 
 def _join_groups(groups: Iterable[str] | None) -> str:
-    return ",".join(sorted({g.strip().lower() for g in (groups or []) if g and g.strip()}))
+    return ",".join(clean_names(groups))
 
 
 def groups_of(user) -> set[str]:
-    return {x for x in (user["groups"] or "").split(",") if x}
+    return csv_names(user["groups"])
 
 
 def get_by_id(conn: Connection, user_id: int):
@@ -115,11 +116,6 @@ def create(conn: Connection, *, username: str, source: str, role: str = "user",
 
 
 def update(conn: Connection, user_id: int, **fields) -> None:
-    unknown = set(fields) - _UPDATABLE
-    if unknown:
-        raise ValueError(f"Campos no actualizables: {', '.join(sorted(unknown))}")
-    if not fields:
-        return
     for key in ("groups", "external_groups"):
         if key in fields and not isinstance(fields[key], str):
             fields[key] = _join_groups(fields[key])
@@ -127,9 +123,7 @@ def update(conn: Connection, user_id: int, **fields) -> None:
         fields["enabled"] = 1 if fields["enabled"] else 0
     if "home_path" in fields:
         fields["home_path"] = fields["home_path"] or None
-    sets = ", ".join(f"{k} = ?" for k in fields)  # claves validadas contra _UPDATABLE
-    conn.execute(f"UPDATE users SET {sets} WHERE id = ?", (*fields.values(), user_id))  # noqa: S608
-    conn.commit()
+    update_row(conn, "users", user_id, fields, _UPDATABLE)
 
 
 def touch_login(conn: Connection, user_id: int, **fields) -> None:

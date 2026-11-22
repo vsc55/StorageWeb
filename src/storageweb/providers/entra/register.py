@@ -20,7 +20,6 @@ Inspirado en el asistente «Register in Azure» de ServiceSentry.
 """
 from __future__ import annotations
 
-import base64
 import http.client
 import json
 import time
@@ -32,6 +31,8 @@ from datetime import datetime, timedelta, timezone
 
 from ...i18n import _
 from .common import MS_LOGIN
+from . import oauth2
+from ..base import SSOError
 
 # Microsoft Graph Command Line Tools (el cliente de Connect-MgGraph): cliente público de
 # Microsoft que admite el flujo de código de dispositivo y cualquier permiso delegado de Graph.
@@ -140,9 +141,8 @@ def _graph(method: str, path: str, token: str, body: dict | None = None, ok=(200
 def _claims(access_token: str) -> dict:
     """Claims del token (sin verificar firma: solo se usan tid y oid para llamar a Graph)."""
     try:
-        payload = access_token.split(".")[1]
-        return json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
-    except (IndexError, ValueError):
+        return oauth2.decode_jwt_claims(access_token)
+    except SSOError:
         return {}
 
 
@@ -215,19 +215,41 @@ def _secret_end(months: int) -> datetime:
     return (datetime.now(timezone.utc) + timedelta(days=30 * int(months or SECRET_MONTHS))).replace(microsecond=0)
 
 
+SP_TAGS = ["WindowsAzureActiveDirectoryIntegratedApp"]    # que se vea como aplicación empresarial integrada
+
+
+def _add_secret(access_token: str, object_id: str, display_name: str, months: int) -> dict:
+    """Un secreto nuevo en la aplicación (``addPassword``): ``{client_secret, secret_expires}``."""
+    expires = _secret_end(months)
+    secret = _graph("POST", f"/applications/{object_id}/addPassword", access_token,
+                    {"passwordCredential": {"displayName": display_name, "endDateTime": expires.isoformat()}})
+    return {"client_secret": secret.get("secretText", ""),
+            "secret_expires": secret.get("endDateTime", expires.isoformat())}
+
+
+def _find_sp(access_token: str, client_id: str) -> str:
+    """El id del service principal (la aplicación empresarial) de ``client_id``, o ``""`` si no tiene."""
+    sps = _graph("GET", f"/servicePrincipals?$filter=appId eq '{client_id}'&$select=id", access_token).get("value")
+    return sps[0]["id"] if sps else ""
+
+
+def _grant_consent(access_token: str, sp_id: str, graph_sp: str) -> None:
+    """Consentimiento de administrador, para todos, a los permisos de inicio de sesión (``SIGN_IN_SCOPES``)."""
+    _graph("POST", "/oauth2PermissionGrants", access_token, {
+        "clientId": sp_id, "consentType": "AllPrincipals", "resourceId": graph_sp, "scope": " ".join(SIGN_IN_SCOPES)})
+
+
 def _finish_registration(access_token: str, app_body: dict, roles: list, tenant_id: str, admin_oid: str,
                          object_id: str, client_id: str, *, name: str, app_roles: bool, require_assignment: bool,
                          group_read: bool, warnings: list[str], secret_months: int = SECRET_MONTHS) -> dict:
     """Lo que va después de crear la aplicación: secreto, service principal, consentimiento y rol de admin."""
-    expires = _secret_end(secret_months)
-    secret = _graph("POST", f"/applications/{object_id}/addPassword", access_token,
-                    {"passwordCredential": {"displayName": name, "endDateTime": expires.isoformat()}})
+    secret = _add_secret(access_token, object_id, name, secret_months)
 
     # El service principal puede tardar unos segundos en poder crearse tras la aplicación
     sp_id = ""
     for attempt in range(5):
         status, data = _request("POST", f"{GRAPH}/servicePrincipals", token=access_token,
-                                body={"appId": client_id, "tags": ["WindowsAzureActiveDirectoryIntegratedApp"]})
+                                body={"appId": client_id, "tags": SP_TAGS})
         if status in (200, 201):
             sp_id = data.get("id", "")
             break
@@ -245,9 +267,7 @@ def _finish_registration(access_token: str, app_body: dict, roles: list, tenant_
         graph_sp = ""
         try:
             graph_sp = _graph_sp_id(access_token)
-            _graph("POST", "/oauth2PermissionGrants", access_token, {
-                "clientId": sp_id, "consentType": "AllPrincipals", "resourceId": graph_sp,
-                "scope": " ".join(SIGN_IN_SCOPES)})
+            _grant_consent(access_token, sp_id, graph_sp)
             consented.extend(SIGN_IN_SCOPES)
         except (RegisterError, KeyError, IndexError) as exc:
             warnings.append(_("Admin consent could not be granted (%(error)s): grant it in the portal, "
@@ -266,9 +286,8 @@ def _finish_registration(access_token: str, app_body: dict, roles: list, tenant_
             except RegisterError as exc:
                 warnings.append(_("You could not be assigned the %(role)s role: %(error)s", role=ADMIN_ROLE, error=exc))
 
-    return {"tenant_id": tenant_id, "client_id": client_id, "client_secret": secret.get("secretText", ""),
-            "group_read": bool(group_read),
-            "secret_expires": secret.get("endDateTime", expires.isoformat()), "object_id": object_id,
+    return {"tenant_id": tenant_id, "client_id": client_id, **secret, "group_read": bool(group_read),
+            "object_id": object_id,
             "app_roles": bool(app_roles), "warnings": warnings, "signin_consent": consented,
             "portal_url": portal_url(client_id)}
 
@@ -304,13 +323,8 @@ def _application(access_token: str, client_id: str) -> dict:
 def rotate_secret(access_token: str, client_id: str, *, secret_months: int = SECRET_MONTHS) -> dict:
     """Crea un secreto nuevo en la aplicación existente. El anterior sigue valiendo hasta que caduque."""
     app = _application(access_token, client_id)
-    expires = _secret_end(secret_months)
-    secret = _graph("POST", f"/applications/{app['id']}/addPassword", access_token,
-                    {"passwordCredential": {"displayName": f"{app.get('displayName') or 'StorageWeb'} "
-                                                           f"{datetime.now(timezone.utc):%Y-%m-%d}",
-                                            "endDateTime": expires.isoformat()}})
-    return {"client_secret": secret.get("secretText", ""),
-            "secret_expires": secret.get("endDateTime", expires.isoformat())}
+    name = f"{app.get('displayName') or 'StorageWeb'} {datetime.now(timezone.utc):%Y-%m-%d}"
+    return _add_secret(access_token, app["id"], name, secret_months)
 
 
 def repair_app(access_token: str, client_id: str, *, redirect_uri: str = "", new_secret: bool = False,
@@ -362,11 +376,7 @@ def repair_app(access_token: str, client_id: str, *, redirect_uri: str = "", new
     step(_("Optional claims"), optional_claims)
 
     def permissions() -> None:
-        access = app.get("requiredResourceAccess") or []
-        graph = next((r for r in access if r.get("resourceAppId") == GRAPH_APP_ID), None)
-        if graph is None:
-            graph = {"resourceAppId": GRAPH_APP_ID, "resourceAccess": []}
-            access.append(graph)
+        access, graph = _graph_access(app)
         have = {(a.get("id"), a.get("type")) for a in graph["resourceAccess"]}
         wanted = [(i, "Scope") for i in SIGN_IN_SCOPES.values()] + (
             [(i, "Role") for i in DIRECTORY_ROLES.values()] if group_read else [])
@@ -380,12 +390,9 @@ def repair_app(access_token: str, client_id: str, *, redirect_uri: str = "", new
     sp = {"id": ""}
 
     def service_principal() -> None:
-        sps = _graph("GET", f"/servicePrincipals?$filter=appId eq '{client_id}'&$select=id", access_token).get("value")
-        if sps:
-            sp["id"] = sps[0]["id"]
-        else:
-            sp["id"] = _graph("POST", "/servicePrincipals", access_token,
-                              {"appId": client_id, "tags": ["WindowsAzureActiveDirectoryIntegratedApp"]})["id"]
+        sp["id"] = _find_sp(access_token, client_id)
+        if not sp["id"]:
+            sp["id"] = _graph("POST", "/servicePrincipals", access_token, {"appId": client_id, "tags": SP_TAGS})["id"]
             fixed.append(_("Enterprise application (service principal) created"))
     step(_("Enterprise application"), service_principal)
 
@@ -399,9 +406,7 @@ def repair_app(access_token: str, client_id: str, *, redirect_uri: str = "", new
             grant = next((g for g in grants if g.get("consentType") == "AllPrincipals"), None)
             scopes = set(SIGN_IN_SCOPES)
             if grant is None:
-                _graph("POST", "/oauth2PermissionGrants", access_token, {
-                    "clientId": sp["id"], "consentType": "AllPrincipals", "resourceId": graph_sp["id"],
-                    "scope": " ".join(SIGN_IN_SCOPES)})
+                _grant_consent(access_token, sp["id"], graph_sp["id"])
                 fixed.append(_("Admin consent granted for signing in"))
             elif not scopes <= set((grant.get("scope") or "").split()):
                 merged = " ".join(sorted(set((grant.get("scope") or "").split()) | scopes))
@@ -425,22 +430,29 @@ def repair_app(access_token: str, client_id: str, *, redirect_uri: str = "", new
     return result
 
 
-def grant_group_read(access_token: str, client_id: str) -> None:
-    """Añade los permisos de aplicación de lectura del directorio (``Group.Read.All`` y ``User.Read.All``) a una
-    aplicación existente y les da el consentimiento."""
-    app = _application(access_token, client_id)
+def _graph_access(app: dict) -> tuple[list, dict]:
+    """``(requiredResourceAccess, la entrada de Microsoft Graph)`` de una aplicación; la de Graph se añade (vacía) a
+    la lista si no estaba, para sumarle permisos y enviar la lista entera."""
     access = app.get("requiredResourceAccess") or []
     graph = next((r for r in access if r.get("resourceAppId") == GRAPH_APP_ID), None)
     if graph is None:
         graph = {"resourceAppId": GRAPH_APP_ID, "resourceAccess": []}
         access.append(graph)
+    return access, graph
+
+
+def grant_group_read(access_token: str, client_id: str) -> None:
+    """Añade los permisos de aplicación de lectura del directorio (``Group.Read.All`` y ``User.Read.All``) a una
+    aplicación existente y les da el consentimiento."""
+    app = _application(access_token, client_id)
+    access, graph = _graph_access(app)
     have = {a.get("id") for a in graph["resourceAccess"]}
     missing = [i for i in DIRECTORY_ROLES.values() if i not in have]
     if missing:
         graph["resourceAccess"] += [{"id": i, "type": "Role"} for i in missing]
         _graph("PATCH", f"/applications/{app['id']}", access_token, {"requiredResourceAccess": access})
-    sps = _graph("GET", f"/servicePrincipals?$filter=appId eq '{client_id}'&$select=id", access_token).get("value")
-    sp_id = sps[0]["id"] if sps else _graph("POST", "/servicePrincipals", access_token, {"appId": client_id})["id"]
+    sp_id = _find_sp(access_token, client_id) or _graph("POST", "/servicePrincipals", access_token,
+                                                         {"appId": client_id})["id"]
     graph_sp = _graph_sp_id(access_token)
     for role_id in DIRECTORY_ROLES.values():
         _grant_role(access_token, sp_id, graph_sp, role_id)

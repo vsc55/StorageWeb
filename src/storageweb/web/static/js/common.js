@@ -98,6 +98,108 @@
     }
   };
 
+  // El token CSRF de la página (<meta name="csrf-token">) y fetch a la propia aplicación: con la sesión, el token en
+  // la cabecera (el servidor solo contesta a ciertas peticiones del JavaScript de la propia página) y pidiendo JSON.
+  // ``options.headers`` se suman a esas (y las cambian: p. ej. otro Accept)
+  var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+  window.SW.csrf = csrfMeta ? csrfMeta.getAttribute("content") : "";
+  window.SW.fetch = function (url, options) {
+    options = options || {};
+    var headers = Object.assign({ "Accept": "application/json", "X-CSRF-Token": window.SW.csrf }, options.headers || {});
+    return fetch(url, Object.assign({ credentials: "same-origin" }, options, { headers: headers }));
+  };
+
+  // Un elemento con su clase y su texto: SW.el("li", "muted", t("Nothing"))
+  window.SW.el = function (tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined && text !== null) node.textContent = text;
+    return node;
+  };
+
+  // localStorage puede no estar disponible (modo privado, políticas…): SW.store(clave) lee, SW.store(clave, valor)
+  // guarda y SW.store(clave, null) borra; nunca lanza
+  window.SW.store = function (key, value) {
+    try {
+      if (value === undefined) return window.localStorage.getItem(key);
+      if (value === null) window.localStorage.removeItem(key); else window.localStorage.setItem(key, value);
+    } catch (e) { return null; }
+    return undefined;
+  };
+
+  // Copiar al portapapeles → promesa (true si se copió). Sin contexto seguro (http fuera de localhost) no hay
+  // portapapeles asíncrono, y con él el navegador puede negarlo (permiso, foco): en los dos casos, la forma antigua
+  window.SW.copy = function (text) {
+    var fallback = function () {
+      var area = document.createElement("textarea");
+      area.value = text;
+      area.className = "sr-only";
+      document.body.appendChild(area);
+      area.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { /* no se pudo */ }
+      area.remove();
+      return ok;
+    };
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(function () { return true; }, fallback);
+    }
+    return Promise.resolve(fallback());
+  };
+
+  // Un <option> nuevo al final de un <select> o un <datalist>
+  window.SW.option = function (select, value, text, selected) {
+    var o = document.createElement("option");
+    o.value = value;
+    if (text !== undefined && text !== null) o.textContent = text;
+    o.selected = !!selected;
+    select.appendChild(o);
+    return o;
+  };
+
+  // Un campo oculto por valor (``name`` repetido), quitando antes los que hubiera: la selección de varios archivos
+  window.SW.setHidden = function (form, name, values) {
+    form.querySelectorAll('input[name="' + name + '"]').forEach(function (i) { i.remove(); });
+    values.forEach(function (value) {
+      var i = document.createElement("input");
+      i.type = "hidden"; i.name = name; i.value = value;
+      form.appendChild(i);
+    });
+  };
+
+  // Enviar un formulario pasando por sus «submit» (confirmaciones, validación); en navegadores viejos, directo
+  window.SW.submit = function (form, submitter) {
+    if (form.requestSubmit) form.requestSubmit(submitter); else form.submit();
+  };
+
+  // Avisar al salir de la página si hay cambios sin guardar (``isDirty()`` → true)
+  window.SW.guardUnload = function (isDirty) {
+    window.addEventListener("beforeunload", function (e) {
+      if (!isDirty()) return;
+      e.preventDefault();
+      e.returnValue = "";   // el navegador muestra su propio aviso
+    });
+  };
+
+  // La respuesta JSON de una petición, o un error si no fue bien (para .catch): fetch(...).then(SW.json)
+  window.SW.json = function (r) {
+    if (!r.ok) throw new Error(String(r.status));
+    return r.json();
+  };
+  window.SW.getJSON = function (url, options) { return window.SW.fetch(url, options).then(window.SW.json); };
+
+  // Un icono del sprite de la página (_icons.html) como elemento: SW.icon("folder", "icon-sm")
+  window.SW.icon = function (name, cls) {
+    var ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("class", "icon" + (cls ? " " + cls : ""));
+    svg.setAttribute("aria-hidden", "true");
+    var use = document.createElementNS(ns, "use");
+    use.setAttribute("href", "#i-" + name);
+    svg.appendChild(use);
+    return svg;
+  };
+
   // Formularios con confirmación (class="js-confirm" data-confirm="…"): el botón de aceptar lleva el
   // texto del botón pulsado («Eliminar», «Revocar»…)
   // (SW.confirmForm, para los que llegan después: las filas que carga el explorador)
@@ -182,16 +284,15 @@
     // Desplegables que envían su formulario al cambiar (p. ej. registros por página)
     root.querySelectorAll("select.js-autosubmit").forEach(function (s) {
       s.addEventListener("change", function () {
-        if (!s.form) return;
-        if (s.form.requestSubmit) s.form.requestSubmit(); else s.form.submit();
+        if (s.form) window.SW.submit(s.form);
       });
     });
     // Copiar al portapapeles
     root.querySelectorAll(".js-copy").forEach(function (b) {
       b.addEventListener("click", function () {
         var src = document.querySelector(b.dataset.copy);
-        if (!src || !navigator.clipboard) return;
-        navigator.clipboard.writeText(src.value).then(function () { b.textContent = t("Copied"); });
+        if (!src) return;
+        window.SW.copy(src.value).then(function (ok) { if (ok) b.textContent = t("Copied"); });
       });
     });
   }

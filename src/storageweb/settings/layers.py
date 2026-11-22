@@ -47,16 +47,29 @@ def diff_overrides(base: dict, new: dict, path: tuple = ()) -> dict:
     return out
 
 
-def leaf_paths(tree: dict, path: tuple = ()) -> set[str]:
-    """Rutas ("auth.entra.tenant_id") de los valores de un árbol de ajustes."""
-    paths = set()
+CONFIG_ORIGINS = ("file", "env")    # elementos (carpetas, ubicaciones) de config.json o del entorno: no se editan
+
+
+def without_origin(item: dict) -> dict:
+    """El elemento sin su ``origin`` (de dónde viene no es parte de él: para guardarlo o compararlo)."""
+    return {k: v for k, v in item.items() if k != "origin"}
+
+
+def flatten(tree: dict, path: tuple = ()) -> dict:
+    """``{"auth.entra.tenant_id": valor, "storage.shares": [...]}`` a partir del árbol de ajustes."""
+    out = {}
     for key, value in tree.items():
         here = path + (key,)
         if isinstance(value, dict) and here not in LEAF_PATHS:
-            paths |= leaf_paths(value, here)  # un diccionario vacío no aporta ningún campo
+            out.update(flatten(value, here))  # un diccionario vacío no aporta ningún campo
         else:
-            paths.add(".".join(here))
-    return paths
+            out[".".join(here)] = value
+    return out
+
+
+def leaf_paths(tree: dict) -> set[str]:
+    """Rutas ("auth.entra.tenant_id") de los valores de un árbol de ajustes."""
+    return set(flatten(tree))
 
 
 def drop_path(tree: dict, dotted: str) -> dict:

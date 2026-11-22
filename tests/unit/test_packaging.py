@@ -1,18 +1,17 @@
 """Generación del overlay de Gentoo y coherencia de las plantillas de empaquetado."""
 import hashlib
-import importlib.util
 import re
 import tarfile
 from pathlib import Path
 
 import pytest
 
+from tests.helpers import load_tool
+
 ROOT = Path(__file__).resolve().parents[2]
 PKG = ROOT / "packaging"
 
-_spec = importlib.util.spec_from_file_location("make_overlay", PKG / "gentoo" / "make_overlay.py")
-make_overlay = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(make_overlay)
+make_overlay = load_tool("packaging/gentoo/make_overlay.py")
 
 
 @pytest.mark.parametrize("version, expected", [

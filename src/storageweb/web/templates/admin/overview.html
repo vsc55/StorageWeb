@@ -3,6 +3,20 @@
 {% macro links(zone) -%}
 <div class="zone-card-links">{% for p in zone.pages %}<a href="{{ p.url() }}">{{ p.label }}</a>{% endfor %}</div>
 {%- endmacro %}
+{# La tarjeta de una zona: su nombre con «Abrir», lo que diga el cuerpo del «{% call %}» y los enlaces a sus páginas #}
+{% macro zone_card(key) -%}
+{% set zone = z[key] %}
+<section class="zone-card" aria-labelledby="zc-{{ key }}">
+  <div class="zone-card-head"><h2 id="zc-{{ key }}">{{ zone.label }}</h2><a class="small" href="{{ zone.first.url() }}">{{ _("Open") }} →</a></div>
+  {{ caller() }}
+  {{ links(zone) }}
+</section>
+{%- endmacro %}
+{# Una tarea frecuente: icono, título y una línea de contexto #}
+{% macro quick_action(href, icon, title, note) -%}
+<a class="quick-action" href="{{ href }}"><span class="icon-box"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-{{ icon }}"></use></svg></span>
+  <span><strong>{{ title }}</strong><small>{{ note }}</small></span></a>
+{%- endmacro %}
 {% block admin_content %}
 <div class="overview">
   <div class="overview-head">
@@ -35,8 +49,7 @@
   </section>
 
   <div class="zone-cards">
-    <section class="zone-card" aria-labelledby="zc-people">
-      <div class="zone-card-head"><h2 id="zc-people">{{ z.people.label }}</h2><a class="small" href="{{ z.people.first.url() }}">{{ _("Open") }} →</a></div>
+    {% call zone_card('people') %}
       <div class="stat-row">
         <a class="stat" href="{{ url_for('admin.users_index') }}"><strong>{{ user_counts.all }}</strong>
           <span>{{ _("Users") }}{% if user_counts.disabled %} · {{ ngettext("%(num)s disabled", "%(num)s disabled", user_counts.disabled) }}{% endif %}</span></a>
@@ -45,11 +58,9 @@
         <a class="stat" href="{{ url_for('groups.index') }}"><strong>{{ groups }}</strong>
           <span>{{ _("Groups") }}</span></a>
       </div>
-      {{ links(z.people) }}
-    </section>
+    {% endcall %}
 
-    <section class="zone-card" aria-labelledby="zc-access">
-      <div class="zone-card-head"><h2 id="zc-access">{{ z.access.label }}</h2><a class="small" href="{{ z.access.first.url() }}">{{ _("Open") }} →</a></div>
+    {% call zone_card('access') %}
       <ul class="kv-list">
         {% for row in shares[:5] %}
         <li><a href="{{ url_for('access.folder', name=row.share.name) }}">{{ row.share.label }}</a>
@@ -61,11 +72,9 @@
         {% if shares|length > 5 %}<li><span></span><a href="{{ url_for('access.folders') }}">{{ ngettext("and %(num)s more", "and %(num)s more", shares|length - 5) }}</a></li>{% endif %}
         <li><span>{{ _("Role «User»") }}</span><span>{{ role_perms|join(', ') if role_perms else _("nothing") }}</span></li>
       </ul>
-      {{ links(z.access) }}
-    </section>
+    {% endcall %}
 
-    <section class="zone-card" aria-labelledby="zc-security">
-      <div class="zone-card-head"><h2 id="zc-security">{{ z.security.label }}</h2><a class="small" href="{{ z.security.first.url() }}">{{ _("Open") }} →</a></div>
+    {% call zone_card('security') %}
       <ul class="kv-list">
         <li><span>{{ _("Sign-in") }}</span><span>{{ methods|join(' · ') if methods else _("no method enabled") }}</span></li>
         <li><span>{{ _("Failed sign-ins (24 h)") }}</span><span>{{ failed_logins }}</span></li>
@@ -73,11 +82,9 @@
           <span>{{ bans }}{% if auto_bans %} ({{ ngettext("%(num)s automatic", "%(num)s automatic", auto_bans) }}){% endif %}</span></li>
         <li><span>{{ _("API tokens") }}</span><span>{{ tokens }}</span></li>
       </ul>
-      {{ links(z.security) }}
-    </section>
+    {% endcall %}
 
-    <section class="zone-card" aria-labelledby="zc-system">
-      <div class="zone-card-head"><h2 id="zc-system">{{ z.system.label }}</h2><a class="small" href="{{ z.system.first.url() }}">{{ _("Open") }} →</a></div>
+    {% call zone_card('system') %}
       <ul class="kv-list">
         <li><span>{{ _("Public address") }}</span><span>{{ public_url or _("not set") }}</span></li>
         <li><a href="{{ url_for('settings.section', name='backups') }}">{{ _("Latest backup") }}</a>
@@ -85,23 +92,18 @@
         <li><span>{{ _("Database") }}</span><span>{{ db_size|filesize }}</span></li>
         <li><span>{{ _("Version") }}</span><span>StorageWeb {{ app_version }}</span></li>
       </ul>
-      {{ links(z.system) }}
-    </section>
+    {% endcall %}
   </div>
 
   <section aria-labelledby="qa-title">
     <h2 class="section-label" id="qa-title">{{ _("Frequent tasks") }}</h2>
     <div class="quick-actions section-gap">
-      <a class="quick-action" href="{{ url_for('admin.user_new') }}"><span class="icon-box"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg></span>
-        <span><strong>{{ _("New user") }}</strong><small>{{ _("a local user; Entra ID users are created on first sign-in") }}</small></span></a>
-      <a class="quick-action" href="{{ url_for('access.folders') }}"><span class="icon-box"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-share"></use></svg></span>
-        <span><strong>{{ _("Give access to a folder") }}</strong><small>{{ _("to a group or a user") }}</small></span></a>
-      <a class="quick-action" href="{{ url_for('settings.section', name='sessions') }}"><span class="icon-box"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-users"></use></svg></span>
-        <span><strong>{{ _("Who is signed in") }}</strong><small>{{ ngettext("%(num)s user now", "%(num)s users now", online) }}</small></span></a>
-      <a class="quick-action" href="{{ url_for('settings.section', name='backups') }}"><span class="icon-box"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg></span>
-        <span><strong>{{ _("Create a backup now") }}</strong><small>{% if newest_backup %}{{ _("latest: %(date)s", date=newest_backup.created|datetime) }}{% else %}{{ _("none yet") }}{% endif %}</small></span></a>
-      <a class="quick-action" href="{{ url_for('settings.section', name='ips') }}"><span class="icon-box"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-lock"></use></svg></span>
-        <span><strong>{{ _("Block an IP address") }}</strong><small>{{ ngettext("%(num)s blocked", "%(num)s blocked", bans) }}</small></span></a>
+      {{ quick_action(url_for('admin.user_new'), 'plus', _("New user"), _("a local user; Entra ID users are created on first sign-in")) }}
+      {{ quick_action(url_for('access.folders'), 'share', _("Give access to a folder"), _("to a group or a user")) }}
+      {{ quick_action(url_for('settings.section', name='sessions'), 'users', _("Who is signed in"), ngettext("%(num)s user now", "%(num)s users now", online)) }}
+      {{ quick_action(url_for('settings.section', name='backups'), 'download', _("Create a backup now"),
+                      _("latest: %(date)s", date=newest_backup.created|datetime) if newest_backup else _("none yet")) }}
+      {{ quick_action(url_for('settings.section', name='ips'), 'lock', _("Block an IP address"), ngettext("%(num)s blocked", "%(num)s blocked", bans)) }}
     </div>
   </section>
 

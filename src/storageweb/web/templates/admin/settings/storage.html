@@ -1,5 +1,6 @@
 {% extends "admin/settings/_layout.html" %}
 {% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
+{% from "admin/_page.html" import location_options with context %}
 {% block section %}
 {# Acceso → Carpetas personales: dónde viven y cómo se crean (las cuotas, en Cuotas) #}
 {% set st = cfg.storage %}
@@ -8,7 +9,7 @@
     <label class="span2{{ err_class('storage.home_location') }}"><span class="label-row">{{ _("Where personal folders live") }} {{ origin('storage.home_location') }}</span>
       <select{{ lock('storage.home_location') }} name="home_location">
         <option value="">{{ _("Disk of the server") }}</option>
-        {% for loc in st.locations %}<option value="{{ loc.name }}" {% if st.home_location == loc.name %}selected{% endif %}>{{ loc.label }} · {{ location_type(loc.type).short_label }}</option>{% endfor %}
+        {{ location_options(st.locations, st.home_location) }}
       </select>
       <small class="muted">{% if st.locations %}{{ _("In a storage location the template is a folder inside it, for example homes/{username}.") }}
         <a href="{{ url_for('locations.index') }}">{{ _("Storage locations") }}</a>

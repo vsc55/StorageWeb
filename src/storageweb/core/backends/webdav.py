@@ -23,6 +23,7 @@ from ...i18n import _, _l
 from ...settings.location_types import LocationSchema, Option
 from .base import (BackendError, Entry, RangedReader, RemoteBackend, certificate_error, clean_rel, join_rel,
                    name_of)
+from ...tls import client_context
 
 TIMEOUT = 30         # sin la opción «timeout» de la ubicación (la de serie)
 DAV = "{DAV:}"
@@ -70,10 +71,7 @@ class WebDAVClient:
         if location.get("username"):
             token = f"{location['username']}:{location.get('password') or ''}".encode()
             self.headers["Authorization"] = "Basic " + base64.b64encode(token).decode()
-        self.context = ssl.create_default_context()
-        if not location.get("verify_tls", True):
-            self.context.check_hostname = False
-            self.context.verify_mode = ssl.CERT_NONE
+        self.context = client_context(location.get("verify_tls", True))
 
     def url(self, path: str) -> str:
         """URL de una ruta relativa a la dirección configurada (cada parte, codificada; conserva la «/» final)."""
@@ -225,9 +223,7 @@ class WebDAVBackend(RemoteBackend):
         return [entry for href, entry in found if href != own and entry.name]
 
     def open(self, rel: str):
-        entry = self.stat(rel)
-        if entry is None or entry.is_dir:
-            raise FileNotFoundError(rel)
+        entry = self._file_entry(rel)
         path = self._p(rel)
 
         def fetch(pos: int):
@@ -261,9 +257,7 @@ class WebDAVBackend(RemoteBackend):
             raise _error(exc) from exc
 
     def delete(self, rel: str) -> None:
-        entry = self.stat(rel)
-        if entry is None:
-            raise FileNotFoundError(rel)
+        entry = self._existing(rel)
         try:  # una carpeta se borra con todo su contenido
             self.client.request("DELETE", self._p(rel) + ("/" if entry.is_dir else ""), ok=(200, 204))
         except WebDAVError as exc:
@@ -279,9 +273,6 @@ class WebDAVBackend(RemoteBackend):
         except WebDAVError as exc:
             raise _error(exc) from exc
         local.unlink(missing_ok=True)
-
-    def root_exists(self) -> bool:
-        return self.stat("") is not None
 
     def ensure_root(self, home: bool = False) -> None:
         built = ""

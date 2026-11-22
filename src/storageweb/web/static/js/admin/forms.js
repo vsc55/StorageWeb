@@ -30,8 +30,7 @@
   // algo. Lo que no se guarda queda como borrador (localStorage, por sesión) al cambiar de página: al
   // volver se recupera, y la barra de cualquier página dice qué otras tienen cambios y «Guardar» guarda
   // todas. Si una falla, se abre esa página y se reenvía para que el servidor muestre el error.
-  var csrfMeta = document.querySelector('meta[name="csrf-token"]');
-  var DRAFTS_KEY = "sw-drafts:" + (csrfMeta ? csrfMeta.content : "");
+  var DRAFTS_KEY = "sw-drafts:" + window.SW.csrf;
   var DRAFT_TTL = 12 * 3600 * 1000;
   var watched = [];         // {form, key, dirty, count, hasError}
   var globalBar = null;     // barra de las páginas sin formulario

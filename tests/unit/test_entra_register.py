@@ -1,15 +1,9 @@
 """Registro automático en Entra ID (Graph simulado: se comprueba qué se pide y en qué orden)."""
-import base64
-import json
 
 import pytest
 
 from storageweb.providers.entra import register as er
-
-
-def _token(**claims):
-    payload = base64.urlsafe_b64encode(json.dumps(claims).encode()).rstrip(b"=").decode()
-    return f"h.{payload}.s"
+from tests.sso_helpers import make_jwt
 
 
 @pytest.fixture
@@ -39,7 +33,7 @@ def graph(monkeypatch):
 
 def test_register_full(graph):
     calls, _answers = graph
-    result = er.register_app(_token(tid="tenant-1", oid="admin-oid"), name="Archivos",
+    result = er.register_app(make_jwt(tid="tenant-1", oid="admin-oid"), name="Archivos",
                              redirect_uri="https://files.example.com/auth/entra/callback",
                              group_claims=True, require_assignment=True)
     assert result["tenant_id"] == "tenant-1" and result["client_id"] == "client-1"
@@ -63,7 +57,7 @@ def test_register_full(graph):
 def test_register_minimal_and_best_effort_warnings(graph):
     calls, answers = graph
     answers[("POST", "/oauth2PermissionGrants")] = (403, {"error": {"message": "Insufficient privileges"}})
-    result = er.register_app(_token(tid="t", oid="o"), name="X", redirect_uri="https://x/cb", app_roles=False)
+    result = er.register_app(make_jwt(tid="t", oid="o"), name="X", redirect_uri="https://x/cb", app_roles=False)
     assert result["client_secret"] == "s3cr3t"
     assert len(result["warnings"]) == 1 and "Insufficient privileges" in result["warnings"][0]
     assert not any(p.endswith("/appRoleAssignedTo") for _m, p, _b in calls)
@@ -79,7 +73,7 @@ def test_register_app_creation_error(graph):
     _calls, answers = graph
     answers[("POST", "/applications")] = (403, {"error": {"message": "Authorization_RequestDenied"}})
     with pytest.raises(er.RegisterError, match="Authorization_RequestDenied"):
-        er.register_app(_token(tid="t"), name="X", redirect_uri="https://x/cb")
+        er.register_app(make_jwt(tid="t"), name="X", redirect_uri="https://x/cb")
 
 
 def test_device_start_and_poll(monkeypatch):
@@ -149,7 +143,7 @@ def test_failure_after_creating_the_app_names_it(graph, monkeypatch):
 
     monkeypatch.setattr(er, "_graph", failing)
     with pytest.raises(er.RegisterError) as exc:
-        er.register_app(_token(tid="t", oid="o"), name="StorageWeb", redirect_uri="https://x/auth/entra/callback")
+        er.register_app(make_jwt(tid="t", oid="o"), name="StorageWeb", redirect_uri="https://x/auth/entra/callback")
     assert "boom" in str(exc.value) and "Entra" in str(exc.value)
 
 
@@ -166,7 +160,7 @@ def test_repair_fixes_only_what_is_missing(graph):
     answers[("GET", "/oauth2PermissionGrants?")] = (200, {"value": []})
     answers[("POST", "/servicePrincipals/sp-1/appRoleAssignments")] = (201, {})
     answers[("POST", "/applications/obj-1/addPassword")] = (200, {"secretText": "nuevo", "endDateTime": "2028-01-01"})
-    result = er.repair_app(_token(tid="t"), "c1", redirect_uri="https://files/auth/entra/callback", new_secret=True,
+    result = er.repair_app(make_jwt(tid="t"), "c1", redirect_uri="https://files/auth/entra/callback", new_secret=True,
                            logout_url="https://files/auth/entra/frontchannel-logout")
     assert result["warnings"] == []
     assert result["client_secret"]  # el secreto nuevo (el Graph simulado responde con uno fijo)
@@ -197,7 +191,7 @@ def test_repair_leaves_a_correct_app_alone(graph):
     answers[("GET", "/oauth2PermissionGrants?")] = (200, {"value": [
         {"id": "g1", "consentType": "AllPrincipals", "scope": "openid profile email User.Read"}]})
     answers[("POST", "/servicePrincipals/")] = (400, {"error": {"message": "Permission already exists"}})
-    result = er.repair_app(_token(tid="t"), "c1", redirect_uri="https://files/cb", logout_url="https://files/fc")
+    result = er.repair_app(make_jwt(tid="t"), "c1", redirect_uri="https://files/cb", logout_url="https://files/fc")
     assert result["fixed"] == [] and result["warnings"] == []
     assert result["signin_consent"] == list(er.SIGN_IN_SCOPES)  # ya estaba: se confirma
     assert not [c for c in calls if c[0] in ("PATCH", "POST") and c[1].startswith("/applications")]
@@ -209,6 +203,6 @@ def test_repair_keeps_going_when_one_step_fails(graph):
                                                             "requiredResourceAccess": []}]})
     answers[("PATCH", "/applications/obj-1")] = (403, {"error": {"message": "Insufficient privileges"}})
     answers[("GET", "/oauth2PermissionGrants?")] = (200, {"value": []})
-    result = er.repair_app(_token(tid="t"), "c1", redirect_uri="https://files/cb")
+    result = er.repair_app(make_jwt(tid="t"), "c1", redirect_uri="https://files/cb")
     assert any("Insufficient privileges" in w for w in result["warnings"])
     assert any(m == "POST" and p == "/oauth2PermissionGrants" for m, p, _b in calls), "sigue con el consentimiento"

@@ -1,5 +1,6 @@
 {% extends "_login_frame.html" %}
 {% from "_passkeys.html" import passkey_get with context %}
+{% from "_forms.html" import post_button with context %}
 {% block title %}{{ _("Two-step verification") }} · {{ app_name }}{% endblock %}
 {% block panel %}
 <h1>{{ _("Two-step verification") }}</h1>
@@ -23,9 +24,6 @@
 </form>
 {% if mfa.totp %}<p class="muted small">{{ _("No phone at hand? Enter one of your recovery codes instead (XXXXX-XXXXX).") }}</p>
 {% elif passkeys_on %}<p class="muted small">{{ _("Lost your passkey? Enter one of your recovery codes instead (XXXXX-XXXXX).") }}</p>{% endif %}
-<form method="post" action="{{ url_for('mfa.login_cancel') }}" class="inline">
-  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-  <button class="btn btn-ghost" type="submit">{{ _("Back to sign-in") }}</button>
-</form>
+{{ post_button(url_for('mfa.login_cancel'), _("Back to sign-in"), btn='btn btn-ghost') }}
 {% endblock %}
 {% block scripts %}{% if passkeys_on %}<script src="{{ url_for('static', filename='js/passkeys.js') }}"></script>{% endif %}{% endblock %}

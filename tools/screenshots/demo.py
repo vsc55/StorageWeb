@@ -30,6 +30,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "tools"))
+import nodejs  # noqa: E402  (tools/nodejs.py: dónde están Node y el navegador)
 
 PASSWORD = "demo-1234"
 NOW = datetime.now(timezone.utc).replace(microsecond=0)
@@ -677,32 +679,19 @@ def plan(uids: dict) -> list[dict]:
     ]
 
 
-def _browser() -> str:
-    candidates = [os.environ.get("STORAGEWEB_BROWSER", ""),
-                  r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-                  r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-                  r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-                  "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-                  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-                  shutil.which("microsoft-edge") or "", shutil.which("google-chrome") or "",
-                  shutil.which("chromium") or ""]
-    for path in candidates:
-        if path and Path(path).is_file():
-            return path
-    raise SystemExit("No encuentro Edge ni Chrome: indica la ruta en STORAGEWEB_BROWSER.")
+def _browser(node: str) -> str:
+    browser = nodejs.find_browser(node)
+    if not browser:
+        raise SystemExit("No encuentro Edge ni Chrome: indica la ruta en STORAGEWEB_BROWSER.")
+    return browser
 
 
 def _node() -> str:
     """El primer Node 18 o posterior (trae fetch y WebSocket; los viejos ni siquiera cargan el .mjs)."""
-    candidates = [os.environ.get("STORAGEWEB_NODE", ""), shutil.which("node") or "",
-                  r"C:\Program Files\nodejs26\node.exe", r"C:\Program Files\nodejs\node.exe"]
-    for path in candidates:
-        if not path or not Path(path).is_file():
-            continue
-        out = subprocess.run([path, "--version"], capture_output=True, text=True, check=False).stdout.strip()
-        if out.startswith("v") and out[1:].split(".")[0].isdigit() and int(out[1:].split(".")[0]) >= 18:
-            return path
-    raise SystemExit("No encuentro Node 18 o posterior: indica la ruta en STORAGEWEB_NODE.")
+    node = nodejs.find_node(18)
+    if not node:
+        raise SystemExit("No encuentro Node 18 o posterior: indica la ruta en STORAGEWEB_NODE.")
+    return node
 
 
 def main() -> int:
@@ -759,7 +748,8 @@ def main() -> int:
         replace.append([f"127.0.0.1:{port}", "127.0.0.1:8080"])   # el puerto libre que tocó, como el de serie
         plan_file.write_text(json.dumps({"base": url, "password": PASSWORD, "out": str(args.out), "shots": shots,
                                          "replace": replace}, ensure_ascii=False), encoding="utf-8")
-        result = subprocess.run([_node(), str(Path(__file__).with_name("capture.mjs")), str(plan_file), _browser()],
+        node = _node()
+        result = subprocess.run([node, str(Path(__file__).with_name("capture.mjs")), str(plan_file), _browser(node)],
                                 check=False)
         server.close()
         return result.returncode

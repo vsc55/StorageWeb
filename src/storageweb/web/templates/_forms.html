@@ -1,0 +1,35 @@
+{# Piezas de formulario que se repiten en toda la web. Importar «with context» (usan csrf_token y request):
+   {% from "_forms.html" import post_button, copy_field, new_password_fields with context %} #}
+
+{# Formulario POST de un solo botón: el token CSRF, ``next`` y los campos ocultos de ``hidden`` (nombre → valor).
+   ``confirm`` añade «js-confirm» y su texto (common.js pide confirmación con el modal de la aplicación);
+   ``cls`` son las clases del formulario y ``btn`` las del botón. El botón dice ``label`` o, con «{% call %}», lo
+   que haya dentro (un icono con su texto «sr-only», por ejemplo). ``title`` y ``aria_label`` van en el botón.
+   Sin ``action`` (None o ''), el formulario se envía a la misma página. #}
+{% macro post_button(action, label=None, btn='btn', confirm=None, next=None, hidden={}, cls='inline', title=None,
+                     disabled=False, aria_label=None) -%}
+<form method="post"{% if action %} action="{{ action }}"{% endif %}{% if cls or confirm %} class="{{ cls }}{% if confirm %}{{ ' ' if cls }}js-confirm{% endif %}"{% endif %}
+      {%- if confirm %} data-confirm="{{ confirm }}"{% endif %}>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  {%- if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+  {%- for name, value in hidden.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+  <button class="{{ btn }}" type="submit"{% if title %} title="{{ title }}"{% endif %}{% if aria_label %} aria-label="{{ aria_label }}"{% endif %}{% if disabled %} disabled{% endif %}>{{ caller() if caller else label }}</button>
+</form>
+{%- endmacro %}
+
+{# Campo de solo lectura con su botón Copiar (common.js copia el valor del campo ``id``). ``small`` = botón
+   pequeño (en tablas); ``cls`` se añade a «copy-row» e ``input_cls`` son las clases del campo. #}
+{% macro copy_field(id, value, label, small=False, cls='', input_cls='mono') -%}
+<div class="copy-row{% if cls %} {{ cls }}{% endif %}"><input type="text" readonly value="{{ value }}" id="{{ id }}"{% if input_cls %} class="{{ input_cls }}"{% endif %} aria-label="{{ label }}">
+  <button type="button" class="btn{% if small %} btn-small{% endif %} js-copy" data-copy="#{{ id }}">{{ _("Copy") }}</button></div>
+{%- endmacro %}
+
+{# Contraseña nueva y repetirla, con las reglas debajo (password_rules_text). ``name``: el campo de la nueva #}
+{% macro new_password_fields(name='password', autofocus=False) -%}
+<label>{{ _("New password") }}
+  <input type="password" name="{{ name }}" autocomplete="new-password" minlength="{{ password_min_length() }}" required{% if autofocus %} autofocus{% endif %}
+         placeholder="{{ _('At least %(num)s characters', num=password_min_length()) }}">
+  <small class="muted">{{ password_rules_text() }}</small></label>
+<label>{{ _("Repeat the new password") }}
+  <input type="password" name="repeat_password" autocomplete="new-password" minlength="{{ password_min_length() }}" required></label>
+{%- endmacro %}

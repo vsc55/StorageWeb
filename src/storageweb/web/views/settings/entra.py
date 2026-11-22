@@ -5,7 +5,6 @@ import re
 import secrets
 import threading
 import time
-from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
 from flask import abort, current_app, flash, g, jsonify, redirect, render_template, request, session, url_for
@@ -18,7 +17,8 @@ from ....providers.entra import check as entra_check
 from ....providers.entra import register as entra_register
 from ....settings import ROLES
 from ...context import external_url, get_db, runtime, settings
-from ...guards import admin_required, audit_event, safe_next
+from ...forms import choice, next_url
+from ...guards import admin_required, audit_event, wants_json
 from ... import search
 from . import bp
 from ....providers.entra import method as entra_method
@@ -26,7 +26,8 @@ from ....providers.entra.sso import SSO_PROVIDERS
 from ....settings import ConfigError
 from ..auth import redirect_uri as sso_redirect_uri
 from . import auth_forms
-from .common import back, checked, form_int, save_partial, split_list
+from .common import back, checked, form_int, save_partial, split_list, to_section
+from ....clock import now_iso
 
 
 WIZARD_STEPS = (1, 2, 3, 4)
@@ -171,7 +172,7 @@ def _card(cfg: dict) -> dict:
 
 def _run_check() -> dict:
     ecfg = settings()["auth"]["entra"]
-    result = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    result = {"at": now_iso(),
               "results": entra_check.check(ecfg, redirect_uri(ecfg), secret_is_new=secret_is_new(),
                                            last_signin=accounts.last_signin_scopes(get_db(), "entra"))}
     session["entra_check"] = result
@@ -186,8 +187,7 @@ def entra_test():
     audit_event("entra_tested", settings()["auth"]["entra"].get("client_id") or None, "ok" if ok else "problems")
     flash(_("Connection with Entra ID checked: everything is correct.") if ok else
           _("Connection with Entra ID checked: there are problems, see the details."), "info" if ok else "error")
-    target = request.form.get("next")
-    return redirect(safe_next(target) if target else url_for("settings.section", name="auth"))
+    return redirect(next_url(url_for("settings.section", name="auth")))
 
 
 @bp.route("/entra/test/hide", methods=["POST"])
@@ -197,14 +197,13 @@ def entra_test_hide():
     check = session.get("entra_check")
     if check:
         session["entra_check"] = {**check, "hidden": True}
-    return redirect(url_for("settings.section", name="auth") + "#p-entra")
+    return to_section("auth", "p-entra")
 
 
 @bp.route("/entra/setup", methods=["GET", "POST"])
 @admin_required
 def entra_setup():
-    step = request.values.get("step", 1, type=int)
-    step = step if step in WIZARD_STEPS else 1
+    step = choice("step", WIZARD_STEPS, 1, type=int, source=request.values)
     error = None
     if request.method == "POST":
         f = request.form
@@ -226,7 +225,7 @@ def entra_setup():
             if not error:
                 audit_event("settings_updated", None, "entra_setup")
                 flash(_("Entra ID enabled. Users can now sign in with Microsoft."), "info")
-                return redirect(url_for("settings.section", name="auth"))
+                return to_section("auth")
         if not error:
             audit_event("settings_updated", None, f"entra_setup:{step}")
             return redirect(url_for("settings.entra_setup", step=step + 1))
@@ -328,8 +327,7 @@ def _start_flow(kind: str, options: dict):
     except entra_register.RegisterError as exc:
         audit_event("entra_app_register_failed", options.get("client_id"), f"{kind}:start:{exc}"[:200])
         flash(_("Could not start the sign-in with Microsoft: %(error)s", error=exc), "error")
-        return redirect(url_for("settings.section", name="auth") if kind != "register"
-                        else url_for("settings.entra_register_page"))
+        return redirect(back)
     _drop_flow(key)
     key = secrets.token_urlsafe(16)
     with _FLOWS_LOCK:
@@ -340,6 +338,17 @@ def _start_flow(kind: str, options: dict):
     session["entra_register"] = key
     audit_event("entra_flow_started", options.get("client_id"), kind)
     return redirect(url_for("settings.entra_register_page"))
+
+
+def _save_secret(result: dict):
+    """Guarda el secreto que acaba de crear Entra ID (``client_secret`` y ``secret_expires`` de ``result``) y avisa
+    en la página de que tarda un poco en valer. El error si no se pudo guardar (un campo fijado), o ``None``."""
+    _draft, error = save_partial(lambda: {"auth": {"entra": {"client_secret": result["client_secret"],
+                                                             "secret_expires": result["secret_expires"]}}},
+                                 strict=True)
+    if error is None:
+        mark_new_secret()
+    return error
 
 
 def _existing_client_id() -> str:
@@ -385,7 +394,7 @@ def entra_register_cancel():
     # Registrar: a su página, para empezar otra vez. Renovar, reparar o el permiso de grupos parten de una aplicación
     # ya configurada: de vuelta a Inicio de sesión, en la pestaña de Entra ID
     if flow and flow.get("kind") in ("rotate", "repair", "grant_groups"):
-        return redirect(url_for("settings.section", name="auth") + "#p-entra")
+        return to_section("auth", "p-entra")
     return redirect(url_for("settings.entra_register_page"))
 
 
@@ -397,10 +406,10 @@ def entra_register_poll():
     Con ``Accept: application/json`` (el JavaScript de la página) devuelve el estado; sin él (el
     botón «Ya he iniciado sesión») redirige.
     """
-    wants_json = request.accept_mimetypes.best == "application/json"
+    as_json = wants_json()
 
     def answer(status: str, message: str = "", target: str | None = None, interval: int | None = None):
-        if wants_json:
+        if as_json:
             if status == "complete" and message:
                 flash(message, "info")  # el JavaScript va a ``target``: el resumen sale allí como aviso
             return jsonify(status=status, message=message, redirect=target, interval=interval)
@@ -417,7 +426,7 @@ def entra_register_poll():
         return answer("pending", str(exc), interval=flow["interval"])
     error = body.get("error", "")
     if error == "authorization_pending":
-        return answer("pending", "" if wants_json else _("Microsoft has not confirmed the sign-in yet."),
+        return answer("pending", "" if as_json else _("Microsoft has not confirmed the sign-in yet."),
                       interval=flow["interval"])
     if error == "slow_down":
         flow["interval"] = min(flow["interval"] + SLOW_DOWN_STEP, MAX_INTERVAL)
@@ -436,13 +445,10 @@ def entra_register_poll():
         except entra_register.RegisterError as exc:
             audit_event("entra_app_register_failed", options["client_id"], f"rotate:{exc}"[:200])
             return answer("error", _("The secret could not be renewed: %(error)s", error=exc))
-        _draft, save_error = save_partial(lambda: {"auth": {"entra": {"client_secret": result["client_secret"],
-                                                               "secret_expires": result["secret_expires"]}}},
-                                         strict=True)
+        save_error = _save_secret(result)
         if save_error:
             return answer("error", str(save_error))
         session.pop("entra_check", None)
-        mark_new_secret()
         audit_event("entra_secret_rotated", options["client_id"], result["secret_expires"])
         return answer("complete", _("New client secret created and saved. The previous one keeps working until it "
                                     "expires."), url_for("settings.section", name="auth"))
@@ -456,11 +462,9 @@ def entra_register_poll():
             audit_event("entra_app_register_failed", options["client_id"], f"repair:{exc}"[:200])
             return answer("error", _("The application could not be repaired: %(error)s", error=exc))
         if result.get("client_secret"):
-            _draft, save_error = save_partial(lambda: {"auth": {"entra": {
-                "client_secret": result["client_secret"], "secret_expires": result["secret_expires"]}}}, strict=True)
+            save_error = _save_secret(result)
             if save_error:
                 return answer("error", str(save_error))
-            mark_new_secret()
         if result.get("signin_consent"):
             accounts.record_signin_scopes(get_db(), "entra", result["signin_consent"], source="consent")
         audit_event("entra_app_repaired", options["client_id"], "; ".join(result["fixed"])[:200] or "-")

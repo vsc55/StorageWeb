@@ -43,10 +43,6 @@
   document.addEventListener("change", function (e) { if (e.target.form === form) refresh(); });
   form.addEventListener("reset", function () { setTimeout(refresh, 0); });
   form.addEventListener("submit", function () { submitting = true; });
-  window.addEventListener("beforeunload", function (e) {
-    if (submitting || !dirty()) return;
-    e.preventDefault();
-    e.returnValue = "";
-  });
+  window.SW.guardUnload(function () { return !submitting && dirty(); });
   refresh();
 })();

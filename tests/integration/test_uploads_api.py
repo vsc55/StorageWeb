@@ -8,7 +8,7 @@ from storageweb.core import uploads as core
 from storageweb.core.backends import local as local_backend
 from storageweb.db.repositories import uploads as repo
 
-from tests.helpers import add_user, get_csrf, login
+from tests.helpers import signed_in
 from storageweb.web.context import get_db
 
 API = "/api/uploads"
@@ -120,10 +120,7 @@ def test_invalid_requests(logged):
 
 def test_max_file_size(make_app):
     app = make_app({"storage": {"max_file_size_mb": 1}})
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
-    token = get_csrf(client, "/f/home/")
+    client, token = signed_in(app, "ana")
     assert init(client, token, size=core.MB).status_code == 201
     r = init(client, token, size=core.MB + 1)
     assert r.status_code == 413 and "máximo" in r.get_json()["error"]
@@ -155,10 +152,7 @@ def test_requires_login_and_csrf(app, client, logged):
 def test_other_user_cannot_touch_upload(app, logged):
     client, token = logged
     uid = init(client, token, size=3).get_json()["id"]
-    add_user(app, "beto")
-    other = app.test_client()
-    login(other, "beto")
-    tok = get_csrf(other, "/f/home/")
+    other, tok = signed_in(app, "beto")
     assert api(other, tok, "GET", f"{API}/{uid}").status_code == 404
     assert api(other, tok, "PUT", f"{API}/{uid}?offset=0", b"123").status_code == 404
     assert api(other, tok, "POST", f"{API}/{uid}/complete").status_code == 404
@@ -198,10 +192,7 @@ def test_permission_revoked_mid_upload(make_app, tmp_path):
     (tmp_path / "comun").mkdir()
     share = {"name": "comun", "path": str(tmp_path / "comun"), "users": ["*"]}
     app = make_app({"storage": {"shares": [share]}})
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
-    token = get_csrf(client, "/f/home/")
+    client, token = signed_in(app, "ana")
     uid = init(client, token, root="comun", size=6).get_json()["id"]
     api(client, token, "PUT", f"{API}/{uid}?offset=0", b"123")
 
@@ -218,10 +209,7 @@ def test_permission_revoked_mid_upload(make_app, tmp_path):
 @pytest.mark.parametrize("perm_app", [{"permissions": {"user": {"upload": False}}}])
 def test_upload_permission_required(make_app, perm_app):
     app = make_app(perm_app)
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
-    token = get_csrf(client, "/f/home/")
+    client, token = signed_in(app, "ana")
     assert init(client, token).status_code == 403
 
 
@@ -229,10 +217,7 @@ def test_read_only_share(make_app, tmp_path):
     (tmp_path / "docs").mkdir()
     app = make_app({"storage": {"shares": [{"name": "docs", "path": str(tmp_path / "docs"),
                                             "read_only": True, "users": ["*"]}]}})
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
-    token = get_csrf(client, "/f/home/")
+    client, token = signed_in(app, "root", role="admin")
     assert init(client, token, root="docs").status_code == 403
 
 
@@ -296,10 +281,7 @@ def test_folder_upload_rejects_bad_paths(logged, home, folders):
 
 def test_folder_upload_needs_mkdir_and_respects_hidden(make_app, home):
     app = make_app({"permissions": {"user": {"mkdir": False}}, "storage": {"hidden": ["secreto"]}})
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
-    token = get_csrf(client, "/f/home/")
+    client, token = signed_in(app, "ana")
     body = {"root": "home", "path": "", "name": "x.txt", "size": 1}
     assert api(client, token, "POST", API, {**body, "folders": "Nueva"}).status_code == 403   # sin crear carpetas
     (home / "Existe").mkdir(parents=True, exist_ok=True)

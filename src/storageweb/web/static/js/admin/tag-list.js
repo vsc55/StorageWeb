@@ -11,9 +11,13 @@
   var t = window.SW.t;
 
   var LIST_ITEM = /^[a-z0-9_+-]{1,16}$/;
-  function listItems(text) {
-    return String(text || "").split(/[\s,]+/).map(function (x) { return x.trim().toLowerCase().replace(/^\./, ""); })
-      .filter(function (x, i, all) { return x && all.indexOf(x) === i; });
+  // Los elementos de una lista escrita (separados por comas o espacios), en minúsculas y sin repetir; ``keepDot``:
+  // sin quitar el punto del principio (las extensiones se guardan sin él; la comparación del diálogo, tal cual)
+  function listItems(text, keepDot) {
+    return String(text || "").split(/[\s,]+/).map(function (x) {
+      x = x.trim().toLowerCase();
+      return keepDot ? x : x.replace(/^\./, "");
+    }).filter(function (x, i, all) { return x && all.indexOf(x) === i; });
   }
 
   function fieldName(source) {
@@ -139,10 +143,7 @@
 
   // Antes de volver a la lista predeterminada, qué se añade y qué se quita. Promesa: true = restablecer
   function confirmReset(source, value) {
-    var listOf = function (text) {
-      return String(text || "").split(/[\s,]+/).map(function (x) { return x.trim().toLowerCase(); })
-        .filter(function (x, i, all) { return x && all.indexOf(x) === i; });
-    };
+    var listOf = function (text) { return listItems(text, true); };
     var now = listOf(source.value);
     var wanted = listOf(value);
     var added = wanted.filter(function (x) { return now.indexOf(x) < 0; });
@@ -155,12 +156,7 @@
   // Qué cambia al volver a una lista predeterminada: cifras, lo que se quita y lo que se añade (en una zona con
   // desplazamiento y buscador, para que el diálogo quepa aunque sean cientos)
   function listDiff(name, added, removed) {
-    var make = function (tag, cls, text) {
-      var el = document.createElement(tag);
-      if (cls) el.className = cls;
-      if (text !== undefined) el.textContent = text;
-      return el;
-    };
+    var make = window.SW.el;
     var box = make("div", "list-diff");
     box.appendChild(make("p", "muted small list-diff-note",
       (name ? name + ". " : "") + t("The change is applied when you save the page.")));

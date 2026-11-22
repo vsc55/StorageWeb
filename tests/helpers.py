@@ -1,12 +1,22 @@
 """Funciones auxiliares compartidas por los tests."""
 from __future__ import annotations
 
+import base64
+import functools
+import importlib.util
+import os
 import re
+import subprocess
+import sys
+import threading
+from contextlib import contextmanager
 from html.parser import HTMLParser
+from pathlib import Path
 
 from werkzeug.security import generate_password_hash
 
 PASSWORD = "contraseña-segura"
+ROOT = Path(__file__).resolve().parents[1]  # la raíz del repositorio
 
 
 APPS: list = []  # las aplicaciones que crea make_app (U y G buscan en la última)
@@ -113,6 +123,142 @@ def login(client, username: str, password: str = PASSWORD, next_url: str = ""):
     token = get_csrf(client)
     return client.post("/login", data={"username": username, "password": password,
                                        "_csrf": token, "next": next_url})
+
+
+def signed_in(app, username: str = "ana", *, csrf_url: str | None = "/f/home/", create: bool = True,
+              password: str = PASSWORD, client=None, **user_kw):
+    """Crea la cuenta (salvo ``create=False``; ``user_kw`` va a :func:`add_user`), inicia sesión en un cliente nuevo
+    (o en ``client``) y lee el token CSRF de ``csrf_url`` (``None``: no visita ninguna página y el token es ``None``).
+    Devuelve ``(client, token)``."""
+    if create:
+        add_user(app, username, password, **user_kw)
+    client = client or app.test_client()
+    resp = login(client, username, password)
+    assert resp.status_code == 302, f"{username} no pudo iniciar sesión"
+    return client, (get_csrf(client, csrf_url) if csrf_url else None)
+
+
+def get_user(app, username: str = "ana"):
+    """La fila de ``users`` de ``username`` (o ``None``)."""
+    from storageweb.db.repositories import users
+    from storageweb.web.context import get_db
+    with app.app_context():
+        return users.get_by_username(get_db(), username)
+
+
+def api_token(app, username: str = "ana", *, scope: str = "write", name: str = "dav", days: int = 0) -> str:
+    """Crea un token de API de ``username`` y devuelve su valor en claro."""
+    from storageweb.core import tokens
+    from storageweb.db.repositories import users
+    from storageweb.web.context import get_db
+    with app.app_context():
+        plain, _id = tokens.create(get_db(), users.get_by_username(get_db(), username), name=name, scope=scope,
+                                   days=days)
+    return plain
+
+
+def basic_auth(user: str, secret: str) -> dict:
+    """Cabecera ``Authorization: Basic`` (WebDAV con usuario y token o contraseña)."""
+    return {"Authorization": "Basic " + base64.b64encode(f"{user}:{secret}".encode()).decode()}
+
+
+def last_audit(app, action: str):
+    """La última fila de la auditoría con esa acción (o ``None``)."""
+    from storageweb.web.context import get_db
+    with app.app_context():
+        return get_db().execute("SELECT * FROM audit_log WHERE action = ? ORDER BY id DESC LIMIT 1",
+                                (action,)).fetchone()
+
+
+def audit_actions(app, n: int = 20) -> list[str]:
+    """Las acciones de los ``n`` últimos eventos de la auditoría, del más reciente al más antiguo."""
+    from storageweb.db.repositories import audit
+    from storageweb.web.context import get_db
+    with app.app_context():
+        return [r["action"] for r in audit.recent(get_db(), n)]
+
+
+def config_file(tmp_path, data: dict, name: str = "config.json") -> Path:
+    """Escribe ``data`` como el config.json ``tmp_path / name`` y devuelve su ruta."""
+    import json
+    path = Path(tmp_path) / name
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
+def backup_tar(members: dict[str, bytes], manifest: dict | None = None) -> bytes:
+    """Un .tar.gz con forma de copia de seguridad hecho a mano: ``manifest.json`` (si se da) y ``members``."""
+    import io
+    import json
+    import tarfile
+    if manifest is not None:
+        members = {"manifest.json": json.dumps(manifest).encode(), **members}
+    out = io.BytesIO()
+    with tarfile.open(fileobj=out, mode="w:gz") as tar:
+        for name, data in members.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+    return out.getvalue()
+
+
+# --------------------------------------------------------------------------- CLI y herramientas
+
+def cli_env(lang: str = "es", **over) -> dict:
+    """Entorno para lanzar la CLI en otro proceso: textos en ``lang`` y el paquete de ``src/`` aunque no esté
+    instalado. ``over`` cambia variables; con ``None``, la quita."""
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "STORAGEWEB_LANG": lang,
+           "PYTHONPATH": os.pathsep.join(filter(None, [str(ROOT / "src"), os.environ.get("PYTHONPATH")]))}
+    for key, value in over.items():
+        if value is None:
+            env.pop(key, None)
+        else:
+            env[key] = value
+    return env
+
+
+def run_cli(config, *args, lang: str = "es", input: str | None = None, env: dict | None = None,  # noqa: A002
+            ok: bool | None = None) -> subprocess.CompletedProcess:
+    """``python -m storageweb --config <config> <args>`` en otro proceso. Con ``ok=True`` exige que acabe bien."""
+    res = subprocess.run([sys.executable, "-m", "storageweb", "--config", str(config), *args], input=input,
+                         capture_output=True, text=True, encoding="utf-8", cwd=ROOT,
+                         env=env if env is not None else cli_env(lang))
+    if ok:
+        assert res.returncode == 0, res.stderr
+    return res
+
+
+def load_tool(relpath: str, name: str | None = None):
+    """Carga un script del repositorio (``tools/gen_docs.py``…) como módulo, sin instalarlo."""
+    path = ROOT / relpath
+    spec = importlib.util.spec_from_file_location(name or path.stem, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@functools.cache
+def node() -> str | None:
+    """Node 18 o posterior de este equipo (tools/nodejs.py: ``STORAGEWEB_NODE``, el PATH…), o ``None``."""
+    return load_tool("tools/nodejs.py").find_node(18)
+
+
+@functools.cache
+def browser() -> str | None:
+    """Edge o Chrome de este equipo (``findBrowser`` de tools/cdp.mjs, con :func:`node`), o ``None``."""
+    return load_tool("tools/nodejs.py").find_browser(node()) if node() else None
+
+
+@contextmanager
+def serve_in_thread(app, threads: int = 4):
+    """Sirve ``app`` con Waitress en un hilo, en un puerto libre de 127.0.0.1. Devuelve el puerto."""
+    from waitress.server import create_server
+    server = create_server(app, host="127.0.0.1", port=0, threads=threads)
+    threading.Thread(target=server.run, daemon=True).start()
+    try:
+        yield server.effective_port
+    finally:
+        server.close()
 
 
 def settings_form(client, section: str = "general") -> dict:

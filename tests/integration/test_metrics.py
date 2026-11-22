@@ -7,7 +7,7 @@ import pytest
 from storageweb import metrics
 from storageweb.core import monitoring, quota
 from storageweb.web.context import get_db, settings
-from tests.helpers import add_user, get_csrf, login, update_settings
+from tests.helpers import get_csrf, login, update_settings, signed_in
 
 TOKEN = "prometheus-token-1234567890"
 OTHER = {"REMOTE_ADDR": "203.0.113.9"}
@@ -57,9 +57,7 @@ def test_access_by_server_networks_and_token(app):
 
 
 def test_content_and_format(app, tmp_path):
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
+    client, _ = signed_in(app, "ana", csrf_url=None)
     login(app.test_client(), "ana", password="mala")
     token = get_csrf(client, "/f/home/")
     client.post("/upload/home/", data={"files": [(io.BytesIO(b"y" * 2048), "a.txt")]},
@@ -85,9 +83,7 @@ def test_content_and_format(app, tmp_path):
 
 
 def test_settings_in_the_monitoring_page(app):
-    add_user(app, "root", role="admin")
-    admin = app.test_client()
-    login(admin, "root")
+    admin, _ = signed_in(app, "root", role="admin", csrf_url=None)
     page = admin.get("/admin/settings/monitoring").get_data(as_text=True)
     assert 'name="metrics_enabled"' in page and "/metrics" in page
     form = {"_csrf": get_csrf(admin, "/admin/settings/monitoring"), "audit_retention_days": "0",

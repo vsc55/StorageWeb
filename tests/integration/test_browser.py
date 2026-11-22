@@ -12,31 +12,16 @@ Hace falta Node 18 o posterior y Edge o Chrome (``STORAGEWEB_BROWSER``). Sin ell
 from __future__ import annotations
 
 import os
-import socket
 import subprocess
 import sys
-import threading
-from pathlib import Path
 
 import pytest
 
-from tests.helpers import PASSWORD, add_user, update_settings
-from tests.integration.test_vscode_extension import NODE
+from tests.helpers import PASSWORD, ROOT, add_user, browser, node, serve_in_thread, update_settings
 
-ROOT = Path(__file__).resolve().parents[2]
 REQUIRED = os.environ.get("STORAGEWEB_REQUIRE_BROWSER") == "1"
-
-
-def _browser() -> str | None:
-    if not NODE:
-        return None
-    found = subprocess.run([NODE, "--input-type=module", "-e",
-                            "import { findBrowser } from './tools/cdp.mjs'; console.log(findBrowser() || '')"],
-                           cwd=ROOT, capture_output=True, text=True, timeout=30)
-    return found.stdout.strip() or None
-
-
-BROWSER = _browser()
+NODE = node()
+BROWSER = browser()
 pytestmark = pytest.mark.skipif(not REQUIRED and (NODE is None or BROWSER is None),
                                 reason="hace falta Node 18+ y Edge o Chrome (STORAGEWEB_BROWSER)")
 
@@ -105,24 +90,15 @@ def test_in_a_real_browser(make_app, home, monkeypatch):
     (home / "script.py").write_text('def saluda(nombre):\n    """Varias\n    líneas"""\n    return f"hola {nombre}"  # fin\n',
                                     encoding="utf-8", newline="\n")      # LF también en Windows
 
-    from waitress.server import create_server
-    sock = socket.socket()
-    sock.bind(("127.0.0.1", 0))
-    port = sock.getsockname()[1]
-    sock.close()
-    # Las passkeys se atan al nombre de network.public_url: localhost, que el navegador admite sin HTTPS
-    update_settings(app, network={"public_url": f"http://localhost:{port}"}, security={"passkey_login": True})
-    server = create_server(app, host="127.0.0.1", port=port, threads=4)
-    threading.Thread(target=server.run, daemon=True).start()
-    try:
+    with serve_in_thread(app) as port:
+        # Las passkeys se atan al nombre de network.public_url: localhost, que el navegador admite sin HTTPS
+        update_settings(app, network={"public_url": f"http://localhost:{port}"}, security={"passkey_login": True})
         env = {**os.environ, "STORAGEWEB_TEST_URL": f"http://127.0.0.1:{port}", "STORAGEWEB_TEST_PASSWORD": PASSWORD,
                "STORAGEWEB_TEST_LOCALHOST_URL": f"http://localhost:{port}",
                "STORAGEWEB_BROWSER": BROWSER}
         tests = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / "tests" / "browser").glob("*.test.mjs"))
         result = subprocess.run([NODE, "--test", "--test-concurrency=1", *tests], cwd=ROOT, env=env,
                                 capture_output=True, text=True, encoding="utf-8", timeout=600)
-    finally:
-        server.close()
     output = result.stdout[-6000:] + result.stderr[-3000:]
     if result.returncode != 0:
         sys.stderr.write(output)

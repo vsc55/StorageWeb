@@ -8,8 +8,7 @@ from datetime import datetime, timedelta, timezone
 from storageweb.core import advisories, maintenance, posture
 from storageweb.db.repositories import ip_rules, users
 from storageweb.web.context import get_db
-from tests.helpers import add_user, login, stored_settings
-from tests.integration.test_mfa import last_audit
+from tests.helpers import add_user, stored_settings, signed_in, last_audit
 
 
 def _result(total=0, worst=""):
@@ -111,9 +110,7 @@ def test_once_a_day_by_default_and_off_in_the_tests(app):
 
 
 def test_only_administrators(app, make_app):
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
+    client, _ = signed_in(app, "ana", csrf_url=None)
     assert client.get("/admin/settings/security_status").status_code == 403
     assert client.get("/admin/settings/vulnerabilities").status_code == 403
     assert client.get("/admin/settings/system/advisories/status").status_code == 403

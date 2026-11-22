@@ -1,4 +1,7 @@
-{# Piezas comunes de las vistas de grupos y de la matriz de accesos #}
+{# Piezas comunes de las vistas de grupos y de la matriz de accesos. La cabecera y la búsqueda de Lista y Paneles son
+   las de admin/_panels.html, con lo propio de grupos #}
+{% import "admin/_panels.html" as panels with context %}
+{% from "_forms.html" import post_button with context %}
 
 {% macro source_badge(source) -%}
 <span class="badge badge-src badge-src-{{ source }}">{{ GROUP_SOURCE_LABELS[source] }}</span>
@@ -10,37 +13,19 @@
 
 {# La cabecera de las dos vistas (Lista y Paneles), con el mismo diseño que Usuarios y Roles #}
 {% macro page_head(view) -%}
-<div class="page-head">
-  <div>
-    <h1>{{ _("Groups") }}</h1>
-    <p class="muted small">{{ _("They give access to shared folders. They can be local or come from Entra ID or the system.") }}</p>
-  </div>
-  <div class="inline">
-    {{ view_switch(view) }}
-    <a class="btn btn-primary" href="{{ url_for('groups.new', next=url_for('groups.panel_view') if view == 'panel' else None) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New group") }}</a>
-  </div>
-</div>
+{% call panels.page_head(_("Groups"), _("They give access to shared folders. They can be local or come from Entra ID or the system."),
+                         panels.view_switch(view, _('Groups view'), ('groups.list_view', 'groups.panel_view'))) %}
+  <a class="btn btn-primary" href="{{ url_for('groups.new', next=url_for('groups.panel_view') if view == 'panel' else None) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New group") }}</a>
+{% endcall %}
 {%- endmacro %}
 
 {% macro filters_form(search, source, target, extra='') -%}
-<form method="get" action="{{ url_for(target) }}" class="inline search">
-  {{ extra }}
-  <input type="text" name="q" value="{{ search }}" placeholder="{{ _('Search by name or description') }}"
-         aria-label="{{ _('Search by name or description') }}">
+{% call panels.search_form(target, search, _('Search by name or description'), search or source, extra) %}
   <select name="source" aria-label="{{ _('Source') }}">
     <option value="">{{ _("All sources") }}</option>
     {% for s in GROUP_SOURCES %}<option value="{{ s }}" {% if source == s %}selected{% endif %}>{{ GROUP_SOURCE_LABELS[s] }}</option>{% endfor %}
   </select>
-  <button class="btn" type="submit">{{ _("Search") }}</button>
-  {% if search or source %}<a class="btn btn-ghost" href="{{ url_for(target) }}">{{ _("Clear") }}</a>{% endif %}
-</form>
-{%- endmacro %}
-
-{% macro view_switch(view) -%}
-<nav class="segmented view-switch" aria-label="{{ _('Groups view') }}">
-  <a class="segment{% if view == 'list' %} active{% endif %}" href="{{ url_for('groups.list_view') }}"{% if view == 'list' %} aria-current="page"{% endif %}>{{ _("List") }}</a>
-  <a class="segment{% if view == 'panel' %} active{% endif %}" href="{{ url_for('groups.panel_view') }}"{% if view == 'panel' %} aria-current="page"{% endif %}>{{ _("Panels") }}</a>
-</nav>
+{% endcall %}
 {%- endmacro %}
 
 {# Campos del grupo. ``group`` es None al crear. ``from_directory``: nombre y descripción vienen del directorio del
@@ -122,12 +107,8 @@
           {% else %}<span class="badge">{{ _("Manual") }}</span>{% endif %}</td>
       <td class="actions">
         {% if m['origin'] in ('manual', 'role') and not (m['origin'] == 'role' and m['id'] == current_user['id']) %}
-        <form method="post" action="{{ url_for('groups.member_remove', group_uid=group['uid'], user_uid=m['uid']) }}" class="inline{% if m['origin'] == 'role' %} js-confirm{% endif %}"
-              {% if m['origin'] == 'role' %}data-confirm="{{ _('Remove the administrator role from «%(name)s»?', name=m['username']) }}"{% endif %}>
-          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-          <input type="hidden" name="next" value="{{ next }}">
-          <button class="btn btn-small btn-danger" type="submit">{{ _("Remove") }}</button>
-        </form>
+        {{ post_button(url_for('groups.member_remove', group_uid=group['uid'], user_uid=m['uid']), _("Remove"), btn='btn btn-small btn-danger', next=next,
+                       confirm=_('Remove the administrator role from «%(name)s»?', name=m['username']) if m['origin'] == 'role' else None) }}
         {% elif m['origin'] == 'sync' %}<span class="muted small">{{ _("Managed in %(source)s", source=GROUP_SOURCE_LABELS[group['source']]) }}</span>{% endif %}
       </td>
     </tr>
@@ -154,36 +135,41 @@
 
 {% macro detected_box(detected, names=None) -%}
 {% if detected %}
-<section class="detected" aria-labelledby="detected-title">
-  <div class="detected-head">
-    <div>
-      <h2 id="detected-title" class="card-title">{{ _("Groups not registered (%(count)s)", count=detected|length) }}</h2>
-      <p class="muted small">{{ _("They arrive at sign-in or shared folders use them, but they have no name. Register them to manage them here.") }}
-        {% if names %}{{ _("The name, the description and a suggested identifier come from the directory of their provider (Entra ID).") }}{% endif %}</p>
+{# Plegado, una sola línea; abierto, una tabla compacta con su propio scroll (pueden ser muchos) #}
+<details class="detected">
+  <summary>
+    <svg class="icon icon-sm" aria-hidden="true"><use href="#i-alert"></use></svg>
+    <strong>{{ _("Groups not registered (%(count)s)", count=detected|length) }}</strong>
+    <span class="muted small detected-hint">{{ _("They arrive at sign-in or shared folders use them, but they have no name. Register them to manage them here.") }}</span>
+  </summary>
+  <div class="detected-body">
+    <div class="detected-head">
+      {% if names %}<p class="muted small">{{ _("The name, the description and a suggested identifier come from the directory of their provider (Entra ID).") }}</p>{% endif %}
+      {% set from_provider = detected|selectattr('source')|list %}
+      {% if from_provider %}
+      {{ post_button(url_for('groups.register_detected'), ngettext("Register it", "Register all (%(num)s)", from_provider|length), btn='btn btn-small',
+                     next=request.full_path,
+                     confirm=ngettext('Register %(num)s group with the data from its provider?', 'Register %(num)s groups with the data from their provider?', from_provider|length)) }}
+      {% endif %}
     </div>
-    {% set from_provider = detected|selectattr('source')|list %}
-    {% if from_provider %}
-    <form method="post" action="{{ url_for('groups.register_detected') }}" class="inline js-confirm"
-          data-confirm="{{ ngettext('Register %(num)s group with the data from its provider?', 'Register %(num)s groups with the data from their provider?', from_provider|length) }}">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <input type="hidden" name="next" value="{{ request.full_path }}">
-      <button class="btn btn-small" type="submit">{{ ngettext("Register it", "Register all (%(num)s)", from_provider|length) }}</button>
-    </form>
-    {% endif %}
+    <div class="table-scroll detected-scroll">
+    <table class="files detected-table">
+      <thead><tr><th>{{ _("Group") }}</th><th>{{ _("Source") }}</th><th>{{ _("Users") }}</th><th>{{ _("Shared folders") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr></thead>
+      <tbody>
+      {% for d in detected %}
+        <tr>
+          <td>{% if names and names.get(d.id) %}<strong>{{ names[d.id] }}</strong> {% endif %}<code class="small">{{ d.id }}</code></td>
+          <td>{% if d.source %}{{ source_badge(d.source) }}{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td>{{ d.users if d.source else '' }}</td>
+          <td class="muted small">{{ d.shares|join(', ') }}</td>
+          {# Los de un proveedor rellenan nombre, descripción e identificador desde su directorio al abrir el alta #}
+          <td class="actions"><a class="btn btn-small" href="{{ url_for('groups.new', source=d.source, external_id=d.id) if d.source else url_for('groups.new', name=d.id) }}">{{ _("Register") }}</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
   </div>
-  <div class="chips">
-    {% for d in detected %}
-    <span class="chip chip-detected">
-      {% if names and names.get(d.id) %}<strong>{{ names[d.id] }}</strong>{% endif %}<code>{{ d.id }}</code>
-      <span class="muted small">
-        {%- if d.source %}{{ GROUP_SOURCE_LABELS[d.source] }} · {{ ngettext("%(num)s user", "%(num)s users", d.users) }}{% endif -%}
-        {%- if d.shares %}{% if d.source %} · {% endif %}{{ _("used in %(shares)s", shares=d.shares|join(', ')) }}{% endif -%}
-      </span>
-      {# Los de un proveedor rellenan nombre, descripción e identificador desde su directorio al abrir el alta #}
-      <a class="btn btn-small" href="{{ url_for('groups.new', source=d.source, external_id=d.id) if d.source else url_for('groups.new', name=d.id) }}">{{ _("Register") }}</a>
-    </span>
-    {% endfor %}
-  </div>
-</section>
+</details>
 {% endif %}
 {%- endmacro %}

@@ -19,6 +19,21 @@ from typing import BinaryIO
 from ...i18n import _
 from ...settings.location_types import LocationSchema
 from ..security import UPLOAD_TMP_PREFIX, PathError, check_windows_parts
+from ...settings.errors import UserError
+
+
+def error_text(exc: Exception) -> str:
+    """El motivo de un fallo al leer o escribir, para la persona: el mensaje del almacenamiento, el del sistema
+    (``strerror``: «No space left on device») o, si no hay otro, el nombre del error."""
+    if isinstance(exc, BackendError):
+        return exc.message
+    return getattr(exc, "strerror", None) or str(exc) or exc.__class__.__name__
+
+
+def temp_name() -> str:
+    """Nombre de un archivo temporal de subida (``.sw-upload-<azar>.part``): ``storage.hidden`` y las limpiezas lo
+    reconocen por el prefijo."""
+    return f"{UPLOAD_TMP_PREFIX}{secrets.token_hex(8)}.part"
 
 
 @dataclass
@@ -29,12 +44,8 @@ class Entry:
     mtime: float = 0.0  # marca de tiempo Unix
 
 
-class BackendError(Exception):
+class BackendError(UserError):
     """Fallo del almacenamiento (conexión, credenciales, permisos…), con un mensaje para el usuario."""
-
-    def __init__(self, message: str):
-        super().__init__(message)
-        self.message = message
 
 
 def certificate_error(exc: Exception) -> BackendError:
@@ -224,18 +235,9 @@ class Backend:
         :class:`FileExistsError` si el destino ya existe y :class:`BackendError` si se intenta meter
         una carpeta dentro de sí misma.
         """
-        rel, new_rel = clean_rel(rel), clean_rel(new_rel)
-        if not rel or not new_rel:
-            raise PathError(rel or new_rel)
-        if new_rel == rel or new_rel.startswith(rel + "/"):
-            raise BackendError(_("A folder cannot be moved or copied inside itself."))
-        entry = self.stat(rel)
-        if entry is None:
-            raise FileNotFoundError(rel)
-        if self.exists(new_rel):
-            raise FileExistsError(name_of(new_rel))
-        if not self.is_dir(parent_rel(new_rel)):
-            raise FileNotFoundError(parent_rel(new_rel))
+        if not clean_rel(rel):
+            raise PathError(rel)            # la raíz no se mueve
+        rel, new_rel, entry = _check_transfer(self, rel, self, new_rel)
         self._move(rel, new_rel, entry)
         return new_rel
 
@@ -287,6 +289,11 @@ class Backend:
         """Carpeta local donde se reciben las subidas por partes con destino ``dir_rel``."""
         self.staging.mkdir(parents=True, exist_ok=True)
         return self.staging
+
+    def staging_file(self, dir_rel: str) -> Path:
+        """Un archivo temporal nuevo (:func:`temp_name`) donde se prepara lo que se va a guardar en ``dir_rel`` antes
+        de :meth:`store`; quien lo pide lo borra si algo falla."""
+        return self.staging_dir(dir_rel) / temp_name()
 
     def free_space(self, dir_rel: str) -> int | None:
         """Espacio libre en el destino, si se sabe (en los remotos solo cuenta la zona local)."""
@@ -342,6 +349,23 @@ class RemoteBackend(Backend):
 
     schema: LocationSchema | None = None
 
+    def root_exists(self) -> bool:
+        return self.stat("") is not None
+
+    def _file_entry(self, rel: str) -> Entry:
+        """El archivo ``rel`` para abrirlo; :class:`FileNotFoundError` si no existe o es una carpeta."""
+        entry = self.stat(rel)
+        if entry is None or entry.is_dir:
+            raise FileNotFoundError(rel)
+        return entry
+
+    def _existing(self, rel: str) -> Entry:
+        """Lo que hay en ``rel`` (para borrarlo); :class:`FileNotFoundError` si no existe."""
+        entry = self.stat(rel)
+        if entry is None:
+            raise FileNotFoundError(rel)
+        return entry
+
     @classmethod
     def connect(cls, location: dict):
         """Cliente de la biblioteca para la ubicación (se crea una vez por proceso y ubicación)."""
@@ -363,12 +387,11 @@ class RemoteBackend(Backend):
                               type=cls.schema.short_label, library=library, extra=cls.schema.extra))
 
 
-def copy_between(src: Backend, src_rel: str, dst: Backend, dst_rel: str) -> None:
-    """Copia de un backend a otro (o al mismo): un archivo, o una carpeta con todo su contenido.
-
-    Los archivos pasan por la zona local del destino (``staging_dir``) y se guardan con ``store``, así
-    que funciona entre cualquier par de almacenamientos (disco, S3, SFTP…).
-    """
+def _check_transfer(src: Backend, src_rel: str, dst: Backend, dst_rel: str) -> tuple[str, str, Entry]:
+    """Lo que comprueban mover y copiar: ``(origen, destino, Entry del origen)`` con las rutas limpias.
+    :class:`PathError` sin destino, :class:`BackendError` si una carpeta va dentro de sí misma,
+    :class:`FileNotFoundError` si falta el origen o la carpeta de destino y :class:`FileExistsError` si el
+    destino ya existe."""
     src_rel, dst_rel = clean_rel(src_rel), clean_rel(dst_rel)
     if not dst_rel:
         raise PathError(dst_rel)
@@ -381,17 +404,45 @@ def copy_between(src: Backend, src_rel: str, dst: Backend, dst_rel: str) -> None
         raise FileExistsError(name_of(dst_rel))
     if not dst.is_dir(parent_rel(dst_rel)):
         raise FileNotFoundError(parent_rel(dst_rel))
+    return src_rel, dst_rel, entry
+
+
+def download_to(backend: Backend, rel: str, path: Path) -> None:
+    """Copia el archivo ``rel`` de ``backend`` a ``path`` (local), por trozos de 1 MB."""
+    fh, _size, _mtime = backend.open(rel)
+    with fh, open(path, "wb") as out:
+        shutil.copyfileobj(fh, out, 1024 * 1024)
+
+
+def remove_tree(rel: str, list_dir, remove_file, remove_dir) -> None:
+    """Borra la carpeta ``rel`` con todo lo de dentro, desde lo más hondo (los almacenamientos que no borran una
+    carpeta con contenido de una vez: SMB, SFTP, FTP). ``list_dir(rel)`` da sus ``Entry``; ``remove_file`` y
+    ``remove_dir`` borran uno por su ruta."""
+    for item in list_dir(rel):
+        child = join_rel(rel, item.name)
+        if item.is_dir:
+            remove_tree(child, list_dir, remove_file, remove_dir)
+        else:
+            remove_file(child)
+    remove_dir(rel)
+
+
+def copy_between(src: Backend, src_rel: str, dst: Backend, dst_rel: str) -> None:
+    """Copia de un backend a otro (o al mismo): un archivo, o una carpeta con todo su contenido.
+
+    Los archivos pasan por la zona local del destino (``staging_dir``) y se guardan con ``store``, así
+    que funciona entre cualquier par de almacenamientos (disco, S3, SFTP…).
+    """
+    src_rel, dst_rel, entry = _check_transfer(src, src_rel, dst, dst_rel)
     if entry.is_dir:
         dst.mkdir(dst_rel)
         for child in src.listdir(src_rel):
             if is_safe_name(child.name) and not child.name.startswith(UPLOAD_TMP_PREFIX):
                 copy_between(src, join_rel(src_rel, child.name), dst, join_rel(dst_rel, child.name))
         return
-    tmp = dst.staging_dir(parent_rel(dst_rel)) / f"{UPLOAD_TMP_PREFIX}{secrets.token_hex(8)}.part"
+    tmp = dst.staging_file(parent_rel(dst_rel))
     try:
-        fh, _size, _mtime = src.open(src_rel)
-        with fh, open(tmp, "wb") as out:
-            shutil.copyfileobj(fh, out, 1024 * 1024)
+        download_to(src, src_rel, tmp)
         dst.store(tmp, dst_rel)
     finally:
         tmp.unlink(missing_ok=True)

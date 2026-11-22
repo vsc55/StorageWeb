@@ -7,9 +7,7 @@ código por el token, durante el login.
 """
 from __future__ import annotations
 
-import base64
 import binascii
-import hashlib
 import hmac
 import json
 import secrets
@@ -20,17 +18,10 @@ import urllib.request
 
 from ..base import BASE_SCOPES, SSOError
 from .common import MS_LOGIN, MULTI_TENANT, EntraProvider, endpoints
+from ...text import b64url_decode, pkce_challenge
 
 CLOCK_SKEW = 300    # segundos de tolerancia en exp/nbf
 FLOW_MAX_AGE = 600  # el usuario tiene 10 min para completar el login
-
-
-def _b64url(data: bytes) -> str:
-    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
-
-
-def _b64url_decode(value: str) -> bytes:
-    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
 
 GRANTED_KEY = "_storageweb_granted_scopes"
@@ -72,7 +63,7 @@ def decode_jwt_claims(token: str) -> dict:
     if len(parts) != 3:
         raise SSOError("invalid_id_token", "Formato JWT incorrecto")
     try:
-        claims = json.loads(_b64url_decode(parts[1]))
+        claims = json.loads(b64url_decode(parts[1]))
     except (ValueError, binascii.Error) as exc:
         raise SSOError("invalid_id_token", "No se pudo decodificar el JWT") from exc
     if not isinstance(claims, dict):
@@ -127,7 +118,7 @@ class OAuth2Provider(EntraProvider):
         state = secrets.token_urlsafe(24)
         nonce = secrets.token_urlsafe(24)
         verifier = secrets.token_urlsafe(64)  # 86 caracteres (RFC 7636: 43-128)
-        challenge = _b64url(hashlib.sha256(verifier.encode("ascii")).digest())
+        challenge = pkce_challenge(verifier)
         params = {
             "client_id": self.cfg["client_id"],
             "response_type": "code",

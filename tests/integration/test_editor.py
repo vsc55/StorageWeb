@@ -7,14 +7,12 @@ import re
 from storageweb.db.repositories import audit
 from storageweb.web.context import get_db
 
-from tests.helpers import add_user, get_csrf, login
+from tests.helpers import get_csrf, signed_in, api_token
 
 
 def _editor(make_app, **perms):
     app = make_app({"permissions": {"user": {"edit": True, **perms}}})
-    add_user(app, "ana")
-    c = app.test_client()
-    login(c, "ana")
+    c, _ = signed_in(app, "ana", csrf_url=None)
     return app, c, get_csrf(c, "/f/home/")
 
 
@@ -89,8 +87,7 @@ def test_read_token_cannot_edit(make_app, home):
     app, _c, _csrf = _editor(make_app)
     home.mkdir(parents=True, exist_ok=True)
     (home / "a.txt").write_text("x\n", encoding="utf-8")
-    with app.app_context():
-        plain, _id = tokens.create(get_db(), users.get_by_username(get_db(), "ana"), name="r", scope="read", days=0)
+    plain = api_token(app, scope="read", name="r")
     resp = app.test_client().post("/edit/home/a.txt", data={"text": "y", "version": "0"},
                                   headers={"Authorization": f"Bearer {plain}"})
     assert resp.status_code == 403 and (home / "a.txt").read_text(encoding="utf-8") == "x\n"

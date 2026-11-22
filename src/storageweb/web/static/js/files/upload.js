@@ -10,7 +10,7 @@
   var dropzone = document.getElementById("dropzone");
   var panel = document.getElementById("upload-panel");
   if (!form) return;
-  var csrf = document.querySelector('meta[name="csrf-token"]').getAttribute("content");
+  var csrf = window.SW.csrf;
   var t = window.SW.t;
 
   var MAX_RETRIES = 8;
@@ -26,13 +26,7 @@
 
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
-  // localStorage puede no estar disponible (modo privado, políticas…)
-  function store(key, value) {
-    try {
-      if (value === undefined) return localStorage.getItem(key);
-      if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value);
-    } catch (e) { return null; }
-  }
+  var store = window.SW.store;
 
   // Petición con XHR (permite progreso de subida y cancelar)
   function request(method, url, body, onProgress) {

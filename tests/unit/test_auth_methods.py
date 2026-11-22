@@ -16,6 +16,7 @@ from storageweb.providers import AuthDenied, AuthMethod, Identity, LoginButton, 
 from storageweb.settings import ConfigError, auth_methods, defaults, fields, load_config, mask_secrets
 from storageweb.settings.auth_methods import AuthConfig
 from storageweb.settings.fields import Field
+from tests.helpers import config_file
 
 
 def _validate_llave(section, cfg):
@@ -105,8 +106,7 @@ def extra_methods():
 
 
 def _cfg(tmp_path, auth):
-    p = tmp_path / "config.json"
-    p.write_text(json.dumps({"auth": auth}), encoding="utf-8")
+    p = config_file(tmp_path, {"auth": auth})
     return load_config(p)
 
 

@@ -8,17 +8,13 @@ from storageweb.core import ipban
 from storageweb.db.repositories import ip_rules
 from storageweb.providers.entra import check as entra_check, directory as entra_directory, register as entra_register
 from storageweb.web.context import get_db
-from tests.helpers import PASSWORD, add_user, get_csrf, login, U
+from tests.helpers import PASSWORD, add_user, get_csrf, U, signed_in
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\0" * 64
 OTHER_IP = {"REMOTE_ADDR": "203.0.113.50"}
 
 
-@pytest.fixture(autouse=True)
-def fresh_rules():
-    ipban.invalidate()
-    yield
-    ipban.invalidate()
+pytestmark = pytest.mark.usefixtures("fresh_ipban")
 
 
 # --------------------------------------------------------------------------- IPs
@@ -140,9 +136,7 @@ def test_svg_logo_is_sandboxed_and_bad_files_refused(app, admin):
 def entra_admin(make_app, monkeypatch):
     app = make_app({"auth": {"entra": {"tenant_id": "t1", "client_id": "c1", "client_secret": "s",
                                        "secret_expires": "2000-01-01"}}})
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
+    client, _ = signed_in(app, "root", role="admin", csrf_url=None)
     monkeypatch.setattr(entra_register, "device_start", lambda: {
         "device_code": "dc", "user_code": "CODE-1", "verification_uri": "https://microsoft.com/devicelogin"})
     monkeypatch.setattr(entra_register, "device_poll", lambda code: {"access_token": "tok"})
@@ -208,9 +202,7 @@ def test_entra_settings_show_group_names_and_search(make_app, monkeypatch):
     app = make_app({"auth": {"entra": {"tenant_id": "t1", "client_id": "c1", "client_secret": "s",
                                        "role_mappings": {gid: "admin", "StorageWeb.User": "user"},
                                        "allowed_groups": [gid, other]}}})
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
+    client, _ = signed_in(app, "root", role="admin", csrf_url=None)
     asked = []
 
     def names(ecfg, ids):
@@ -230,9 +222,7 @@ def test_entra_settings_show_group_names_and_search(make_app, monkeypatch):
 def test_entra_settings_without_directory_keep_plain_ids(make_app):
     app = make_app({"auth": {"entra": {"tenant_id": "", "client_id": "", "client_secret": "",  # sin directorio
                                        "role_mappings": {"StorageWeb.Admin": "admin"}}}})
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
+    client, _ = signed_in(app, "root", role="admin", csrf_url=None)
     html = client.get("/admin/settings/auth").get_data(as_text=True)
     assert "data-group-search=" not in html and 'value="storageweb.admin"' in html.lower()
 

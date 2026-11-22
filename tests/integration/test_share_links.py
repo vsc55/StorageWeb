@@ -12,7 +12,7 @@ from storageweb.core import links
 from storageweb.db.repositories import share_links as repo
 from storageweb.db.repositories import users
 from storageweb.web.context import get_db
-from tests.helpers import add_user, get_csrf, login, update_settings, visible
+from tests.helpers import get_csrf, login, update_settings, visible, signed_in
 
 
 def _share(client, token, path, **form):
@@ -184,13 +184,9 @@ def test_who_removes_them(app, sharer):
     t = _token(data["url"])
     page = client.get("/profile/links").get_data(as_text=True)
     assert data["url"] in page and "Dejar de compartir" in page               # su dueño lo vuelve a copiar
-    add_user(app, "luis")
-    luis = app.test_client()
-    login(luis, "luis")
+    luis, _ = signed_in(app, "luis", csrf_url=None)
     assert luis.post(f"/links/{data['uid']}/revoke", data={"_csrf": get_csrf(luis, "/f/home/")}).status_code == 404
-    root = app.test_client()
-    add_user(app, "root", role="admin")
-    login(root, "root")
+    root, _ = signed_in(app, "root", role="admin", csrf_url=None)
     admin_page = root.get("/admin/settings/sharing").get_data(as_text=True)
     assert "ana" in admin_page and data["url"] not in admin_page              # la lista, sin las direcciones
     root.post(f"/links/{data['uid']}/revoke", data={"_csrf": get_csrf(root, "/admin/settings/sharing")})
@@ -244,13 +240,9 @@ def test_activity_is_kept_for_traceability(app, sharer, home):
     assert "Quitado" in page and "Contraseña equivocada" in page
     assert "Quitado" in client.get("/profile/links?show=revoked").get_data(as_text=True)
     # Otra persona no lo ve; un administrador sí
-    add_user(app, "luis")
-    luis = app.test_client()
-    login(luis, "luis")
+    luis, _ = signed_in(app, "luis", csrf_url=None)
     assert luis.get(f"/links/{uid}/activity").status_code == 404
-    add_user(app, "root", role="admin")
-    root = app.test_client()
-    login(root, "root")
+    root, _ = signed_in(app, "root", role="admin", csrf_url=None)
     assert root.get(f"/links/{uid}/activity").status_code == 200
     assert "visita" in root.get("/admin/settings/sharing?show=all").get_data(as_text=True)
     # La limpieza borra el enlace viejo pero no su historial
@@ -294,14 +286,10 @@ def test_filters_deleted_history_and_retention(app, sharer):
     activity = client.get(f"/links/{gone['uid']}/activity")
     assert activity.status_code == 200 and "ya no existe" in activity.get_data(as_text=True)
     assert client.get(f"/links/{gone['uid']}/activity.csv").status_code == 200
-    add_user(app, "luis")
-    luis = app.test_client()
-    login(luis, "luis")
+    luis, _ = signed_in(app, "luis", csrf_url=None)
     assert luis.get(f"/links/{gone['uid']}/activity").status_code == 404
     assert "fuera.txt" not in luis.get("/profile/links?show=deleted").get_data(as_text=True)
-    add_user(app, "root", role="admin")
-    root = app.test_client()
-    login(root, "root")
+    root, _ = signed_in(app, "root", role="admin", csrf_url=None)
     admin = visible(root.get("/admin/settings/sharing?show=deleted").get_data(as_text=True))
     assert "home:/fuera.txt" in admin and root.get(f"/links/{gone['uid']}/activity").status_code == 200
     # El historial se borra con sharing.history_days

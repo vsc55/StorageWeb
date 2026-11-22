@@ -14,11 +14,11 @@ from __future__ import annotations
 
 import html
 import re
-import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from ..i18n import _
+from ..text import slug as _plain_slug
 
 Resolver = Callable[[str], "str | None"]
 MAX_DEPTH = 16          # citas y listas anidadas: más allá, el resto se ve como texto
@@ -50,9 +50,7 @@ def _esc(text: str) -> str:
 
 def slug(text: str) -> str:
     """Como GitHub: minúsculas, sin acentos, guiones; para los ``id`` de los encabezados."""
-    plain = unicodedata.normalize("NFKD", text)
-    plain = "".join(c for c in plain if not unicodedata.combining(c)).lower()
-    return re.sub(r"[^a-z0-9]+", "-", plain).strip("-") or "seccion"
+    return _plain_slug(text) or "seccion"
 
 
 def _plain(fragment: str) -> str:

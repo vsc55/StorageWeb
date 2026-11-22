@@ -10,24 +10,21 @@
 """
 from __future__ import annotations
 
-import secrets
 import time
 from datetime import datetime, timezone
-from urllib.parse import quote
 
-from flask import (Blueprint, Response, abort, flash, g, jsonify, redirect, render_template, request, session,
-                   stream_with_context, url_for)
+from flask import Blueprint, abort, flash, g, jsonify, redirect, render_template, request, session, url_for
 
 from ... import metrics
 from ...core import backends, ipban, links, quota, storage
 from ...core import files as files_core
 from ...core.permissions import is_admin
-from ...core.security import UPLOAD_TMP_PREFIX, safe_filename
 from ...db.repositories import share_links as repo
 from ...i18n import _, format_datetime, format_size, ngettext
 from ... import patterns
-from ..context import boot_config, external_url, get_db, runtime, settings, throttle
-from ..downloads import SANDBOX, send_entry
+from ..context import boot_config, external_url, get_db, login_limiter, runtime, settings
+from ..downloads import csv_response, send_entry, zip_response
+from ..forms import flash_outcome, next_url, remembered
 from ..guards import audit_event, client_ip, login_required, safe_next
 
 bp = Blueprint("links", __name__)
@@ -159,6 +156,19 @@ def _audit(action: str, link, root: dict, rel: str, detail: str = "") -> None:
                 " ".join(filter(None, [f"link={link['uid'][:8]}", f"owner={link['owner']}", detail])))
 
 
+def listing_context(rows: list, session_key: str, owner: str | None = None) -> tuple[list, dict]:
+    """La lista de enlaces de *Mi perfil* (``owner``: los suyos) o de *Acceso → Enlaces para compartir* (todos): el
+    filtro recordado en ``session_key``, los enlaces de la pestaña elegida y lo que usan las plantillas
+    (``_link_filter.html``)."""
+    show = remembered("show", session_key, links.BUCKETS, "active")
+    deleted = links.deleted_history(get_db(), owner)
+    shown, counts = links.split(rows, show, len(deleted))
+    return shown, {"link_show": show, "link_counts": counts, "deleted_links": deleted if show == "deleted" else [],
+                   "BUCKETS": links.BUCKETS, "bucket_label": links.bucket_label, "MODE_LABELS": links.MODE_LABELS,
+                   "STATE_LABELS": links.STATE_LABELS,
+                   "link_activity": links.activity(get_db(), [r["uid"] for r in shown])}
+
+
 @bp.route("/s/<token>", methods=["GET", "POST"])
 def public(token: str):
     opened, error = _open(token)
@@ -212,8 +222,7 @@ def public(token: str):
 def _try_password(token: str, link, root):
     cfg = settings()
     ip = client_ip()
-    limiter = throttle()
-    limiter.configure(cfg["security"]["max_login_failures"], cfg["security"]["lockout_minutes"] * 60)
+    limiter = login_limiter()
     if limiter.is_blocked(ip, link["uid"], scope="link"):
         _record(link, "refused", detail="locked")
         flash(_("Too many failed attempts. Wait a few minutes."), "error")
@@ -236,20 +245,32 @@ def _counted(link) -> bool:
     return repo.count_download(get_db(), link["id"])
 
 
-@bp.route("/s/<token>/download")
-def public_download(token: str):
+def _for_download(token: str, folder: bool):
+    """Lo común de descargar un archivo (``folder=False``) o una carpeta como ZIP desde un enlace: el enlace abierto
+    y de descarga, lo pedido (``?p=``) del tipo que toca y una descarga más contada. Devuelve
+    ``((link, root, rel, entry), None)`` o ``(None, respuesta)`` (la página del enlace que ya no vale, o 410 si se
+    gastaron las descargas)."""
     opened, error = _open(token)
     if error:
-        return error
+        return None, error
     link, _owner, root, _perms = opened
-    if link["mode"] != "download" or not _unlocked(link):
+    if link["mode"] != "download" or not _unlocked(link) or (folder and not link["is_dir"]):
         abort(404)
     rel, entry = _target(link, root, request.args.get("p", ""))
-    if entry.is_dir:
+    if entry.is_dir != folder:
         abort(404)
     if not _counted(link):
         _record(link, "refused", path=rel, detail="used_up")
-        return _gone(410)
+        return None, _gone(410)
+    return (link, root, rel, entry), None
+
+
+@bp.route("/s/<token>/download")
+def public_download(token: str):
+    found, error = _for_download(token, folder=False)
+    if error:
+        return error
+    link, root, rel, entry = found
     _audit("link_download", link, root, rel)
     _record(link, "download", path=rel, detail=str(entry.size))
     metrics.inc("storageweb_link_downloads_total")
@@ -258,26 +279,13 @@ def public_download(token: str):
 
 @bp.route("/s/<token>/zip")
 def public_zip(token: str):
-    opened, error = _open(token)
+    found, error = _for_download(token, folder=True)
     if error:
         return error
-    link, _owner, root, _perms = opened
-    if link["mode"] != "download" or not _unlocked(link) or not link["is_dir"]:
-        abort(404)
-    rel, entry = _target(link, root, request.args.get("p", ""))
-    if not entry.is_dir:
-        abort(404)
-    if not _counted(link):
-        _record(link, "refused", path=rel, detail="used_up")
-        return _gone(410)
+    link, root, rel, _entry = found
     _audit("link_download", link, root, rel, "zip")
     _record(link, "zip", path=rel)
-    name = files_core.zip_name([(root, rel)])
-    fallback = "".join(c if c.isascii() and c.isprintable() and c not in '"\\' else "_" for c in name)
-    rv = Response(stream_with_context(files_core.zip_stream(settings(), [(root, rel)])), mimetype="application/zip")
-    rv.headers["Content-Disposition"] = f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(name)}"
-    rv.headers["Content-Security-Policy"] = SANDBOX
-    return rv
+    return zip_response(settings(), [(root, rel)])
 
 
 @bp.route("/s/<token>/upload", methods=["POST"])
@@ -292,46 +300,27 @@ def public_upload(token: str):
     if not entry.is_dir:
         abort(404)
     cfg = settings()
-    backend = root["backend"]
     limit = int(cfg["storage"]["max_file_size_mb"] or 0) * 1024 * 1024
     saved, errors = [], []
     for item in request.files.getlist("files"):
         if not item or not item.filename:
             continue
         try:
-            name = safe_filename(item.filename)
-            storage.check_visible_name(cfg, backends.join_rel(rel, name))
-        except ValueError as exc:
-            errors.append(f"{item.filename}: {exc}")
-            continue
-        tmp = backend.staging_dir(rel) / f"{UPLOAD_TMP_PREFIX}{secrets.token_hex(8)}.part"
-        try:
-            item.save(tmp)
-            size = tmp.stat().st_size
-            if limit and size > limit:
-                raise files_core.FilesError(_("It is larger than %(size)s.", size=format_size(limit)))
-            quota.check(root, cfg, size)
-            final = backend.unique_rel(rel, name)      # nunca sobrescribe: «nombre (1).ext»
-            backend.store(tmp, final)
-        except (quota.QuotaExceeded, files_core.FilesError) as exc:
-            errors.append(f"{name}: {getattr(exc, 'message', None) or exc}")
-            _record(link, "refused", path=backends.join_rel(rel, name),
-                    detail="quota" if isinstance(exc, quota.QuotaExceeded) else "too_large")
-            tmp.unlink(missing_ok=True)
-            continue
-        except (OSError, backends.BackendError):
-            errors.append(f"{name}: {_('write error')}")
-            tmp.unlink(missing_ok=True)
+            final, size = files_core.receive(cfg, root, rel, item.filename, item.save, max_bytes=limit)
+        except files_core.UploadRefused as exc:
+            # A quien sube por un enlace no se le cuentan detalles del servidor
+            reason = _("write error") if exc.reason == "write" else exc.message
+            errors.append(f"{exc.name}: {reason}")
+            if exc.reason in ("quota", "too_large"):
+                _record(link, "refused", path=backends.join_rel(rel, exc.name), detail=exc.reason)
             continue
         quota.record(root, size)
         repo.count_upload(get_db(), link["id"])
         saved.append(backends.name_of(final))
         _audit("link_upload", link, root, final, str(size))
         _record(link, "upload", path=final, detail=str(size))
-    if saved:
-        flash(ngettext("%(num)d file uploaded.", "%(num)d files uploaded.", len(saved)), "info")
-    for e in errors:
-        flash(e, "error")
+    flash_outcome(ngettext("%(num)d file uploaded.", "%(num)d files uploaded.", len(saved)) if saved else None,
+                  errors)
     return redirect(url_for("links.public", token=token))
 
 
@@ -362,9 +351,8 @@ def activity(uid: str):
     return render_template("link_activity.html", link=link, events=events, summary=summary,
                            state=links.state(link), STATE_LABELS=links.STATE_LABELS, MODE_LABELS=links.MODE_LABELS,
                            EVENT_LABELS=links.EVENT_LABELS, REFUSED_LABELS=links.REFUSED_LABELS,
-                           back=safe_next(request.args.get("next")) if request.args.get("next")
-                           else url_for("profile.section", section="links",
-                                        show="deleted" if link.get("deleted") else None)
+                           back=next_url(url_for("profile.section", section="links",
+                                                 show="deleted" if link.get("deleted") else None))
                            if isinstance(link, dict) else url_for("profile.section", section="links"))
 
 
@@ -372,17 +360,9 @@ def activity(uid: str):
 @login_required
 def activity_csv(uid: str):
     """El historial en CSV (para guardarlo o cruzarlo con otros registros)."""
-    import csv
-    import io
     link = _own_link(uid)
-    out = io.StringIO()
-    writer = csv.writer(out)
-    writer.writerow(["at", "event", "path", "ip", "user_agent", "detail", "link", "owner", "target"])
-    for e in links.events(get_db(), uid):
-        writer.writerow([e["at"], e["event"], e["path"] or "", e["ip"] or "", e["user_agent"] or "", e["detail"] or "",
-                         e["link_uid"], e["owner"] or "", e["target"] or ""])
+    rows = [[e["at"], e["event"], e["path"] or "", e["ip"] or "", e["user_agent"] or "", e["detail"] or "",
+             e["link_uid"], e["owner"] or "", e["target"] or ""] for e in links.events(get_db(), uid)]
     audit_event("link_activity_exported", f"{link['root']}:/{link['rel']}", f"owner={link['owner']}")
-    rv = Response(out.getvalue(), mimetype="text/csv; charset=utf-8")
-    rv.headers["Content-Disposition"] = f'attachment; filename="link-{uid[:8]}.csv"'
-    rv.headers["Content-Security-Policy"] = SANDBOX
-    return rv
+    return csv_response(["at", "event", "path", "ip", "user_agent", "detail", "link", "owner", "target"], rows,
+                        f"link-{uid[:8]}.csv")

@@ -6,7 +6,7 @@ import pytest
 from storageweb.core.storage import available_roots
 from storageweb.db.repositories import audit, users
 from storageweb.web.context import get_db, settings
-from tests.helpers import add_user, login, page_form, visible
+from tests.helpers import add_user, login, page_form, visible, signed_in
 
 
 @pytest.fixture
@@ -155,9 +155,7 @@ def test_locked_settings_are_marked(make_app, write_config):
         from storageweb import create_app
         app = create_app(str(path))
         app.testing = True
-        add_user(app, "root", role="admin")
-        client = app.test_client()
-        login(client, "root")
+        client, _ = signed_in(app, "root", role="admin", csrf_url=None)
         html = client.get("/admin/settings/files").get_data(as_text=True)
     finally:
         del os.environ["STORAGEWEB_STORAGE__MAX_FILE_SIZE_MB"]

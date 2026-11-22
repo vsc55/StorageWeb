@@ -1,9 +1,6 @@
 """Secretos cifrados en la base de datos (``settings.secretbox``): web, arranque, config.json, copias y CLI."""
 import json
 import os
-import subprocess
-import sys
-from pathlib import Path
 
 import pytest
 
@@ -11,10 +8,9 @@ from storageweb import create_app
 from storageweb.core import backup, maintenance
 from storageweb.settings import load_config, secretbox
 from storageweb.web.context import boot_config, settings
-from tests.helpers import add_user, get_csrf, login, store_settings, stored_settings
+from tests.helpers import cli_env, get_csrf, run_cli, signed_in, store_settings, stored_settings
 
 TOKEN = "prometheus-token-1234567890"
-ROOT = Path(__file__).resolve().parents[2]
 
 
 # --------------------------------------------------------------------------- el cifrado en sí
@@ -65,9 +61,7 @@ def _raw(app):
 
 def test_secrets_saved_from_the_web_are_encrypted(make_app):
     app = make_app()
-    add_user(app, "root", role="admin")
-    admin = app.test_client()
-    login(admin, "root")
+    admin, _ = signed_in(app, "root", role="admin", csrf_url=None)
     form = {"_csrf": get_csrf(admin, "/admin/settings/monitoring"), "audit_retention_days": "0",
             "backup_interval_hours": "0", "backup_keep": "7", "offsite_keep": "14", "metrics_enabled": "on", "metrics_token": TOKEN,
             "metrics_allowed_networks": ""}
@@ -99,9 +93,7 @@ def test_encrypted_secret_in_config_json(write_config, tmp_path):
 
 def test_backup_carries_the_key_and_another_server_re_encrypts(make_app, tmp_path):
     first = make_app()
-    add_user(first, "root", role="admin")
-    admin = first.test_client()
-    login(admin, "root")
+    admin, _ = signed_in(first, "root", role="admin", csrf_url=None)
     form = {"_csrf": get_csrf(admin, "/admin/settings/monitoring"), "audit_retention_days": "0",
             "backup_interval_hours": "0", "backup_keep": "7", "offsite_keep": "14", "metrics_enabled": "on", "metrics_token": TOKEN,
             "metrics_allowed_networks": ""}
@@ -126,15 +118,10 @@ def test_backup_carries_the_key_and_another_server_re_encrypts(make_app, tmp_pat
 
 def test_cli_encrypt_and_rotate(write_config, tmp_path, make_app):
     path = write_config()
-    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "STORAGEWEB_LANG": "es",
-           "PYTHONPATH": os.pathsep.join(filter(None, [str(ROOT / "src"), os.environ.get("PYTHONPATH")]))}
-    env.pop(secretbox.ENV, None)
+    env = cli_env(**{secretbox.ENV: None})             # la clave, la del fichero de data_dir
 
     def cli(*args):
-        res = subprocess.run([sys.executable, "-m", "storageweb", "--config", str(path), *args],
-                             capture_output=True, text=True, encoding="utf-8", cwd=ROOT, env=env)
-        assert res.returncode == 0, res.stderr
-        return res.stdout
+        return run_cli(path, *args, env=env, ok=True).stdout
 
     sealed = cli("encrypt-secret", "--value", "clave-de-ubicacion").strip().splitlines()[-1]
     key = secretbox.load_key(tmp_path / "data")

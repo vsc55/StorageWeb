@@ -1,5 +1,6 @@
 {% extends "admin/settings/_layout.html" %}
 {% from "admin/_page.html" import origin_badge with context %}
+{% from "_forms.html" import post_button with context %}
 {% block section %}
 {# Diagnóstico (web/views/settings/system.py → core/diagnostics.py): lo que se pregunta primero cuando algo falla #}
 {% set sy, db, comp, net = diag.system, diag.database, diag.components, diag.network %}
@@ -192,11 +193,8 @@
   <p class="muted small">{{ _("Every setting has its default value.") }}</p>
   {% endif %}
   {% if origin_rows|selectattr('origin', 'equalto', 'web')|list %}
-  <form method="post" action="{{ url_for('settings.reset') }}" class="js-confirm section-gap"
-        data-confirm="{{ _('Discard all the settings saved from the web and go back to the default values? What config.json and the environment set does not change.') }}">
-    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-    <button class="btn btn-danger" type="submit">{{ _("Reset all web settings to the default values") }}</button>
-  </form>
+  {{ post_button(url_for('settings.reset'), _("Reset all web settings to the default values"), btn='btn btn-danger', cls='section-gap',
+                 confirm=_('Discard all the settings saved from the web and go back to the default values? What config.json and the environment set does not change.')) }}
   {% endif %}
 </section>
 

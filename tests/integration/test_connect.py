@@ -1,7 +1,6 @@
 """Conectar una aplicación iniciando sesión en el navegador (/connect): OAuth con PKCE (core/connect.py)."""
 from __future__ import annotations
 
-import base64
 import re
 import secrets
 from html import unescape
@@ -13,7 +12,7 @@ from storageweb.core import connect
 from storageweb.db.repositories import api_tokens, audit, users
 from storageweb.web.context import get_db
 
-from tests.helpers import add_user, csrf_from, login
+from tests.helpers import add_user, csrf_from, login, signed_in, basic_auth
 
 REDIRECT = "vscode://storageweb.storageweb-sync/auth"
 
@@ -47,10 +46,6 @@ def _allow(client, challenge, state="estado-de-prueba-123", action="allow", **ex
     return parse_qs(urlsplit(target).query)
 
 
-def _basic(user, token):
-    return {"Authorization": "Basic " + base64.b64encode(f"{user}:{token}".encode()).decode()}
-
-
 def test_full_flow_gives_a_working_token(app, logged):
     client, _csrf = logged
     verifier, challenge = _pkce()
@@ -68,7 +63,7 @@ def test_full_flow_gives_a_working_token(app, logged):
     data = resp.get_json()
     assert data["username"] == "ana"
     assert data["name"] == "Visual Studio Code (PORTATIL-01)"
-    assert app_client.open("/dav/home/", method="PROPFIND", headers={**_basic("ana", data["token"]), "Depth": "1"}).status_code == 207
+    assert app_client.open("/dav/home/", method="PROPFIND", headers={**basic_auth("ana", data["token"]), "Depth": "1"}).status_code == 207
 
     # Un solo uso
     assert app_client.post("/connect/token", json={"code": code, "verifier": verifier}).status_code == 400
@@ -140,9 +135,7 @@ def test_login_then_back_to_the_authorization_page(app, client):
 
 def test_disabled_when_api_tokens_are_off(make_app):
     app = make_app({"security": {"api_tokens": False}})
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
+    client, _ = signed_in(app, "ana", csrf_url=None)
     _verifier, challenge = _pkce()
     assert _start(client, challenge).status_code == 403
     assert app.test_client().post("/connect/token", json={"code": "x", "verifier": "y" * 43}).status_code == 403

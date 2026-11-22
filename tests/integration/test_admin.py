@@ -2,13 +2,8 @@ import pytest
 
 from storageweb.db.repositories import users
 
-from tests.helpers import PASSWORD, add_user, get_csrf, login, page_form, settings_form, visible, U
+from tests.helpers import PASSWORD, add_user, get_csrf, login, page_form, settings_form, visible, U, signed_in, get_user, audit_actions
 from storageweb.web.context import get_db
-
-
-def _user(app, username):
-    with app.app_context():
-        return users.get_by_username(get_db(), username)
 
 
 # --------------------------------------------------------------------------- acceso
@@ -62,7 +57,7 @@ def test_create_local_user(app, admin):
         "_csrf": token, "username": "nuevo", "source": "local", "password": PASSWORD,
         "display_name": "Nuevo", "role": "user", "groups": "rrhh, IT", "enabled": "on"})
     assert resp.status_code == 302
-    u = _user(app, "nuevo")
+    u = get_user(app, "nuevo")
     assert u["source"] == "local" and u["role"] == "user" and u["groups"] == "it,rrhh"
     other = app.test_client()
     assert login(other, "nuevo").status_code == 302
@@ -72,7 +67,7 @@ def test_create_user_validation(app, admin):
     client, token = admin
     base = {"_csrf": token, "source": "local", "role": "user", "enabled": "on"}
     html = client.post("/admin/users/new", data={**base, "username": "x", "password": "corta"}).get_data(as_text=True)
-    assert "al menos" in html and _user(app, "x") is None
+    assert "al menos" in html and get_user(app, "x") is None
     html = client.post("/admin/users/new", data={**base, "username": "../mal", "password": PASSWORD}).get_data(as_text=True)
     assert "no válido" in html
     html = client.post("/admin/users/new", data={**base, "username": "root", "password": PASSWORD}).get_data(as_text=True)
@@ -86,7 +81,7 @@ def test_precreate_entra_user(app, admin):
     client, token = admin
     client.post("/admin/users/new", data={"_csrf": token, "username": "Juan@Contoso.com",
                                           "source": "entra", "role": "admin", "enabled": "on"})
-    u = _user(app, "juan@contoso.com")
+    u = get_user(app, "juan@contoso.com")
     assert u["source"] == "entra" and u["password_hash"] is None and u["external_id"] is None
     assert u["role"] == "admin"
 
@@ -98,7 +93,7 @@ def test_edit_user(app, admin, tmp_path):
         "_csrf": token, "display_name": "Ana L.", "email": "ana@x.com", "role": "admin",
         "home_path": str(tmp_path / "h"), "enabled": "on"})
     assert resp.status_code == 302
-    u = _user(app, "ana")
+    u = get_user(app, "ana")
     assert u["role"] == "admin" and u["display_name"] == "Ana L."
     assert u["home_path"] == str(tmp_path / "h")
 
@@ -139,7 +134,7 @@ def test_reset_password(app, admin):
 def test_reset_password_not_for_self_or_sso(app, admin):
     """El servidor no se fía de los botones desactivados: las peticiones hechas a mano también se rechazan."""
     client, token = admin
-    me = _user(app, "root")
+    me = get_user(app, "root")
     new = {"_csrf": token, "password": "x" * 12, "repeat_password": "x" * 12}
     assert client.get(f"/admin/users/{U(me['id'])}/password").location.endswith("/profile/security#password")
     assert client.post(f"/admin/users/{U(me['id'])}/password", data=new).status_code == 403
@@ -149,7 +144,7 @@ def test_reset_password_not_for_self_or_sso(app, admin):
     assert f"/admin/users/{U(uid)}/password" not in page and "disabled" in page   # el botón está, desactivado
     assert client.post(f"/admin/users/{U(uid)}/password", data=new).status_code == 403
     assert client.get(f"/admin/users/{U(uid)}/password").status_code == 403
-    assert _user(app, "juan@contoso.com")["password_hash"] is None
+    assert get_user(app, "juan@contoso.com")["password_hash"] is None
     with app.app_context():
         from storageweb.db.repositories import audit
         assert audit.recent(get_db(), 1, action="access_denied")
@@ -159,17 +154,17 @@ def test_reset_password_not_for_self_or_sso(app, admin):
         with pytest.raises(accounts.AccountError):
             accounts.set_password(get_db(), me, me, "y" * 12)
         with pytest.raises(accounts.AccountError):
-            accounts.set_password(get_db(), _user(app, "juan@contoso.com"), me, "y" * 12)
+            accounts.set_password(get_db(), get_user(app, "juan@contoso.com"), me, "y" * 12)
 
 
 def test_disable_is_checked_by_the_server(app, admin):
     """Desactivarse a uno mismo o al último administrador, a mano (fila, en bloque o editando), no cuela."""
     client, token = admin
-    me = _user(app, "root")
+    me = get_user(app, "root")
     client.post(f"/admin/users/{U(me['id'])}/status", data={"_csrf": token, "enabled": "0"})
     client.post("/admin/users/bulk", data={"_csrf": token, "action": "disable", "ids": [U(me["id"])]})
     client.post(f"/admin/users/{U(me['id'])}", data={"_csrf": token, "role": "admin"})
-    assert _user(app, "root")["enabled"]
+    assert get_user(app, "root")["enabled"]
     with app.app_context():
         from storageweb.core import accounts
         with pytest.raises(accounts.AccountError):
@@ -181,31 +176,31 @@ def test_disable_user(app, admin):
     uid = add_user(app, "ana")
     # Editar no activa ni desactiva (una sola forma de hacerlo: su botón, con confirmación)
     client.post(f"/admin/users/{U(uid)}", data={"_csrf": token, "role": "user"})
-    assert _user(app, "ana")["enabled"]
+    assert get_user(app, "ana")["enabled"]
     assert 'name="enabled"' not in client.get(f"/admin/users/{U(uid)}").get_data(as_text=True).split("danger-zone")[0]
     client.post(f"/admin/users/{U(uid)}/status", data={"_csrf": token, "enabled": "0"})
-    assert not _user(app, "ana")["enabled"]
+    assert not get_user(app, "ana")["enabled"]
     assert "incorrectos" in login(app.test_client(), "ana").get_data(as_text=True)
     client.post(f"/admin/users/{U(uid)}", data={"_csrf": token, "role": "user", "enabled": "on"})
-    assert not _user(app, "ana")["enabled"]                                       # ni con la casilla a mano
+    assert not get_user(app, "ana")["enabled"]                                       # ni con la casilla a mano
 
 
 def test_cannot_demote_or_disable_self(app, admin):
     client, token = admin
-    me = _user(app, "root")
+    me = get_user(app, "root")
     html = client.post(f"/admin/users/{U(me['id'])}", data={"_csrf": token, "role": "user", "enabled": "on"},
                        follow_redirects=True).get_data(as_text=True)
     assert "No puedes quitarte" in html
     html = client.post(f"/admin/users/{U(me['id'])}/status", data={"_csrf": token, "enabled": "0"},
                        follow_redirects=True).get_data(as_text=True)
     assert "No puedes deshabilitar" in html
-    assert _user(app, "root")["role"] == "admin" and _user(app, "root")["enabled"]
+    assert get_user(app, "root")["role"] == "admin" and get_user(app, "root")["enabled"]
 
 
 def test_last_admin_guard(app, admin):
     client, token = admin
     # Hay otro admin deshabilitado: no cuenta. Al intentar borrar a root (uno mismo) falla.
-    me = _user(app, "root")
+    me = get_user(app, "root")
     html = client.post(f"/admin/users/{U(me['id'])}/delete", data={"_csrf": token},
                        follow_redirects=True).get_data(as_text=True)
     assert "No puedes eliminar tu propia cuenta" in html
@@ -219,7 +214,7 @@ def test_last_admin_guard(app, admin):
     # ...pero ahora admin2 es el último y no puede ser degradado por nadie más
     with app.app_context():
         assert users.count_admins(get_db()) == 1
-    assert _user(app, "admin2")["id"] == uid2
+    assert get_user(app, "admin2")["id"] == uid2
 
 
 def test_delete_user(app, admin, tmp_path):
@@ -230,7 +225,7 @@ def test_delete_user(app, admin, tmp_path):
     (home / "dato.txt").write_text("x")
     resp = client.post(f"/admin/users/{U(uid)}/delete", data={"_csrf": token})
     assert resp.status_code == 302
-    assert _user(app, "ana") is None
+    assert get_user(app, "ana") is None
     assert (home / "dato.txt").exists()  # los archivos se conservan
 
 
@@ -300,9 +295,7 @@ def test_settings_permissions_affect_users(app, admin):
     token = get_csrf(client, "/admin/access/roles/user")
     assert client.post("/admin/access/roles/user", data={"_csrf": token, "permissions": ["download", "mkdir"]}
                        ).status_code == 302
-    add_user(app, "ana")
-    user_client = app.test_client()
-    login(user_client, "ana")
+    user_client, _ = signed_in(app, "ana", csrf_url=None)
     assert "Subir archivos" not in visible(user_client.get("/f/home/").get_data(as_text=True))
     tok = get_csrf(user_client, "/f/home/")
     assert user_client.post("/upload/home/", data={"_csrf": tok}).status_code == 403
@@ -462,31 +455,26 @@ def test_disable_any_source(app, admin, source):
                    external_id="oid-x" if source == "entra" else None)
     resp = _toggle(client, token, uid, False)
     assert resp.status_code == 302 and resp.location.endswith(f"/admin/users/{U(uid)}")
-    assert not _user(app, "persona")["enabled"]
+    assert not get_user(app, "persona")["enabled"]
     _toggle(client, token, uid, True)
-    assert _user(app, "persona")["enabled"]
+    assert get_user(app, "persona")["enabled"]
 
 
 def test_disabled_sso_user_cannot_sign_in(entra_app, token_endpoint):
     """Una cuenta de Entra desactivada no entra aunque Microsoft la autentique."""
-    from tests.sso_helpers import finish_login, start_login
+    from tests.sso_helpers import sso_login
 
     app = entra_app()
-    admin_client = app.test_client()
-    add_user(app, "root", role="admin")
-    login(admin_client, "root")
-    token = get_csrf(admin_client, "/f/home/")
+    admin_client, token = signed_in(app, "root", role="admin")
     uid = add_user(app, "juan@contoso.com", password=None, source="entra", external_id="oid-juan")
     _toggle(admin_client, token, uid, False)
 
     other = app.test_client()
-    _, q = start_login(other, token_endpoint)
-    assert "/login" in finish_login(other, q["state"]).location
+    assert "/login" in sso_login(other, token_endpoint).location
     assert other.get("/f/home/").status_code == 302
 
     _toggle(admin_client, token, uid, True)
-    _, q = start_login(other, token_endpoint)
-    finish_login(other, q["state"])
+    sso_login(other, token_endpoint)
     assert other.get("/f/home/").status_code == 200
 
 
@@ -502,16 +490,16 @@ def test_disable_ends_open_session(app, admin):
 
 def test_cannot_disable_self_or_last_admin(app, admin):
     client, token = admin
-    me = _user(app, "root")
+    me = get_user(app, "root")
     _toggle(client, token, me["id"], False, next="/admin/users")
     html = client.get("/admin/users").get_data(as_text=True)
-    assert "No puedes deshabilitar tu propia cuenta" in html and _user(app, "root")["enabled"]
+    assert "No puedes deshabilitar tu propia cuenta" in html and get_user(app, "root")["enabled"]
     # otro admin no puede dejar el sistema sin administradores activos
     other = add_user(app, "jefa", role="admin")
     with app.app_context():
         users.update(get_db(), me["id"], enabled=True)
     _toggle(client, token, other, False)
-    assert not _user(app, "jefa")["enabled"]
+    assert not get_user(app, "jefa")["enabled"]
 
 
 def test_disable_redirects_to_next_and_audits(app, admin):
@@ -522,8 +510,7 @@ def test_disable_redirects_to_next_and_audits(app, admin):
     resp = _toggle(client, token, uid, False, next="/admin/users?status=all")
     assert resp.location == "/admin/users?status=all"
     _toggle(client, token, uid, True)
-    with app.app_context():
-        actions = [r["action"] for r in audit.recent(get_db(), 5)]
+    actions = audit_actions(app, 5)
     assert "user_disabled" in actions and "user_enabled" in actions
 
 

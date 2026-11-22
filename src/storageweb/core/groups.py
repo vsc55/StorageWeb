@@ -26,6 +26,8 @@ from ..db.repositories import groups as repo
 from ..db.repositories import users
 from ..i18n import _, _l
 from .permissions import ADMIN, USER
+from ..settings.errors import UserError
+from ..text import clean_names, csv_names
 
 LOCAL = "local"  # grupos con miembros puestos a mano
 
@@ -46,10 +48,8 @@ ACCESS_LEVELS = ("none", "read", "write")
 ADMINS_GROUP = "admins"
 
 
-class GroupError(Exception):
-    def __init__(self, message: str):
-        super().__init__(message)
-        self.message = message
+class GroupError(UserError):
+    pass
 
 
 def label(group) -> str:
@@ -77,19 +77,30 @@ def memberships(conn: Connection, user) -> list[dict]:
     return rows
 
 
+NOT_YOURSELF = _l("You cannot remove the administrator role from yourself.")
+LAST_ADMIN = _l("At least one active administrator must remain.")
+
+
+def is_last_admin(conn: Connection, user) -> bool:
+    """Si ``user`` es el único administrador activo (quitarle el rol o desactivarlo dejaría el servidor sin)."""
+    return bool(user["enabled"]) and users.count_admins(conn, exclude_id=user["id"]) == 0
+
+
 def _guard_admin_removal(conn: Connection, user, actor) -> None:
     if actor is not None and user["id"] == actor["id"]:
-        raise GroupError(_("You cannot remove the administrator role from yourself."))
-    if user["enabled"] and users.count_admins(conn, exclude_id=user["id"]) == 0:
-        raise GroupError(_("At least one active administrator must remain."))
+        raise GroupError(str(NOT_YOURSELF))
+    if is_last_admin(conn, user):
+        raise GroupError(str(LAST_ADMIN))
 
 
-def split(value: str | None) -> set[str]:
-    return {x for x in (value or "").split(",") if x}
+def refs(rows) -> set[str]:
+    """Cómo se puede nombrar a estos grupos en una lista de grupos (la de una carpeta compartida, los del proveedor
+    de una persona): su nombre y, si lo tienen, su identificador externo."""
+    return {g["name"] for g in rows} | {g["external_id"] for g in rows if g["external_id"]}
 
 
-def _clean(values: Iterable[str]) -> list[str]:
-    return sorted({str(v).strip().lower() for v in values or [] if str(v).strip()})
+split = csv_names
+_clean = clean_names
 
 
 # --------------------------------------------------------------------------- lista efectiva

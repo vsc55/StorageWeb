@@ -1,5 +1,5 @@
 {% extends "admin/settings/_layout.html" %}
-{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock, tab with context %}
 {% block section %}
 {# Sistema → Archivos y explorador: qué se ve, qué no existe para nadie, tamaños y carpetas grandes #}
 {% set st = cfg.storage %}
@@ -37,10 +37,7 @@
       {{ field_error('storage.upload_stale_hours') }}</label>
   </div>
   </fieldset>
-  <fieldset class="tab-panel">
-    <legend>{{ _("Search") }}</legend>
-  <div class="card form-grid">
-    <h3 class="card-title span2">{{ _("Search") }}</h3>
+  {% call tab(_("Search")) %}
     <p class="muted small span2">{{ _("Searching by name walks the folders: it stops at whichever of these limits comes first and says so. On remote storage or very large folders, adjust them.") }}</p>
     <label class="{{ err_class('storage.search_max_results') }}"><span class="label-row">{{ _("Search: at most (results)") }} {{ origin('storage.search_max_results') }}</span>
       <input{{ lock('storage.search_max_results') }} type="number" name="search_max_results" value="{{ st.search_max_results }}" min="10" max="5000">
@@ -51,8 +48,7 @@
     <label class="{{ err_class('storage.search_max_folders') }}"><span class="label-row">{{ _("Search: at most (folders looked at)") }} {{ origin('storage.search_max_folders') }}</span>
       <input{{ lock('storage.search_max_folders') }} type="number" name="search_max_folders" value="{{ st.search_max_folders }}" min="100" max="1000000">
       {{ field_error('storage.search_max_folders') }}</label>
-  </div>
-  </fieldset>
+  {% endcall %}
   </div>
   {{ save_bar() }}
 </form>

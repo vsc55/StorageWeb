@@ -4,22 +4,18 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 
-import { findBrowser, launch } from "../../tools/cdp.mjs";
+import { noErrors, openBrowser } from "./common.mjs";
 
 const BASE = process.env.STORAGEWEB_TEST_URL;
 const PASSWORD = process.env.STORAGEWEB_TEST_PASSWORD;
 let page;
 
 before(async () => {
-  page = await launch(process.env.STORAGEWEB_BROWSER || findBrowser());
+  page = await openBrowser();
   await page.login(BASE, "ana", PASSWORD);
 });
 after(async () => { await page?.close(); });
 
-function noErrors() {
-  const found = page.errors.splice(0);
-  assert.deepEqual(found, [], "errores en la consola del navegador");
-}
 const rows = () => page.evaluate("document.querySelectorAll('tr.file-row').length");
 
 test("explorador: seleccionar una fila muestra la barra de selección", async () => {
@@ -28,7 +24,7 @@ test("explorador: seleccionar una fila muestra la barra de selección", async ()
   await page.evaluate("document.querySelector('tr.file-row[data-name=\"texto.txt\"] input.row-check').click()");
   await page.waitFor("!document.getElementById('selection-bar').hidden");
   assert.match(await page.evaluate("document.getElementById('selection-count').textContent"), /1 elemento/);
-  noErrors();
+  noErrors(page);
 });
 
 test("el modal propio pide confirmación antes de borrar", async () => {
@@ -43,7 +39,7 @@ test("el modal propio pide confirmación antes de borrar", async () => {
   await page.waitFor("document.querySelector('dialog.sw-modal[open]')");
   await page.navigating("document.querySelector('dialog.sw-modal[open] button[value=ok]').click()");
   assert.ok(await page.evaluate("!document.querySelector('tr.file-row[data-name=\"borrar.txt\"]')"), "aceptar borra");
-  noErrors();
+  noErrors(page);
 });
 
 test("favoritos: la X aparece al pasar el ratón y lo quita sin recargar", async () => {
@@ -66,7 +62,7 @@ test("favoritos: la X aparece al pasar el ratón y lo quita sin recargar", async
   await page.waitFor("!document.getElementById('fav-list')");
   assert.equal(await page.evaluate("window.sinRecargar"), true, "sin recargar la página");
   assert.equal(await page.evaluate("document.querySelector('tr.file-row[data-name=\"Muchos\"]').dataset.fav"), "0");
-  noErrors();
+  noErrors(page);
 });
 
 test("carpeta con muchos archivos: carga más al bajar y el filtro busca entre todos", async () => {
@@ -87,7 +83,7 @@ test("carpeta con muchos archivos: carga más al bajar y el filtro busca entre t
   await page.waitFor("document.querySelectorAll('tr.file-row').length >= 50 && " +
                      "!/coinciden/.test(document.getElementById('listing-status').textContent)");
   assert.equal(await page.evaluate("document.querySelector('tr.file-row').dataset.name"), "f000.txt");
-  noErrors();
+  noErrors(page);
 });
 
 test("visor: el diagrama Mermaid se dibuja en su marco aislado", async () => {
@@ -97,7 +93,7 @@ test("visor: el diagrama Mermaid se dibuja en su marco aislado", async () => {
                      " return f && f.getBoundingClientRect().height > 40; })()", 15000);
   assert.equal(await page.evaluate("document.querySelector('.md-diagram iframe').getAttribute('sandbox')"),
     "allow-scripts");
-  noErrors();
+  noErrors(page);
 });
 
 test("visor: el código sale con colores y sin descuadrar las líneas", async () => {
@@ -115,7 +111,7 @@ test("visor: el código sale con colores y sin descuadrar las líneas", async ()
   assert.equal(info.keyword, "def");
   assert.ok(info.docLines >= 3, "la cadena de varias líneas se colorea en cada una");
   assert.notEqual(info.color, await page.evaluate("getComputedStyle(document.body).color"), "tiene su color");
-  noErrors();
+  noErrors(page);
 });
 
 test("visor: una imagen se ve entera y al pulsarla, a su tamaño", async () => {
@@ -124,7 +120,7 @@ test("visor: una imagen se ve entera y al pulsarla, a su tamaño", async () => {
   assert.ok(await page.evaluate("document.getElementById('viewer-media-error').hidden"), "sin aviso de error");
   await page.evaluate("document.getElementById('viewer-image').click()");
   assert.equal(await page.evaluate("document.getElementById('viewer-image').getAttribute('aria-pressed')"), "true");
-  noErrors();
+  noErrors(page);
 });
 
 test("explorador: la miniatura de una imagen sustituye a su icono", async () => {
@@ -136,7 +132,7 @@ test("explorador: la miniatura de una imagen sustituye a su icono", async () => 
   await page.evaluate("document.querySelector('tr.file-row[data-name=\"foto.png\"] input.row-check').click()");
   await page.waitFor("!document.getElementById('details-thumb').hidden");
   await page.evaluate("document.querySelector('tr.file-row[data-name=\"foto.png\"] input.row-check').click()");
-  noErrors();
+  noErrors(page);
 });
 
 test("compartir enlace: la ventana lo crea y el enlace abre el archivo", async () => {
@@ -151,7 +147,7 @@ test("compartir enlace: la ventana lo crea y el enlace abre el archivo", async (
   assert.match(url, /\/s\/[A-Za-z0-9_-]{30,}$/);
   await page.go(url.replace(/^https?:\/\/[^/]+/, BASE));
   assert.match(await page.evaluate("document.body.textContent"), /texto\.txt/);
-  noErrors();
+  noErrors(page);
 });
 
 test("editor: colores debajo del cuadro, al día al escribir, y ocupa toda la ventana", async () => {
@@ -195,7 +191,7 @@ test("editor: colores debajo del cuadro, al día al escribir, y ocupa toda la ve
   await page.evaluate(`(() => { const box = document.getElementById('editor-text');
                                box.value = box.value.replace(/^import os\\n/, ''); box.dispatchEvent(new Event('input')); })()`);
   assert.equal(await page.evaluate("document.getElementById('editor-state').hidden"), true);
-  noErrors();
+  noErrors(page);
 });
 
 test("editor: barra de herramientas (Markdown y comentar código) y Tab con varias líneas", async () => {
@@ -231,7 +227,7 @@ test("editor: barra de herramientas (Markdown y comentar código) y Tab con vari
   await page.send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9, modifiers: 8 });
   assert.equal(await value(), py);
   assert.equal(await page.evaluate("document.getElementById('editor-state').hidden"), true, "todo como estaba");
-  noErrors();
+  noErrors(page);
 });
 
 test("editor: Ctrl+S guarda y vuelve al visor", async () => {
@@ -247,7 +243,7 @@ test("editor: Ctrl+S guarda y vuelve al visor", async () => {
   assert.equal(await page.evaluate("location.pathname"), "/view/home/texto.txt",
     await page.evaluate("(document.querySelector('.flashes, .flash, .toast') || {}).textContent || document.title"));
   assert.match(await page.evaluate("document.getElementById('viewer-text').textContent"), /añadida desde el navegador/);
-  noErrors();
+  noErrors(page);
 });
 
 test("mover: el selector de destino enseña las carpetas y no deja ponerlo donde ya está", async () => {
@@ -262,7 +258,7 @@ test("mover: el selector de destino enseña las carpetas y no deja ponerlo donde
   await page.waitFor("!document.getElementById('pick-ok').disabled");
   await page.evaluate("document.getElementById('pick-cancel').click()");
   await page.waitFor("!document.getElementById('pick-dest').open");
-  noErrors();
+  noErrors(page);
 });
 
 test("subir: un archivo elegido sube por partes y aparece en la carpeta", async () => {
@@ -286,5 +282,5 @@ test("subir: un archivo elegido sube por partes y aparece en la carpeta", async 
       detail: document.querySelector('#upload-panel .detail')?.textContent || '' })`);
     assert.fail(`no se subió: ${state} ${JSON.stringify(page.errors)} ${e.message}`);
   }
-  noErrors();
+  noErrors(page);
 });

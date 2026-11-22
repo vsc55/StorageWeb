@@ -5,9 +5,8 @@ import pytest
 from storageweb.core.mfa import webauthn as wa
 from storageweb.db.repositories import users
 from storageweb.web.context import get_db
-from tests.helpers import add_user, get_csrf, login
-from tests.integration.test_mfa import last_audit
-from tests.integration.test_passkeys import ana, post_json, register
+from tests.helpers import add_user, get_csrf, login, get_user, last_audit
+from tests.mfa_helpers import post_json, register
 from tests.webauthn_fabric import ORIGIN, _assertion
 
 ON = {"network": {"public_url": ORIGIN}, "security": {"passkey_login": True}}
@@ -42,7 +41,7 @@ def _attempt(app, priv, *, flags=UV, handle=None, cred_id=b"cred-0001", count=2,
     assert o["allow"] == [] and o["userVerification"] == "required"
     auth, cdj, sig = _assertion(priv, o["challenge"], flags=flags, count=count)
     if handle is None:
-        handle = ana(app)["uid"].encode()
+        handle = get_user(app)["uid"].encode()
     body = {"id": wa.b64u_encode(cred_id), "authenticator_data": wa.b64u_encode(auth),
             "client_data_json": wa.b64u_encode(cdj), "signature": wa.b64u_encode(sig),
             "user_handle": wa.b64u_encode(handle)}
@@ -73,7 +72,7 @@ def test_sign_in_with_the_passkey_only(pl_app):
     assert resp.status_code == 200 and resp.get_json()["redirect"].endswith("/f/home/")
     assert client.get("/f/home/").status_code == 200                       # con sesión, sin código de nada
     assert last_audit(pl_app, "login")["detail"] == "local+passkey-only"
-    assert ana(pl_app)["last_login"]
+    assert get_user(pl_app)["last_login"]
     profile = client.get("/profile/security").get_data(as_text=True)
     assert "también puedes entrar sin tu contraseña" in profile
 
@@ -112,7 +111,7 @@ def test_a_response_works_once(pl_app):
 def test_only_enabled_accounts_that_keep_their_password_here(pl_app):
     priv = _with_passkey(pl_app)
     with pl_app.app_context():
-        users.update(get_db(), ana(pl_app)["id"], enabled=0)
+        users.update(get_db(), get_user(pl_app)["id"], enabled=0)
     client, resp, _b = _attempt(pl_app, priv)
     assert resp.status_code == 400 and "no puede entrar solo con una passkey" in resp.get_json()["error"]
     assert last_audit(pl_app, "login_failed")["detail"] == "passkey error=not_allowed"

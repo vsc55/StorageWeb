@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_ui.html" import viewer_title with context %}
 {% block title %}{{ _("Editing %(name)s", name=name) }} · {{ app_name }}{% endblock %}
 {% block content %}
 {# Editor de texto (files.edit): solo con el permiso «edit», archivos de texto en UTF-8 que caben en el visor #}
@@ -8,13 +9,7 @@
   <header class="viewer-head">
     <div class="viewer-who">
       <a class="btn btn-icon viewer-back" href="{{ view_url }}" aria-label="{{ _('Cancel') }}" title="{{ _('Cancel') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-left"></use></svg></a>
-      <div class="viewer-title">
-        <nav class="viewer-crumbs" aria-label="{{ _('Location') }}">
-          <a href="{{ url_for('files.browse', root=root.name, sub='') }}">{{ root.label }}</a>
-          {% for c in crumbs %}<span aria-hidden="true">/</span><a href="{{ url_for('files.browse', root=root.name, sub=c.rel) }}">{{ c.name }}</a>{% endfor %}
-        </nav>
-        <h1><svg class="icon icon-sm" aria-hidden="true"><use href="#i-rename"></use></svg><span>{{ name }}</span></h1>
-      </div>
+      {{ viewer_title(root, crumbs, name, 'rename') }}
     </div>
     <div class="viewer-actions">
       <a class="btn" href="{{ view_url }}">{{ _("Cancel") }}</a>

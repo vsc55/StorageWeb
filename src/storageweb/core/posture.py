@@ -20,6 +20,7 @@ from ..db.repositories import api_tokens, mfa as mfa_repo, users
 from ..i18n import _, ngettext
 from . import advisories
 from .permissions import ADMIN, default_role
+from ..clock import iso_ago
 
 STATES = ("bad", "warn", "ok", "info")      # también el orden en la página: lo grave, arriba
 
@@ -189,10 +190,8 @@ def _tokens(ctx: Context) -> dict | None:
     sec = ctx.cfg["security"]
     if not sec.get("api_tokens"):
         return result("tokens", "ok", _("API tokens"), _("Turned off."), "clients")
-    now = datetime.now(timezone.utc)
     days = int(sec.get("api_token_unused_days") or 0)
-    unused = api_tokens.unused_since(ctx.conn, (now - timedelta(days=days)).isoformat(timespec="seconds"),
-                                     now.isoformat(timespec="seconds")) if days else 0
+    unused = api_tokens.unused_for(ctx.conn, days) if days else 0
     if unused:
         return result("tokens", "warn", _("API tokens"),
                       ngettext("%(num)s valid token unused for more than %(days)s days: better revoke it.",
@@ -232,7 +231,7 @@ def _backups(ctx: Context) -> dict:
         return result("backups", "bad", _("Backups"),
                       _("The last copy outside the server failed: %(error)s", error=offsite.get("error") or "?"),
                       "auto_backups")
-    if last and last < (datetime.now(timezone.utc) - timedelta(hours=hours * 2)).isoformat(timespec="seconds"):
+    if last and last < iso_ago(hours=hours * 2):
         return result("backups", "warn", _("Backups"),
                       _("The last automatic backup is older than expected (%(date)s).", date=last[:16].replace("T", " ")),
                       "auto_backups")

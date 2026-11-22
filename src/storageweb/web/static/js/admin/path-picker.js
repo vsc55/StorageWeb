@@ -13,8 +13,6 @@
 
   var t = window.SW.t;
   var counter = 0;
-  var meta = document.querySelector('meta[name="csrf-token"]');
-  var csrf = meta ? meta.getAttribute("content") : "";
 
   function scopeOf(input) {
     // Dónde mira ahora: depende del desplegable de al lado, si lo hay
@@ -42,8 +40,7 @@
     if (noStart) scope.params.delete("start");     // el principio (las carpetas permitidas), no el punto de partida
     var url = input.dataset.browse + (input.dataset.browse.indexOf("?") === -1 ? "?" : "&") + scope.params.toString();
     // El token CSRF en la cabecera: el servidor solo contesta al JavaScript de la propia página
-    return fetch(url, { credentials: "same-origin", headers: { "Accept": "application/json", "X-CSRF-Token": csrf } })
-      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+    return window.SW.getJSON(url);
   }
 
   function setValue(input, value) {
@@ -82,7 +79,7 @@
       var b = document.createElement("button");
       b.type = "button";
       b.className = "picker-item" + (extraClass ? " " + extraClass : "");
-      b.innerHTML = '<svg class="icon icon-sm" aria-hidden="true"><use href="#i-' + icon + '"></use></svg>';
+      b.appendChild(window.SW.icon(icon, "icon-sm"));
       var span = document.createElement("span");
       span.textContent = label;
       b.appendChild(span);
@@ -151,9 +148,7 @@
           list.innerHTML = "";
           data.entries.filter(function (e) { return e.name.toLowerCase().indexOf(prefix) === 0; }).slice(0, 50)
             .forEach(function (e) {
-              var option = document.createElement("option");
-              option.value = e.path + (e.is_dir && !disk ? "/" : "");
-              list.appendChild(option);
+              window.SW.option(list, e.path + (e.is_dir && !disk ? "/" : ""));
             });
         }).catch(function () { /* sin sugerencias: se sigue escribiendo */ });
       }, 250);
@@ -172,7 +167,7 @@
     var button = document.createElement("button");
     button.type = "button";
     button.className = "btn path-browse";
-    button.innerHTML = '<svg class="icon icon-sm" aria-hidden="true"><use href="#i-folder"></use></svg>';
+    button.appendChild(window.SW.icon("folder", "icon-sm"));
     var label = document.createElement("span");
     label.textContent = t("Browse");
     button.appendChild(label);

@@ -16,9 +16,8 @@ Sin Flask.
 """
 from __future__ import annotations
 
-import hashlib
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from sqlite3 import Connection
 
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -30,6 +29,9 @@ from ..settings import secretbox
 from . import backends, maintenance, storage
 from .permissions import effective_for_root, permissions_for
 from .security import PathError
+from ..settings.errors import UserError
+from ..clock import iso_ago, iso_in, utcnow
+from ..text import offered_days, sha256_hex
 
 TOKEN_BYTES = 24
 MODES = ("download", "upload")
@@ -37,25 +39,10 @@ MODE_LABELS = {"download": _l("View and download"), "upload": _l("Upload only (d
 PASSWORD_MIN = 8
 MAX_DOWNLOADS = 100000
 KEEP_EXPIRED_DAYS = 30
-HOME = "home"                    # la carpeta personal: la de cada uno           # los caducados se ven en la lista de su dueño este tiempo; luego se borran
 
 
-class LinkError(Exception):
-    def __init__(self, message: str):
-        super().__init__(message)
-        self.message = message
-
-
-def _hash(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _iso(when: datetime) -> str:
-    return when.replace(microsecond=0).isoformat()
+class LinkError(UserError):
+    pass
 
 
 def options(cfg: dict) -> dict:
@@ -68,12 +55,7 @@ def enabled(cfg: dict) -> bool:
 
 def allowed_days(cfg: dict) -> list[int]:
     """Las caducidades que se ofrecen (días; 0 = nunca, solo sin máximo)."""
-    top = int(options(cfg).get("max_days") or 0)
-    days = [1, 7, 30, 90, 365]
-    picked = [d for d in days if not top or d <= top]
-    if top and top not in picked:
-        picked.append(top)
-    return sorted(set(picked)) + ([] if top else [0])
+    return offered_days((1, 7, 30, 90, 365), int(options(cfg).get("max_days") or 0))
 
 
 def can_share(cfg: dict, user, root: dict) -> bool:
@@ -92,14 +74,8 @@ def create(conn: Connection, cfg: dict, key: bytes | None, user, root: dict, rel
     if "share" not in perms:
         raise LinkError(_("You are not allowed to share with links in this folder."))
     try:
-        rel = backends.clean_rel(rel)
-    except PathError as exc:
-        raise LinkError(_("That path is not valid.")) from exc
-    if storage.is_hidden(cfg, rel):
-        raise LinkError(_("That path is hidden for everyone (Hidden for everyone)."))
-    try:
-        entry = root["backend"].stat(rel)
-    except backends.BackendError as exc:
+        rel, entry = storage.existing_entry(cfg, root, rel)
+    except storage.EntryError as exc:
         raise LinkError(exc.message) from exc
     if entry is None:
         raise LinkError(_("That file or folder does not exist."))
@@ -130,10 +106,10 @@ def create(conn: Connection, cfg: dict, key: bytes | None, user, root: dict, rel
         raise LinkError(_("The secrets key is not available."))
     token = secrets.token_urlsafe(TOKEN_BYTES)
     link_id = repo.create(
-        conn, user_id=user["id"], token_hash=_hash(token), token_enc=secretbox.encrypt(key, token),
+        conn, user_id=user["id"], token_hash=sha256_hex(token), token_enc=secretbox.encrypt(key, token),
         root=root["name"], rel=rel, is_dir=entry.is_dir, mode=mode,
         password_hash=generate_password_hash(password) if password else None,
-        expires_at=_iso(_now() + timedelta(days=days)) if days else None,
+        expires_at=iso_in(days=days) if days else None,
         max_downloads=int(max_downloads) if max_downloads else None, note=(note or "").strip()[:200] or None)
     return dict(repo.get_by_id(conn, link_id)), token
 
@@ -142,7 +118,7 @@ def find(conn: Connection, token: str):
     """El enlace de ``token`` (o None). Por su hash: el token no se guarda en claro."""
     if not token or len(token) > 100:
         return None
-    return repo.get_by_hash(conn, _hash(token))
+    return repo.get_by_hash(conn, sha256_hex(token))
 
 
 def token_of(link, key: bytes | None) -> str:
@@ -160,7 +136,7 @@ def state(link, now: datetime | None = None) -> str:
         return "deleted"
     if "revoked_at" in link.keys() and link["revoked_at"]:
         return "revoked"
-    now = now or _now()
+    now = now or utcnow()
     if link["expires_at"] and datetime.fromisoformat(link["expires_at"]) <= now:
         return "expired"
     if link["max_downloads"] is not None and link["downloads"] >= link["max_downloads"]:
@@ -317,18 +293,13 @@ def revoke(conn: Connection, uid: str, actor, *, admin: bool = False, ip: str | 
     return dict(link)
 
 
-def _owner(user, *roots: str) -> int | None:
-    # La carpeta personal es de cada usuario: sus enlaces solo cambian para quien hace la operación
-    return user["id"] if HOME in roots else None
-
-
 def moved(conn: Connection, user, root: str, rel: str, new_root: str, new_rel: str) -> None:
-    repo.moved(conn, root, rel, new_root, new_rel, _owner(user, root, new_root))
+    repo.moved(conn, root, rel, new_root, new_rel, storage.home_owner(user, root, new_root))
 
 
 def deleted(conn: Connection, user, root: str, rel: str) -> None:
     """Se borró lo compartido (o lo que lo contenía): sus enlaces quedan quitados, con su historial."""
-    for link in repo.matching(conn, root, rel, _owner(user, root)):
+    for link in repo.matching(conn, root, rel, storage.home_owner(user, root)):
         repo.revoke(conn, link["id"], user["username"], "deleted")
         record(conn, link, "revoked", detail=f"deleted:{user['username']}")
 
@@ -340,9 +311,9 @@ def _purge(conn: Connection, cfg: dict) -> None:
     ``maintenance.audit_retention_days``; 0 también = todo se guarda). Lo que borra queda en la auditoría."""
     sharing = cfg.get("sharing") or {}
     keep = int(sharing.get("keep_days", KEEP_EXPIRED_DAYS) or 0)
-    links_removed = repo.purge_old(conn, _iso(_now() - timedelta(days=keep))) if keep else 0
+    links_removed = repo.purge_old(conn, iso_ago(days=keep)) if keep else 0
     days = int(sharing.get("history_days") or 0) or int(((cfg.get("maintenance") or {}).get("audit_retention_days")) or 0)
-    events_removed = repo.purge_events(conn, _iso(_now() - timedelta(days=days))) if days else 0
+    events_removed = repo.purge_events(conn, iso_ago(days=days)) if days else 0
     if links_removed or events_removed:
         from ..db.repositories import audit  # noqa: PLC0415
         audit.log(conn, "links_purged", detail=f"links={links_removed} events={events_removed}")

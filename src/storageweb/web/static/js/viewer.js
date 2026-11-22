@@ -10,22 +10,19 @@
     var KEY = "storageweb.viewer.wrap";
     var wrap = document.getElementById("viewer-wrap");
     if (wrap) {
-      try { wrap.checked = window.localStorage.getItem(KEY) === "1"; } catch (e) { /* sin almacenamiento */ }
+      wrap.checked = window.SW.store(KEY) === "1";
       var apply = function () { box.classList.toggle("is-wrapped", wrap.checked); };
       apply();
       wrap.addEventListener("change", function () {
         apply();
-        try { window.localStorage.setItem(KEY, wrap.checked ? "1" : "0"); } catch (e) { /* sin almacenamiento */ }
+        window.SW.store(KEY, wrap.checked ? "1" : "0");
       });
     }
     var copy = document.getElementById("viewer-copy");
     if (copy) {
       copy.addEventListener("click", function () {
-        if (!navigator.clipboard) return;
         var text = Array.prototype.map.call(box.children, function (li) { return li.textContent; }).join("\n");
-        navigator.clipboard.writeText(text).then(function () {
-          copy.querySelector("span").textContent = t("Copied");
-        });
+        window.SW.copy(text).then(function (ok) { if (ok) copy.querySelector("span").textContent = t("Copied"); });
       });
     }
   }

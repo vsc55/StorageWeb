@@ -1,18 +1,17 @@
 """La documentación no se queda atrás respecto al código."""
-import importlib.util
 import re
 from pathlib import Path
 
 import pytest
+
+from tests.helpers import load_tool
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
 
 yaml = pytest.importorskip("yaml")
 
-_spec = importlib.util.spec_from_file_location("gen_docs", ROOT / "tools" / "gen_docs.py")
-gen_docs = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(gen_docs)
+gen_docs = load_tool("tools/gen_docs.py")
 
 
 def test_every_option_is_described():

@@ -27,9 +27,9 @@ from flask import Blueprint, flash, g, jsonify, redirect, render_template, reque
 from ...core import ipban, mfa
 from ...core.mfa import webauthn
 from ...db.repositories import audit, users
-from ...i18n import _
-from ..context import get_db, runtime, settings, throttle
-from ..guards import audit_event, client_ip, clear_session, login_required, safe_next, start_session
+from ...i18n import _, _l
+from ..context import get_db, login_limiter, runtime, settings
+from ..guards import audit_event, clear_session, client_ip, login_required, safe_next, start_session, to_login
 
 bp = Blueprint("mfa", __name__)
 
@@ -100,12 +100,19 @@ def _reason(reason: str) -> str:
     return "_".join(str(reason or "unknown").split())
 
 
-def _register(user, purpose: str, data: dict) -> list[str]:
-    """Verifica un registro de passkey con el challenge de ``purpose``; lanza :class:`mfa.PasskeyError`."""
+def _ceremony(purpose: str, user) -> tuple[str, str, str]:
+    """``(rp_id, origen, challenge)`` para verificar una ceremonia de passkey de ``purpose``: el challenge se gasta
+    aquí. Lanza :class:`mfa.PasskeyError` si no hay passkeys en este servidor o el challenge no vale."""
     rp_id, origin = mfa.passkey_scope(settings())
     challenge = _take(purpose, user)
     if not rp_id or not challenge:
         raise mfa.PasskeyError("no challenge" if rp_id else "passkeys unavailable")
+    return rp_id, origin, challenge
+
+
+def _register(user, purpose: str, data: dict) -> list[str]:
+    """Verifica un registro de passkey con el challenge de ``purpose``; lanza :class:`mfa.PasskeyError`."""
+    rp_id, origin, challenge = _ceremony(purpose, user)
     return mfa.register_passkey(get_db(), user, attestation_object=_raw(data, "attestation_object"),
                                 client_data_json=_raw(data, "client_data_json"), challenge=challenge,
                                 rp_id=rp_id, origin=origin, name=str(data.get("name") or ""))
@@ -113,10 +120,7 @@ def _register(user, purpose: str, data: dict) -> list[str]:
 
 def _assert(user, purpose: str, data: dict) -> str:
     """Verifica una aserción con el challenge de ``purpose``; devuelve el nombre de la passkey o lanza."""
-    rp_id, origin = mfa.passkey_scope(settings())
-    challenge = _take(purpose, user)
-    if not rp_id or not challenge:
-        raise mfa.PasskeyError("no challenge" if rp_id else "passkeys unavailable")
+    rp_id, origin, challenge = _ceremony(purpose, user)
     return mfa.verify_passkey(get_db(), user, credential_id=str(data.get("id") or ""),
                               auth_data=_raw(data, "authenticator_data"),
                               client_data_json=_raw(data, "client_data_json"), signature=_raw(data, "signature"),
@@ -148,7 +152,7 @@ def _pending():
 
 def _expired():
     flash(_("The sign-in waited too long for the code. Sign in again."), "error")
-    return redirect(url_for("auth.login", manual=1))
+    return to_login()
 
 
 def _expired_json():
@@ -157,11 +161,42 @@ def _expired_json():
                   redirect=url_for("auth.login", manual=1))
 
 
-def _limiter():
-    cfg = settings()
-    limiter = throttle()
-    limiter.configure(cfg["security"]["max_login_failures"], cfg["security"]["lockout_minutes"] * 60)
-    return limiter
+TOO_MANY = _l("Too many failed attempts. Wait a few minutes.")
+NO_PASSKEYS = _l("Passkeys are not available on this server.")
+
+
+def _too_many():
+    return _error(str(TOO_MANY), 429)
+
+
+def _no_passkeys():
+    return _error(str(NO_PASSKEYS))
+
+
+def _parked(json: bool = False):
+    """El inicio de sesión aparcado (:func:`_pending`): ``(usuario, nota, None)``, o ``(None, None, respuesta)`` si
+    caducó (otra vez a entrar). ``json``: la respuesta para las ceremonias de passkey."""
+    found = _pending()
+    if found is None:
+        return None, None, (_expired_json() if json else _expired())
+    user, held = found
+    return user, held, None
+
+
+def _enrolling(json: bool = False):
+    """Como :func:`_parked`, para el alta obligatoria: si la cuenta ya tiene el factor (otra pestaña), la respuesta
+    lleva a pedir el código."""
+    user, held, answer = _parked(json)
+    if answer is not None:
+        return None, None, answer
+    if mfa.enrolled(get_db(), user):
+        session[_PENDING] = {**held, "step": "verify"}
+        target = url_for("mfa.login_verify")
+        return None, None, (jsonify({"redirect": target}) if json else redirect(target))
+    return user, held, None
+
+
+_limiter = login_limiter
 
 
 def _blocked(user, held: dict) -> bool:
@@ -198,19 +233,18 @@ def _finish(user, held: dict, detail: str):
 
 @bp.route("/login/mfa", methods=["GET", "POST"])
 def login_verify():
-    found = _pending()
-    if found is None:
-        return _expired()
-    user, held = found
+    user, held, answer = _parked()
+    if answer is not None:
+        return answer
     if request.method == "POST":
         code = request.form.get("code") or ""
         if _blocked(user, held):
-            flash(_("Too many failed attempts. Wait a few minutes."), "error")
+            flash(str(TOO_MANY), "error")
         else:
             kind = mfa.verify(get_db(), _key(), user, code)
             if kind:
                 if _finish(user, held, f"{user['source']}+{kind}") is None:
-                    return redirect(url_for("auth.login", manual=1))
+                    return to_login()
                 if kind == "recovery":
                     left = mfa.status(get_db(), user)["recovery_left"]
                     audit.log(get_db(), "mfa_recovery_used", username=user["username"], ip=client_ip(),
@@ -226,26 +260,24 @@ def login_verify():
 
 @bp.route("/login/mfa/passkey/options", methods=["POST"])
 def login_passkey_options():
-    found = _pending()
-    if found is None:
-        return _expired_json()
-    user, held = found
+    user, held, answer = _parked(json=True)
+    if answer is not None:
+        return answer
     rp_id = mfa.passkey_scope(settings())[0]
     if not rp_id or not mfa.status(get_db(), user)["passkeys"]:
-        return _error(_("Passkeys are not available on this server."))
+        return _no_passkeys()
     if _blocked(user, held):
-        return _error(_("Too many failed attempts. Wait a few minutes."), 429)
+        return _too_many()
     return jsonify(mfa.assertion_options(get_db(), user, rp_id=rp_id, challenge=_issue("login", user)))
 
 
 @bp.route("/login/mfa/passkey", methods=["POST"])
 def login_passkey():
-    found = _pending()
-    if found is None:
-        return _expired_json()
-    user, held = found
+    user, held, answer = _parked(json=True)
+    if answer is not None:
+        return answer
     if _blocked(user, held):
-        return _error(_("Too many failed attempts. Wait a few minutes."), 429)
+        return _too_many()
     try:
         _assert(user, "login", _body())
     except mfa.PasskeyError as exc:
@@ -260,23 +292,19 @@ def login_passkey():
 def login_enrol():
     """Alta obligatoria dentro del inicio de sesión: la política exige el factor y la cuenta no lo tiene. Encender la
     política no deja fuera a nadie (tampoco al último administrador): lo configura aquí y entra."""
-    found = _pending()
-    if found is None:
-        return _expired()
-    user, held = found
-    if mfa.enrolled(get_db(), user):        # ya lo tiene (otra pestaña): basta con el código
-        session[_PENDING] = {**held, "step": "verify"}
-        return redirect(url_for("mfa.login_verify"))
+    user, held, answer = _enrolling()
+    if answer is not None:
+        return answer
     if request.method == "POST":
         code = request.form.get("code") or ""
         if _limiter().is_blocked(client_ip(), held["name"]):
-            flash(_("Too many failed attempts. Wait a few minutes."), "error")
+            flash(str(TOO_MANY), "error")
         else:
             codes = mfa.enroll_confirm(get_db(), _key(), user, code)
             if codes is not None:
                 if _finish(user, held, f"{user['source']}+totp") is None:
                     mfa.disable(get_db(), user)     # el alta no acabó (ver login_enrol_passkey)
-                    return redirect(url_for("auth.login", manual=1))
+                    return to_login()
                 audit.log(get_db(), "mfa_enrolled", username=user["username"], ip=client_ip(), detail="forced")
                 return _show_codes(codes, held.get("next"))
             _failed(user, held, "enrol", code)
@@ -286,31 +314,23 @@ def login_enrol():
 
 @bp.route("/login/mfa/enrol/passkey/options", methods=["POST"])
 def login_enrol_passkey_options():
-    found = _pending()
-    if found is None:
-        return _expired_json()
-    user, held = found
-    if mfa.enrolled(get_db(), user):
-        session[_PENDING] = {**held, "step": "verify"}
-        return jsonify({"redirect": url_for("mfa.login_verify")})
+    user, held, answer = _enrolling(json=True)
+    if answer is not None:
+        return answer
     rp_id = mfa.passkey_scope(settings())[0]
     if not rp_id:
-        return _error(_("Passkeys are not available on this server."))
+        return _no_passkeys()
     return jsonify(mfa.registration_options(get_db(), user, rp_id=rp_id, rp_name=_issuer(),
                                             challenge=_issue("enrol", user), resident=_resident(user)))
 
 
 @bp.route("/login/mfa/enrol/passkey", methods=["POST"])
 def login_enrol_passkey():
-    found = _pending()
-    if found is None:
-        return _expired_json()
-    user, held = found
-    if mfa.enrolled(get_db(), user):
-        session[_PENDING] = {**held, "step": "verify"}
-        return jsonify({"redirect": url_for("mfa.login_verify")})
+    user, held, answer = _enrolling(json=True)
+    if answer is not None:
+        return answer
     if _blocked(user, held):
-        return _error(_("Too many failed attempts. Wait a few minutes."), 429)
+        return _too_many()
     data = _body()
     try:
         codes = _register(user, "enrol", data)
@@ -351,9 +371,9 @@ def passwordless_options():
     if g.get("user") is not None:
         return jsonify({"redirect": safe_next(request.args.get("next"))})
     if not mfa.passwordless_on(cfg):
-        return _error(_("Passkeys are not available on this server."))
+        return _no_passkeys()
     if _limiter().is_blocked(client_ip(), None):
-        return _error(_("Too many failed attempts. Wait a few minutes."), 429)
+        return _too_many()
     rp_id = mfa.passkey_scope(cfg)[0]
     return jsonify(mfa.passwordless_options(
         rp_id=rp_id, challenge=_issue("passwordless", None, next=request.args.get("next", ""))))
@@ -366,10 +386,10 @@ def passwordless():
     held = session.pop(_CHALLENGE, None) or {}
     rp_id, origin = mfa.passkey_scope(cfg)
     if not mfa.passwordless_on(cfg):
-        return _error(_("Passkeys are not available on this server."))
+        return _no_passkeys()
     if _limiter().is_blocked(ip, None):
         audit.log(get_db(), "login_blocked", ip=ip, detail="passkey")
-        return _error(_("Too many failed attempts. Wait a few minutes."), 429)
+        return _too_many()
     data = _body()
     challenge = _take("passwordless", None, held)
     # De quién es la passkey (si es de alguien) antes de comprobarla: con la cuenta, el bloqueo y los fallos son
@@ -378,7 +398,7 @@ def passwordless():
     owner = users.get_by_id(get_db(), owner_id) if owner_id is not None else None
     if owner is not None and _limiter().is_blocked(ip, owner["username"]):
         audit.log(get_db(), "login_blocked", username=owner["username"], ip=ip, detail="passkey")
-        return _error(_("Too many failed attempts. Wait a few minutes."), 429)
+        return _too_many()
     try:
         if not challenge:
             raise mfa.PasskeyError("no challenge")
@@ -410,7 +430,7 @@ def login_cancel():
         audit_event("login_cancelled", held.get("name"), "mfa", username=held.get("name"))
     session.pop(_PENDING, None)
     session.pop(_CHALLENGE, None)
-    return redirect(url_for("auth.login", manual=1))
+    return to_login()
 
 
 # --------------------------------------------------------------------------- Mi perfil
@@ -477,7 +497,7 @@ def _proved(user) -> bool:
     if proof_ok(user):
         return True
     if _manage_blocked(user):
-        flash(_("Too many failed attempts. Wait a few minutes."), "error")
+        flash(str(TOO_MANY), "error")
         return False
     code = request.form.get("code") or ""
     kind = mfa.verify(get_db(), _key(), user, code)
@@ -613,10 +633,10 @@ def passkey_options():
     user = _own_account(notify=False)
     rp_id = mfa.passkey_scope(settings())[0]
     if user is None or not rp_id:
-        return _error(_("Passkeys are not available on this server."))
+        return _no_passkeys()
     if _body().get("for") == "prove":
         if not mfa.status(get_db(), user)["passkeys"]:
-            return _error(_("Passkeys are not available on this server."))
+            return _no_passkeys()
         return jsonify(mfa.assertion_options(get_db(), user, rp_id=rp_id, challenge=_issue("prove", user)))
     if not _may_add(user):
         return _error(_("Confirm it is you first (a code or a passkey)."), 403, redirect=_back_url())
@@ -629,7 +649,7 @@ def passkey_options():
 def passkey_register():
     user = _own_account(notify=False)
     if user is None:
-        return _error(_("Passkeys are not available on this server."))
+        return _no_passkeys()
     if not _may_add(user):
         session.pop(_CHALLENGE, None)
         return _error(_("Confirm it is you first (a code or a passkey)."), 403, redirect=_back_url())
@@ -655,10 +675,10 @@ def passkey_register():
 def passkey_prove():
     user = _own_account(notify=False)
     if user is None:
-        return _error(_("Passkeys are not available on this server."))
+        return _no_passkeys()
     if _manage_blocked(user):
         session.pop(_CHALLENGE, None)
-        return _error(_("Too many failed attempts. Wait a few minutes."), 429)
+        return _too_many()
     try:
         _assert(user, "prove", _body())
     except mfa.PasskeyError as exc:

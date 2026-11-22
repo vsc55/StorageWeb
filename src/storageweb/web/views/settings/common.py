@@ -1,7 +1,7 @@
 """Piezas compartidas por las páginas de ajustes."""
 from __future__ import annotations
 
-from flask import g, request
+from flask import g, redirect, request, url_for
 
 from ....i18n import _
 from ....settings import ConfigError, merge_overrides, runtime_view
@@ -19,17 +19,18 @@ def form_int(name: str, field: str, label: str) -> int:
         raise ConfigError(_("%(field)s must be a number", field=label), field) from exc
 
 
-def save_partial(partial_builder, strict: bool = False) -> tuple[dict | None, ConfigError | None]:
+def save_partial(partial_builder, strict: bool = False, actor: str | None = None) -> tuple[dict | None, ConfigError | None]:
     """Combina lo del formulario con los ajustes efectivos, valida y guarda. Devuelve (vista, error).
 
     Los campos bloqueados (config.json o entorno) no se guardan. Con ``strict`` (cambios hechos por
-    código: logo, Entra ID…) intentar cambiar uno es un error en vez de ignorarse.
+    código: logo, Entra ID…) intentar cambiar uno es un error en vez de ignorarse. ``actor``: quién lo guarda
+    si no es el usuario de la petición (``system`` al entrar con SSO).
     """
     draft = None
     try:
         base = runtime_view(settings())  # lo que había en pantalla: solo se guarda lo que cambia sobre esto
         draft = merge_overrides(base, partial_builder())
-        runtime().save(get_db(), draft, g.user["username"], strict=strict, base=base)
+        runtime().save(get_db(), draft, actor or g.user["username"], strict=strict, base=base)
     except ConfigError as exc:
         return draft, exc
     invalidate_settings()
@@ -38,3 +39,9 @@ def save_partial(partial_builder, strict: bool = False) -> tuple[dict | None, Co
 
 def network_context(cfg: dict) -> dict:
     return network_diagnosis(cfg)
+
+
+def to_section(name: str, anchor: str = "", **args):
+    """Vuelve a la página de ajustes ``name`` (``#anchor``: una pestaña o un apartado)."""
+    return redirect(url_for("settings.section", name=name, **args) + (f"#{anchor}" if anchor else ""))
+

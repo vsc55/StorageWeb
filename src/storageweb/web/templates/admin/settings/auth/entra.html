@@ -1,12 +1,11 @@
 {# Tarjeta del método «entra» en Inicio de sesión (la incluye auth.html con su contexto). #}
-{% from "admin/settings/_macros.html" import origin, err_class, field_error, lock with context %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, lock, check_list, provider_head with context %}
+{% from "_forms.html" import copy_field with context %}
 {% set en = cfg.auth.entra %}
   {# --- Entra ID #}
   <section class="provider-card provider-entra{% if en.enabled %} is-on{% endif %}{{ err_class('auth.entra') }}" aria-labelledby="p-entra">
-    <div class="provider-head">
-      <span class="provider-icon provider-entra-icon" aria-hidden="true"><svg class="icon"><use href="#i-globe"></use></svg></span>
-      <div class="provider-text">
-        <span class="provider-title"><strong id="p-entra">Microsoft Entra ID</strong> {{ origin('auth.entra.enabled') }}</span>
+    {% set test_button %}<button class="btn btn-small" type="submit" form="entra-test-form" {% if not (en.tenant_id or en.issuer) %}disabled{% endif %}>{{ _("Test connection") }}</button>{% endset %}
+    {% call provider_head('entra', 'Microsoft Entra ID', 'globe', icon_cls='provider-entra-icon', extra=test_button) %}
         <span class="small">
           {% if entra_check %}
             {% if entra_check_ok %}<span class="status status-on">{{ _("Connection checked %(when)s", when=entra_check.at|datetime) }}</span>
@@ -21,10 +20,7 @@
           {% else %}{{ ngettext("The client secret expires on %(date)s (in %(num)s day).", "The client secret expires on %(date)s (in %(num)s days).", secret_days, date=en.secret_expires|datetime) }}{% endif %}
         </span>
         {% endif %}
-      </div>
-      <button class="btn btn-small" type="submit" form="entra-test-form" {% if not (en.tenant_id or en.issuer) %}disabled{% endif %}>{{ _("Test connection") }}</button>
-      <label class="switch"><input{{ lock('auth.entra.enabled') }} type="checkbox" name="entra_enabled" {% if en.enabled %}checked{% endif %}> <span>{{ _("Enabled") }}</span></label>
-    </div>
+    {% endcall %}
     {# Las demás acciones, en una fila aparte: en la cabecera no caben sin partirse #}
     <div class="provider-tools" role="group" aria-label="{{ _('Entra ID actions') }}">
       <a class="btn btn-small btn-ghost" href="{{ url_for('settings.entra_setup') }}">{{ _("Setup assistant") }}</a>
@@ -40,12 +36,7 @@
     <div class="check-box">
     <button class="btn btn-icon check-close" type="submit" form="entra-check-hide-form" title="{{ _('Hide the details') }}">
       <svg class="icon icon-sm" aria-hidden="true"><use href="#i-x"></use></svg><span class="sr-only">{{ _("Hide the details") }}</span></button>
-    <ul class="check-list">
-      {% for r in entra_check.results %}
-      <li class="{{ 'ok' if r.ok else ('fail' if r.ok is sameas false else ('pending' if r.pending else 'unknown')) }}">
-        <span aria-hidden="true">{{ '✓' if r.ok else ('✕' if r.ok is sameas false else ('…' if r.pending else '–')) }}</span><span>{{ r.message }}</span></li>
-      {% endfor %}
-    </ul>
+    {{ check_list(entra_check.results) }}
     {% if entra_repairable %}
     <div class="repair-box">
       <button class="btn btn-primary btn-small" type="submit" form="entra-repair-form">{{ _("Repair automatically") }}</button>
@@ -86,8 +77,7 @@
             <small class="muted">{{ _("For the secrets StorageWeb creates (register, renew, repair). Microsoft allows up to 24; if your tenant's policies ask for less, put that number.") }}</small>
             {{ field_error('auth.entra.secret_months') }}</label>
           <div class="field span2"><span class="label">Redirect URI</span>
-            <div class="copy-row"><input type="text" readonly value="{{ redirect_default }}" class="mono" id="entra-redirect-uri" aria-label="Redirect URI">
-              <button type="button" class="btn js-copy" data-copy="#entra-redirect-uri">{{ _("Copy") }}</button></div>
+            {{ copy_field('entra-redirect-uri', redirect_default, 'Redirect URI') }}
             <small class="muted">{{ _("Worked out from the public address (Network and HTTPS) or, without it, from the address you used to get here; it is not saved, so it follows the public address if it changes. It must be registered in Entra ID → Authentication → Web (Repair permissions adds it).") }}</small></div>
           <label><span class="label-row">{{ _("Button text") }} {{ origin('auth.entra.button_label') }}</span>
             <input{{ lock('auth.entra.button_label') }} type="text" name="entra_button_label" value="{{ en.button_label }}" placeholder="{{ _('Sign in with Microsoft') }}"></label>

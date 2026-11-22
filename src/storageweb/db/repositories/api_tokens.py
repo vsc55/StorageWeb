@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from sqlite3 import Connection
 
+from ...clock import iso_ago
 from ..connection import now_iso
 
 
@@ -33,11 +34,12 @@ def list_all(conn: Connection) -> list:
                            ORDER BY t.created_at DESC""").fetchall()
 
 
-def unused_since(conn: Connection, before: str, now: str) -> int:
-    """Tokens vigentes que no se usan desde ``before`` (o, sin usar nunca, creados antes): olvidados."""
+def unused_for(conn: Connection, days: int) -> int:
+    """Tokens vigentes que nadie usa desde hace más de ``days`` días (o, sin usar nunca, creados antes): olvidados."""
     return conn.execute("""SELECT COUNT(*) FROM api_tokens
                            WHERE COALESCE(last_used_at, created_at) < ?
-                             AND (expires_at IS NULL OR expires_at > ?)""", (before, now)).fetchone()[0]
+                             AND (expires_at IS NULL OR expires_at > ?)""",
+                        (iso_ago(days=days), now_iso())).fetchone()[0]
 
 
 def touch(conn: Connection, token_id: int, ip: str | None) -> None:

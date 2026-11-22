@@ -29,7 +29,6 @@ import threading
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
 from pathlib import Path
 
 from .. import __version__
@@ -39,6 +38,7 @@ from ..i18n import _, ngettext
 from . import diagnostics, maintenance
 from .alerts import alert, source
 from .diagnostics import KINDS
+from ..clock import now_iso
 
 _log = logging.getLogger(__name__)
 # Las bibliotecas de JavaScript copiadas (tools/vendor.py): una ruta del paquete, no un import de la capa web
@@ -347,7 +347,7 @@ def check(rows: list[dict], timeout: float = TIMEOUT, progress=None) -> dict:
     # Los vulnerables primero; luego los atrasados; luego por nombre
     out_rows.sort(key=lambda r: (not r["vulns"], r["state"] != "behind", r["name"].lower()))
     severities = [v["severity"] for r in out_rows for v in r["vulns"]]
-    return {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "rows": out_rows,
+    return {"at": now_iso(), "rows": out_rows,
             "checked": len(out_rows), "behind": sum(1 for r in out_rows if r["state"] == "behind"),
             "vulns_ok": bool(vulns.get("ok")), "vulns_error": "" if vulns.get("ok") else str(vulns.get("error") or ""),
             "vuln_asked": int(vulns.get("asked") or 0) if vulns.get("ok") else 0,
@@ -424,7 +424,7 @@ def try_start(by: str, total: int = 0) -> bool:
             return False
         _JOB.clear()
         _JOB.update(running=True, phase="versions", done=0, total=total, by=by,
-                    started=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+                    started=now_iso())
         return True
 
 
@@ -453,7 +453,7 @@ def run_job(rows: list[dict], database: str, username: str, ip: str | None = Non
         summary = {"vulns_ok": False, "vulns_error": "failed"}
     finally:
         with _JOB_LOCK:
-            _JOB.update(running=False, finished=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            _JOB.update(running=False, finished=now_iso(),
                         summary=summary)
     return summary
 

@@ -19,6 +19,7 @@ from ..guards import admin_required, audit_event
 from .. import search
 from .groups import directory_lookup
 from .settings.common import save_partial
+from ...settings.layers import CONFIG_ORIGINS
 
 bp = Blueprint("access", __name__, url_prefix="/admin/access")
 
@@ -81,21 +82,31 @@ def _form_share(original: dict | None) -> dict:
 def entity_lock(kind: str, item: dict | None) -> str:
     """Si la carpeta (o ubicación) está fijada en config.json o en el entorno: el mensaje; se ve pero no se edita.
     Las de la web (tabla ``shares``) se editan."""
-    if not item or item.get("origin") not in ("file", "env"):
+    if not item or item.get("origin") not in CONFIG_ORIGINS:
         return ""
     return runtime()._entity_lock_message(kind, item["name"], item["origin"])
 
 
+def lock_context(kind: str, item: dict | None = None) -> dict:
+    """Lo que necesitan las plantillas de la lista y la ficha (``shares`` o ``locations``) para el aviso de fijado."""
+    return {f"{kind}_origin": None, "locked_message": entity_lock(kind, item)}
+
+
+def refuse_if_locked(kind: str, item: dict | None, back_endpoint: str):
+    """Si ``item`` está fijado en config.json o el entorno: el aviso y de vuelta a la lista; si no, ``None``."""
+    notice = entity_lock(kind, item)
+    if notice:
+        flash(notice, "error")
+        return redirect(url_for(back_endpoint))
+    return None
+
+
 def _lock_context(share: dict | None = None) -> dict:
-    return {"shares_origin": None, "locked_message": entity_lock("shares", share)}
+    return lock_context("shares", share)
 
 
 def _refuse_if_locked(share: dict | None):
-    notice = entity_lock("shares", share)
-    if notice:
-        flash(notice, "error")
-        return redirect(url_for("access.folders"))
-    return None
+    return refuse_if_locked("shares", share, "access.folders")
 
 
 def _share_usage(name: str | None) -> dict | None:

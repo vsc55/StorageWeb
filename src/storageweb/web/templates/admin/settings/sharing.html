@@ -1,6 +1,6 @@
 {% extends "admin/settings/_layout.html" %}
 {% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
-{% from "_link_filter.html" import link_filter, deleted_table with context %}
+{% from "_link_filter.html" import link_filter, deleted_table, link_state, link_kind, link_expires, link_uses, link_visits, revoke_link with context %}
 {% block section %}
 {# Acceso → Enlaces para compartir: los ajustes y todos los enlaces de todos, para revocarlos #}
 {% set sh = cfg.sharing %}
@@ -23,19 +23,13 @@
         <tr>
           <td>{{ l.owner }}{% if not l.owner_enabled %} <span class="badge">{{ _("disabled") }}</span>{% endif %}</td>
           <td class="mono">{{ l.root }}:/{{ l.rel }}</td>
-          <td>{{ MODE_LABELS[l.mode] }}{% if l.has_password %} · {{ _("with password") }}{% endif %}</td>
-          <td><span class="badge{% if l.state != 'ok' %} badge-err{% else %} badge-ok{% endif %}">{{ STATE_LABELS[l.state] }}</span></td>
-          <td class="muted" data-sort-value="{{ l.expires_at or '9999' }}">{{ l.expires_at|datetime if l.expires_at else _("never") }}</td>
-          <td class="num" data-sort-value="{{ l.downloads }}">{% if l.mode == 'upload' %}{{ ngettext("%(num)s upload", "%(num)s uploads", l.uploads) }}{% else %}{{ l.downloads }}{% if l.max_downloads %} / {{ l.max_downloads }}{% endif %}{% endif %}</td>
+          <td>{{ link_kind(l.mode, l.has_password) }}</td>
+          <td>{{ link_state(l.state) }}</td>
+          {{ link_expires(l, sortable=True) }}
+          {{ link_uses(l, sortable=True) }}
           <td class="muted" data-sort-value="{{ l.created_at }}">{{ l.created_at|datetime }}</td>
-          {% set act = link_activity.get(l.uid, {}) %}
-          <td class="nowrap" data-sort-value="{{ act.get('opened', 0) }}"><a href="{{ url_for('links.activity', uid=l.uid, next=request.full_path) }}">{{ ngettext("%(num)s visit", "%(num)s visits", act.get('opened', 0)) }}</a></td>
-          <td class="cell-end">{% if l.state != 'revoked' %}
-            <form method="post" action="{{ url_for('links.revoke', uid=l.uid) }}" class="inline js-confirm"
-                  data-confirm="{{ _('Remove this link of %(name)s? It stops working at once.', name=l.owner) }}">
-              <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.full_path }}">
-              <button class="link-btn small text-danger" type="submit">{{ _("Remove") }}</button></form>{% endif %}
-          </td>
+          {{ link_visits(l.uid, link_activity.get(l.uid, {}), sortable=True) }}
+          <td class="cell-end">{{ revoke_link(l, _("Remove"), _('Remove this link of %(name)s? It stops working at once.', name=l.owner)) }}</td>
         </tr>
         {% endfor %}
       </tbody>

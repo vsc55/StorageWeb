@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_forms.html" import post_button with context %}
 {% block title %}{{ _("Turn on two-step verification") }} · {{ app_name }}{% endblock %}
 {% block content %}
 <div class="page">
@@ -7,10 +8,7 @@
     <p class="muted">{{ _("Besides your password, signing in will ask for a code from an app on your phone. Someone who learns your password still cannot get in.") }}</p>
     {% set action = url_for('mfa.confirm') %}
     {% include "_mfa_setup.html" %}
-    <form method="post" action="{{ url_for('mfa.cancel') }}" class="inline">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <button class="btn btn-ghost" type="submit">{{ _("Cancel") }}</button>
-    </form>
+    {{ post_button(url_for('mfa.cancel'), _("Cancel"), btn='btn btn-ghost') }}
   </section>
 </div>
 {% endblock %}

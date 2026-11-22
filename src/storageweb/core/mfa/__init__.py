@@ -280,6 +280,21 @@ def assertion_options(conn: Connection, user, *, rp_id: str, challenge: str) -> 
             "allow": [k["credential_id"] for k in repo.passkeys(conn, user["id"])]}
 
 
+def _check_assertion(conn: Connection, row, *, auth_data: bytes, client_data_json: bytes, signature: bytes,
+                     challenge: str, rp_id: str, origin: str, require_uv: bool = False) -> None:
+    """Comprueba la firma de una aserción con la passkey ``row`` (su clave, su algoritmo y su contador) y apunta su
+    uso; :class:`PasskeyError` si no vale o si otra petición la usó a la vez."""
+    try:
+        key = cbor.decode(webauthn.b64u_decode(row["public_key"]))
+        out = webauthn.verify_assertion(auth_data=auth_data, client_data_json=client_data_json, signature=signature,
+                                        challenge=challenge, rp_id=rp_id, origin=origin, public_key=key,
+                                        alg=row["alg"], last_sign_count=row["sign_count"], require_uv=require_uv)
+    except (webauthn.CeremonyError, cbor.CborError) as exc:
+        raise PasskeyError(str(exc)) from exc
+    if not repo.note_passkey_use(conn, row["id"], row["sign_count"], out["sign_count"]):
+        raise PasskeyError("concurrent use of the same credential")
+
+
 def verify_passkey(conn: Connection, user, *, credential_id: str, auth_data: bytes, client_data_json: bytes,
                    signature: bytes, challenge: str, rp_id: str, origin: str) -> str:
     """Comprueba una aserción con una passkey de esta cuenta y apunta su uso. Devuelve su nombre o lanza
@@ -287,15 +302,8 @@ def verify_passkey(conn: Connection, user, *, credential_id: str, auth_data: byt
     row = repo.passkey(conn, user["id"], str(credential_id or ""))
     if row is None:
         raise PasskeyError("unknown credential")
-    try:
-        key = cbor.decode(webauthn.b64u_decode(row["public_key"]))
-        out = webauthn.verify_assertion(auth_data=auth_data, client_data_json=client_data_json, signature=signature,
-                                        challenge=challenge, rp_id=rp_id, origin=origin, public_key=key,
-                                        alg=row["alg"], last_sign_count=row["sign_count"])
-    except (webauthn.CeremonyError, cbor.CborError) as exc:
-        raise PasskeyError(str(exc)) from exc
-    if not repo.note_passkey_use(conn, row["id"], row["sign_count"], out["sign_count"]):
-        raise PasskeyError("concurrent use of the same credential")
+    _check_assertion(conn, row, auth_data=auth_data, client_data_json=client_data_json, signature=signature,
+                     challenge=challenge, rp_id=rp_id, origin=origin)
     return row["name"]
 
 
@@ -339,15 +347,8 @@ def verify_passwordless(conn: Connection, *, credential_id: str, user_handle: by
     # Los bytes que se dieron como user.id al registrarla (los de _user_handle, ya decodificados): el uid de la cuenta
     if not user_handle or bytes(user_handle) != str(row["user_uid"]).encode():
         raise PasskeyError("user handle does not match")
-    try:
-        key = cbor.decode(webauthn.b64u_decode(row["public_key"]))
-        out = webauthn.verify_assertion(auth_data=auth_data, client_data_json=client_data_json, signature=signature,
-                                        challenge=challenge, rp_id=rp_id, origin=origin, public_key=key,
-                                        alg=row["alg"], last_sign_count=row["sign_count"], require_uv=True)
-    except (webauthn.CeremonyError, cbor.CborError) as exc:
-        raise PasskeyError(str(exc)) from exc
-    if not repo.note_passkey_use(conn, row["id"], row["sign_count"], out["sign_count"]):
-        raise PasskeyError("concurrent use of the same credential")
+    _check_assertion(conn, row, auth_data=auth_data, client_data_json=client_data_json, signature=signature,
+                     challenge=challenge, rp_id=rp_id, origin=origin, require_uv=True)
     return row["user_id"]
 
 

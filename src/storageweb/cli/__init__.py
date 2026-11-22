@@ -19,8 +19,7 @@ from .. import audit_levels, i18n, registry, siem
 from ..db import connect, init_db
 from ..i18n import _
 from ..settings import ConfigError, load_config
-from ..settings.runtime import open_runtime
-from .common import COMMANDS, Command
+from .common import Command, COMMANDS, config_error, effective
 
 def commands() -> list[Command]:
     registry.import_submodules(__name__)  # cada módulo registra sus comandos al importarse
@@ -56,11 +55,10 @@ def _main(argv: list[str] | None) -> int:
     try:
         cfg = load_config(args.config)
     except ConfigError as exc:
-        print(_("Configuration error: %(error)s", error=exc), file=sys.stderr)
-        return 2
+        return config_error(exc)
     init_db(cfg["database"])
     conn = connect(cfg["database"])
-    _forward_audit(args, conn)
+    _forward_audit(cfg, conn, args)
     try:
         cmd.run(cfg, conn, args)
     finally:
@@ -69,11 +67,11 @@ def _main(argv: list[str] | None) -> int:
     return 0
 
 
-def _forward_audit(args, conn) -> None:
+def _forward_audit(cfg, conn, args) -> None:
     """La auditoría de la CLI (``username = cli``) también va al SIEM, con los ajustes guardados desde la web."""
     try:
-        runtime, _boot = open_runtime(args.config, create_key=False)
-        siem.configure(runtime.current(conn)["audit"])
-        audit_levels.configure(runtime.current(conn)["audit"]["min_level"])
+        audit_cfg = effective(cfg, conn, args)["audit"]
+        siem.configure(audit_cfg)
+        audit_levels.configure(audit_cfg["min_level"])
     except Exception:  # noqa: BLE001 (la orden se hace igual)
         pass

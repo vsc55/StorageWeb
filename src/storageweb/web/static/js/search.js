@@ -15,23 +15,12 @@
   var timer = null;
   var seq = 0;
 
-  function el(tag, cls, text) {
-    var node = document.createElement(tag);
-    if (cls) node.className = cls;
-    if (text) node.textContent = text;
-    return node;
-  }
+  var el = window.SW.el;
 
   function icon(name, fallback) {
     var box = el("span", "result-icon");
     if (name) {
-      var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      svg.setAttribute("class", "icon");
-      svg.setAttribute("aria-hidden", "true");
-      var use = document.createElementNS("http://www.w3.org/2000/svg", "use");
-      use.setAttribute("href", "#i-" + name);
-      svg.appendChild(use);
-      box.appendChild(svg);
+      box.appendChild(window.SW.icon(name));
     } else {
       box.textContent = fallback;
     }
@@ -90,8 +79,7 @@
   function query() {
     var q = input.value;
     var mine = ++seq;
-    fetch(url + "&q=" + encodeURIComponent(q), { headers: { Accept: "application/json" }, credentials: "same-origin" })
-      .then(function (r) { return r.json(); })
+    window.SW.getJSON(url + "&q=" + encodeURIComponent(q))
       .then(function (data) { if (mine === seq) render(data.results, q); })
       .catch(function () { /* se puede seguir con Enter: página de resultados */ });
   }

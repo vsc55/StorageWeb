@@ -13,11 +13,10 @@ import logging
 import threading
 import time
 from datetime import datetime
-from pathlib import Path
 from sqlite3 import Connection
 
 from .. import __version__, metrics
-from ..db.connection import now_iso
+from ..db.connection import db_size, now_iso
 from . import alerts, locations, maintenance, quota, storage
 
 _log = logging.getLogger(__name__)
@@ -144,8 +143,7 @@ def snapshot(conn: Connection, cfg: dict, boot: dict) -> list[metrics.Family]:
     if newest is not None:
         out.append(F("storageweb_backup_last_timestamp_seconds", "gauge", "When the newest backup was made.",
                      [({}, newest)]))
-    database = Path(boot["database"])
-    size = sum(p.stat().st_size for p in (database, Path(f"{database}-wal")) if p.exists())
+    size = db_size(boot["database"])
     out.append(F("storageweb_database_size_bytes", "gauge", "Size of the SQLite database (with its WAL).",
                  [({}, size)]))
 

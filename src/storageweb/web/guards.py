@@ -10,17 +10,17 @@ import threading
 import time
 from functools import wraps
 
-from flask import Response, abort, g, redirect, render_template, request, session, url_for
+from flask import Response, abort, g, redirect, request, session, url_for
 
 from ..core import accounts, ipban, maintenance, mfa, tokens
-from ..core.permissions import is_admin
+from ..core.permissions import effective_for_root, is_admin, permissions_for
 from ..db.connection import now_iso
 from ..db.repositories import audit
 from ..db.repositories import sessions as session_repo
 from ..db.repositories import users
 from ..i18n import LOCALES, _, reset_locale, set_locale
 from ..i18n import normalize as normalize_locale
-from .context import get_db, settings, throttle
+from .context import get_db, login_limiter, settings
 
 
 def client_ip() -> str:
@@ -35,6 +35,12 @@ def csrf_token() -> str:
     return token
 
 
+def csrf_ok(sent: str | None) -> bool:
+    """Si ``sent`` es el token CSRF de esta sesión (comparado en tiempo constante)."""
+    expected = session.get("_csrf")
+    return bool(expected and sent) and hmac.compare_digest(str(expected).encode(), sent.encode())
+
+
 def check_csrf() -> None:
     if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
         return
@@ -42,9 +48,7 @@ def check_csrf() -> None:
         return  # sin cookies no hay CSRF posible: las credenciales van en la cabecera
     if request.endpoint == CONNECT_TOKEN_ENDPOINT:
         return  # canje de un código de /connect: no usa la sesión, el secreto es el verifier (PKCE)
-    expected = session.get("_csrf")
-    sent = request.headers.get("X-CSRF-Token") or request.form.get("_csrf")
-    if not expected or not sent or not hmac.compare_digest(expected, sent):
+    if not csrf_ok(request.headers.get("X-CSRF-Token") or request.form.get("_csrf")):
         ipban.offense(get_db(), settings(), client_ip(), "csrf")
         audit_event("csrf_rejected", request.path, request.method)
         abort(400, description=_("Invalid CSRF token. Reload the page and try again."))
@@ -181,8 +185,7 @@ def _load_dav_user(header: str) -> None:
     except (binascii.Error, UnicodeDecodeError):
         abort(400)
     username = username.rpartition("\\")[2].strip()  # Windows puede enviar «EQUIPO\usuario»
-    ip, limiter = client_ip(), throttle()
-    limiter.configure(cfg["security"]["max_login_failures"], cfg["security"]["lockout_minutes"] * 60)
+    ip, limiter = client_ip(), login_limiter()
     if not username or limiter.is_blocked(ip, username, DAV_BLUEPRINT):
         return
     user, token, reason = None, None, "bad_password"
@@ -256,7 +259,7 @@ def maintenance_gate():
     if not maintenance.RESTORING.is_set() or request.endpoint == "static":
         return None
     message = _("A backup is being restored. Try again in a moment.")
-    if request.blueprint == DAV_BLUEPRINT or request.accept_mimetypes.best == "application/json":
+    if request.blueprint == DAV_BLUEPRINT or wants_json():
         return Response(f"503 Service Unavailable\n{message}\n", 503, mimetype="text/plain",
                         headers={"Retry-After": "30"})
     from .errors import error_page  # noqa: PLC0415 (errors importa de aquí)
@@ -297,3 +300,41 @@ def audit_event(action: str, target: str | None = None, detail: str | None = Non
     user = g.get("user")
     audit.log(get_db(), action, target, username=username or (user["username"] if user is not None else None),
               ip=client_ip(), detail=with_token(detail), level=level)
+
+
+def audit_path(action: str, root: dict | str, rel: str, detail: str | None = None) -> None:
+    """:func:`audit_event` de una operación sobre una ruta: el objetivo es ``<raíz>:/<ruta>`` (``root``: la raíz o
+    su nombre)."""
+    name = root if isinstance(root, str) else root["name"]
+    audit_event(action, f"{name}:/{rel}", detail)
+
+
+def root_perms(root: dict) -> frozenset[str]:
+    """Lo que el usuario de la petición puede hacer en ``root``: lo de sus roles, recortado por la carpeta (solo
+    lectura) y, si entró con un token, por su alcance."""
+    return tokens.restrict(effective_for_root(permissions_for(g.user, settings()), root), g.get("api_token"))
+
+
+def wants_json() -> bool:
+    """La petición prefiere JSON (el JavaScript de la página, la API) en vez de una página."""
+    return request.accept_mimetypes.best == "application/json"
+
+
+def require_api_tokens() -> None:
+    """403 si los tokens de API están desactivados (``security.api_tokens``)."""
+    if not settings()["security"]["api_tokens"]:
+        abort(403, description=_("API tokens are disabled."))
+
+
+def user_or_404(user_uid: str):
+    """La cuenta por su identificador público (el de las direcciones); 404 si no existe."""
+    user = users.get_by_uid(get_db(), user_uid)
+    if user is None:
+        abort(404)
+    return user
+
+
+def to_login():
+    """A la pantalla de entrada con el formulario de usuario y contraseña a la vista (``manual=1``)."""
+    return redirect(url_for("auth.login", manual=1))
+

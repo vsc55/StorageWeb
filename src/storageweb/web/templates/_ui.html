@@ -1,0 +1,40 @@
+{# Piezas de la interfaz que se repiten en varias páginas (importar «with context»: usan brand y url_for) #}
+
+{# El logo de la marca: el subido en Sistema → General y marca o, sin él, el icono de serie #}
+{% macro brand_logo() -%}
+{% if brand.logo %}<img src="{{ url_for('brand.logo', v=brand.version) }}" alt="">{% else %}<svg class="icon" aria-hidden="true"><use href="#i-logo"></use></svg>{% endif %}
+{%- endmacro %}
+
+{# Una cifra del tablero (.stat-grid, role=list): etiqueta, ``value`` (si no es None) y una nota (``note`` o el
+   cuerpo del «{% call %}»). Con ``href`` es un enlace; ``state`` (warn, bad) la marca con su color #}
+{% macro stat_tile(label, value=None, note=None, href=None, state=None) -%}
+{% set tag = 'a' if href else 'div' %}
+<{{ tag }} class="stat-tile{% if state %} is-{{ state }}{% endif %}" role="listitem"{% if href %} href="{{ href }}"{% endif %}>
+  <span class="stat-label">{{ label }}</span>
+  {%- if value is not none %}<span class="stat-value">{{ value }}</span>{% endif %}
+  {%- if caller %}<span class="stat-note">{{ caller() }}</span>{% elif note %}<span class="stat-note">{{ note }}</span>{% endif %}
+</{{ tag }}>
+{%- endmacro %}
+
+{# Icono de una entrada del explorador: carpeta o archivo (``size``: sm, xs…) #}
+{% macro entry_icon(is_dir, size='') -%}
+<svg class="icon{% if size %} icon-{{ size }}{% endif %} {{ 'folder-icon' if is_dir else 'file-icon' }}" aria-hidden="true"><use href="#i-{{ 'folder' if is_dir else 'file' }}"></use></svg>
+{%- endmacro %}
+
+{# A dónde lleva una entrada: la carpeta, el visor si lo abre (viewable, del contexto de la vista) o la descarga #}
+{% macro entry_href(root, rel, name, is_dir=False) -%}
+{{ url_for('files.browse', root=root, sub=rel) if is_dir else url_for('files.view' if viewable(name) else 'files.download', root=root, sub=rel) }}
+{%- endmacro %}
+
+{# Título del visor y del editor: el camino (raíz y carpetas, enlazados), el nombre con su icono y, con
+   «{% call %}», lo que vaya debajo #}
+{% macro viewer_title(root, crumbs, name, icon) -%}
+<div class="viewer-title">
+  <nav class="viewer-crumbs" aria-label="{{ _('Location') }}">
+    <a href="{{ url_for('files.browse', root=root.name, sub='') }}">{{ root.label }}</a>
+    {% for c in crumbs %}<span aria-hidden="true">/</span><a href="{{ url_for('files.browse', root=root.name, sub=c.rel) }}">{{ c.name }}</a>{% endfor %}
+  </nav>
+  <h1><svg class="icon icon-sm" aria-hidden="true"><use href="#i-{{ icon }}"></use></svg><span>{{ name }}</span></h1>
+  {{ caller() if caller else '' }}
+</div>
+{%- endmacro %}

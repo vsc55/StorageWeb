@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from storageweb.web.context import get_db, runtime, settings
-from tests.helpers import add_user, get_csrf, login, page_form
+from tests.helpers import page_form, signed_in
 
 
 @pytest.fixture
@@ -29,10 +29,7 @@ def locked_app(monkeypatch, tmp_path):
 
 
 def _admin(app):
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
-    return client, get_csrf(client, "/admin/settings/general")
+    return signed_in(app, "root", role="admin", csrf_url="/admin/settings/general")
 
 
 def test_locked_fields_are_shown_disabled(locked_app):

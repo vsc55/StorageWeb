@@ -23,7 +23,7 @@ from pathlib import Path
 
 from ..i18n import _, _l
 from ..settings import ConfigError, default_config_path
-from .common import command
+from .common import command, config_error
 
 SERVICE_NAME = "StorageWeb"
 ACTIONS = ("install", "remove", "start", "stop", "status")
@@ -131,6 +131,12 @@ def parse_state(output: str) -> str | None:
 
 # --------------------------------------------------------------------------- ejecución (solo Windows)
 
+
+def _output(result) -> str:
+    """Lo que ha dicho un programa (``sc.exe``, ``icacls``): su salida o, si no hay, sus errores."""
+    return (result.stdout or result.stderr).strip()
+
+
 def _run(argv: list[str]) -> subprocess.CompletedProcess:
     # Las herramientas de consola de Windows escriben en la página de códigos OEM
     return subprocess.run(argv, capture_output=True, encoding="oem", errors="replace", check=False)
@@ -187,8 +193,7 @@ def _install(args, name: str, config: Path) -> int:
     try:
         cfg = _effective_config(config)
     except ConfigError as exc:
-        print(_("Configuration error: %(error)s", error=exc), file=sys.stderr)
-        return 2
+        return config_error(exc)
     if _query(name) is not None:
         print(_("The service %(name)s already exists. Remove it first: storageweb service remove", name=name),
               file=sys.stderr)
@@ -199,7 +204,7 @@ def _install(args, name: str, config: Path) -> int:
         result = _run(step)
         if result.returncode != 0:
             print(_("«%(command)s» failed: %(output)s", command=" ".join(step[:3]),
-                    output=(result.stdout or result.stderr).strip()), file=sys.stderr)
+                    output=_output(result)), file=sys.stderr)
             if step[1] != "create":
                 _run(["sc.exe", "delete", name])
             return 1
@@ -216,7 +221,7 @@ def _install(args, name: str, config: Path) -> int:
             result = _run(icacls(account, path, perm))
             if result.returncode != 0:
                 print(_("Could not give %(account)s access to %(path)s: %(output)s", account=account, path=path,
-                        output=(result.stdout or result.stderr).strip()), file=sys.stderr)
+                        output=_output(result)), file=sys.stderr)
             else:
                 print(_("  Read access: %(path)s", path=path) if perm in ("R", "RX")
                       else _("  Write access: %(path)s", path=path))
@@ -230,17 +235,23 @@ def _install(args, name: str, config: Path) -> int:
     return 0
 
 
+def _stop_and_wait(name: str, state: str) -> str | None:
+    """Para el servicio si no lo está y espera (30 s como mucho) a que lo esté; devuelve su estado."""
+    if state == "STOPPED":
+        return state
+    _run(["sc.exe", "stop", name])
+    return _wait(name, "STOPPED", timeout=30)
+
+
 def _remove(name: str) -> int:
     state = _query(name)
     if state is None:
         print(_("The service %(name)s is not installed.", name=name), file=sys.stderr)
         return 1
-    if state != "STOPPED":
-        _run(["sc.exe", "stop", name])
-        _wait(name, "STOPPED", timeout=30)
+    _stop_and_wait(name, state)
     result = _run(["sc.exe", "delete", name])
     if result.returncode != 0:
-        print((result.stdout or result.stderr).strip(), file=sys.stderr)
+        print(_output(result), file=sys.stderr)
         return 1
     print(_("Service %(name)s removed. The access given to its account stays on the folders.", name=name))
     return 0
@@ -254,7 +265,7 @@ def _start(name: str, config: Path) -> int:
     if state != "RUNNING":
         result = _run(["sc.exe", "start", name])
         if result.returncode != 0:
-            print((result.stdout or result.stderr).strip(), file=sys.stderr)
+            print(_output(result), file=sys.stderr)
         state = _wait(name, "RUNNING")
     if state == "RUNNING":
         print(_("Service %(name)s running.", name=name), _log_hint(config))
@@ -268,9 +279,7 @@ def _stop(name: str) -> int:
     if state is None:
         print(_("The service %(name)s is not installed.", name=name), file=sys.stderr)
         return 1
-    if state != "STOPPED":
-        _run(["sc.exe", "stop", name])
-        state = _wait(name, "STOPPED", timeout=30)
+    state = _stop_and_wait(name, state)
     print(_("Service %(name)s stopped.", name=name) if state == "STOPPED"
           else _("The service %(name)s is still stopping.", name=name))
     return 0 if state == "STOPPED" else 1

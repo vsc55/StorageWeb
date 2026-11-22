@@ -14,21 +14,21 @@ import os
 import urllib.error
 import urllib.request
 from collections.abc import Iterable
-from datetime import datetime, timezone
 from pathlib import Path
 
 from ..i18n import _
 from ..providers import local
+from ..settings.errors import UserError
+from ..clock import now_iso
+from ..fsutil import atomic_write
 
 FILE_NAME = "common_passwords.txt"
 MAX_BYTES = 64 * 1024 * 1024          # entre todas las fuentes: la de SecLists con un millón son unos 8 MB
 TIMEOUT = 60
 
 
-class PasswordListError(Exception):
-    def __init__(self, message: str):
-        super().__init__(message)
-        self.message = message
+class PasswordListError(UserError):
+    pass
 
 
 def own_path(data_dir: str | os.PathLike) -> Path:
@@ -80,13 +80,11 @@ def install(data_dir: str | os.PathLike, texts: Iterable[str], source: str) -> i
                                   num=local.MIN_PASSWORD_LENGTH))
     path = own_path(data_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
-    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    now = now_iso()
     source = " ".join(str(source).split())[:500]
     body = (f"# Contraseñas comunes que rechaza security.password_check (lista propia de este servidor).\n"
             f"# source: {source}\n# updated: {now}\n" + "\n".join(words) + "\n")
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(body, encoding="utf-8")
-    os.replace(tmp, path)
+    atomic_write(path, body)
     return len(words)
 
 

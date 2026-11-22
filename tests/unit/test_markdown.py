@@ -8,6 +8,7 @@ import pytest
 
 from storageweb.core import markdown as md
 from storageweb.core import preview
+from tests.helpers import load_tool
 
 
 def _html(text: str, **kw) -> str:
@@ -186,10 +187,4 @@ def test_mermaid_blocks_are_marked_for_the_viewer():
 
 def test_vendored_libraries_match_their_hashes():
     """static/vendor/ (Mermaid) es lo que descargó tools/vendor.py con la huella fijada: nada cambiado a mano."""
-    import importlib.util
-    from pathlib import Path
-
-    spec = importlib.util.spec_from_file_location("vendor", Path(__file__).resolve().parents[2] / "tools" / "vendor.py")
-    vendor = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(vendor)
-    assert vendor.check() == []
+    assert load_tool("tools/vendor.py").check() == []

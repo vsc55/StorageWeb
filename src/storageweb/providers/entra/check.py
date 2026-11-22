@@ -17,9 +17,8 @@ import urllib.request
 
 from ...i18n import _, _l, format_datetime
 from . import oauth2
-from .common import MS_LOGIN, endpoints
+from .common import app_token_request, custom_endpoints, endpoints, MS_LOGIN
 
-GRAPH_DEFAULT_SCOPE = "https://graph.microsoft.com/.default"
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -43,7 +42,7 @@ def _result(key: str, ok: bool | None, message: str) -> dict:
 
 
 def _uses_microsoft(ecfg: dict) -> bool:
-    return not any(ecfg.get(k) for k in ("authorize_url", "token_url", "issuer"))
+    return not custom_endpoints(ecfg)
 
 
 # Permisos de aplicación (sin usuario) que usa StorageWeb, para qué y la clave de su resultado
@@ -140,10 +139,7 @@ def check(ecfg: dict, redirect_uri: str, secret_is_new: bool = False, last_signi
         results.append(_result("secret", False, _("There is no client secret.")))
         return results
     try:
-        token = oauth2._http_post(eps["token"], {"grant_type": "client_credentials",
-                                                 "client_id": ecfg.get("client_id", ""),
-                                                 "client_secret": ecfg["client_secret"],
-                                                 "scope": GRAPH_DEFAULT_SCOPE}, timeout)
+        token = app_token_request(ecfg, timeout)
     except Exception as exc:  # noqa: BLE001 (cualquier fallo de red se muestra tal cual)
         results.append(_result("secret", None, _("The secret could not be checked: %(error)s", error=exc)))
         return results

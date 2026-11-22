@@ -37,7 +37,7 @@
 
 Se aplican solas al arrancar, o con `storageweb-admin init-db`, en orden y cada una en una transacción. El log muestra `Migraciones aplicadas: 002, …`.
 
-**Volver a una versión anterior** no deshace las migraciones. Si una actualización sale mal, restaura la copia que hiciste antes de actualizar, con la versión anterior instalada ([Restaurar](copias-seguridad.md#restaurar)).
+**Volver a una versión anterior** no deshace las migraciones. Si una actualización sale mal, restaura la copia que hiciste antes de actualizar, con la versión anterior instalada ([Restaurar desde la línea de comandos](copias-seguridad.md#restaurar-desde-la-linea-de-comandos)).
 
 ## Versionado
 

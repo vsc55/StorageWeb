@@ -18,8 +18,7 @@ import time
 import urllib.parse
 
 from ..base import SSOError
-from . import oauth2
-from .common import endpoints
+from .common import app_token_request, custom_endpoints
 from .register import GRAPH, RegisterError, _message, _request
 
 TOKEN_TTL = 50 * 60
@@ -37,8 +36,8 @@ def _details(obj: dict) -> dict:
 
 def configured(ecfg: dict) -> bool:
     """Si hay datos para pedir un token de aplicación a Microsoft."""
-    custom = any(ecfg.get(k) for k in ("authorize_url", "token_url", "issuer"))
-    return bool(ecfg.get("tenant_id") and ecfg.get("client_id") and ecfg.get("client_secret")) and not custom
+    return (bool(ecfg.get("tenant_id") and ecfg.get("client_id") and ecfg.get("client_secret"))
+            and not custom_endpoints(ecfg))
 
 
 def _app_token(ecfg: dict) -> str:
@@ -48,10 +47,7 @@ def _app_token(ecfg: dict) -> str:
         if cached and cached[0] > time.monotonic():
             return cached[1]
     try:
-        body = oauth2._http_post(endpoints(ecfg)["token"], {
-            "grant_type": "client_credentials", "client_id": ecfg["client_id"],
-            "client_secret": ecfg["client_secret"], "scope": "https://graph.microsoft.com/.default"},
-            float(ecfg.get("timeout_seconds") or 10))
+        body = app_token_request(ecfg, float(ecfg.get("timeout_seconds") or 10))
     except SSOError as exc:
         # Sin red, DNS o Microsoft caído: como cualquier otro fallo de Graph (las páginas no deben romperse)
         raise RegisterError(str(exc)) from exc
@@ -63,13 +59,33 @@ def _app_token(ecfg: dict) -> str:
     return token
 
 
-def can_read_groups(access_token: str) -> tuple[bool, str]:
-    """(True, "") si el token puede listar grupos; si no, (False, motivo)."""
+def _graph(ecfg: dict, method: str, url: str, what: str, *, body: dict | None = None, warn: bool = False):
+    """Una llamada a Graph con el token de la aplicación: su JSON si va bien (200); si no (sin permiso, sin red,
+    Microsoft caído…), ``None`` y queda en el log con ``what``. Las páginas no se rompen por el directorio."""
+    log = _log.warning if warn else _log.info
     try:
-        status, data = _request("GET", f"{GRAPH}/groups?$top=1&$select=id", token=access_token)
+        status, data = _request(method, url, token=_app_token(ecfg), body=body)
+    except RegisterError as exc:
+        log("%s: %s", what, exc)
+        return None
+    if status != 200:
+        log("%s: %s", what, _message(data) or status)
+        return None
+    return data
+
+
+def _can_read(access_token: str, url: str) -> tuple[bool, str]:
+    """(True, "") si el token puede hacer esa consulta; si no, (False, motivo)."""
+    try:
+        status, data = _request("GET", url, token=access_token)
     except RegisterError as exc:
         return False, str(exc)
     return (True, "") if status == 200 else (False, _message(data) or f"HTTP {status}")
+
+
+def can_read_groups(access_token: str) -> tuple[bool, str]:
+    """(True, "") si el token puede listar grupos; si no, (False, motivo)."""
+    return _can_read(access_token, f"{GRAPH}/groups?$top=1&$select=id")
 
 
 def search_groups(ecfg: dict, text: str, limit: int = 20) -> list[dict]:
@@ -79,13 +95,9 @@ def search_groups(ecfg: dict, text: str, limit: int = 20) -> list[dict]:
     if len(text) < 2 or not configured(ecfg):
         return []
     query = urllib.parse.quote(text.replace("'", "''"))
-    try:
-        status, data = _request("GET", f"{GRAPH}/groups?$filter=startswith(displayName,'{query}')"
-                                       f"&$select={SELECT}&$top={limit}", token=_app_token(ecfg))
-    except RegisterError as exc:
-        _log.info("Entra group search failed: %s", exc)
-        return []
-    if status != 200:
+    data = _graph(ecfg, "GET", f"{GRAPH}/groups?$filter=startswith(displayName,'{query}')"
+                                 f"&$select={SELECT}&$top={limit}", "Entra group search failed")
+    if data is None:
         return []
     groups = [{"id": g["id"].lower(), **_details(g)} for g in data.get("value", [])]
     with _lock:
@@ -117,13 +129,9 @@ def info_for(ecfg: dict, ids) -> dict[str, dict]:
                 missing.append(oid)
     for start in range(0, len(missing), 1000):
         chunk = missing[start:start + 1000]
-        try:
-            status, data = _request("POST", f"{GRAPH}/directoryObjects/getByIds", token=_app_token(ecfg),
-                                    body={"ids": chunk, "types": ["group"]})
-        except RegisterError as exc:
-            _log.info("Entra group names failed: %s", exc)
-            return result
-        if status != 200:
+        data = _graph(ecfg, "POST", f"{GRAPH}/directoryObjects/getByIds", "Entra group names failed",
+                      body={"ids": chunk, "types": ["group"]})
+        if data is None:
             return result
         found = {o["id"].lower(): _details(o) for o in data.get("value", [])}
         with _lock:
@@ -140,14 +148,9 @@ def member_groups(ecfg: dict, oid: str) -> list[str] | None:
     claim ``groups`` del token. ``None`` si no se pueden leer (sin permiso, sin red…)."""
     if not configured(ecfg) or not oid:
         return None
-    try:
-        status, data = _request("POST", f"{GRAPH}/users/{urllib.parse.quote(oid, safe='')}/getMemberGroups",
-                                token=_app_token(ecfg), body={"securityEnabledOnly": True})
-    except RegisterError as exc:
-        _log.warning("Entra groups of %s could not be read: %s", oid, exc)
-        return None
-    if status != 200:
-        _log.warning("Entra groups of %s could not be read: %s", oid, _message(data) or status)
+    data = _graph(ecfg, "POST", f"{GRAPH}/users/{urllib.parse.quote(oid, safe='')}/getMemberGroups",
+                  f"Entra groups of {oid} could not be read", body={"securityEnabledOnly": True}, warn=True)
+    if data is None:
         return None
     return sorted({str(g).lower() for g in data.get("value", [])})
 
@@ -187,14 +190,9 @@ def search_users(ecfg: dict, text: str, limit: int = 25) -> list[dict] | None:
     value = urllib.parse.quote(text.replace("'", "''"))
     query = (f"startswith(displayName,'{value}') or startswith(userPrincipalName,'{value}') "
              f"or startswith(mail,'{value}')")
-    try:
-        status, data = _request("GET", f"{GRAPH}/users?$filter={query}&$select={USER_SELECT}&$top={int(limit)}",
-                                token=_app_token(ecfg))
-    except RegisterError as exc:
-        _log.info("Entra user search failed: %s", exc)
-        return None
-    if status != 200:
-        _log.info("Entra user search failed: %s", _message(data) or status)
+    data = _graph(ecfg, "GET", f"{GRAPH}/users?$filter={query}&$select={USER_SELECT}&$top={int(limit)}",
+                  "Entra user search failed")
+    if data is None:
         return None
     return sorted(data.get("value", []), key=lambda u: str(u.get("displayName") or "").lower())
 
@@ -214,13 +212,8 @@ def list_users(ecfg: dict, skiptoken: str = "", page_size: int = 50) -> tuple[li
     url = f"{GRAPH}/users?$select={USER_SELECT}&$top={max(1, min(int(page_size), 999))}&$orderby=displayName"
     if skiptoken:
         url += "&$skiptoken=" + urllib.parse.quote(skiptoken, safe="")
-    try:
-        status, data = _request("GET", url, token=_app_token(ecfg))
-    except RegisterError as exc:
-        _log.info("Entra user list failed: %s", exc)
-        return None
-    if status != 200:
-        _log.info("Entra user list failed: %s", _message(data) or status)
+    data = _graph(ecfg, "GET", url, "Entra user list failed")
+    if data is None:
         return None
     following = ""
     link = str(data.get("@odata.nextLink") or "")
@@ -234,13 +227,9 @@ def get_user(ecfg: dict, oid: str) -> dict | None:
     """Una cuenta por su Object ID, o ``None`` (no existe o no se puede leer)."""
     if not configured(ecfg) or not _looks_like_guid(str(oid or "")):
         return None
-    try:
-        status, data = _request("GET", f"{GRAPH}/users/{urllib.parse.quote(oid, safe='')}?$select={USER_SELECT}",
-                                token=_app_token(ecfg))
-    except RegisterError as exc:
-        _log.info("Entra user %s could not be read: %s", oid, exc)
-        return None
-    return data if status == 200 and data.get("id") else None
+    data = _graph(ecfg, "GET", f"{GRAPH}/users/{urllib.parse.quote(oid, safe='')}?$select={USER_SELECT}",
+                  f"Entra user {oid} could not be read")
+    return data if data is not None and data.get("id") else None
 
 
 ASSIGNMENT_TTL = 60          # si la aplicación exige asignación y a quién: se lee una vez por minuto como mucho
@@ -318,11 +307,7 @@ def assigned(oid: str, info: dict) -> bool:
 
 def can_read_users(access_token: str) -> tuple[bool, str]:
     """(True, "") si el token puede leer el estado de las cuentas; si no, (False, motivo)."""
-    try:
-        status, data = _request("GET", f"{GRAPH}/users?$top=1&$select=id,accountEnabled", token=access_token)
-    except RegisterError as exc:
-        return False, str(exc)
-    return (True, "") if status == 200 else (False, _message(data) or f"HTTP {status}")
+    return _can_read(access_token, f"{GRAPH}/users?$top=1&$select=id,accountEnabled")
 
 
 def _looks_like_guid(value: str) -> bool:

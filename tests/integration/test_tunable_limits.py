@@ -13,7 +13,7 @@ from storageweb.providers import local
 from storageweb.settings import ConfigError, DEFAULTS
 from storageweb.settings.location_types import Option
 from storageweb.web.context import get_db
-from tests.helpers import PASSWORD, add_user, get_csrf, login, stored_settings
+from tests.helpers import PASSWORD, add_user, get_csrf, stored_settings, signed_in
 
 
 def test_defaults_keep_the_old_values():
@@ -49,9 +49,7 @@ def test_password_min_length(make_app):
     with pytest.raises(ValueError, match="al menos 10"):
         local.validate_password("corta-ya", min_length=4)                    # por debajo de 10, nunca
     app = make_app({"security": {"password_min_length": 20}})
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
+    client, _ = signed_in(app, "ana", csrf_url=None)
     page = client.get("/profile/security").get_data(as_text=True)
     assert 'minlength="20"' in page and 'minlength="10"' not in page
     token = get_csrf(client, "/profile/security")
@@ -85,9 +83,7 @@ def test_entra_secret_lifetime_and_warning(monkeypatch):
 
 def test_search_stops_at_the_configured_results(make_app, home):
     app = make_app({"storage": {"search_max_results": 10}})
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
+    client, _ = signed_in(app, "ana", csrf_url=None)
     home.mkdir(parents=True, exist_ok=True)
     for i in range(15):
         (home / f"informe-{i:02d}.txt").write_text("x", encoding="utf-8")

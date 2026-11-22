@@ -20,7 +20,8 @@ from ..i18n import _
 from .defaults import SECRET_FIELDS
 from .env import env_name
 from .errors import ConfigError
-from .layers import _get, _set, diff_overrides, drop_path, leaf_paths, runtime_part, runtime_view
+from .layers import (CONFIG_ORIGINS, _get, _set, diff_overrides, drop_path, leaf_paths, runtime_part, runtime_view,
+                     without_origin)
 from .loader import normalize
 from . import secretbox, store
 
@@ -214,8 +215,8 @@ class RuntimeSettings:
         out = {}
         for key in ("shares", "locations"):
             if key in storage:
-                out[key] = [{k: v for k, v in item.items() if k != "origin"} for item in storage[key]
-                            if isinstance(item, dict) and item.get("origin") not in ("file", "env")]
+                out[key] = [without_origin(item) for item in storage[key]
+                            if isinstance(item, dict) and item.get("origin") not in CONFIG_ORIGINS]
         if "group_quotas" in storage:
             out["group_quotas"] = {k: v for k, v in (storage["group_quotas"] or {}).items()
                                    if k not in config["group_quotas"]}
@@ -230,13 +231,12 @@ class RuntimeSettings:
                 continue
             wanted = {i.get("name"): i for i in storage[key] if isinstance(i, dict)}
             for item in effective[key]:
-                if item.get("origin") not in ("file", "env"):
+                if item.get("origin") not in CONFIG_ORIGINS:
                     continue
                 mine = wanted.get(item["name"])
-                if mine is None or {k: v for k, v in mine.items() if k != "origin"} != \
-                        {k: v for k, v in item.items() if k != "origin"}:
+                if mine is None or without_origin(mine) != without_origin(item):
                     raise ConfigError(self._entity_lock_message(key, item["name"], item["origin"]), label)
-                if mine.get("origin") not in ("file", "env"):
+                if mine.get("origin") not in CONFIG_ORIGINS:
                     raise ConfigError(_("There is already one named %(name)s in config.json.", name=repr(item["name"])),
                                       label)
         if "group_quotas" in storage:
@@ -356,13 +356,8 @@ def open_runtime(config_path=None, *, create_key: bool = True) -> tuple[RuntimeS
     """Los ajustes por capas como los usa el servidor: ``(RuntimeSettings, configuración de arranque)``. La
     configuración de arranque es config.json + entorno (con sus secretos cifrados ya descifrados); los ajustes
     efectivos, con lo guardado desde la web, salen de ``RuntimeSettings.current(conn)`` (p. ej. en la CLI)."""
-    from .loader import env_config, read_config_file  # noqa: PLC0415
-    file_cfg, cfg_path = read_config_file(config_path)
-    env_cfg = env_config()
-    cfg = normalize(file_cfg, cfg_path, env_cfg=env_cfg)
-    key = secretbox.load_key(cfg["data_dir"], create=create_key)
-    file_cfg = secretbox.decrypt_layer(key, file_cfg, "config.json")
-    env_cfg = secretbox.decrypt_layer(key, env_cfg, "STORAGEWEB_*")
+    from .loader import decrypted_layers  # noqa: PLC0415
+    file_cfg, cfg_path, env_cfg, key = decrypted_layers(config_path, create_key=create_key, always_key=True)
     cfg = normalize(file_cfg, cfg_path, env_cfg=env_cfg)
     runtime = RuntimeSettings(file_cfg, cfg_path, env_cfg, cfg["settings_profile"])
     runtime.secrets_key = key

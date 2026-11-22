@@ -13,7 +13,6 @@
   var showBtn = document.getElementById("advisories-show");
   var running = document.getElementById("advisories-running");
   var statusUrl = form.dataset.status;
-  var csrf = form.querySelector("input[name=_csrf]").value;
 
   var panel = null;        // el contenido del modal mientras está abierto
   var bar = null;
@@ -71,8 +70,7 @@
   }
 
   function refresh() {
-    return fetch(statusUrl, { credentials: "same-origin", headers: { "Accept": "application/json" } })
-      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    return window.SW.getJSON(statusUrl)
       .then(function (job) {
         if (!job.running) { finished(); return; }
         setBusy(true);
@@ -90,10 +88,7 @@
     event.preventDefault();
     if (startBtn.disabled) return;
     startBtn.disabled = true;
-    fetch(form.action, {
-      method: "POST", credentials: "same-origin",
-      headers: { "Accept": "application/json", "X-CSRF-Token": csrf }
-    }).then(function (r) {
+    window.SW.fetch(form.action, { method: "POST" }).then(function (r) {
       // 202: empezada; 409: ya había una en marcha (otra pestaña u otro administrador): se sigue esa
       if (r.status !== 202 && r.status !== 409) throw new Error(r.status);
       follow();

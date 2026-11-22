@@ -1,13 +1,6 @@
 {# Tarjeta del método «local» en Inicio de sesión (la incluye auth.html con su contexto). #}
-{% from "admin/settings/_macros.html" import origin, err_class, field_error, lock with context %}
+{% from "admin/settings/_macros.html" import provider_head with context %}
   {# --- usuarios locales #}
   <section class="provider-card{% if cfg.auth.local.enabled %} is-on{% endif %}" aria-labelledby="p-local">
-    <div class="provider-head">
-      <span class="provider-icon provider-local" aria-hidden="true"><svg class="icon"><use href="#i-lock"></use></svg></span>
-      <div class="provider-text">
-        <span class="provider-title"><strong id="p-local">{{ _("Local users") }}</strong> {{ origin('auth.local.enabled') }}</span>
-        <span class="muted small">{{ _("User name and password stored in StorageWeb") }} · {{ ngettext("%(num)s user", "%(num)s users", user_counts.get('local', 0)) }}</span>
-      </div>
-      <label class="switch"><input{{ lock('auth.local.enabled') }} type="checkbox" name="local_enabled" {% if cfg.auth.local.enabled %}checked{% endif %}> <span>{{ _("Enabled") }}</span></label>
-    </div>
+    {{ provider_head('local', _("Local users"), 'lock', _("User name and password stored in StorageWeb"), icon_cls='provider-local') }}
   </section>

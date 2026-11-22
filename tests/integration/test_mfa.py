@@ -1,42 +1,12 @@
 """Verificación en dos pasos: que la contraseña deje de bastar, sin dejar fuera a nadie."""
-import base64
 import re
 
-from storageweb.core import mfa, tokens
-from storageweb.core.mfa import totp
+from storageweb.core import mfa
 from storageweb.db.repositories import audit, users
 from storageweb.settings import secretbox
 from storageweb.web.context import get_db
-from tests.helpers import PASSWORD, add_user, get_csrf, login, settings_form
-
-
-def _key(app):
-    return app.extensions["storageweb.runtime"].secrets_key
-
-
-def enrol(app, username: str) -> tuple[str, list[str]]:
-    """Activa la verificación de ``username`` como desde su perfil. Devuelve la semilla y los códigos de recuperación.
-    El código del alta gasta el paso actual: los siguientes inicios de sesión usan ``code(secret, 1)``."""
-    with app.app_context():
-        user = users.get_by_username(get_db(), username)
-        setup = mfa.enroll_begin(get_db(), _key(app), user, "StorageWeb")
-        codes = mfa.enroll_confirm(get_db(), _key(app), user, code(setup["secret"]))
-    assert len(codes) == 10
-    return setup["secret"], codes
-
-
-def code(secret: str, offset: int = 0) -> str:
-    return totp.code_at(secret, totp.current_step() + offset)
-
-
-def submit(client, url: str, value: str):
-    return client.post(url, data={"_csrf": get_csrf(client, url), "code": value})
-
-
-def last_audit(app, action: str):
-    with app.app_context():
-        return get_db().execute("SELECT * FROM audit_log WHERE action = ? ORDER BY id DESC LIMIT 1",
-                                (action,)).fetchone()
+from tests.helpers import PASSWORD, add_user, get_csrf, last_audit, login, settings_form, api_token, basic_auth
+from tests.mfa_helpers import code, enrol, secrets_key, submit
 
 
 def test_password_alone_is_not_a_session(app, client):
@@ -60,10 +30,11 @@ def test_a_code_works_once_and_recovery_codes_too(app, client):
     add_user(app, "ana")
     secret, codes = enrol(app, "ana")
     login(client, "ana")
-    assert submit(client, "/login/mfa", code(secret, 1)).status_code == 302
+    once = code(secret, 1)          # el mismo código las dos veces (calcularlo otra vez podría caer en otro paso de 30 s)
+    assert submit(client, "/login/mfa", once).status_code == 302
     client.post("/logout", data={"_csrf": get_csrf(client, "/profile")})
     login(client, "ana")
-    assert "El código no es válido" in submit(client, "/login/mfa", code(secret, 1)).get_data(as_text=True)
+    assert "El código no es válido" in submit(client, "/login/mfa", once).get_data(as_text=True)
     # Un código de recuperación, en minúsculas y sin guion, vale una vez
     assert submit(client, "/login/mfa", codes[0].lower().replace("-", "")).status_code == 302
     assert last_audit(app, "login")["detail"] == "local+recovery" and last_audit(app, "mfa_recovery_used")
@@ -142,13 +113,12 @@ def test_the_network_drive_only_takes_tokens(make_app):
     client = app.test_client()
 
     def propfind(secret):
-        auth = base64.b64encode(f"ana:{secret}".encode()).decode()
-        return client.open("/dav/", method="PROPFIND", headers={"Authorization": "Basic " + auth}).status_code
+        return client.open("/dav/", method="PROPFIND", headers=basic_auth("ana", secret)).status_code
     assert propfind(PASSWORD) == 207
     enrol(app, "ana")
     assert propfind(PASSWORD) == 401                                  # la contraseña sola ya no basta
+    plain = api_token(app)
     with app.app_context():
-        plain, _id = tokens.create(get_db(), users.get_by_username(get_db(), "ana"), name="dav", scope="write", days=0)
         assert audit.recent(get_db(), 1)[0]["detail"] == "webdav:mfa_requires_token"
     assert propfind(plain) == 207
 
@@ -197,7 +167,7 @@ def test_seeds_follow_a_new_secrets_key(app, client):
     secret, _codes = enrol(app, "ana")
     new = secretbox.parse_key(secretbox.generate_key())
     with app.app_context():
-        assert secretbox.rekey(get_db(), _key(app), new) >= 1
+        assert secretbox.rekey(get_db(), secrets_key(app), new) >= 1
         app.extensions["storageweb.runtime"].secrets_key = new
     login(client, "ana")
     assert submit(client, "/login/mfa", code(secret, 1)).status_code == 302

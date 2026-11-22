@@ -1,6 +1,6 @@
 {% extends "admin/_layout.html" %}
-{% from "admin/users/_macros.html" import avatar, status, badges, user_facts, group_chips, access_list, activity_list, favorites_list, signin_security with context %}
-{% from "_space.html" import quota_meter with context %}
+{% from "admin/users/_macros.html" import user_head, group_chips, access_list, activity_list, favorites_list, signin_security, status_form, delete_form, favorites_clear, profile_fields, role_select, home_picker, quota_fields with context %}
+{% from "admin/_page.html" import danger_zone, danger_row with context %}
 {% block title %}{{ _("Edit %(name)s", name=user['username']) if user else _("New user") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
 {% if user %}
@@ -18,17 +18,7 @@
 {% set is_sso = auth_method(user['source']) and auth_method(user['source']).sso %}
 {% set stores_pw = auth_method(user['source']) and auth_method(user['source']).stores_password %}
 <a class="small" href="{{ url_for('admin.users_index') }}">← {{ _("Users") }}</a>
-<div class="user-head">
-  {{ avatar(user, 'xl') }}
-  <div class="user-head-text">
-    <h1>{{ _("User «%(name)s»", name=user['username']) }}</h1>
-    <div class="inline small muted">
-      {% if user['display_name'] %}<span>{{ user['display_name'] }}</span>{% endif %}
-      {{ badges(user) }} {{ status(user) }}
-    </div>
-    {{ user_facts(user) }}
-  </div>
-</div>
+{{ user_head(user, _("User «%(name)s»", name=user['username']), user['display_name']) }}
 
 <form id="user-form" method="post" hidden>
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
@@ -41,14 +31,7 @@
   <legend>{{ _("Profile") }}</legend>
   <section class="card form-grid" aria-labelledby="sec-profile">
     <h2 id="sec-profile" class="card-title span2">{{ _("Profile") }}</h2>
-    <label>{{ _("Display name") }}
-      <input form="user-form" type="text" name="display_name" value="{{ form.display_name or '' }}" maxlength="200"{% if from_provider %} readonly class="from-provider"{% endif %}>
-    </label>
-    <label>{{ _("Email") }}
-      <input form="user-form" type="email" name="email" value="{{ form.email or '' }}" maxlength="200"{% if from_provider %} readonly class="from-provider"{% endif %}>
-    </label>
-    {% if from_provider %}<p class="muted small span2">{{ _("The name and the email come from %(source)s and are updated on each sign-in: change them there.", source=SOURCE_LABELS[user['source']]) }}</p>
-    {% elif is_sso %}<p class="muted small span2">{{ _("The name is updated from %(source)s on each sign-in.", source=SOURCE_LABELS[user['source']]) }}</p>{% endif %}
+    {{ profile_fields(user, form, from_provider, 'user-form', sso_note=is_sso) }}
   </section>
 
   <section class="card stack section-gap" aria-labelledby="sec-access">
@@ -57,9 +40,7 @@
       <p class="muted small">{{ _("The role says what they can do; the groups, which shared folders they see. The result is in Effective access.") }}</p>
     </div>
     <label class="user-role">{{ _("Role") }}
-      <select form="user-form" name="role">
-        {% for r, r_label in role_choices() %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ r_label }}</option>{% endfor %}
-      </select>
+      {{ role_select(form.role, 'user-form') }}
     </label>
     <div>
       <span class="label">{{ _("Groups") }}</span>
@@ -73,18 +54,9 @@
   <section class="card form-grid" aria-labelledby="sec-folder">
     <h2 id="sec-folder" class="card-title span2">{{ _("Personal folder") }}</h2>
     <label class="span2">{{ _("Path") }} <small class="muted">({{ _("empty = default template") }})</small>
-      <input form="user-form" type="text" name="home_path" value="{{ form.home_path or '' }}" placeholder="/srv/storageweb/homes/{{ _('user') }}" class="mono"
-             data-browse="{{ url_for('admin.browse', scope='location') }}" data-location="{{ pick_start().home_location }}" data-start="{{ pick_start().home }}" data-pick-title="{{ _('Personal folder') }}">
+      <input form="user-form" type="text" name="home_path" value="{{ form.home_path or '' }}" placeholder="/srv/storageweb/homes/{{ _('user') }}" class="mono"{{ home_picker() }}>
     </label>
-    <label>{{ _("Quota (MB)") }}
-      <input form="user-form" type="number" name="quota_mb" min="0" value="{{ '' if form.quota_mb is none else form.quota_mb }}"
-             placeholder="{{ _('default: %(mb)s', mb=default_quota_mb) if default_quota_mb else _('default: no quota') }}">
-      <small class="muted">{{ _("Empty = the one of their groups or the default one; 0 = no quota.") }}</small></label>
-    <div class="field">
-      {% if home_quota %}{{ quota_meter(home_quota) }}
-      {% else %}<span class="label">{{ _("In use") }}</span>
-      <span>{{ ('≥ ' if not home_usage.complete else '') ~ home_usage.used }} <span class="muted small">· {{ _("default: no quota") }}</span></span>{% endif %}
-    </div>
+    {{ quota_fields(form, home_quota, home_usage, default_quota_mb, 'user-form') }}
   </section>
 </fieldset>
 <fieldset class="tab-panel">
@@ -100,12 +72,7 @@
   <section class="card stack" aria-labelledby="sec-favorites" id="sec-favorites">
     <div class="user-row">
       <h2 class="card-title" id="sec-favorites-title">{{ _("Favorites") }} <span class="muted small">· {{ favorites|length }}</span></h2>
-      {% if favorites %}
-      <form method="post" action="{{ url_for('admin.user_favorites_clear', user_uid=user['uid']) }}" class="inline js-confirm"
-            data-confirm="{{ _('Remove all the favorites of «%(name)s»? Their files are not touched.', name=user['username']) }}">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}#sec-favorites">
-        <button class="btn btn-small" type="submit">{{ _("Remove all") }}</button></form>
-      {% endif %}
+      {% if favorites %}{{ favorites_clear(user, request.path ~ '#sec-favorites') }}{% endif %}
     </div>
     {{ favorites_list(user, favorites, favorite_roots, request.path ~ '#sec-favorites') }}
   </section>
@@ -128,11 +95,9 @@
 <fieldset class="tab-panel">
   <legend>{{ _("Account") }}</legend>
   {% if user['id'] != current_user['id'] %}
-  <section class="danger-zone" aria-label="{{ _('Access') }}">
-    <div class="danger-row">
-      <div>
-        <strong>{{ _("Disable access") if user['enabled'] else _("Account disabled") }}</strong>
-        <p class="muted small">
+  {% call danger_zone(_('Access')) %}
+    {% call danger_row(_("Disable access") if user['enabled'] else _("Account disabled"),
+                       status_form(user, 'btn btn-danger' if user['enabled'] else 'btn btn-primary', (_("Disable user"), _("Enable user")))) %}
           {% if user['enabled'] %}
             {{ _("The user will not be able to sign in and their open session ends on the next request. Their files and settings are kept.") }}
           {% else %}
@@ -141,43 +106,20 @@
           {% if not stores_pw %}
             {{ _("This also applies to %(source)s: the identity stays valid there, but StorageWeb rejects it.", source=SOURCE_LABELS[user['source']]) }}
           {% endif %}
-        </p>
-      </div>
-      <form method="post" action="{{ url_for('admin.user_status', user_uid=user['uid']) }}" class="inline{% if user['enabled'] %} js-confirm{% endif %}"
-            {% if user['enabled'] %}data-confirm="{{ _('Disable «%(name)s»? They will not be able to sign in, not even with %(source)s.', name=user['username'], source=SOURCE_LABELS[user['source']]) }}"{% endif %}>
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <input type="hidden" name="enabled" value="{{ '0' if user['enabled'] else '1' }}">
-        <button class="btn{% if user['enabled'] %} btn-danger{% else %} btn-primary{% endif %}" type="submit">{{ _("Disable user") if user['enabled'] else _("Enable user") }}</button>
-      </form>
-    </div>
-    <div class="danger-row">
-      <div>
-        <strong>{{ _("Delete user") }}</strong>
-        <p class="muted small">
+    {% endcall %}
+    {% call danger_row(_("Delete user"), delete_form(user, 'btn btn-danger')) %}
           {{ _("Removes the account. Their files are not removed.") }}
           {% if is_sso %}
             {{ _("Warning: if automatic creation of %(source)s users is enabled, the account is created again on their next sign-in. To block access, disable it instead.", source=SOURCE_LABELS[user['source']]) }}
           {% endif %}
-        </p>
-      </div>
-      <form method="post" action="{{ url_for('admin.user_delete', user_uid=user['uid']) }}" class="inline js-confirm"
-            data-confirm="{{ _('Delete the user «%(name)s»? Their files will not be removed.', name=user['username']) }}">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <button class="btn btn-danger" type="submit">{{ _("Delete user") }}</button>
-      </form>
-    </div>
-  </section>
+    {% endcall %}
+  {% endcall %}
   {% else %}
   {# La propia cuenta: se ve que existe, pero no se puede (nadie se queda fuera desactivándose a sí mismo) #}
-  <section class="danger-zone" aria-label="{{ _('Access') }}">
-    <div class="danger-row">
-      <div>
-        <strong>{{ _("Disable access") }}</strong>
-        <p class="muted small">{{ _("You cannot disable or delete your own account: another administrator has to do it. This way nobody locks themselves out.") }}</p>
-      </div>
-      <button class="btn btn-danger" type="button" disabled title="{{ _('You cannot disable your own account.') }}">{{ _("Disable user") }}</button>
-    </div>
-  </section>
+  {% set own_disable %}<button class="btn btn-danger" type="button" disabled title="{{ _('You cannot disable your own account.') }}">{{ _("Disable user") }}</button>{% endset %}
+  {% call danger_zone(_('Access')) %}
+    {% call danger_row(_("Disable access"), own_disable) %}{{ _("You cannot disable or delete your own account: another administrator has to do it. This way nobody locks themselves out.") }}{% endcall %}
+  {% endcall %}
   {% endif %}
 </fieldset>
 </div>
@@ -225,16 +167,13 @@
   <section class="card form-grid" aria-labelledby="sec-access">
     <h2 id="sec-access" class="card-title span2">{{ _("Access") }}</h2>
     <label>{{ _("Role") }}
-      <select name="role">
-        {% for r, r_label in role_choices() %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ r_label }}</option>{% endfor %}
-      </select>
+      {{ role_select(form.role) }}
     </label>
     <label>{{ _("Groups") }} <small class="muted">({{ _("comma separated; unknown ones are created as local groups") }})</small>
       <input type="text" name="groups" value="{{ (form.groups or []) | join(', ') }}">
     </label>
     <label class="span2">{{ _("Personal folder") }} <small class="muted">({{ _("empty = default template") }})</small>
-      <input type="text" name="home_path" value="{{ form.home_path or '' }}" placeholder="/srv/storageweb/homes/{{ _('user') }}" class="mono"
-             data-browse="{{ url_for('admin.browse', scope='location') }}" data-location="{{ pick_start().home_location }}" data-start="{{ pick_start().home }}" data-pick-title="{{ _('Personal folder') }}">
+      <input type="text" name="home_path" value="{{ form.home_path or '' }}" placeholder="/srv/storageweb/homes/{{ _('user') }}" class="mono"{{ home_picker() }}>
     </label>
   </section>
   <div class="form-actions">

@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 
-from flask import abort, flash, g, redirect, render_template, request, session, url_for
+from flask import abort, flash, g, redirect, render_template, request, url_for
 
 from .... import siem
 from ....core import branding, links, maintenance, offsite, passwords, storage, thumbnails
@@ -19,12 +18,14 @@ from ....i18n import LOCALES, _, _l, locale_display_name
 from ....settings import PERMISSIONS, ROLES, ConfigError, fields, get_path, mask_secrets, runtime_view
 from ... import nav
 from ...context import boot_config, external_url, get_db, invalidate_settings, runtime, settings
-from ...guards import admin_required, audit_event, client_ip, safe_next
+from ...guards import admin_required, audit_event, client_ip
 from . import bp
 from . import auth_forms
 from ....settings import store as settings_store
-from ...forms import remembered, split_list
-from .common import checked, form_int, network_context, save_partial
+from ...forms import next_url, split_lines, split_list
+from .common import checked, form_int, network_context, save_partial, to_section
+from ..links import listing_context as link_listing
+from ....clock import now_iso
 
 
 SECTIONS = ("general", "storage", "quotas", "security_status", "vulnerabilities", "auth", "passwords", "security",
@@ -112,8 +113,6 @@ def _sharing() -> dict:
 
 
 def _passwords() -> dict:
-    def lines(name):
-        return [line.strip() for line in request.form.get(name, "").splitlines() if line.strip()]
     return {"security": {
         "password_min_length": form_int("password_min_length", "security.password_min_length",
                                         _("Minimum password length")),
@@ -122,16 +121,15 @@ def _passwords() -> dict:
         "password_require": request.form.getlist("password_require"),
         "password_reject_username": checked("password_reject_username"),
         "password_check": checked("password_check"),
-        "password_list_urls": lines("password_list_urls"),
-        "password_blocklist": lines("password_blocklist"),
+        "password_list_urls": split_lines("password_list_urls"),
+        "password_blocklist": split_lines("password_blocklist"),
         "password_breach_check": checked("password_breach_check"),
     }}
 
 
 def _server_folders() -> dict:
     # Una por línea (una ruta puede tener espacios); el loader las valida y las deja absolutas
-    lines = [line.strip() for line in request.form.get("allowed_folders", "").splitlines()]
-    return {"storage": {"allowed_folders": [line for line in lines if line]}}
+    return {"storage": {"allowed_folders": split_lines("allowed_folders")}}
 
 
 def _files() -> dict:
@@ -140,7 +138,7 @@ def _files() -> dict:
         "max_file_size_mb": form_int("max_file_size_mb", "storage.max_file_size_mb", _("Maximum size per file")),
         "page_size": form_int("page_size", "storage.page_size", _("Items shown at once")),
         "listing_mode": request.form.get("listing_mode", "").strip(),
-        "hidden": [line.strip() for line in request.form.get("hidden", "").splitlines() if line.strip()],
+        "hidden": split_lines("hidden"),
         "upload_stale_hours": form_int("upload_stale_hours", "storage.upload_stale_hours",
                                        _("Discard unfinished uploads after (hours)")),
         "search_max_results": form_int("search_max_results", "storage.search_max_results",
@@ -308,14 +306,8 @@ def _render(section: str, cfg: dict, status: int = 200, error: ConfigError | Non
     if section == "network":
         ctx.update(network_context(cfg))
     if section == "sharing":
-        show = remembered("show", "admin_links_show", links.BUCKETS, "active")
-        deleted = links.deleted_history(get_db())
-        rows, counts = links.split(_share_rows(links.all_links(get_db())), show, len(deleted))
-        ctx.update(share_links=rows, link_show=show, link_counts=counts,
-                   deleted_links=deleted if show == "deleted" else [],
-                   BUCKETS=links.BUCKETS, bucket_label=links.bucket_label,
-                   MODE_LABELS=links.MODE_LABELS, STATE_LABELS=links.STATE_LABELS,
-                   link_activity=links.activity(get_db(), [r["uid"] for r in rows]))
+        rows, extra = link_listing(_share_rows(links.all_links(get_db())), "admin_links_show")
+        ctx.update(share_links=rows, **extra)
     if section == "preview":
         ctx.update(thumbnails_available=thumbnails.available(), pillow_version=thumbnails.pillow_version(),
                    thumbnail_usage=thumbnails.usage(boot_config()["data_dir"]))
@@ -333,7 +325,7 @@ def _render(section: str, cfg: dict, status: int = 200, error: ConfigError | Non
         ctx.update(vulnerabilities_context())
     if section == "ips":
         ctx.update(ip_bans=ip_repo.list_rules(get_db(), "ban"), ip_allows=ip_repo.list_rules(get_db(), "allow"),
-                   my_ip=client_ip(), now=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+                   my_ip=client_ip(), now=now_iso())
     if section == "audit_settings":
         ctx.update(forward_status=siem.FORWARDER.status())
     if section == "backups":
@@ -390,15 +382,14 @@ def reset():
     invalidate_settings()
     audit_event("settings_reset")
     flash(_("Web settings discarded: the default values apply again."), "info")
-    return redirect(url_for("settings.section", name="system"))
+    return to_section("system")
 
 
 @bp.route("/reset-field", methods=["POST"])
 @admin_required
 def reset_field():
     path = request.form.get("path", "")
-    target = safe_next(request.form.get("next")) if request.form.get("next") else \
-        nav.PAGES[nav.page_for_path(path)].url()
+    target = next_url(nav.PAGES[nav.page_for_path(path)].url())
     if runtime().origins(get_db()).get(path) != "web":
         return redirect(target)
     try:

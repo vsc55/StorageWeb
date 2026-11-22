@@ -1,5 +1,5 @@
 {% extends "admin/_layout.html" %}
-{% from "admin/_page.html" import page_kind, locked_notice with context %}
+{% from "admin/_page.html" import page_kind, locked_notice, remove_card, location_options with context %}
 {% from "admin/settings/_macros.html" import save_bar with context %}
 {% block title %}{{ title }} · {{ _("Shared folders") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
@@ -28,7 +28,7 @@
     <label><span class="label-row">{{ _("Where the files live") }}</span>
       <select name="location">
         <option value="">{{ _("Disk of the server") }}</option>
-        {% for loc in locations %}<option value="{{ loc.name }}" {% if share.location == loc.name %}selected{% endif %}>{{ loc.label }} · {{ location_type(loc.type).short_label }}</option>{% endfor %}
+        {{ location_options(locations, share.location) }}
       </select>
       <small class="muted">{% if locations %}<a href="{{ url_for('locations.index') }}">{{ _("Storage locations") }}</a>
         {% else %}{{ _("Mounted folders (NFS, SMB, rclone) are on the disk. For S3 or SMB without mounting,") }} <a href="{{ url_for('locations.index') }}">{{ _("add a storage location") }}</a>.{% endif %}</small></label>
@@ -100,13 +100,9 @@
 </form>
 
 {% if original and not locked_message %}
-<form method="post" action="{{ url_for('access.folder_delete', name=original) }}" class="card section-gap js-confirm"
-      data-confirm="{{ _('Remove the shared folder %(name)s? Its files stay on the server.', name=share.label) }}">
-  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-  <h2 class="card-title">{{ _("Remove the folder") }}</h2>
-  <p class="muted small">{{ _("Users stop seeing it. The files are not deleted from the server.") }}</p>
-  <button class="btn btn-danger" type="submit">{{ _("Remove shared folder") }}</button>
-</form>
+{{ remove_card(url_for('access.folder_delete', name=original), _("Remove the folder"),
+               _("Users stop seeing it. The files are not deleted from the server."), _("Remove shared folder"),
+               _('Remove the shared folder %(name)s? Its files stay on the server.', name=share.label)) }}
 {% endif %}
 {% endblock %}
 {% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/path-picker.js') }}"></script>{% endblock %}

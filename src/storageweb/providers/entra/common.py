@@ -26,3 +26,20 @@ class EntraProvider(SSOProvider):
     def logout_url(self, post_logout_redirect_uri: str) -> str:
         query = urllib.parse.urlencode({"post_logout_redirect_uri": post_logout_redirect_uri})
         return f"{endpoints(self.cfg)['logout']}?{query}"
+
+
+GRAPH_DEFAULT_SCOPE = "https://graph.microsoft.com/.default"
+
+
+def custom_endpoints(ecfg: dict) -> bool:
+    """Si se usan direcciones propias (otro proveedor OIDC) en vez de las de Microsoft: entonces no hay Graph."""
+    return any(ecfg.get(k) for k in ("authorize_url", "token_url", "issuer"))
+
+
+def app_token_request(ecfg: dict, timeout: float) -> dict:
+    """La respuesta de Microsoft al pedir un token de la aplicación (``client_credentials``) para Graph."""
+    from . import oauth2  # noqa: PLC0415 (oauth2 importa este módulo)
+    return oauth2._http_post(endpoints(ecfg)["token"], {  # noqa: SLF001
+        "grant_type": "client_credentials", "client_id": ecfg.get("client_id", ""),
+        "client_secret": ecfg["client_secret"], "scope": GRAPH_DEFAULT_SCOPE}, timeout)
+

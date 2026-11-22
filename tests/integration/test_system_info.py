@@ -8,7 +8,7 @@ import sqlite3
 from storageweb import __version__
 from storageweb.core import diagnostics
 from storageweb.db.connection import available_migrations
-from tests.integration.test_mfa import last_audit
+from tests.helpers import last_audit
 
 
 def test_the_page_shows_each_block(app, admin):

@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ..settings.auth_methods import AuthConfig
+from ..settings.errors import UserError
 
 BASE_SCOPES = ["openid", "profile", "email"]
 
@@ -46,12 +47,11 @@ class SSOProvider:
         return ""
 
 
-class AuthDenied(Exception):
+class AuthDenied(UserError):
     """El proveedor reconoce a la persona pero no la deja entrar (tenant, grupo…). ``message`` es para ella."""
 
     def __init__(self, message: str, code: str = "denied"):
         super().__init__(message)
-        self.message = message
         self.code = code
 
 

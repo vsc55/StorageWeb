@@ -1,20 +1,20 @@
 """Almacenamiento en Azure Blob Storage (un contenedor de una cuenta de almacenamiento).
 
-Usa ``azure-storage-blob`` (extra ``[azure]``). Como en S3, las carpetas son prefijos de nombre: una
-carpeta vacía es un blob marcador ``carpeta/``. Renombrar copia y borra blob a blob (pasando por el
-servidor de StorageWeb), así que con carpetas grandes tarda.
+Usa ``azure-storage-blob`` (extra ``[azure]``). Como en S3, las carpetas son prefijos de nombre y renombrar
+copia y borra blob a blob, pasando por el servidor de StorageWeb (lo común está en ``objects.py``; aquí, las
+llamadas a Azure).
 
 Autenticación: clave de la cuenta o token SAS del contenedor (lectura, escritura, borrado y lista).
 ``endpoint`` sirve para Azurite (pruebas) o nubes soberanas.
 """
 from __future__ import annotations
 
-import io
 from pathlib import Path
 
 from ...i18n import _, _l
 from ...settings.location_types import LocationSchema, Option
-from .base import BackendError, Entry, IterStream, RangedReader, RemoteBackend, clean_rel, join_rel, name_of
+from .base import BackendError, Entry, IterStream, clean_rel, join_rel, name_of
+from .objects import ObjectStoreBackend
 
 
 def _status(exc: Exception) -> int | None:
@@ -33,8 +33,7 @@ def _error(exc: Exception) -> BackendError:
     return BackendError(_("Azure error: %(error)s", error=code or exc.__class__.__name__))
 
 
-class AzureBlobBackend(RemoteBackend):
-    unlimited_space = True  # almacenamiento de objetos: sin tamaño fijo
+class AzureBlobBackend(ObjectStoreBackend):
     kind = "azure"
     schema = LocationSchema(
         kind="azure",
@@ -95,15 +94,35 @@ class AzureBlobBackend(RemoteBackend):
     def describe(self) -> str:
         return self.label
 
-    def _key(self, rel: str) -> str:
-        return join_rel(self.prefix, clean_rel(rel))
+    # ------------------------------------------------------------------ las llamadas a Azure (objects.py)
+    def _fail(self, exc: Exception) -> BackendError:
+        return _error(exc)
 
-    def _dir_prefix(self, rel: str) -> str:
-        key = self._key(rel)
-        return f"{key}/" if key else ""
+    def _read_from(self, key: str, pos: int):
+        return IterStream(self.container.download_blob(key, offset=pos).chunks())
 
-    def _names_under(self, prefix: str) -> list[str]:
+    def _put_empty(self, key: str) -> None:
+        self.container.upload_blob(key, b"", overwrite=True)
+
+    def _keys_under(self, prefix: str) -> list[str]:
         return [blob.name for blob in self.container.list_blobs(name_starts_with=prefix)]
+
+    def _move_object(self, src: str, dst: str) -> None:
+        downloader = self.container.download_blob(src)
+        self.container.upload_blob(dst, IterStream(downloader.chunks()), overwrite=False, length=downloader.size)
+        self.container.delete_blob(src)
+
+    def _delete_keys(self, keys: list[str]) -> None:
+        # Primero lo más profundo: los marcadores de carpeta, al final
+        for name in sorted(keys, key=lambda n: (n.endswith("/"), -n.count("/"))):
+            self.container.delete_blob(name)
+
+    def _upload(self, local: Path, key: str) -> None:
+        with open(local, "rb") as src:
+            self.container.upload_blob(key, src, overwrite=True, length=local.stat().st_size)
+
+    def _any_under(self, prefix: str) -> bool:
+        return next(iter(self.container.list_blobs(name_starts_with=prefix)), None) is not None
 
     def stat(self, rel: str) -> Entry | None:
         rel = clean_rel(rel)
@@ -119,10 +138,10 @@ class AzureBlobBackend(RemoteBackend):
             if not rel and not self.prefix:
                 self.container.get_container_properties()  # el contenedor existe y hay acceso
                 return Entry("", True)
-            first = next(iter(self.container.list_blobs(name_starts_with=self._dir_prefix(rel))), None)
+            found = self._any_under(self._dir_prefix(rel))
         except Exception as exc:  # noqa: BLE001
             raise _error(exc) from exc
-        return Entry(name_of(rel), True) if first is not None else None
+        return Entry(name_of(rel), True) if found else None
 
     def listdir(self, rel: str) -> list[Entry]:
         prefix = self._dir_prefix(rel)
@@ -141,76 +160,3 @@ class AzureBlobBackend(RemoteBackend):
         except Exception as exc:  # noqa: BLE001
             raise _error(exc) from exc
         return entries
-
-    def open(self, rel: str):
-        entry = self.stat(rel)
-        if entry is None or entry.is_dir:
-            raise FileNotFoundError(rel)
-        key = self._key(rel)
-
-        def fetch(pos: int):
-            try:
-                return IterStream(self.container.download_blob(key, offset=pos).chunks())
-            except Exception as exc:  # noqa: BLE001
-                raise _error(exc) from exc
-        return io.BufferedReader(RangedReader(fetch, entry.size), 1024 * 1024), entry.size, entry.mtime
-
-    def mkdir(self, rel: str) -> None:
-        if self.exists(rel):
-            raise FileExistsError(rel)
-        try:
-            self.container.upload_blob(self._dir_prefix(rel), b"", overwrite=True)
-        except Exception as exc:  # noqa: BLE001
-            raise _error(exc) from exc
-
-    def _move_blob(self, src: str, dst: str) -> None:
-        downloader = self.container.download_blob(src)
-        self.container.upload_blob(dst, IterStream(downloader.chunks()), overwrite=False, length=downloader.size)
-        self.container.delete_blob(src)
-
-    def _move(self, rel: str, new_rel: str, entry: Entry) -> None:
-        try:
-            if entry.is_dir:
-                old_prefix, new_prefix = self._dir_prefix(rel), self._dir_prefix(new_rel)
-                for name in self._names_under(old_prefix):
-                    self._move_blob(name, new_prefix + name[len(old_prefix):])
-            else:
-                self._move_blob(self._key(rel), self._key(new_rel))
-        except Exception as exc:  # noqa: BLE001
-            raise _error(exc) from exc
-
-    def delete(self, rel: str) -> None:
-        entry = self.stat(rel)
-        if entry is None:
-            raise FileNotFoundError(rel)
-        try:
-            names = self._names_under(self._dir_prefix(rel)) if entry.is_dir else [self._key(rel)]
-            # Primero lo más profundo: los marcadores de carpeta, al final
-            for name in sorted(names, key=lambda n: (n.endswith("/"), -n.count("/"))):
-                self.container.delete_blob(name)
-        except Exception as exc:  # noqa: BLE001
-            raise _error(exc) from exc
-
-    def store(self, local: Path, rel: str) -> None:
-        try:
-            with open(local, "rb") as src:
-                self.container.upload_blob(self._key(rel), src, overwrite=True, length=local.stat().st_size)
-        except Exception as exc:  # noqa: BLE001
-            raise _error(exc) from exc
-        local.unlink(missing_ok=True)
-
-    def root_exists(self) -> bool:
-        return self.stat("") is not None
-
-    def ensure_root(self, home: bool = False) -> None:
-        if self.prefix and not self.root_exists():
-            try:
-                self.container.upload_blob(self._dir_prefix(""), b"", overwrite=True)
-            except Exception as exc:  # noqa: BLE001
-                raise _error(exc) from exc
-
-    def check(self) -> None:
-        try:
-            next(iter(self.container.list_blobs(name_starts_with=self._dir_prefix(""))), None)
-        except Exception as exc:  # noqa: BLE001
-            raise _error(exc) from exc

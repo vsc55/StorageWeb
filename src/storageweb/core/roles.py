@@ -17,14 +17,15 @@ datos: cada cambio llama a ``settings.store.roles_changed`` y se vuelven a leer.
 from __future__ import annotations
 
 import re
-import unicodedata
 from sqlite3 import Connection
 
 from ..db.repositories import roles as repo
 from ..i18n import _
 from ..settings import store
 from ..settings.defaults import PERMISSIONS
+from ..text import slug
 from .permissions import ADMIN, NONE, ROLE_LABELS, USER, role_permissions
+from ..settings.errors import UserError
 
 BUILTIN = (ADMIN, USER, NONE)
 KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
@@ -32,15 +33,8 @@ RESERVED = {"new", "list", "panel"}      # rutas de web/views/roles.py: /admin/a
 LABEL_MAX = 80
 
 
-class RoleError(Exception):
-    def __init__(self, message: str):
-        super().__init__(message)
-        self.message = message
-
-
-def _slug(text: str) -> str:
-    plain = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii").lower()
-    return re.sub(r"[^a-z0-9]+", "-", plain).strip("-")[:40]
+class RoleError(UserError):
+    pass
 
 
 def all_roles(conn: Connection, cfg: dict) -> list[dict]:
@@ -148,7 +142,7 @@ def _without_copy(label: str) -> str:
 def _free_key(conn: Connection, label: str) -> str:
     """La clave sacada del nombre («Diseño» → ``diseno``) y, si ya existe o es una ruta, con ``-2``, ``-3``… (dentro
     de los 40 caracteres): dos nombres que dan la misma clave no chocan."""
-    base = _slug(label) or "role"
+    base = slug(label, 40) or "role"
     if base in RESERVED:
         base += "-role"
     candidate, num = base, 2

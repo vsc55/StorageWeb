@@ -6,7 +6,7 @@ import pytest
 
 from storageweb.db.repositories import api_tokens, audit, sessions, users
 from storageweb.web.context import get_db
-from tests.helpers import PASSWORD, add_user, get_csrf, login, U
+from tests.helpers import PASSWORD, add_user, get_csrf, login, U, signed_in
 
 
 def _sessions(app, username=None):
@@ -28,9 +28,7 @@ def test_login_registers_and_logout_removes_session(app, client):
 
 def test_admin_closes_a_session(app, admin):
     client, token = admin
-    add_user(app, "ana")
-    ana = app.test_client()
-    login(ana, "ana")
+    ana, _ = signed_in(app, "ana", csrf_url=None)
     assert ana.get("/f/home/").status_code == 200
     html = client.get("/admin/settings/sessions").get_data(as_text=True)
     assert "ana" in html and "Sesiones abiertas" in html
@@ -54,9 +52,7 @@ def test_close_all_sessions_of_user_and_disable(app, admin):
 
 
 def test_profile_sessions_and_password_change(app, client):
-    add_user(app, "ana")
-    other = app.test_client()
-    login(other, "ana")
+    other, _ = signed_in(app, "ana", csrf_url=None)
     login(client, "ana")
     html = client.get("/profile/security").get_data(as_text=True)
     assert "Sesiones abiertas" in html and "esta" in html
@@ -238,9 +234,7 @@ def test_rotate_token(app, client, user_token):
         assert "api_token_rotated" in [r["action"] for r in audit.recent(get_db(), 5)]
 
     # De otro usuario, no: 404 (y su token sigue valiendo)
-    add_user(app, "otro")
-    other = app.test_client()
-    login(other, "otro")
+    other, _ = signed_in(app, "otro", csrf_url=None)
     assert other.post(f"/profile/tokens/{after['id']}/rotate",
                       data={"_csrf": get_csrf(other, "/profile")}).status_code == 404
     assert api.get("/f/home/", headers=_bearer(new)).status_code == 200

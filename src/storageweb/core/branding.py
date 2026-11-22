@@ -15,6 +15,7 @@ from pathlib import Path
 
 from ..i18n import _, _l
 from ..settings.defaults import LOGIN_ART_CHOICES, LOGIN_ARTS
+from ..fsutil import atomic_write
 
 # Nombre de cada opción de la ilustración del inicio de sesión, en el orden de LOGIN_ART_CHOICES
 LOGIN_ART_LABELS = dict(zip(LOGIN_ART_CHOICES, (_l("Classic"), _l("Sync"), _l("Waves"), _l("File mosaic"),
@@ -83,9 +84,7 @@ def save_image(cfg: dict, kind: str, filename: str, data: bytes) -> str:
     folder = brand_dir(cfg)
     folder.mkdir(parents=True, exist_ok=True)
     name = image.stem + (".jpg" if ext == ".jpeg" else ext)
-    tmp = folder / (name + ".tmp")
-    tmp.write_bytes(data)
-    tmp.replace(folder / name)
+    atomic_write(folder / name, data)
     for other in folder.glob(f"{image.stem}.*"):
         if other.name != name:
             other.unlink(missing_ok=True)

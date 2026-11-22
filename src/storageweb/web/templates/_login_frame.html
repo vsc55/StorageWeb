@@ -2,6 +2,7 @@
    izquierda y una columna con el tema, el idioma y el bloque «panel». #}
 {% extends "base.html" %}
 {% set public_layout = "bare" %}
+{% from "_ui.html" import brand_logo with context %}
 {% block content %}
 <div class="login-split">
   {# Lateral con la imagen: la subida en Sistema → General y marca o la ilustración de serie elegida (en el color principal) #}
@@ -9,7 +10,7 @@
     <img class="login-art" alt=""
          src="{{ url_for('brand.login_image', v=brand.version) if brand.login_image else url_for('static', filename='img/login-' ~ brand.login_art ~ '.svg') }}">
     <a class="brand login-brand" href="{{ url_for('files.index') }}">
-      <span class="brand-mark{% if brand.logo %} has-logo{% endif %}">{% if brand.logo %}<img src="{{ url_for('brand.logo', v=brand.version) }}" alt="">{% else %}<svg class="icon" aria-hidden="true"><use href="#i-logo"></use></svg>{% endif %}</span>{{ app_name }}
+      <span class="brand-mark{% if brand.logo %} has-logo{% endif %}">{{ brand_logo() }}</span>{{ app_name }}
     </a>
   </aside>
 

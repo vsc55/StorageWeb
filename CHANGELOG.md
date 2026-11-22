@@ -66,6 +66,11 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 - ***Mi perfil* por secciones**, con el mismo menú lateral que la administración: *Cuenta* (`/profile`), *Seguridad* (contraseña, verificación en dos pasos y sesiones, `/profile/security`), *Tokens de API* (`/profile/tokens`), *Unidad de red* (`/profile/drive`) y *Espacio* (`/profile/space`); las que el administrador ha desactivado no aparecen. Cada ajuste es una fila con su acción a la derecha y el formulario se despliega debajo, en vez de tarjetas de alturas distintas con huecos.
 - **El JavaScript de la web, partido por funciones** (sin cambios para quien lo usa): el explorador es `app.js` (selección, detalle, borrar, descargar) más `files/upload.js` (solo si se puede subir), `files/transfer.js` (mover y copiar) y `files/listing.js` (filtro y carpetas grandes), que se comunican por `SW.files`. Las listas como etiquetas y el modal de *Restablecer* salen de `admin/forms.js` a `admin/tag-list.js`, que solo carga la página que las usa: el resto de la administración baja de 30 a 22 KB. Un test avisa si un JS queda sin cargar o una página usa etiquetas sin su script; los tests del navegador cubren ahora también mover, subir y las etiquetas.
 
+- ***Grupos sin dar de alta* ocupa una sola línea:** plegado por defecto, con el número y un aviso; al abrirlo, una tabla compacta (grupo, origen, usuarios, carpetas que lo usan y *Dar de alta*) con su propio scroll, en lugar de una ficha por grupo que llenaba la página.
+- **La CLI de usuarios pasa por las mismas reglas que la web:** `user-passwd`, `user-set` y `user-del` cierran las sesiones y tokens que tocan y quedan en la auditoría (`password_reset_by_admin`, `user_updated`, `user_enabled`/`user_disabled`, `user_deleted`, usuario `cli`), como desde la administración. Lo único que no comprueba es quedarse sin administradores: la CLI es la vía para arreglarlo.
+- **Las copias de seguridad hechas con `storageweb backup` quedan en la auditoría** como `backup_created` con detalle `cli` (antes, una acción `backup` aparte); las de la web y las automáticas siguen siendo `backup_created` con `web` y `auto`.
+- **Código común en un solo sitio** (sin cambios para quien lo usa): fechas (`clock.py`), conexiones TLS (`tls.py`), escrituras atómicas y claves privadas (`fsutil.py`), errores para el usuario (`UserError`), listas con nombre (`core/named.py`), ayudas de las vistas (`guards`, `forms`, `downloads`: CSV, ZIP y adjuntos), las comprobaciones de los ajustes (`settings/checks.py`), las llamadas a Microsoft Graph y los ayudantes del JavaScript (`SW.*` en `common.js`).
+
 ### Corregido
 
 - **Desactivar tu propia cuenta** ya no desaparece sin más: en la ficha, los paneles y la lista de usuarios el botón se ve desactivado y dice por qué (no puedes desactivarte ni borrarte; lo hace otro administrador). Antes parecía que las cuentas de Entra ID no se podían desactivar cuando la que se miraba era la propia. Cualquier otra cuenta, de Entra ID, PAM o local, se desactiva como siempre.
@@ -77,6 +82,9 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 
 - En *Mi perfil*, el espacio de la carpeta personal ya no desaparece cuando la unidad de red está desactivada.
 - En las páginas más altas que la ventana, la barra lateral ya no se corta al bajar: su color sigue hasta el final.
+- Las iniciales del avatar salen igual en todas partes (la barra superior, *Mi perfil* y las listas).
+- En la lista de usuarios, las etiquetas de los grupos ya no se descolocan.
+- Los botones de copiar funcionan también si se entra por `http://` (el navegador solo da el portapapeles moderno con HTTPS).
 
 ## [0.1.0] - 2026-11-17
 

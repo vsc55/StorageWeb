@@ -24,7 +24,6 @@ que la persona tiene», no «algo de un fabricante aprobado». Se lee el formato
 """
 from __future__ import annotations
 
-import base64
 import hashlib
 import hmac
 import ipaddress
@@ -34,6 +33,7 @@ import struct
 from urllib.parse import urlsplit
 
 from . import cbor, cose
+from ...text import b64url_decode, b64url_encode
 
 # Flags de los datos del autenticador (WebAuthn §6.1)
 FLAG_UP = 0x01          # presente: alguien la tocó
@@ -52,17 +52,13 @@ class CeremonyError(ValueError):
     para quien está probando)."""
 
 
-def b64u_encode(raw: bytes) -> str:
-    """base64url sin relleno: como WebAuthn pone los bytes en JSON."""
-    return base64.urlsafe_b64encode(bytes(raw)).decode("ascii").rstrip("=")
+b64u_encode = b64url_encode     # base64url sin relleno: como WebAuthn pone los bytes en JSON
 
 
 def b64u_decode(text: str) -> bytes:
     """base64url a bytes; ``b""`` para lo que no lo sea (nunca lanza: todo llega del navegador)."""
-    s = str(text or "")
-    s += "=" * (-len(s) % 4)
     try:
-        return base64.urlsafe_b64decode(s)
+        return b64url_decode(str(text or ""))
     except Exception:  # noqa: BLE001
         return b""
 

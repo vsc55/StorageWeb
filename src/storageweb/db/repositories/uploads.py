@@ -1,10 +1,10 @@
 """Repositorio de subidas por partes en curso."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 from sqlite3 import Connection
 
 from ..connection import now_iso
+from ...clock import iso_ago
 
 
 def create(conn: Connection, *, upload_id: str, user_id: int, root: str, dir_rel: str,
@@ -33,5 +33,5 @@ def delete(conn: Connection, upload_id: str) -> None:
 
 
 def stale(conn: Connection, max_age_hours: int) -> list:
-    limit = (datetime.now(timezone.utc) - timedelta(hours=max_age_hours)).isoformat(timespec="seconds")
+    limit = iso_ago(hours=max_age_hours)
     return conn.execute("SELECT * FROM uploads WHERE updated_at < ?", (limit,)).fetchall()

@@ -20,8 +20,9 @@ from pathlib import Path
 
 from ...i18n import _, _l
 from ...settings.location_types import LocationSchema, Option
-from .base import (BackendError, Entry, RangedReader, RemoteBackend, certificate_error, clean_rel, join_rel,
-                   name_of)
+from .base import (BackendError, Entry, RangedReader, RemoteBackend, certificate_error, clean_rel, join_rel, name_of,
+                   remove_tree)
+from ...tls import client_context
 
 TIMEOUT = 30         # sin la opción «timeout» de la ubicación (la de serie)
 
@@ -59,10 +60,7 @@ class FTPConnector:
         loc = self.location
         timeout = int(loc.get("timeout") or TIMEOUT)
         if loc.get("tls"):
-            context = ssl.create_default_context()
-            if not loc.get("verify_tls", True):
-                context.check_hostname = False
-                context.verify_mode = ssl.CERT_NONE
+            context = client_context(loc.get("verify_tls", True))
             ftp = self.tls_class(context=context, timeout=timeout)
         else:
             ftp = self.ftp_class(timeout=timeout)
@@ -253,9 +251,7 @@ class FTPBackend(RemoteBackend):
             return self._entries(ftp, rel)
 
     def open(self, rel: str):
-        entry = self.stat(rel)
-        if entry is None or entry.is_dir:
-            raise FileNotFoundError(rel)
+        entry = self._file_entry(rel)
         path = self._p(rel)
 
         def fetch(pos: int):
@@ -277,22 +273,14 @@ class FTPBackend(RemoteBackend):
         with self.client.session() as ftp:
             ftp.rename(self._p(rel), self._p(new_rel))
 
-    def _remove_tree(self, ftp, rel: str) -> None:
-        for item in self._entries(ftp, rel):
-            child = join_rel(rel, item.name)
-            if item.is_dir:
-                self._remove_tree(ftp, child)
-            else:
-                ftp.delete(self._p(child))
-        ftp.rmd(self._p(rel))
-
     def delete(self, rel: str) -> None:
         with self.client.session() as ftp:
             entry = self._stat(ftp, rel)
             if entry is None:
                 raise FileNotFoundError(rel)
             if entry.is_dir:
-                self._remove_tree(ftp, clean_rel(rel))
+                remove_tree(clean_rel(rel), lambda r: self._entries(ftp, r), lambda r: ftp.delete(self._p(r)),
+                            lambda r: ftp.rmd(self._p(r)))
             else:
                 ftp.delete(self._p(rel))
 
@@ -300,9 +288,6 @@ class FTPBackend(RemoteBackend):
         with self.client.session() as ftp, open(local, "rb") as src:
             ftp.storbinary(f"STOR {self._p(rel)}", src, blocksize=256 * 1024)
         local.unlink(missing_ok=True)
-
-    def root_exists(self) -> bool:
-        return self.stat("") is not None
 
     def ensure_root(self, home: bool = False) -> None:
         with self.client.session() as ftp:

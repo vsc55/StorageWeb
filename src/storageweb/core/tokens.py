@@ -6,10 +6,9 @@ acceso a la administración ni al perfil. Solo se guarda su SHA-256: se muestra 
 """
 from __future__ import annotations
 
-import hashlib
 import sqlite3
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from sqlite3 import Connection
 
 from ..db import connect
@@ -17,6 +16,8 @@ from ..db.repositories import api_tokens as repo
 from ..db.repositories import users
 from ..i18n import _, _l, ngettext
 from .alerts import alert, source
+from ..clock import iso_in, now_iso
+from ..text import offered_days, sha256_hex
 
 PREFIX = "sw_"
 SCOPES = ("read", "write")
@@ -29,8 +30,7 @@ class TokenError(Exception):
     pass
 
 
-def hash_token(plain: str) -> str:
-    return hashlib.sha256(plain.encode("utf-8")).hexdigest()
+hash_token = sha256_hex
 
 
 # --------------------------------------------------------------------------- política de caducidad
@@ -38,10 +38,7 @@ def hash_token(plain: str) -> str:
 def allowed_days(max_days: int = 0) -> list[int]:
     """Las caducidades que se pueden elegir con la política ``security.api_token_max_days`` (0 = sin límite):
     las de siempre que no la pasan, sin «nunca», y el propio máximo si no está entre ellas."""
-    if not max_days:
-        return list(EXPIRY_DAYS)
-    days = [d for d in EXPIRY_DAYS if d and d <= max_days]
-    return days if max_days in days else [*days, max_days]
+    return offered_days(tuple(d for d in EXPIRY_DAYS if d), max_days)
 
 
 def clamp_days(days: int, max_days: int = 0) -> int:
@@ -77,7 +74,7 @@ def create(conn: Connection, user, *, name: str, scope: str, days: int, max_days
     plain = PREFIX + secrets.token_urlsafe(32)
     expires = None
     if days:
-        expires = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat(timespec="seconds")
+        expires = iso_in(days=days)
     token_id = repo.create(conn, user_id=user["id"], name=name, token_hash=hash_token(plain),
                            prefix=plain[:len(PREFIX) + 6], scope=scope, expires_at=expires)
     return plain, token_id
@@ -116,7 +113,7 @@ def authenticate(conn: Connection, plain: str, ip: str | None = None, max_days: 
     if token is None:
         return None
     expires = effective_expiry(token, max_days)
-    if expires and expires < datetime.now(timezone.utc).isoformat(timespec="seconds"):
+    if expires and expires < now_iso():
         return None
     user = users.get_by_id(conn, token["user_id"])
     if user is None or not user["enabled"]:
@@ -139,12 +136,10 @@ def _unused_tokens(ctx):
     days = int(security.get("api_token_unused_days", 90) or 0)      # 0 = sin aviso
     if not security.get("api_tokens") or not days or not ctx.cfg.get("database"):
         return []
-    now = datetime.now(timezone.utc)
     try:
         conn = connect(ctx.cfg["database"])
         try:
-            count = repo.unused_since(conn, (now - timedelta(days=days)).isoformat(timespec="seconds"),
-                                      now.isoformat(timespec="seconds"))
+            count = repo.unused_for(conn, days)
         finally:
             conn.close()
     except sqlite3.Error:

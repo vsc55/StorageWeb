@@ -2,15 +2,12 @@
 import pytest
 
 from storageweb.providers.entra import check as entra_check
-from tests.helpers import add_user, get_csrf, login
+from tests.helpers import signed_in
 
 
 @pytest.fixture
 def admin_client(app):
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
-    return client, get_csrf(client, "/admin/settings/auth")
+    return signed_in(app, "root", role="admin", csrf_url="/admin/settings/auth")
 
 
 @pytest.fixture
@@ -111,9 +108,7 @@ def test_redirect_uri_is_never_stored(make_app):
     se edita ni se guarda."""
     from tests.helpers import update_settings
     app = make_app({"network": {"public_url": "https://files.example.com"}})
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
+    client, _ = signed_in(app, "root", role="admin", csrf_url=None)
     page = client.get("/admin/settings/auth").get_data(as_text=True)
     assert 'name="entra_redirect_uri"' not in page and 'value="https://files.example.com/auth/entra/callback"' in page
     assert 'name="entra_redirect_uri"' not in client.get("/admin/settings/entra/setup?step=2").get_data(as_text=True)

@@ -31,7 +31,7 @@ const [planFile, browser] = process.argv.slice(2);
 const plan = JSON.parse(readFileSync(planFile, "utf8"));
 
 const page = await launch(browser, { lang: "es-ES" });
-const { send, next, evaluate, go } = page;
+const { send, evaluate, go } = page;
 try {
   await send("Network.enable");
   // Lo que pondría el proxy HTTPS de una instalación real (la demo tiene behind_proxy y la cookie segura;
@@ -50,16 +50,7 @@ try {
       await send("Network.clearBrowserCookies");
       current = null;
       if (shot.as) {
-        await go(`${plan.base}/login?manual=1`);
-        const done = next("Page.loadEventFired");
-        await evaluate(`(() => {
-          document.querySelector("details.login-local")?.setAttribute("open", "");
-          const form = document.querySelector("form input[name=username]").form;
-          form.username.value = ${JSON.stringify(shot.as)};
-          form.password.value = ${JSON.stringify(plan.password)};
-          form.submit();
-        })()`);
-        await done;
+        await page.login(plan.base, shot.as, plan.password);
         current = shot.as;
       }
     }

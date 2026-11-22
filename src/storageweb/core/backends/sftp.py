@@ -18,8 +18,7 @@ from pathlib import Path
 
 from ...i18n import _, _l
 from ...settings.location_types import LocationSchema, Option
-from .base import BackendError, Entry, RemoteBackend, clean_rel, join_rel, name_of
-
+from .base import BackendError, Entry, RemoteBackend, clean_rel, join_rel, name_of, remove_tree
 TIMEOUT = 20         # sin la opción «timeout» de la ubicación (la de serie)
 
 
@@ -207,9 +206,7 @@ class SFTPBackend(RemoteBackend):
         return entries
 
     def open(self, rel: str):
-        entry = self.stat(rel)
-        if entry is None or entry.is_dir:
-            raise FileNotFoundError(rel)
+        entry = self._file_entry(rel)
         try:
             return self._sftp().open(self._p(rel), "rb"), entry.size, entry.mtime
         except OSError as exc:
@@ -229,23 +226,13 @@ class SFTPBackend(RemoteBackend):
         except OSError as exc:
             raise _error(exc) from exc
 
-    def _remove_tree(self, sftp, rel: str) -> None:
-        for item in self.listdir(rel):
-            child = join_rel(rel, item.name)
-            if item.is_dir:
-                self._remove_tree(sftp, child)
-            else:
-                sftp.remove(self._p(child))
-        sftp.rmdir(self._p(rel))
-
     def delete(self, rel: str) -> None:
-        entry = self.stat(rel)
-        if entry is None:
-            raise FileNotFoundError(rel)
+        entry = self._existing(rel)
         sftp = self._sftp()
         try:
             if entry.is_dir:
-                self._remove_tree(sftp, clean_rel(rel))
+                remove_tree(clean_rel(rel), self.listdir, lambda r: sftp.remove(self._p(r)),
+                            lambda r: sftp.rmdir(self._p(r)))
             else:
                 sftp.remove(self._p(rel))
         except OSError as exc:
@@ -257,9 +244,6 @@ class SFTPBackend(RemoteBackend):
         except OSError as exc:
             raise _error(exc) from exc
         local.unlink(missing_ok=True)
-
-    def root_exists(self) -> bool:
-        return self.stat("") is not None
 
     def ensure_root(self, home: bool = False) -> None:
         sftp = self._sftp()

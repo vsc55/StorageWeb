@@ -1,19 +1,8 @@
 """Perfil de usuario, tema claro/oscuro y cambio de contraseña."""
 import pytest
 
-from storageweb.db.repositories import audit, users
 from storageweb.web.context import get_db
-from tests.helpers import PASSWORD, add_user, get_csrf, login
-
-
-def _user(app, username):
-    with app.app_context():
-        return users.get_by_username(get_db(), username)
-
-
-def _actions(app):
-    with app.app_context():
-        return [r["action"] for r in audit.recent(get_db(), 20)]
+from tests.helpers import PASSWORD, add_user, get_csrf, login, signed_in, get_user, audit_actions
 
 
 # --------------------------------------------------------------------------- tema
@@ -36,7 +25,7 @@ def test_theme_anonymous_survives_login(app, client):
 def test_theme_saved_for_user(app, logged):
     client, token = logged
     client.post("/theme", data={"_csrf": token, "theme": "light", "next": "/f/home/"})
-    assert _user(app, "ana")["theme"] == "light"
+    assert get_user(app, "ana")["theme"] == "light"
     other = app.test_client()
     login(other, "ana")
     assert 'data-theme="light"' in other.get("/f/home/").get_data(as_text=True)
@@ -65,9 +54,7 @@ def test_profile_requires_login(client):
 
 def test_profile_sections_menu(app, make_app):
     """Una sección por página con el menú lateral; las desactivadas no salen en el menú y dan 404."""
-    client = app.test_client()
-    add_user(app, "ana")
-    login(client, "ana")
+    client, _ = signed_in(app, "ana", csrf_url=None)
     html = client.get("/profile/security").get_data(as_text=True)
     assert 'class="zone-link active" href="/profile/security" aria-current="page"' in html
     for href in ("/profile", "/profile/tokens", "/profile/drive"):
@@ -76,9 +63,7 @@ def test_profile_sections_menu(app, make_app):
     assert client.get("/profile/nada").status_code == 404
 
     closed = make_app({"security": {"api_tokens": False, "webdav": False}})
-    other = closed.test_client()
-    add_user(closed, "luis")
-    login(other, "luis")
+    other, _ = signed_in(closed, "luis", csrf_url=None)
     html = other.get("/profile").get_data(as_text=True)
     assert 'href="/profile/tokens"' not in html and 'href="/profile/drive"' not in html
     assert other.get("/profile/tokens").status_code == 404 and other.get("/profile/drive").status_code == 404
@@ -89,25 +74,25 @@ def test_profile_update_local_user(app, logged):
     resp = client.post("/profile", data={"_csrf": token, "display_name": "Ana María", "email": "ana@x.com",
                                          "locale": "en", "theme": "dark"})
     assert resp.status_code == 302
-    u = _user(app, "ana")
+    u = get_user(app, "ana")
     assert (u["display_name"], u["email"], u["locale"], u["theme"]) == ("Ana María", "ana@x.com", "en", "dark")
     html = client.get("/profile").get_data(as_text=True)
     assert '<html lang="en" data-theme="dark">' in html and "Ana María" in html
-    assert "profile_updated" in _actions(app)
+    assert "profile_updated" in audit_actions(app)
 
 
 def test_profile_browser_language_clears_preference(app, logged):
     client, token = logged
     client.post("/profile", data={"_csrf": token, "locale": "en", "theme": "system"})
     client.post("/profile", data={"_csrf": token, "locale": "", "theme": "system"})
-    assert _user(app, "ana")["locale"] is None
+    assert get_user(app, "ana")["locale"] is None
 
 
 def test_profile_entra_user_cannot_change_name(app, client):
     add_user(app, "juan@contoso.com", password=None, source="entra", external_id="o1", display_name="Juan")
     from storageweb.db.repositories import sessions
     from storageweb.web.context import get_db
-    juan = _user(app, "juan@contoso.com")
+    juan = get_user(app, "juan@contoso.com")
     with app.app_context():                             # como un inicio de sesión con Microsoft: sesión registrada
         sessions.create(get_db(), "sesion-juan", juan["id"], "127.0.0.1", "pruebas")
     with client.session_transaction() as sess:
@@ -116,7 +101,7 @@ def test_profile_entra_user_cannot_change_name(app, client):
     assert "readonly" in html and 'id="password"' not in html
     token = get_csrf(client, "/profile")
     client.post("/profile", data={"_csrf": token, "display_name": "Otro", "theme": "dark"})
-    u = _user(app, "juan@contoso.com")
+    u = get_user(app, "juan@contoso.com")
     assert u["display_name"] == "Juan" and u["theme"] == "dark"
     assert client.post("/profile/password", data={"_csrf": token, "current_password": "x",
                                                   "new_password": "y", "repeat_password": "y"}).status_code == 403
@@ -146,11 +131,11 @@ def test_change_password_ok(app, logged):
                                                   "repeat_password": "nueva-contraseña-1"})
     assert resp.status_code == 302 and resp.location.endswith("/profile/security#password")
     assert login(app.test_client(), "ana", "nueva-contraseña-1").status_code == 302
-    assert "password_changed" in _actions(app)
+    assert "password_changed" in audit_actions(app)
 
 
 def test_failed_password_change_audited(app, logged):
     client, token = logged
     client.post("/profile/password", data={"_csrf": token, "current_password": "mala",
                                            "new_password": "nueva-contraseña-1", "repeat_password": "nueva-contraseña-1"})
-    assert "password_change_failed" in _actions(app)
+    assert "password_change_failed" in audit_actions(app)

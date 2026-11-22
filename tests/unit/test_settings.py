@@ -1,13 +1,12 @@
-import json
 
 import pytest
 
 from storageweb.settings import ConfigError, ensure_secret_key, load_config, mask_secrets
+from tests.helpers import config_file
 
 
 def _cfg(tmp_path, data):
-    p = tmp_path / "config.json"
-    p.write_text(json.dumps(data), encoding="utf-8")
+    p = config_file(tmp_path, data)
     return p
 
 

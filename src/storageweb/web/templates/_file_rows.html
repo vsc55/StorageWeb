@@ -1,5 +1,7 @@
 {# Filas del explorador: las incluye browse.html y las devuelve files.browse con ?rows=1 (cargar más al bajar y
    el filtro en carpetas que no caben enteras). Contexto: root, rows, perms, viewable, thumbable, favorite_keys #}
+{% from "_forms.html" import post_button with context %}
+{% from "_ui.html" import entry_icon with context %}
 {% set can_download = 'download' in perms %}
 {% set can_rename = 'rename' in perms %}
 {% set can_delete = 'delete' in perms %}
@@ -17,7 +19,7 @@
   <td class="col-check"><input type="checkbox" class="row-check" aria-label="{{ _('Select %(name)s', name=e.name) }}"></td>
   <td class="name">
     <span class="name-cell">
-      <svg class="icon {{ 'folder-icon' if e.is_dir else 'file-icon' }}" aria-hidden="true"><use href="#i-{{ 'folder' if e.is_dir else 'file' }}"></use></svg>
+      {{ entry_icon(e.is_dir) }}
       {% if href %}<a href="{{ href }}">{{ e.name }}</a>{% else %}<span>{{ e.name }}</span>{% endif %}
       {% if e.ext %}<span class="ext">{{ e.ext }}</span>{% endif %}
     </span>
@@ -38,11 +40,10 @@
     </form>
     {% endif %}
     {% if can_delete %}
-    <form method="post" action="{{ url_for('files.delete', root=root.name, sub=e.rel) }}" class="inline js-confirm js-delete"
-          data-confirm="{{ _('Delete the folder «%(name)s» and all its contents?', name=e.name) if e.is_dir else _('Delete «%(name)s»?', name=e.name) }}">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <button class="btn btn-icon btn-danger" type="submit" title="{{ _('Delete') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-delete"></use></svg><span class="sr-only">{{ _("Delete") }}</span></button>
-    </form>
+    {% call post_button(url_for('files.delete', root=root.name, sub=e.rel), btn='btn btn-icon btn-danger', cls='inline js-delete', title=_('Delete'),
+                        confirm=_('Delete the folder «%(name)s» and all its contents?', name=e.name) if e.is_dir else _('Delete «%(name)s»?', name=e.name)) -%}
+      <svg class="icon icon-sm" aria-hidden="true"><use href="#i-delete"></use></svg><span class="sr-only">{{ _("Delete") }}</span>
+    {%- endcall %}
     {% endif %}
   </td>
 </tr>

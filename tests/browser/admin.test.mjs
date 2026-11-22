@@ -3,22 +3,17 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 
-import { findBrowser, launch } from "../../tools/cdp.mjs";
+import { noErrors, openBrowser } from "./common.mjs";
 
 const BASE = process.env.STORAGEWEB_TEST_URL;
 const PASSWORD = process.env.STORAGEWEB_TEST_PASSWORD;
 let page;
 
 before(async () => {
-  page = await launch(process.env.STORAGEWEB_BROWSER || findBrowser());
+  page = await openBrowser();
   await page.login(BASE, "root", PASSWORD);
 });
 after(async () => { await page?.close(); });
-
-function noErrors() {
-  const found = page.errors.splice(0);
-  assert.deepEqual(found, [], "errores en la consola del navegador");
-}
 
 test("Ctrl+K abre el buscador de la administración y encuentra ajustes", async () => {
   await page.go(`${BASE}/admin/`);
@@ -27,7 +22,7 @@ test("Ctrl+K abre el buscador de la administración y encuentra ajustes", async 
   await page.evaluate(`(() => { const i = document.querySelector('#admin-search input');
                                i.value = 'cuota'; i.dispatchEvent(new Event('input')); })()`);
   await page.waitFor("document.querySelectorAll('#admin-search-results a').length > 0");
-  noErrors();
+  noErrors(page);
 });
 
 test("cambiar un ajuste marca el campo y despierta la barra de guardar", async () => {
@@ -38,7 +33,7 @@ test("cambiar un ajuste marca el campo y despierta la barra de guardar", async (
                                i.dispatchEvent(new Event('change', {bubbles: true})); })()`);
   await page.waitFor("!document.querySelector('[data-save-bar]').classList.contains('is-idle')");
   assert.ok(await page.evaluate("!!document.querySelector('.is-dirty')"));
-  noErrors();
+  noErrors(page);
 });
 
 test("auditoría: pulsar una línea abre un modal con sus datos", async () => {
@@ -60,7 +55,7 @@ test("auditoría: pulsar una línea abre un modal con sus datos", async () => {
   await page.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
   await page.waitFor("document.querySelector('dialog.sw-modal[open] .audit-fields')");
   await page.evaluate("document.querySelector('dialog.sw-modal[open] button[value=ok]').click()");
-  noErrors();
+  noErrors(page);
 });
 
 test("ficha de usuario: la barra de guardar sale al cambiar algo y se va al descartar", async () => {
@@ -80,7 +75,7 @@ test("ficha de usuario: la barra de guardar sale al cambiar algo y se va al desc
   await page.waitFor(`!${bar}.classList.contains('is-idle')`);
   await page.navigating(`${bar}.querySelector('button[type=submit]').click()`);
   assert.equal(await page.evaluate("document.querySelector('input[name=display_name]').value"), "Nombre desde el navegador");
-  noErrors();
+  noErrors(page);
 });
 
 test("vista previa: las extensiones son etiquetas; añadir una avisa y Descartar la quita", async () => {
@@ -98,7 +93,7 @@ test("vista previa: las extensiones son etiquetas; añadir una avisa y Descartar
   await page.evaluate("document.querySelector('[data-save-bar] button[type=reset]').click()");
   await page.waitFor(`!(${hasZzz})`);
   await page.waitFor("document.querySelector('[data-save-bar]').classList.contains('is-idle')");
-  noErrors();
+  noErrors(page);
 });
 
 test("información: versión, servidor, base de datos, carpetas y componentes, sin errores", async () => {
@@ -107,7 +102,7 @@ test("información: versión, servidor, base de datos, carpetas y componentes, s
   for (const want of ["Esta instalación", "Hora del servidor", "Esquema", "Carpetas", "Componentes"]) {
     assert.ok(text.includes(want), want);
   }
-  noErrors();
+  noErrors(page);
 });
 
 test("vulnerabilidades: barra de progreso, segundo plano, volver a verla y la tabla ordenable", async () => {
@@ -133,7 +128,7 @@ test("vulnerabilidades: barra de progreso, segundo plano, volver a verla y la ta
   assert.equal(await page.evaluate(names), "zeta,alfa");
   assert.equal(await page.evaluate("document.querySelector('#advisories details th[data-sort]').getAttribute('aria-sort')"),
     "descending");
-  noErrors();
+  noErrors(page);
 });
 
 test("importar de Entra ID: la lista se forma mientras se escribe, sin pulsar Buscar", async () => {
@@ -148,7 +143,7 @@ test("importar de Entra ID: la lista se forma mientras se escribe, sin pulsar Bu
   await page.evaluate(`(() => { const i = document.querySelector('#import-search input[name=q]');
                                i.value = 'pe'; i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await page.waitFor("document.querySelector('#import-results').textContent.includes('Pedro Ruiz')");
-  noErrors();
+  noErrors(page);
 });
 
 test("importar de Entra ID: varias a la vez entre búsquedas, «Mostrar todos» va cargando y avisa de quién no podrá entrar", async () => {
@@ -177,7 +172,7 @@ test("importar de Entra ID: varias a la vez entre búsquedas, «Mostrar todos» 
   assert.ok(await page.evaluate("[...document.querySelectorAll('#import-results tbody tr')].find((r) => r.textContent.includes('Juan')).textContent.includes('no podrá entrar')"));
   await page.navigating("document.getElementById('import-selected').click()");
   assert.match(await page.evaluate("document.body.textContent"), /2 personas importadas/);
-  noErrors();
+  noErrors(page);
 });
 
 test("rutas: Examinar abre las carpetas para elegir y al escribir se autocompleta", async () => {
@@ -199,7 +194,7 @@ test("rutas: Examinar abre las carpetas para elegir y al escribir se autocomplet
   await page.evaluate(`(() => { const i = ${input}; i.value = ''; i.focus(); })()`);
   await page.send("Input.insertText", { text: "no" });
   await page.waitFor(`[...${input}.list.options].some((o) => o.value === 'notas.md')`);
-  noErrors();
+  noErrors(page);
 });
 
 test("contraseñas: el probador dice regla por regla si se aceptaría", async () => {
@@ -225,7 +220,7 @@ test("contraseñas: el probador dice regla por regla si se aceptaría", async ()
   // Sin la regla del nombre de usuario, el campo del usuario no sale
   await page.evaluate("document.querySelector('form.settings-form input[name=password_reject_username]').click()");
   assert.equal(await page.evaluate("getComputedStyle(document.querySelector('.js-test-username')).display"), "none");
-  noErrors();
+  noErrors(page);
 });
 
 test("roles, vista Paneles: elegir, pestañas, guardar, la estrella y borrar sin recargar la página", async () => {
@@ -269,7 +264,7 @@ test("roles, vista Paneles: elegir, pestañas, guardar, la estrella y borrar sin
   await page.evaluate("history.back()");
   await page.waitFor("location.search.includes('r=beta') || location.search.includes('r=gamma')");
   assert.ok(await page.evaluate(kept));
-  noErrors();
+  noErrors(page);
 });
 
 test("usuarios y grupos, vista Paneles: elegir y cambiar de pestaña sin recargar; lo que usa JavaScript sigue funcionando", async () => {
@@ -305,5 +300,5 @@ test("usuarios y grupos, vista Paneles: elegir y cambiar de pestaña sin recarga
   await page.evaluate("[...document.querySelectorAll('.md-list .md-item')].find((a) => a.textContent.includes('ventas')).click()");
   await page.waitFor("document.querySelector('.md-detail').textContent.includes('ventas') && location.search.includes('g=')");
   assert.ok(await page.evaluate(kept), "elegir un grupo no recarga");
-  noErrors();
+  noErrors(page);
 });

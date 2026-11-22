@@ -1,4 +1,5 @@
 {% extends "admin/settings/_layout.html" %}
+{% from "_forms.html" import post_button with context %}
 {% block section %}
 {# Una pestaña por sección (admin/forms.js) #}
 <div class="js-tabs">
@@ -17,8 +18,7 @@
         <td>{{ r['reason'] or '—' }}{% if r['created_by'] %} <span class="muted">· {{ r['created_by'] }}</span>{% endif %}</td>
         <td class="nowrap">{{ r['created_at']|datetime }}</td>
         <td class="nowrap">{{ r['expires_at']|datetime if r['expires_at'] else _("indefinitely") }}</td>
-        <td class="actions"><form method="post" action="{{ url_for('settings.ip_remove', rule_id=r['id']) }}" class="inline">
-          <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn btn-small" type="submit">{{ _("Unblock") }}</button></form></td>
+        <td class="actions">{{ post_button(url_for('settings.ip_remove', rule_id=r['id']), _("Unblock"), btn='btn btn-small') }}</td>
       </tr>
       {% else %}
       <tr><td colspan="5" class="muted">{{ _("No address is blocked.") }}</td></tr>
@@ -47,8 +47,7 @@
   <ul class="changed-list">
     {% for r in ip_allows %}
     <li><code>{{ r['network'] }}</code> <span class="muted small">{{ r['reason'] }}</span>
-      <form method="post" action="{{ url_for('settings.ip_remove', rule_id=r['id']) }}" class="inline">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="link-btn small" type="submit">{{ _("Remove") }}</button></form></li>
+      {{ post_button(url_for('settings.ip_remove', rule_id=r['id']), _("Remove"), btn='link-btn small') }}</li>
     {% else %}
     <li class="muted small">{{ _("Empty.") }}</li>
     {% endfor %}

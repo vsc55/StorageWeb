@@ -15,12 +15,7 @@
     f.querySelector('input[name="action"]').value = action;
     f.querySelector('input[name="dest_root"]').value = destRoot;
     f.querySelector('input[name="dest_path"]').value = destPath;
-    f.querySelectorAll('input[name="items"]').forEach(function (i) { i.remove(); });
-    items.forEach(function (rel) {
-      var i = document.createElement("input");
-      i.type = "hidden"; i.name = "items"; i.value = rel;
-      f.appendChild(i);
-    });
+    window.SW.setHidden(f, "items", items);
     f.submit();
   }
 
@@ -76,8 +71,7 @@
     note.textContent = problem;
     list.innerHTML = '<li class="muted">' + t("Loading…") + "</li>";
     var url = picker.dataset.browse.replace("ROOTNAME", encodeURIComponent(pick.root)) + encodePath(pick.path);
-    fetch(url, { headers: { "Accept": "application/json" }, credentials: "same-origin" })
-      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    window.SW.getJSON(url)
       .then(function (data) {
         list.innerHTML = "";
         var dirs = (data.entries || []).filter(function (e) { return e.type === "dir"; });
@@ -93,7 +87,7 @@
           var li = document.createElement("li");
           var b = document.createElement("button");
           b.type = "button";
-          b.innerHTML = '<svg class="icon icon-sm folder-icon" aria-hidden="true"><use href="#i-folder"></use></svg>';
+          b.appendChild(window.SW.icon("folder", "icon-sm folder-icon"));
           b.appendChild(document.createTextNode(e.name));
           b.addEventListener("click", function () { pick.path = e.path; renderPicker(); });
           li.appendChild(b);
@@ -117,15 +111,12 @@
       : (n === 1 ? t("Copy «%(name)s» to…", { name: sel[0].dataset.name }) : t("Copy %(num)s items to…", { num: n }));
     document.getElementById("pick-ok").textContent = action === "move" ? t("Move here") : t("Copy here");
     var load = pick.roots ? Promise.resolve(pick.roots)
-      : fetch(picker.dataset.roots, { headers: { "Accept": "application/json" }, credentials: "same-origin" })
-          .then(function (r) { return r.json(); }).then(function (d) { pick.roots = d.roots || []; return pick.roots; });
+      : window.SW.getJSON(picker.dataset.roots).then(function (d) { pick.roots = d.roots || []; return pick.roots; });
     load.then(function (roots) {
       var select = document.getElementById("pick-root");
       select.innerHTML = "";
       roots.forEach(function (r) {
-        var o = document.createElement("option");
-        o.value = r.name; o.textContent = r.label + (r.read_only ? " (" + t("read-only") + ")" : "");
-        select.appendChild(o);
+        window.SW.option(select, r.name, r.label + (r.read_only ? " (" + t("read-only") + ")" : ""));
       });
       renderPicker();
       picker.showModal();

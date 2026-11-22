@@ -12,7 +12,6 @@ No distingue mayúsculas ni tildes y exige que aparezcan todas las palabras.
 """
 from __future__ import annotations
 
-import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from sqlite3 import Connection
@@ -21,6 +20,7 @@ from flask import url_for
 
 from ..i18n import _l
 from ..settings import fields, get_path, is_secret
+from ..text import fold
 from . import nav
 
 MAX_RESULTS = 30
@@ -69,13 +69,8 @@ def provider(kind: str, label, order: int = 50):
     return decorate
 
 
-def norm(text) -> str:
-    text = unicodedata.normalize("NFKD", str(text).lower())
-    return "".join(c for c in text if not unicodedata.combining(c))
-
-
 def matches(terms: list[str], *values) -> bool:
-    haystack = norm(" ".join(str(v) for v in values if v))
+    haystack = fold(" ".join(str(v) for v in values if v))
     return all(term in haystack for term in terms)
 
 
@@ -96,7 +91,7 @@ def _value(cfg: dict, path: str) -> str:
 
 
 def find(query: str, conn: Connection, cfg: dict) -> list[dict]:
-    terms = norm(query).split()
+    terms = fold(query).split()
     results: list[dict] = []
 
     for a in _ACTIONS:

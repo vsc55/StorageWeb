@@ -16,10 +16,11 @@ from ...db.repositories import audit, sessions as session_repo, users
 from ...i18n import _
 from ...i18n import normalize as normalize_locale
 from ...providers import SSOError
-from ...settings import ConfigError, runtime_view
-from ..context import external_url, get_db, invalidate_settings, runtime, settings, throttle
-from ..guards import audit_event, client_ip, end_session, safe_next, start_session
+from ...settings import runtime_view
+from ..context import external_url, get_db, login_limiter, settings
+from ..guards import audit_event, client_ip, end_session, safe_next, start_session, to_login
 from . import mfa as mfa_views
+from .settings.common import save_partial
 
 bp = Blueprint("auth", __name__)
 
@@ -46,8 +47,7 @@ def login():
         username = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
         ip = client_ip()
-        limiter = throttle()
-        limiter.configure(cfg["security"]["max_login_failures"], cfg["security"]["lockout_minutes"] * 60)
+        limiter = login_limiter()
 
         if not username or not password:
             flash(_("Enter your user name and password."), "error")
@@ -103,7 +103,7 @@ def logout():
         if url:  # cerrar también la sesión en el proveedor
             return redirect(url)
     flash(_("You have signed out."), "info")
-    return redirect(url_for("auth.login", manual=1))
+    return to_login()
 
 
 def redirect_uri(key: str) -> str:
@@ -124,14 +124,14 @@ def sso_login(method: str):
     m = _sso_method(method)
     cfg = settings()
     if not m.enabled(cfg):
-        return redirect(url_for("auth.login", manual=1))
+        return to_login()
     section = m.section(cfg)
     try:
         auth_url, flow = m.begin(section, redirect_uri(m.key))
     except Exception:  # p. ej. MSAL sin conexión al descubrir la autoridad
         current_app.logger.exception("Could not start the SSO login")
         flash(_("Could not contact the identity provider."), "error")
-        return redirect(url_for("auth.login", manual=1))
+        return to_login()
     session["sso"] = {"method": m.key, "flow": flow, "next": request.args.get("next", "")}
     return redirect(auth_url)
 
@@ -141,12 +141,12 @@ def sso_callback(method: str):
     m = _sso_method(method)
     cfg = settings()
     if not m.enabled(cfg):
-        return redirect(url_for("auth.login", manual=1))
+        return to_login()
     ip = client_ip()
     pending = session.pop("sso", None) or {}
     if not pending.get("flow") or pending.get("method") != m.key:
         flash(_("The sign-in session expired. Try again."), "error")
-        return redirect(url_for("auth.login", manual=1))
+        return to_login()
     try:
         user, identity = accounts.complete_sso(get_db(), cfg, m.key, pending["flow"], request.args.to_dict(), ip=ip,
                                                on_rename=_rename_in_shares)
@@ -154,11 +154,11 @@ def sso_callback(method: str):
         current_app.logger.warning("SSO error: %s", exc)
         audit.log(get_db(), "login_failed", ip=ip, detail=f"{m.key}:{exc.code}")
         flash(_("Could not sign in with %(method)s.", method=m.label), "error")
-        return redirect(url_for("auth.login", manual=1))
+        return to_login()
     except accounts.AccountError as exc:
         audit.log(get_db(), "login_denied", ip=ip, detail=f"{m.key}:{exc.code}")
         flash(exc.message, "error")
-        return redirect(url_for("auth.login", manual=1))
+        return to_login()
 
     start_session(user, identity.session_id)
     audit.log(get_db(), "login", username=user["username"], ip=ip, detail=m.key)
@@ -168,18 +168,13 @@ def sso_callback(method: str):
 def _rename_in_shares(old: str, new: str) -> None:
     """Una cuenta cambió de nombre al entrar (UPN nuevo): las carpetas compartidas que la nombraban pasan al
     nombre nuevo. Si esa lista está fijada en config.json no se puede: queda en la auditoría para hacerlo a mano."""
-    base = runtime_view(settings())
-    renamed = share_core.rename_user(base["storage"]["shares"], old, new)
+    renamed = share_core.rename_user(runtime_view(settings())["storage"]["shares"], old, new)
     if renamed is None:
         return
-    current = {**base, "storage": {**base["storage"], "shares": renamed}}
-    try:
-        runtime().save(get_db(), current, "system", strict=True, base=base)
-    except ConfigError as exc:
-        current_app.logger.warning("Shared folders still name %s: %s", old, exc)
-        audit.log(get_db(), "user_rename_failed", username=new, detail=f"shares: {exc}"[:200])
-        return
-    invalidate_settings()
+    _draft, error = save_partial(lambda: {"storage": {"shares": renamed}}, strict=True, actor="system")
+    if error:
+        current_app.logger.warning("Shared folders still name %s: %s", old, error)
+        audit.log(get_db(), "user_rename_failed", username=new, detail=f"shares: {error}"[:200])
 
 
 @bp.route("/auth/<method>/frontchannel-logout")

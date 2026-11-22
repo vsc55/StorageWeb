@@ -14,6 +14,7 @@ from storageweb.settings import ConfigError, load_config, location_types, mask_s
 from storageweb.settings.location_types import LocationSchema, Option
 
 from tests.fakes import FakeS3
+from tests.helpers import load_tool, config_file
 
 
 class MemoryBackend(backends.RemoteBackend):
@@ -53,10 +54,7 @@ def memoria(monkeypatch):
 
 
 def _cfg(tmp_path, storage):
-    import json
-    p = tmp_path / "config.json"
-    p.write_text(json.dumps({"storage": {"home_template": "h/{username}", **storage}}), encoding="utf-8")
-    return p
+    return config_file(tmp_path, {"storage": {"home_template": "h/{username}", **storage}})
 
 
 def test_builtin_types_are_discovered():
@@ -89,12 +87,7 @@ def test_new_type_needs_no_general_code(memoria, tmp_path):
                                          "cuota": 1234, "token": ""}
 
     # Referencia generada
-    import importlib.util
-    root = Path(__file__).resolve().parents[2]
-    spec = importlib.util.spec_from_file_location("gen_docs", root / "tools" / "gen_docs.py")
-    gen_docs = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(gen_docs)
-    text = gen_docs.render_location_types()
+    text = load_tool("tools/gen_docs.py").render_location_types()
     assert "### `memoria`: MEM" in text and "| `cuota` | puerto | `1234` |" in text
 
 

@@ -8,8 +8,8 @@ import pytest
 from storageweb.db.repositories import users
 from storageweb.providers.entra import msal, oauth2
 from storageweb.web.context import get_db
-from tests.helpers import add_user, get_csrf, login, U
-from tests.sso_helpers import CLIENT_ID, TENANT, entra_cfg, finish_login, start_login
+from tests.helpers import add_user, get_csrf, U, signed_in
+from tests.sso_helpers import CLIENT_ID, TENANT, entra_cfg, finish_login, start_login, sso_login
 
 # --------------------------------------------------------------------------- flujo completo
 
@@ -57,12 +57,9 @@ def test_full_login_provisions_user(entra_app, token_endpoint, tmp_path):
 def test_second_login_reuses_user_by_oid(entra_app, token_endpoint):
     app = entra_app()
     client = app.test_client()
-    _, q = start_login(client, token_endpoint)
-    finish_login(client, q["state"])
+    sso_login(client, token_endpoint)
     client.post("/logout", data={"_csrf": get_csrf(client, "/f/home/")})
-    token_endpoint.claims_extra = {"preferred_username": "juan.nuevo@contoso.com"}
-    _, q = start_login(client, token_endpoint)
-    assert finish_login(client, q["state"]).status_code == 302
+    assert sso_login(client, token_endpoint, preferred_username="juan.nuevo@contoso.com").status_code == 302
     with app.app_context():
         assert get_db().execute("SELECT COUNT(*) FROM users").fetchone()[0] == 1
 
@@ -70,8 +67,7 @@ def test_second_login_reuses_user_by_oid(entra_app, token_endpoint):
 def test_strip_domain(entra_app, token_endpoint):
     app = entra_app(strip_domain=True)
     client = app.test_client()
-    _, q = start_login(client, token_endpoint)
-    finish_login(client, q["state"])
+    sso_login(client, token_endpoint)
     with app.app_context():
         assert users.get_by_username(get_db(), "juan") is not None
 
@@ -120,8 +116,7 @@ def test_provider_error_param(entra_app, token_endpoint):
 def test_token_endpoint_error(entra_app, token_endpoint):
     client = entra_app().test_client()
     token_endpoint.response = {"error": "invalid_grant", "error_description": "AADSTS..."}
-    _, q = start_login(client, token_endpoint)
-    assert "/login" in finish_login(client, q["state"]).location
+    assert "/login" in sso_login(client, token_endpoint).location
 
 
 def test_network_error(entra_app, monkeypatch):
@@ -145,18 +140,12 @@ def test_allowed_groups_and_roles(entra_app, token_endpoint):
     app = entra_app(allowed_groups=["GRP-FIN", "StorageWeb.User"])
     client = app.test_client()
 
-    token_endpoint.claims_extra = {"groups": ["otro"]}
-    _, q = start_login(client, token_endpoint)
-    assert "/login" in finish_login(client, q["state"]).location
+    assert "/login" in sso_login(client, token_endpoint, groups=["otro"]).location
 
-    token_endpoint.claims_extra = {"groups": ["grp-fin"]}
-    _, q = start_login(client, token_endpoint)
-    assert finish_login(client, q["state"]).location == "/"
+    assert sso_login(client, token_endpoint, groups=["grp-fin"]).location == "/"
     client.post("/logout", data={"_csrf": get_csrf(client, "/f/home/")})
 
-    token_endpoint.claims_extra = {"roles": ["StorageWeb.User"]}
-    _, q = start_login(client, token_endpoint)
-    assert finish_login(client, q["state"]).location == "/"
+    assert sso_login(client, token_endpoint, roles=["StorageWeb.User"]).location == "/"
 
 
 def test_group_based_share(make_app, token_endpoint, tmp_path):
@@ -164,16 +153,12 @@ def test_group_based_share(make_app, token_endpoint, tmp_path):
     app = make_app({"auth": {"entra": entra_cfg()}, "storage": {"shares": [
         {"name": "finanzas", "path": str(tmp_path / "fin"), "users": [], "groups": ["grp-fin"]}]}})
     client = app.test_client()
-    token_endpoint.claims_extra = {"groups": ["GRP-FIN"]}
-    _, q = start_login(client, token_endpoint)
-    finish_login(client, q["state"])
+    sso_login(client, token_endpoint, groups=["GRP-FIN"])
     assert client.get("/f/finanzas/").status_code == 200
 
     # Al volver a entrar sin el grupo pierde el acceso
     client.post("/logout", data={"_csrf": get_csrf(client, "/f/home/")})
-    token_endpoint.claims_extra = {"groups": []}
-    _, q = start_login(client, token_endpoint)
-    finish_login(client, q["state"])
+    sso_login(client, token_endpoint, groups=[])
     assert client.get("/f/finanzas/").status_code == 404
 
 
@@ -181,8 +166,7 @@ def test_no_takeover_of_local_account(entra_app, token_endpoint):
     app = entra_app()
     add_user(app, "juan@contoso.com")
     client = app.test_client()
-    _, q = start_login(client, token_endpoint)
-    assert "/login" in finish_login(client, q["state"]).location
+    assert "/login" in sso_login(client, token_endpoint).location
     assert client.get("/f/home/").status_code == 302
 
 
@@ -194,14 +178,12 @@ def test_disabled_entra_user(entra_app, token_endpoint):
         conn.execute("UPDATE users SET enabled = 0")
         conn.commit()
     client = app.test_client()
-    _, q = start_login(client, token_endpoint)
-    assert "/login" in finish_login(client, q["state"]).location
+    assert "/login" in sso_login(client, token_endpoint).location
 
 
 def test_single_logout(entra_app, token_endpoint):
     client = entra_app(single_logout=True).test_client()
-    _, q = start_login(client, token_endpoint)
-    finish_login(client, q["state"])
+    sso_login(client, token_endpoint)
     resp = client.post("/logout", data={"_csrf": get_csrf(client, "/f/home/")})
     assert resp.location.startswith(f"https://login.microsoftonline.com/{TENANT}/oauth2/v2.0/logout")
 
@@ -230,9 +212,7 @@ def test_custom_endpoints_generic_oidc(make_app, token_endpoint):
 def test_multitenant_issuer_uses_tid(make_app, token_endpoint):
     app = make_app({"auth": {"entra": entra_cfg(tenant_id="organizations")}})
     client = app.test_client()
-    token_endpoint.claims_extra = {"tid": "t-9", "iss": "https://login.microsoftonline.com/t-9/v2.0"}
-    _, q = start_login(client, token_endpoint)
-    assert finish_login(client, q["state"]).location == "/"
+    assert sso_login(client, token_endpoint, tid="t-9", iss="https://login.microsoftonline.com/t-9/v2.0").location == "/"
 
 
 # --------------------------------------------------------------------------- MSAL
@@ -302,9 +282,7 @@ def test_auto_login(entra_app, token_endpoint):
 def test_auto_login_setting_in_the_admin(entra_app):
     from tests.helpers import login
     app = entra_app()
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
+    client, _ = signed_in(app, "root", role="admin", csrf_url=None)
     assert 'name="entra_auto_login"' in client.get("/admin/settings/auth").get_data(as_text=True)
 
 
@@ -332,12 +310,8 @@ def test_entra_name_and_email_come_from_entra(entra_app, token_endpoint):
     muestra de solo lectura y guardarla no los cambia."""
     app = entra_app()
     client = app.test_client()
-    token_endpoint.claims_extra = {"email": "juan@contoso.com"}
-    _, q = start_login(client, token_endpoint)
-    finish_login(client, q["state"])
-    add_user(app, "root", role="admin")
-    admin = app.test_client()
-    login(admin, "root")
+    sso_login(client, token_endpoint, email="juan@contoso.com")
+    admin, _ = signed_in(app, "root", role="admin", csrf_url=None)
     with app.app_context():
         juan = users.get_by_external(get_db(), "entra", "oid-juan")
     token = get_csrf(admin, f"/admin/users/{U(juan['id'])}")
@@ -354,9 +328,7 @@ def test_entra_name_and_email_come_from_entra(entra_app, token_endpoint):
     assert 'value="Juan Pérez" maxlength="200" readonly' in html
     # Al volver a entrar se actualizan desde Entra ID (también el email)
     client.post("/logout", data={"_csrf": get_csrf(client, "/f/home/")})
-    token_endpoint.claims_extra = {"email": "juan.perez@contoso.com", "name": "Juan Pérez García"}
-    _, q = start_login(client, token_endpoint)
-    finish_login(client, q["state"])
+    sso_login(client, token_endpoint, email="juan.perez@contoso.com", name="Juan Pérez García")
     with app.app_context():
         juan = users.get_by_id(get_db(), juan["id"])
     assert juan["display_name"] == "Juan Pérez García" and juan["email"] == "juan.perez@contoso.com"

@@ -28,8 +28,6 @@
 .filter input:focus-visible { outline: none; }
 .filter:focus-within { outline: 2px solid var(--primary); outline-offset: 1px; }
 .popover { position: relative; }
-.popover summary { list-style: none; }
-.popover summary::-webkit-details-marker { display: none; }
 .popover-body { position: absolute; right: 0; top: calc(100% + 6px); z-index: 10; width: 280px; background: var(--bg);
                 border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column;
                 gap: 10px; box-shadow: 0 10px 30px rgba(16, 24, 40, .15); }
@@ -140,12 +138,12 @@
 .space-info p { margin: 0; }
 .space-bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .space-bar > span { display: block; height: 100%; width: 0; background: var(--primary); border-radius: 3px; }
-.space-bar.space-warn > span { background: #f79009; }
+.space-bar.space-warn > span { background: var(--warn-bar); }
 .space-bar.space-danger > span { background: var(--danger); }
 
 /* Cuota: aviso encima de la lista cuando está casi llena o superada (solo avisa) */
 .quota-notice { margin: 8px 16px 0; padding: 8px 12px; border-radius: var(--radius); font-size: 13px;
-  background: var(--surface-head); border-left: 4px solid #f79009; }
+  background: var(--surface-head); border-left: 4px solid var(--warn-bar); }
 .quota-notice.quota-over { border-left-color: var(--danger); background: var(--err-bg); }
 .quota-info + .space-info { margin-top: 10px; }
 
@@ -196,7 +194,7 @@
 .viewer-note { display: flex; gap: 10px; align-items: flex-start; background: var(--primary-soft); color: var(--fg); }
 .code-lines { margin: 0; padding: 10px 0; list-style: none; counter-reset: line; border: 1px solid var(--line-soft);
               border-radius: 10px; background: var(--bg-soft); overflow-x: auto;
-              font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, "Liberation Mono", monospace;
+              font-family: var(--font-code);
               font-size: 13px; line-height: 1.7; }
 .code-lines li { counter-increment: line; display: grid; grid-template-columns: 4.5em minmax(0, 1fr); column-gap: 16px;
                  min-height: 1.7em; padding-right: 16px; white-space: pre; }
@@ -232,7 +230,7 @@
 .md li.task { list-style: none; margin-left: -20px; }
 .md li.task input { margin: 0 6px 0 0; vertical-align: -1px; }
 .md code { padding: 1px 6px; border-radius: 5px; background: var(--surface-head); font-size: 13px;
-           font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, "Liberation Mono", monospace; }
+           font-family: var(--font-code); }
 .md pre { padding: 14px 16px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--bg-soft);
           overflow-x: auto; line-height: 1.6; }
 .md pre code { padding: 0; background: none; }
@@ -276,7 +274,7 @@
 html:not(.js) .editor-tool, html:not(.js) .editor-tool-sep { display: none; }   /* sin JavaScript no hacen nada */
 /* --gutter: el ancho de los números de línea (editor.js lo ajusta a las cifras); el texto empieza después */
 .editor-wrap { position: relative; flex: 1 1 auto; min-height: 200px; --gutter: 4.4ch;
-               font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, "Liberation Mono", monospace;
+               font-family: var(--font-code);
                font-size: 13px; }
 .editor-gutter { position: absolute; top: 0; bottom: 0; left: 0; width: var(--gutter); overflow: hidden;
                  border-right: 1px solid var(--line-soft); background: var(--surface-head); pointer-events: none; }
@@ -296,7 +294,7 @@ html:not(.js) .editor-wrap, .editor-wrap.no-numbers { --gutter: 0px !important; 
 html:not(.js) .editor-status button { pointer-events: none; }
 .editor-text, .editor-colors { position: absolute; top: 0; right: 0; bottom: 0; left: var(--gutter); margin: 0; padding: 12px 16px; border: 0; tab-size: 4;
                white-space: pre; overflow-wrap: normal; word-break: normal; letter-spacing: normal;
-               font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, "Liberation Mono", monospace;
+               font-family: var(--font-code);
                font-size: 13px; line-height: 1.7; }
 .editor-text { resize: none; background: transparent; color: var(--fg); overflow: auto;
                outline: none; }
@@ -353,7 +351,7 @@ html:not(.js) .editor-status button { pointer-events: none; }
 
 /* Favoritos: la estrella (rellena si está marcada) y los accesos de la página Recientes */
 .fav-toggle .icon, #details-fav .icon { fill: none; }
-.fav-toggle.is-on .icon, #details-fav.is-on .icon { fill: #f5b301; stroke: #d99a00; }
+.fav-toggle.is-on .icon, #details-fav.is-on .icon { fill: var(--star-fill); stroke: var(--star-stroke); }
 .fav-list { margin-bottom: 6px; }
 /* La X de cada favorito: a la derecha, al pasar el ratón por la fila o con el foco dentro */
 .fav-list li { position: relative; }

@@ -1,5 +1,6 @@
 {% extends "admin/_layout.html" %}
-{% from "admin/_page.html" import page_kind, locked_notice with context %}
+{% from "admin/_page.html" import page_kind, locked_notice, remove_card with context %}
+{% from "_forms.html" import post_button with context %}
 {% from "admin/settings/_macros.html" import save_bar with context %}
 {# Formulario genérico: las opciones, etiquetas y ayudas salen del esquema del tipo (schema), que
    declara su backend en core/backends/<tipo>.py. Un tipo nuevo no necesita tocar esta plantilla. #}
@@ -37,10 +38,7 @@
       {% if used_by %}{{ _("Used by: %(names)s", names=used_by|join(", ")) }}{% else %}{{ _("No folder uses it yet.") }}{% endif %}{% endif %}</p>
   </div>
   {% if original %}
-  <form method="post" action="{{ url_for('locations.test', name=original) }}">
-    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-    <button class="btn" type="submit">{{ _("Test the connection") }}</button>
-  </form>
+  {{ post_button(url_for('locations.test', name=original), _("Test the connection"), cls='') }}
   {% endif %}
 </div>
 {{ locked_notice(locked_message) }}
@@ -84,12 +82,8 @@
 </form>
 
 {% if original and not locked_message %}
-<form method="post" action="{{ url_for('locations.delete', name=original) }}" class="card section-gap js-confirm"
-      data-confirm="{{ _('Remove the storage location %(name)s? Its files stay where they are.', name=loc.label) }}">
-  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-  <h2 class="card-title">{{ _("Remove the location") }}</h2>
-  <p class="muted small">{{ _("Only possible when no folder uses it. The files are not deleted.") }}</p>
-  <button class="btn btn-danger" type="submit"{% if used_by %} disabled{% endif %}>{{ _("Remove storage location") }}</button>
-</form>
+{{ remove_card(url_for('locations.delete', name=original), _("Remove the location"),
+               _("Only possible when no folder uses it. The files are not deleted."), _("Remove storage location"),
+               _('Remove the storage location %(name)s? Its files stay where they are.', name=loc.label), disabled=used_by) }}
 {% endif %}
 {% endblock %}

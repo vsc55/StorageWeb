@@ -23,13 +23,13 @@ from .. import patterns
 from ..i18n import LOCALES, _
 from .env import env_config
 from .errors import ConfigError
-from .layers import _get, _set, merge_overrides
+from .layers import CONFIG_ORIGINS, merge_overrides
 from . import location_types
 from . import auth_methods
 from . import checks, server_paths
 from ..audit_levels import LEVELS as AUDIT_LEVELS
-from .defaults import (AUDIT_FORMATS, SYSLOG_FACILITIES, SYSLOG_PORTS, DEFAULTS, LISTING_MODES, LOGIN_ART_CHOICES, MFA_POLICIES, PAGE_SIZE_RANGE, PASSWORD_KINDS, PERMISSIONS,
-                       RUNTIME_SECTIONS, SECRET_FIELDS)
+from .defaults import (AUDIT_FORMATS, SYSLOG_FACILITIES, DEFAULTS, LISTING_MODES, LOGIN_ART_CHOICES, MFA_POLICIES, PAGE_SIZE_RANGE, PASSWORD_KINDS, PERMISSIONS, RUNTIME_SECTIONS)
+from ..fsutil import write_private
 
 SHARE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 PROFILE_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -156,11 +156,7 @@ def _locations(items) -> list[dict]:
 
 
 def _str_list(value, field: str) -> list[str]:
-    if isinstance(value, str):
-        value = [x for x in re.split(r"[,\s]+", value) if x]
-    if not isinstance(value, list):
-        raise ConfigError(_("%(field)s must be a list", field=field), _field_path(field))
-    return [str(x).strip() for x in value if str(x).strip()]
+    return checks.str_list(value, field, field=_field_path(field))
 
 
 def _lines(value, field: str) -> list[str]:
@@ -251,40 +247,17 @@ def _check_audit_file(path: str, cfg: dict, cfg_path: Path) -> None:
 
 
 def _non_negative_int(value, field: str) -> int:
-    try:
-        number = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ConfigError(_("%(field)s must be an integer", field=field), _field_path(field)) from exc
-    if number < 0:
-        raise ConfigError(_("%(field)s cannot be negative", field=field), _field_path(field))
-    return number
+    return checks.non_negative_int(value, field, _field_path(field))
 
 
-def _int_range(value, low: int, high: int, field: str) -> int:
-    """Un entero entre ``low`` y ``high`` (ambos incluidos), o :class:`ConfigError` en ``field``."""
-    try:
-        number = int(value)
-    except (TypeError, ValueError):
-        raise ConfigError(_("%(field)s must be a whole number between %(low)s and %(high)s", field=field, low=low,
-                            high=high), field) from None
-    if not low <= number <= high:
-        raise ConfigError(_("%(field)s must be a whole number between %(low)s and %(high)s", field=field, low=low,
-                            high=high), field)
-    return number
+_int_range = checks.int_range
 
 
 def _positive_int(value, field: str) -> int:
-    try:
-        number = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ConfigError(_("%(field)s must be an integer", field=field), _field_path(field)) from exc
-    if number < 1:
-        raise ConfigError(_("%(field)s must be greater than 0", field=field), _field_path(field))
-    return number
+    return checks.positive_int(value, field, _field_path(field))
 
 
 ENTITY_KEYS = ("shares", "locations", "group_quotas")  # storage.<clave>: entidades, no ajustes (tienen tabla)
-CONFIG_ORIGINS = ("file", "env")
 
 
 def _split_entities(overrides: dict | None) -> tuple[dict | None, dict]:
@@ -514,12 +487,7 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
                               f"audit.{key}")
     fwd["syslog"] = str(fwd.get("syslog") or "").strip()
     if fwd["syslog"]:
-        target = urllib.parse.urlsplit(fwd["syslog"])
-        try:
-            port_ok = target.port is None or 1 <= target.port <= 65535
-        except ValueError:
-            port_ok = False
-        if target.scheme not in SYSLOG_PORTS or not target.hostname or target.path not in ("", "/") or not port_ok:
+        if checks.syslog_target(fwd["syslog"]) is None:
             raise ConfigError(_("audit.syslog must look like udp://host:514, tcp://host:514 or tls://host:6514"),
                               "audit.syslog")
     fwd["syslog_format"] = str(fwd.get("syslog_format") or "rfc5424").strip().lower()
@@ -612,15 +580,24 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
 def load_config(path: str | os.PathLike | None = None, overrides: dict | None = None, environ=None) -> dict:
     """Configuración efectiva: config.json + variables de entorno (+ ajustes web si se pasan). Los secretos
     cifrados (``enc:v1:…``) se descifran con la clave de ``secretbox`` si la hay."""
+    file_cfg, cfg_path, env_cfg, _key = decrypted_layers(path, environ)
+    return normalize(file_cfg, cfg_path, overrides, env_cfg)
+
+
+def decrypted_layers(path=None, environ=None, *, create_key: bool = False, always_key: bool = False):
+    """config.json y el entorno con sus secretos cifrados (``enc:v1:…``) ya descifrados:
+    ``(file_cfg, ruta, env_cfg, clave)``. La clave de ``secretbox`` se lee solo si hay algo cifrado, salvo con
+    ``always_key`` (el servidor la necesita para lo que guarde); con ``create_key`` se crea si no existe."""
     from . import secretbox  # noqa: PLC0415 (secretbox importa de aquí)
     file_cfg, cfg_path = read_config_file(path)
     env_cfg = env_config(environ)
-    if any(secretbox.is_encrypted(v) for v in _all_strings((file_cfg, env_cfg))):
+    key = None
+    if always_key or any(secretbox.is_encrypted(v) for v in _all_strings((file_cfg, env_cfg))):
         data_dir = normalize(file_cfg, cfg_path, None, env_cfg)["data_dir"]
-        key = secretbox.load_key(data_dir, environ, create=False)
+        key = secretbox.load_key(data_dir, environ, create=create_key)
         file_cfg = secretbox.decrypt_layer(key, file_cfg, "config.json")
         env_cfg = secretbox.decrypt_layer(key, env_cfg, "STORAGEWEB_*")
-    return normalize(file_cfg, cfg_path, overrides, env_cfg)
+    return file_cfg, cfg_path, env_cfg, key
 
 
 def _all_strings(value):
@@ -643,22 +620,13 @@ def ensure_secret_key(cfg: dict) -> str:
     if key_file.exists():
         return key_file.read_text(encoding="utf-8").strip()
     key = secrets.token_hex(32)
-    fd = os.open(key_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        fh.write(key)
+    write_private(key_file, key)
     return key
 
 
 def mask_secrets(cfg: dict) -> dict:
-    out = copy.deepcopy(cfg)
-    for path in SECRET_FIELDS:
-        if _get(out, path):
-            _set(out, path, "********")
-    for loc in out.get("storage", {}).get("locations", []):
-        schema = location_types.get(loc.get("type", ""))
-        for field in schema.secrets if schema else ():
-            if loc.get(field):
-                loc[field] = "********"
-    return out
+    """Copia de ``cfg`` con los secretos (campos y opciones de ubicaciones) tapados: para enseñarla o exportarla."""
+    from .secretbox import _map  # noqa: PLC0415 (secretbox importa de aquí)
+    return _map(cfg, lambda _value: "********")
 
 

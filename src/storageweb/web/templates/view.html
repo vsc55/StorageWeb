@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_ui.html" import viewer_title with context %}
 {% block title %}{{ name }} · {{ app_name }}{% endblock %}
 {% block content %}
 {% macro window_nav() -%}
@@ -20,18 +21,13 @@
     <div class="viewer-who">
       <a class="btn btn-icon viewer-back" href="{{ folder_url }}" aria-label="{{ _('Back to the folder %(name)s', name=folder_name) }}"
          title="{{ _('Back to the folder %(name)s', name=folder_name) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-left"></use></svg></a>
-      <div class="viewer-title">
-        <nav class="viewer-crumbs" aria-label="{{ _('Location') }}">
-          <a href="{{ url_for('files.browse', root=root.name, sub='') }}">{{ root.label }}</a>
-          {% for c in crumbs %}<span aria-hidden="true">/</span><a href="{{ url_for('files.browse', root=root.name, sub=c.rel) }}">{{ c.name }}</a>{% endfor %}
-        </nav>
-        <h1><svg class="icon icon-sm" aria-hidden="true"><use href="#i-doc"></use></svg><span>{{ name }}</span></h1>
+      {% call viewer_title(root, crumbs, name, 'doc') %}
         <p class="muted small">
           {%- if media == 'image' %}{{ _("Image") }} · {{ ext|upper }}{% elif media == 'pdf' %}PDF{% elif media == 'video' %}{{ _("Video") }} · {{ ext|upper }}{% elif media == 'audio' %}{{ _("Audio") }} · {{ ext|upper }}
           {%- elif kind == 'markdown' %}Markdown{% elif kind == 'markup' %}{{ ext|upper }}{% elif lang_label %}{{ lang_label }}{% else %}{{ _("Text") }}{% endif %}
           {%- if content and content.text is not none and source %} · {{ 'UTF-8' if content.encoding == 'utf-8' else 'Windows-1252' }} · {% if window %}{{ ngettext("%(num)s line in this part", "%(num)s lines in this part", lines|length) }}{% else %}{{ ngettext("%(num)s line", "%(num)s lines", lines|length) }}{% endif %}{% endif %}
           · {{ size }}{% if mtime %} · {{ _("modified %(when)s", when=mtime) }}{% endif %}</p>
-      </div>
+      {% endcall %}
     </div>
     <div class="viewer-actions">
       {% if previous %}<a class="btn btn-icon" href="{{ url_for('files.view', root=root.name, sub=previous.rel) }}"

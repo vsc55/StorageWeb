@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-from tests.helpers import add_user, get_csrf, login, visible
+from tests.helpers import add_user, get_csrf, login, visible, signed_in
 from storageweb.web.context import get_db
 
 
@@ -250,9 +250,7 @@ def test_missing_share_dir(shares_app):
 def test_create_shares_option(make_app, tmp_path):
     app = make_app({"storage": {"create_shares": True, "shares": [
         {"name": "nuevo", "path": str(tmp_path / "nuevo"), "users": ["*"]}]}})
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
+    client, _ = signed_in(app, "ana", csrf_url=None)
     assert client.get("/f/nuevo/").status_code == 200
     assert (tmp_path / "nuevo").is_dir()
 
@@ -339,15 +337,11 @@ def test_folder_tree_shows_siblings_on_every_level(logged, home):
 def test_the_browser_page_loads_the_upload_script_only_where_one_can_upload(make_app):
     """El bloque de scripts no ve los {% set %} del contenido: con can_upload ahí, upload.js no se cargaba nunca."""
     app = make_app({"permissions": {"user": {"upload": True}}})
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
+    client, _ = signed_in(app, "ana", csrf_url=None)
     page = client.get("/f/home/").get_data(as_text=True)
     for script in ("js/app.js", "js/files/upload.js", "js/files/transfer.js", "js/files/listing.js"):
         assert script in page, script
     app = make_app({"permissions": {"user": {"upload": False}}})
-    add_user(app, "luis")
-    client = app.test_client()
-    login(client, "luis")
+    client, _ = signed_in(app, "luis", csrf_url=None)
     page = client.get("/f/home/").get_data(as_text=True)
     assert "js/app.js" in page and "js/files/upload.js" not in page

@@ -12,9 +12,9 @@ from ...i18n import LOCALES, _, _l, locale_display_name, ngettext
 from ...i18n import normalize as normalize_locale
 from ...providers import local
 from ..context import external_url, get_db, runtime, settings
-from ..forms import remembered
-from ..guards import audit_event, client_ip, login_required, safe_next
+from ..guards import audit_event, client_ip, login_required, require_api_tokens, safe_next
 from . import mfa as mfa_views
+from .links import listing_context as link_listing
 
 bp = Blueprint("profile", __name__)
 
@@ -122,14 +122,8 @@ def _render(section: str):
                  "url": (lambda t: external_url("links.public", token=t) if t else "")(links.token_of(row, key))}
                 for row in links.for_user(get_db(), user)]
         # Filtro: activos de entrada; «borrados» son los que ya no existen y solo conservan su historial
-        show = remembered("show", "links_show", links.BUCKETS, "active")
-        deleted = links.deleted_history(get_db(), user["username"])
-        shown, counts = links.split(rows, show, len(deleted))
-        context.update(my_links=shown, link_show=show, link_counts=counts,
-                       deleted_links=deleted if show == "deleted" else [],
-                       BUCKETS=links.BUCKETS, bucket_label=links.bucket_label,
-                       MODE_LABELS=links.MODE_LABELS, STATE_LABELS=links.STATE_LABELS)
-        context["link_activity"] = links.activity(get_db(), [row["uid"] for row in shown])
+        shown, extra = link_listing(rows, "links_show", user["username"])
+        context.update(my_links=shown, **extra)
     return render_template("profile.html", **context)
 
 
@@ -223,8 +217,7 @@ def sessions_close_others():
 @bp.route("/profile/tokens", methods=["POST"])
 @login_required
 def token_create():
-    if not settings()["security"]["api_tokens"]:
-        abort(403, description=_("API tokens are disabled."))
+    require_api_tokens()
     try:
         plain, _token_id = tokens.create(get_db(), g.user, name=request.form.get("name", ""),
                                          scope=request.form.get("scope", "read"),
@@ -242,8 +235,7 @@ def token_create():
 @login_required
 def token_rotate(token_id: int):
     """Rotar: un secreto nuevo para el mismo token (nombre, alcance y caducidad); el anterior deja de valer."""
-    if not settings()["security"]["api_tokens"]:
-        abort(403, description=_("API tokens are disabled."))
+    require_api_tokens()
     try:
         plain, _token_id = tokens.rotate(get_db(), g.user, api_tokens.get(get_db(), token_id),
                                          settings()["security"]["api_token_max_days"])

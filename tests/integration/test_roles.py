@@ -5,8 +5,8 @@ import pytest
 
 from storageweb.db.repositories import users
 
-from tests.helpers import add_user, get_csrf, login, visible
-from tests.sso_helpers import TENANT, entra_cfg, finish_login, start_login
+from tests.helpers import add_user, get_csrf, visible, signed_in, get_user, audit_actions
+from tests.sso_helpers import TENANT, entra_cfg, finish_login, start_login, sso_login
 from storageweb.web.context import get_db
 
 
@@ -20,10 +20,7 @@ def default_perms_app(make_app):
 
 def test_user_default_permissions(default_perms_app, home):
     app = default_perms_app
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
-    token = get_csrf(client, "/f/home/")
+    client, token = signed_in(app, "ana")
     resp = client.post("/upload/home/", data={"files": [(io.BytesIO(b"x"), "a.txt")]},
                        headers={"X-CSRF-Token": token, "Accept": "application/json"},
                        content_type="multipart/form-data")
@@ -38,10 +35,7 @@ def test_user_default_permissions(default_perms_app, home):
 
 def test_admin_has_all_permissions(default_perms_app, tmp_path):
     app = default_perms_app
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
-    token = get_csrf(client, "/f/home/")
+    client, token = signed_in(app, "root", role="admin")
     home = tmp_path / "data" / "homes" / "root"
     (home / "a.txt").write_text("x")
     assert client.post("/delete/home/a.txt", data={"_csrf": token}).status_code == 302
@@ -50,9 +44,7 @@ def test_admin_has_all_permissions(default_perms_app, tmp_path):
 
 def test_download_permission(make_app, home):
     app = make_app({"permissions": {"user": {"download": False}}})
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
+    client, _ = signed_in(app, "ana", csrf_url=None)
     client.get("/f/home/")  # crea la carpeta personal
     (home / "a.txt").write_text("x")
     assert client.get("/download/home/a.txt").status_code == 403
@@ -68,81 +60,63 @@ def entra(make_app):
     return _make
 
 
-def _user(app, username):
-    with app.app_context():
-        return users.get_by_username(get_db(), username)
-
-
 def test_auto_provision_default_role(entra, token_endpoint):
     app = entra(default_role="user")
     client = app.test_client()
-    _, q = start_login(client, token_endpoint)
-    assert finish_login(client, q["state"]).location == "/"
-    assert _user(app, "juan@contoso.com")["role"] == "user"
+    assert sso_login(client, token_endpoint).location == "/"
+    assert get_user(app, "juan@contoso.com")["role"] == "user"
     assert client.get("/admin/users").status_code == 403
 
 
 def test_auto_provision_role_mapping_admin(entra, token_endpoint):
     app = entra(role_mappings={"StorageWeb.Admin": "admin"})
     client = app.test_client()
-    token_endpoint.claims_extra = {"roles": ["StorageWeb.Admin"]}
-    _, q = start_login(client, token_endpoint)
-    finish_login(client, q["state"])
-    assert _user(app, "juan@contoso.com")["role"] == "admin"
+    sso_login(client, token_endpoint, roles=["StorageWeb.Admin"])
+    assert get_user(app, "juan@contoso.com")["role"] == "admin"
     assert client.get("/admin/users").status_code == 200
 
 
 def test_role_sync_on_login(entra, token_endpoint):
     app = entra(role_mappings={"grp-admins": "admin"}, sync_role_on_login=True)
     client = app.test_client()
-    token_endpoint.claims_extra = {"groups": ["GRP-ADMINS"]}
-    _, q = start_login(client, token_endpoint)
-    finish_login(client, q["state"])
-    assert _user(app, "juan@contoso.com")["role"] == "admin"
+    sso_login(client, token_endpoint, groups=["GRP-ADMINS"])
+    assert get_user(app, "juan@contoso.com")["role"] == "admin"
 
     client.post("/logout", data={"_csrf": get_csrf(client, "/f/home/")})
-    token_endpoint.claims_extra = {"groups": []}
-    _, q = start_login(client, token_endpoint)
-    finish_login(client, q["state"])
-    assert _user(app, "juan@contoso.com")["role"] == "none"         # el de las cuentas nuevas
+    sso_login(client, token_endpoint, groups=[])
+    assert get_user(app, "juan@contoso.com")["role"] == "none"         # el de las cuentas nuevas
 
 
 def test_role_not_synced_keeps_manual_role(entra, token_endpoint):
     app = entra(role_mappings={"grp-admins": "admin"}, sync_role_on_login=False)
     client = app.test_client()
-    _, q = start_login(client, token_endpoint)
-    finish_login(client, q["state"])
+    sso_login(client, token_endpoint)
     with app.app_context():
-        users.update(get_db(), _user(app, "juan@contoso.com")["id"], role="admin")  # el admin lo promociona
+        users.update(get_db(), get_user(app, "juan@contoso.com")["id"], role="admin")  # el admin lo promociona
     client.post("/logout", data={"_csrf": get_csrf(client, "/f/home/")})
-    _, q = start_login(client, token_endpoint)
-    finish_login(client, q["state"])
-    assert _user(app, "juan@contoso.com")["role"] == "admin"
+    sso_login(client, token_endpoint)
+    assert get_user(app, "juan@contoso.com")["role"] == "admin"
 
 
 def test_no_auto_provision_rejects_unknown(entra, token_endpoint):
     app = entra(auto_provision=False)
     client = app.test_client()
-    _, q = start_login(client, token_endpoint)
-    resp = finish_login(client, q["state"])
+    resp = sso_login(client, token_endpoint)
     assert "/login" in resp.location
     assert "no está dada de alta" in client.get("/login").get_data(as_text=True)
-    assert _user(app, "juan@contoso.com") is None
+    assert get_user(app, "juan@contoso.com") is None
 
 
 def test_no_auto_provision_links_precreated_user(entra, token_endpoint):
     app = entra(auto_provision=False)
     add_user(app, "juan@contoso.com", password=None, source="entra", role="admin")
     client = app.test_client()
-    _, q = start_login(client, token_endpoint)
-    assert finish_login(client, q["state"]).location == "/"
-    u = _user(app, "juan@contoso.com")
+    assert sso_login(client, token_endpoint).location == "/"
+    u = get_user(app, "juan@contoso.com")
     assert u["external_id"] == "oid-juan" and u["role"] == "admin"
     # Un segundo usuario de Entra con otro oid no puede reclamar esa cuenta ya vinculada
     other = app.test_client()
-    token_endpoint.claims_extra = {"oid": "oid-impostor"}
-    _, q = start_login(other, token_endpoint)
-    assert "/login" in finish_login(other, q["state"]).location
+    assert "/login" in sso_login(other, token_endpoint, oid="oid-impostor").location
 
 
 def test_provisioning_is_audited(entra, token_endpoint):
@@ -150,10 +124,8 @@ def test_provisioning_is_audited(entra, token_endpoint):
 
     app = entra()
     client = app.test_client()
-    _, q = start_login(client, token_endpoint)
-    finish_login(client, q["state"])
-    with app.app_context():
-        actions = [r["action"] for r in audit.recent(get_db(), 10)]
+    sso_login(client, token_endpoint)
+    actions = audit_actions(app, 10)
     assert "user_provisioned" in actions and "login" in actions
 
 
@@ -162,18 +134,15 @@ def test_provisioning_settings_from_web(make_app, token_endpoint):
     from tests.helpers import settings_form
 
     app = make_app({"auth": {"entra": entra_cfg()}})
-    add_user(app, "root", role="admin")
-    admin_client = app.test_client()
-    login(admin_client, "root")
+    admin_client, _ = signed_in(app, "root", role="admin", csrf_url=None)
     data = settings_form(admin_client, "auth")
     data["entra_default_role"] = ["admin"]
     data["entra_client_secret"] = [""]
     assert admin_client.post("/admin/settings/auth", data=data).status_code == 302
 
     client = app.test_client()
-    _, q = start_login(client, token_endpoint)
-    finish_login(client, q["state"])
-    assert _user(app, "juan@contoso.com")["role"] == "admin"
+    sso_login(client, token_endpoint)
+    assert get_user(app, "juan@contoso.com")["role"] == "admin"
 
     data = settings_form(admin_client, "auth")
     data.pop("entra_auto_provision", None)
@@ -182,4 +151,4 @@ def test_provisioning_settings_from_web(make_app, token_endpoint):
     other = app.test_client()
     _, q = start_login(other, token_endpoint)
     assert "/login" in finish_login(other, q["state"]).location
-    assert _user(app, "otro@contoso.com") is None
+    assert get_user(app, "otro@contoso.com") is None

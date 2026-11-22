@@ -5,7 +5,7 @@ from __future__ import annotations
 from storageweb.db.repositories import audit
 from storageweb.web.context import get_db
 
-from tests.helpers import add_user, login, stored_settings
+from tests.helpers import login, stored_settings, signed_in
 
 PNG = (b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
        b"\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfe\xa7\x35\x81\x84\x00\x00\x00\x00IEND\xaeB`\x82")
@@ -98,17 +98,13 @@ def test_previous_and_next_include_media(app, logged, home):
 
 def test_permissions_and_hidden(make_app, home):
     app = make_app({"permissions": {"user": {"download": False}}, "storage": {"hidden": ["*.mp3"]}})
-    add_user(app, "ana")
-    c = app.test_client()
-    login(c, "ana")
+    c, _ = signed_in(app, "ana", csrf_url=None)
     _files(home)
     assert c.get("/inline/home/media/foto.png").status_code == 403
     assert c.get("/view/home/media/foto.png").status_code == 403
     assert app.test_client().get("/inline/home/media/foto.png").status_code == 302      # sin sesión: a entrar
     other = make_app({"storage": {"hidden": ["*.mp3"]}})
-    add_user(other, "luis")
-    c2 = other.test_client()
-    login(c2, "luis")
+    c2, _ = signed_in(other, "luis", csrf_url=None)
     luis = home.parent / "luis"
     luis.mkdir(parents=True, exist_ok=True)
     (luis / "oculto.mp3").write_bytes(b"ID3")
@@ -118,9 +114,7 @@ def test_permissions_and_hidden(make_app, home):
 
 def test_each_kind_can_be_turned_off(make_app, home):
     app = make_app({"preview": {"images": False, "pdf": False, "video": False, "audio": False}})
-    add_user(app, "ana")
-    c = app.test_client()
-    login(c, "ana")
+    c, _ = signed_in(app, "ana", csrf_url=None)
     _files(home)
     for name in ("foto.png", "informe.pdf", "clip.mp4", "tema.mp3"):
         view = c.get(f"/view/home/media/{name}")
@@ -151,9 +145,7 @@ def test_settings_page_saves_each_kind(app, admin):
 
 def test_they_are_never_edited(make_app, home):
     app = make_app({"permissions": {"user": {"edit": True}}})
-    add_user(app, "ana")
-    c = app.test_client()
-    login(c, "ana")
+    c, _ = signed_in(app, "ana", csrf_url=None)
     _files(home)
     resp = c.get("/edit/home/media/foto.png")                       # con permiso de editar: vuelve al visor
     assert resp.status_code == 302 and resp.location.endswith("/view/home/media/foto.png")

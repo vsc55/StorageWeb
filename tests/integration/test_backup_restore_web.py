@@ -1,7 +1,5 @@
 """Restaurar una copia de seguridad desde la web (con el servicio en marcha) y subir copias."""
 import io
-import json
-import tarfile
 from pathlib import Path
 
 import pytest
@@ -9,7 +7,7 @@ import pytest
 from storageweb.core import backup, maintenance
 from storageweb.db.repositories import audit, users
 from storageweb.web.context import boot_config, get_db, settings
-from tests.helpers import add_user, get_csrf, login, update_settings
+from tests.helpers import add_user, get_csrf, login, update_settings, signed_in, backup_tar
 
 BACKUPS = "/admin/settings/backups"
 
@@ -17,9 +15,7 @@ BACKUPS = "/admin/settings/backups"
 @pytest.fixture
 def admin_app(make_app):
     app = make_app({"app_name": "Antes"})
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
+    client, _ = signed_in(app, "root", role="admin", csrf_url=None)
     return app, client
 
 
@@ -71,9 +67,7 @@ def test_restore_brings_back_the_database_and_keeps_a_safety_copy(admin_app):
 
 def test_restorer_not_in_the_backup_is_signed_out(make_app):
     app = make_app()
-    add_user(app, "otro", role="admin")
-    first = app.test_client()
-    login(first, "otro")
+    first, _ = signed_in(app, "otro", role="admin", csrf_url=None)
     name = _create(app, first)
     add_user(app, "root", role="admin")                                      # «root» no está en la copia
     client = app.test_client()
@@ -97,16 +91,6 @@ def test_maintenance_answers_503_while_restoring(admin_app):
     assert app.test_client().get("/login").status_code == 200
 
 
-def _tar(manifest: dict, db: bytes = b"") -> bytes:
-    out = io.BytesIO()
-    with tarfile.open(fileobj=out, mode="w:gz") as tar:
-        for member, data in (("manifest.json", json.dumps(manifest).encode()), ("storageweb.db", db)):
-            info = tarfile.TarInfo(member)
-            info.size = len(data)
-            tar.addfile(info, io.BytesIO(data))
-    return out.getvalue()
-
-
 def test_upload_a_backup_and_refuse_newer_or_invalid_ones(admin_app):
     app, client = admin_app
     name = _create(app, client)
@@ -125,8 +109,8 @@ def test_upload_a_backup_and_refuse_newer_or_invalid_ones(admin_app):
     assert "no es una copia válida" in client.get(BACKUPS).get_data(as_text=True)
     assert len(_names(app)) == 2
 
-    newer = _tar({"format": backup.FORMAT, "schema_version": 999, "created_at": "2030-01-01T00:00:00+00:00",
-                  "storageweb_version": "9.0"})
+    newer = backup_tar({"storageweb.db": b""}, {"format": backup.FORMAT, "schema_version": 999,
+                                                "created_at": "2030-01-01T00:00:00+00:00", "storageweb_version": "9.0"})
     client.post("/admin/settings/maintenance/backups/upload", content_type="multipart/form-data",
                 data={"_csrf": token, "backup": (io.BytesIO(newer), "storageweb-backup-20300101-000000.tar.gz")})
     assert "más nueva: actualiza antes de restaurar" in client.get(BACKUPS).get_data(as_text=True)

@@ -13,7 +13,7 @@ import shutil
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 from sqlite3 import Connection
 
@@ -23,17 +23,11 @@ from ..db.repositories import settings as settings_repo
 from ..i18n import _, format_datetime
 from . import backup, offsite
 from .alerts import alert, source
+from ..clock import file_stamp, iso_ago, iso_from_ts, now_iso, utcnow
+from ..db.connection import db_size
 
 STATE_KEY = "maintenance_state"
 _log = logging.getLogger(__name__)
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _iso(dt: datetime) -> str:
-    return dt.isoformat(timespec="seconds")
 
 
 def backup_dir(cfg: dict) -> Path:
@@ -46,7 +40,7 @@ def state(conn: Connection) -> dict:
 
 
 def _mark(conn: Connection, task: str) -> None:
-    _put_state(conn, task, _iso(_now()))
+    _put_state(conn, task, now_iso())
 
 
 def _put_state(conn: Connection, key: str, value) -> None:
@@ -61,7 +55,7 @@ def put_state(conn: Connection, key: str, value) -> None:
 
 
 def db_stats(conn: Connection, database: str) -> dict:
-    size = sum(Path(database + suffix).stat().st_size for suffix in ("", "-wal") if Path(database + suffix).exists())
+    size = db_size(database)
     tables = {}
     for table in ("users", "audit_log", "sessions", "api_tokens", "ip_rules", "groups"):
         tables[table] = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]  # noqa: S608 (nombres fijos)
@@ -73,7 +67,7 @@ def purge_audit(conn: Connection, days: int) -> int:
     """Borra las entradas de auditoría de hace más de ``days`` días."""
     if days <= 0:
         return 0
-    cur = conn.execute("DELETE FROM audit_log WHERE ts < ?", (_iso(_now() - timedelta(days=days)),))
+    cur = conn.execute("DELETE FROM audit_log WHERE ts < ?", (iso_ago(days=days),))
     conn.commit()
     return cur.rowcount
 
@@ -93,7 +87,7 @@ def list_backups(cfg: dict) -> list[dict]:
     for path in reversed(backup.list_backups(backup_dir(cfg))):
         stat = path.stat()
         result.append({"name": path.name, "size": stat.st_size,
-                       "created": _iso(datetime.fromtimestamp(stat.st_mtime, timezone.utc))})
+                       "created": iso_from_ts(stat.st_mtime)})
     return result
 
 
@@ -110,6 +104,15 @@ def create_backup(cfg: dict, prune: bool = True) -> Path:
     return backup.create(cfg, backup_dir(cfg), keep=keep or None)
 
 
+def backup_made(conn: Connection, cfg: dict, path: Path, actor: str, detail: str, *, ip: str | None = None,
+                send: bool = True) -> str | None:
+    """Lo que sigue a hacer una copia (la automática, la de la web y la de ``storageweb backup``): apuntarla
+    (``backup_created``; ``detail`` dice cuál: auto, web, cli) y, salvo ``send=False``, enviarla fuera del servidor
+    si está configurado. ``cfg`` son los ajustes efectivos. Devuelve el error del envío o ``None``."""
+    audit.log(conn, "backup_created", path.name, username=actor, ip=ip, detail=detail)
+    return send_offsite(conn, cfg, path, actor) if send else None
+
+
 def send_offsite(conn: Connection, cfg: dict, path: Path, actor: str) -> str | None:
     """Envía la copia ``path`` fuera del servidor, si está configurado (``maintenance.offsite_location``), y
     apunta el resultado (el aviso del *Resumen* y la página de copias lo leen). Devuelve el error o ``None``.
@@ -121,10 +124,10 @@ def send_offsite(conn: Connection, cfg: dict, path: Path, actor: str) -> str | N
         removed = offsite.send(cfg, path)
     except backup.BackupError as exc:
         _log.warning("Could not send the backup %s to %s: %s", path.name, where, exc)
-        _put_state(conn, "offsite", {"at": _iso(_now()), "ok": False, "name": path.name, "error": str(exc)[:300]})
+        _put_state(conn, "offsite", {"at": now_iso(), "ok": False, "name": path.name, "error": str(exc)[:300]})
         audit.log(conn, "backup_offsite_failed", path.name, username=actor, detail=f"{where}: {exc}"[:300])
         return str(exc)
-    _put_state(conn, "offsite", {"at": _iso(_now()), "ok": True, "name": path.name, "error": ""})
+    _put_state(conn, "offsite", {"at": now_iso(), "ok": True, "name": path.name, "error": ""})
     audit.log(conn, "backup_offsite", path.name, username=actor,
               detail=where + (f" (-{len(removed)})" if removed else ""))
     return None
@@ -140,9 +143,9 @@ SAFETY_PREFIX = "antes-de-restaurar"
 def add_backup(cfg: dict, upload: Path, filename: str) -> Path:
     """Guarda una copia subida desde la web (de este u otro servidor) junto a las demás, si es válida."""
     backup.check_restorable(upload)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    stamp = file_stamp()
     name = Path(filename or "").name
-    if not (name.startswith(backup.PREFIX) and name.endswith(backup.SUFFIX)) or "/" in name or "\\" in name:
+    if not backup.is_backup_name(name) or "/" in name or "\\" in name:
         name = f"{backup.PREFIX}subida-{stamp}{backup.SUFFIX}"
     target = backup_dir(cfg) / name
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -225,7 +228,7 @@ def run_due(conn: Connection, cfg: dict) -> list[str]:
     for t in tasks():
         hours = t.every(cfg)
         last = current.get(t.name)
-        if not hours or (last and last >= _iso(_now() - timedelta(hours=hours))):
+        if not hours or (last and last >= iso_ago(hours=hours)):
             continue
         try:
             t.run(conn, cfg)
@@ -238,7 +241,7 @@ def run_due(conn: Connection, cfg: dict) -> list[str]:
 
 @task("cleanup", every=lambda cfg: 1, order=10)
 def _close_idle_sessions(conn: Connection, cfg: dict) -> None:
-    sessions.delete_idle(conn, _iso(_now() - timedelta(hours=cfg["session"]["lifetime_hours"])))
+    sessions.delete_idle(conn, iso_ago(hours=cfg["session"]["lifetime_hours"]))
 
 
 @task("audit_purge", every=lambda cfg: 24 if cfg["maintenance"]["audit_retention_days"] else 0, order=20)
@@ -256,8 +259,7 @@ def _automatic_backup(conn: Connection, cfg: dict) -> None:
         _log.exception("Automatic backup failed")
         audit.log(conn, "backup_failed", None, username="system", detail=str(exc)[:200])
     else:
-        audit.log(conn, "backup_created", path.name, username="system", detail="auto")
-        send_offsite(conn, cfg, path, "system")
+        backup_made(conn, cfg, path, "system", "auto")
 
 
 @source("audit_forward", order=35)
@@ -286,7 +288,7 @@ def _stale_backups(ctx):
         return []
     backups = list_backups(ctx.boot)
     newest = backups[0]["created"] if backups else None
-    limit = _now() - timedelta(hours=hours * 2 + 1)
+    limit = utcnow() - timedelta(hours=hours * 2 + 1)
     tried = ctx.maint_state.get("backup")  # sin copias y sin intento aún: recién instalado, no es un aviso
     if (newest is None and tried) or (newest is not None and datetime.fromisoformat(newest) < limit):
         return [alert("warn", "backup_stale", _("Automatic backups are not being made"),

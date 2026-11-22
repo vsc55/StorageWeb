@@ -3,19 +3,19 @@
 el último resultado; el botón, su barra de progreso y la comprobación en marcha están en ``system.py``)."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 
 from ....core import advisories, maintenance, posture
 from ....db.repositories import api_tokens, audit, ip_rules, sessions
 from ... import nav
 from ...context import boot_config, get_db, network_diagnosis, runtime
+from ....clock import iso_ago, now_iso
 
 EVENTS_SHOWN = 12
 
 
 def _active_bans(conn) -> tuple[int, int]:
     """IPs bloqueadas ahora mismo: ``(total, automáticas)`` (las caducadas no cuentan)."""
-    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    now = now_iso()
     rows = [r for r in ip_rules.list_rules(conn, "ban") if not r["expires_at"] or r["expires_at"] > now]
     return len(rows), sum(1 for r in rows if r["automatic"])
 
@@ -23,8 +23,7 @@ def _active_bans(conn) -> tuple[int, int]:
 def security_context(cfg: dict) -> dict:
     conn = get_db()
     state = maintenance.state(conn)
-    now = datetime.now(timezone.utc)
-    day_ago = (now - timedelta(hours=24)).isoformat(timespec="seconds")
+    now, day_ago = now_iso(), iso_ago(hours=24)
     checks = posture.collect(posture.Context(conn, cfg, boot_config(), state, network_diagnosis(cfg),
                                              runtime().secrets_key is not None))
     for row in checks:
@@ -32,7 +31,7 @@ def security_context(cfg: dict) -> dict:
     bans, automatic = _active_bans(conn)
     open_sessions = sessions.list_all(conn)
     valid_tokens = [t for t in api_tokens.list_all(conn)
-                    if not t["expires_at"] or t["expires_at"] > now.isoformat(timespec="seconds")]
+                    if not t["expires_at"] or t["expires_at"] > now]
     accounts = posture.password_accounts(conn)
     enrolled = posture.enrolled_ids(conn)
     last = state.get(advisories.STATE_KEY) or {}

@@ -2,9 +2,8 @@
 import pytest
 
 from storageweb.core import groups as gc
-from storageweb.db.repositories import audit, users
 from storageweb.web.context import get_db
-from tests.helpers import add_user, login, visible, U, G
+from tests.helpers import add_user, login, visible, U, G, get_user, audit_actions
 
 
 @pytest.fixture
@@ -12,11 +11,6 @@ def app(make_app, tmp_path):
     return make_app({"storage": {"create_shares": True, "shares": [
         {"name": "software", "label": "Software", "path": str(tmp_path / "sw"), "users": [], "groups": ["it"]},
         {"name": "publico", "label": "Público", "path": str(tmp_path / "pub"), "users": ["*"]}]}})
-
-
-def _user(app, name):
-    with app.app_context():
-        return users.get_by_username(get_db(), name)
 
 
 def _group(app, name, label):
@@ -53,7 +47,7 @@ def test_list_filters_and_counts(app, admin):
     add_user(app, "baja", enabled=False)
 
     html = client.get("/admin/users").get_data(as_text=True)
-    assert "4 usuarios · 3 activos · 1 desactivados" in html and '<span class="tag">Sistemas</span>' in html
+    assert "4 usuarios · 3 activos · 1 desactivados" in html and '<span class="group-tag">Sistemas</span>' in html
     assert "Administradores" in html                                  # root, por rol
 
     def names(query):
@@ -79,24 +73,23 @@ def test_bulk_actions(app, admin):
     client, token = admin
     gid = _group(app, "it", "Sistemas")
     a, b = add_user(app, "ana"), add_user(app, "beto")
-    me = _user(app, "root")["id"]
+    me = get_user(app, "root")["id"]
 
     client.post("/admin/users/bulk", data={"_csrf": token, "action": "disable", "ids": [U(a), U(b), U(me)]})
-    assert not _user(app, "ana")["enabled"] and not _user(app, "beto")["enabled"]
-    assert _user(app, "root")["enabled"]                              # no se desactiva a sí mismo
+    assert not get_user(app, "ana")["enabled"] and not get_user(app, "beto")["enabled"]
+    assert get_user(app, "root")["enabled"]                              # no se desactiva a sí mismo
     html = client.get("/admin/users").get_data(as_text=True)
     assert "No puedes deshabilitar tu propia cuenta" in html
 
     client.post("/admin/users/bulk", data={"_csrf": token, "action": "enable", "ids": [U(a), U(b)]})
     client.post("/admin/users/bulk", data={"_csrf": token, "action": "role_admin", "ids": [U(a)]})
-    assert _user(app, "ana")["role"] == "admin"
+    assert get_user(app, "ana")["role"] == "admin"
     client.post("/admin/users/bulk", data={"_csrf": token, "action": "add_group", "group_uid": G(gid), "ids": [U(a), U(b)]})
-    assert "it" in _user(app, "beto")["groups"]
+    assert "it" in get_user(app, "beto")["groups"]
     resp = client.post("/admin/users/bulk", data={"_csrf": token, "action": "add_group", "ids": [U(a)],
                                                   "next": "/admin/users?status=active"})
     assert resp.location == "/admin/users?status=active"
-    with app.app_context():
-        actions = [r["action"] for r in audit.recent(get_db(), 20)]
+    actions = audit_actions(app, 20)
     assert {"user_disabled", "user_enabled", "user_updated", "group_member_added"} <= set(actions)
 
 
@@ -129,7 +122,7 @@ def test_panel_tabs_and_edit_returns_to_panel(app, admin):
         "_csrf": token, "display_name": "Ana L.", "email": "", "role": "user", "home_path": "", "enabled": "on",
         "next": f"/admin/users/panel?u={U(ana)}&tab=profile"})
     assert resp.location.endswith(f"/admin/users/panel?u={U(ana)}&tab=profile")
-    assert _user(app, "ana")["display_name"] == "Ana L."
+    assert get_user(app, "ana")["display_name"] == "Ana L."
 
 
 def test_cards_view_removed(admin):

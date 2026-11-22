@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.helpers import add_user, deep_update, get_csrf, login
+from tests.helpers import deep_update, run_cli, signed_in
 
 
 @pytest.fixture(autouse=True)
@@ -25,6 +25,15 @@ def no_internet(monkeypatch):
     salvo que un test ponga sus respuestas (tests/unit/test_advisories.py)."""
     from storageweb.core import advisories
     monkeypatch.setattr(advisories, "_get_json", lambda url, timeout, data=None: {"ok": False, "error": "unreachable"})
+
+
+@pytest.fixture
+def fresh_ipban():
+    """Sin las reglas de IP que core/ipban guarda en memoria de otro test (antes y después)."""
+    from storageweb.core import ipban
+    ipban.invalidate()
+    yield
+    ipban.invalidate()
 
 
 @pytest.fixture
@@ -96,18 +105,24 @@ def db_conn(tmp_path):
 @pytest.fixture
 def logged(app, client):
     """Cliente con el usuario 'ana' autenticado. Devuelve (client, csrf_token)."""
-    add_user(app, "ana", display_name="Ana López")
-    resp = login(client, "ana")
-    assert resp.status_code == 302
-    return client, get_csrf(client, "/f/home/")
+    return signed_in(app, "ana", client=client, display_name="Ana López")
 
 
 @pytest.fixture
 def admin(app, client):
     """Cliente con el administrador 'root' autenticado. Devuelve (client, csrf_token)."""
-    add_user(app, "root", role="admin")
-    assert login(client, "root").status_code == 302
-    return client, get_csrf(client, "/f/home/")
+    return signed_in(app, "root", client=client, role="admin")
+
+
+@pytest.fixture
+def cli(write_config):
+    """La CLI en otro proceso con el config.json de los tests: ``cli("user-add", "ana", ...)``. Exige que acabe
+    bien salvo ``ok=False``; el resto de argumentos van a :func:`tests.helpers.run_cli`."""
+    cfg = write_config()
+
+    def run(*args, ok=True, **kw):
+        return run_cli(cfg, *args, ok=ok, **kw)
+    return run
 
 
 @pytest.fixture

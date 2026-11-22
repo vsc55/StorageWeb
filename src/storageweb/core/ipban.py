@@ -16,13 +16,13 @@ from __future__ import annotations
 import ipaddress
 import threading
 import time
-from datetime import datetime, timedelta, timezone
 from sqlite3 import Connection
 
 from ..db.repositories import audit
 from ..db.repositories import ip_rules as repo
 from ..i18n import _
 from .maintenance import task
+from ..clock import iso_ago, iso_in, now_iso
 
 CACHE_SECONDS = 30
 OFFENSE_KINDS = ("login_failed", "csrf", "bad_token")
@@ -33,10 +33,6 @@ _lock = threading.Lock()
 
 class IPBanError(Exception):
     pass
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 def normalize_network(text: str) -> str:
@@ -81,7 +77,7 @@ def _match(conn: Connection, ip: str, kind: str) -> dict | None:
     addr = _ip(ip)
     if addr is None:
         return None
-    now = _now().isoformat(timespec="seconds")
+    now = now_iso()
     for rule_kind, net, expires_at, row in _rules(conn):
         if rule_kind == kind and addr.version == net.version and addr in net and (not expires_at or expires_at > now):
             return row
@@ -106,12 +102,12 @@ def offense(conn: Connection, cfg: dict, ip: str, kind: str) -> bool:
     if not sec["ipban_enabled"] or addr is None or addr.is_loopback or is_allowed(conn, ip):
         return False
     repo.add_offense(conn, str(addr), kind)
-    since = (_now() - timedelta(minutes=sec["ipban_window_minutes"])).isoformat(timespec="seconds")
+    since = iso_ago(minutes=sec["ipban_window_minutes"])
     count = repo.count_offenses(conn, str(addr), since)
     if count < sec["ipban_threshold"]:
         return False
     minutes = sec["ipban_minutes"]
-    expires = (_now() + timedelta(minutes=minutes)).isoformat(timespec="seconds") if minutes else None
+    expires = iso_in(minutes=minutes) if minutes else None
     reason = _("%(count)s offenses in %(minutes)s minutes (last one: %(kind)s)", count=count,
                minutes=sec["ipban_window_minutes"], kind=kind)
     repo.add(conn, "ban", str(addr), reason=reason, automatic=True, expires_at=expires)
@@ -128,7 +124,7 @@ def ban(conn: Connection, network: str, *, by: str, reason: str = "", minutes: i
     if addr is not None and addr.version == ipaddress.ip_network(net, strict=False).version \
             and addr in ipaddress.ip_network(net, strict=False):
         raise IPBanError(_("You cannot block the address you are using (%(ip)s).", ip=current_ip))
-    expires = (_now() + timedelta(minutes=minutes)).isoformat(timespec="seconds") if minutes else None
+    expires = iso_in(minutes=minutes) if minutes else None
     repo.add(conn, "ban", net, reason=reason.strip(), created_by=by, expires_at=expires)
     invalidate()
     return net
@@ -156,5 +152,5 @@ def prune(conn: Connection, cfg: dict) -> None:
     """Quita los bloqueos caducados y las infracciones fuera de la ventana."""
     repo.delete_expired(conn)
     window = cfg["security"]["ipban_window_minutes"]
-    repo.clear_offenses(conn, before_iso=(_now() - timedelta(minutes=window)).isoformat(timespec="seconds"))
+    repo.clear_offenses(conn, before_iso=iso_ago(minutes=window))
     invalidate()

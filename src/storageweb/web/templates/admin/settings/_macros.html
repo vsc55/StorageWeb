@@ -35,3 +35,45 @@
   <button class="btn btn-primary" type="submit">{{ _("Save") }}</button>
 </div>
 {%- endmacro %}
+
+{# Los resultados de una prueba de conexión (Entra ID: la tarjeta y el asistente), cada uno con ``ok`` (True, False
+   o None = no se pudo saber), ``pending`` y ``message`` #}
+{% macro check_list(results) -%}
+<ul class="check-list">
+  {% for r in results %}
+  <li class="{{ 'ok' if r.ok else ('fail' if r.ok is sameas false else ('pending' if r.pending else 'unknown')) }}">
+    <span aria-hidden="true">{{ '✓' if r.ok else ('✕' if r.ok is sameas false else ('…' if r.pending else '–')) }}</span><span>{{ r.message }}</span></li>
+  {% endfor %}
+</ul>
+{%- endmacro %}
+
+{# Una pestaña (admin/forms.js, .tab-panel) con una tarjeta cuyo título es el de la pestaña. ``cls``: las clases
+   de la tarjeta (con form-grid, el título ocupa las dos columnas); ``id``: el de la tarjeta (ancla). El contenido
+   es el cuerpo del «{% call %}» #}
+{% macro tab(legend, cls='card form-grid', id=None) -%}
+<fieldset class="tab-panel">
+  <legend>{{ legend }}</legend>
+  <div class="{{ cls }}"{% if id %} id="{{ id }}"{% endif %}>
+    <h3 class="card-title{% if 'form-grid' in cls.split() %} span2{% endif %}">{{ legend }}</h3>
+    {{ caller() }}
+  </div>
+</fieldset>
+{%- endmacro %}
+
+{# La cabecera de la tarjeta de un método de inicio de sesión (Inicio de sesión → su pestaña): icono, nombre (con
+   el origen de «enabled» si ``badge``), una línea con ``description`` y cuántas cuentas lo usan (o, con
+   «{% call %}», lo que haya en el cuerpo), ``extra`` (botones ya pintados) y el interruptor. ``key`` da el id
+   p-<key> al que apunta el aria-labelledby de la tarjeta #}
+{% macro provider_head(key, title, icon, description=None, icon_cls='', badge=True, extra='') -%}
+{% set path = 'auth.' ~ key ~ '.enabled' %}
+<div class="provider-head">
+  <span class="provider-icon{% if icon_cls %} {{ icon_cls }}{% endif %}" aria-hidden="true"><svg class="icon"><use href="#i-{{ icon }}"></use></svg></span>
+  <div class="provider-text">
+    {% if badge %}<span class="provider-title"><strong id="p-{{ key }}">{{ title }}</strong> {{ origin(path) }}</span>
+    {%- else %}<strong id="p-{{ key }}">{{ title }}</strong>{% endif %}
+    {% if caller %}{{ caller() }}{% else %}<span class="muted small">{{ description }} · {{ ngettext("%(num)s user", "%(num)s users", user_counts.get(key, 0)) }}</span>{% endif %}
+  </div>
+  {{ extra }}
+  <label class="switch"><input{{ lock(path) }} type="checkbox" name="{{ key }}_enabled" {% if cfg.auth[key].enabled %}checked{% endif %}> <span>{{ _("Enabled") }}</span></label>
+</div>
+{%- endmacro %}

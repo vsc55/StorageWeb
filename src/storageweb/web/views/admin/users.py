@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from flask import abort, flash, g, make_response, redirect, render_template, request, session, url_for
+from flask import abort, flash, g, make_response, redirect, render_template, request, url_for
 
 from ....core import accounts, favorites, mfa, roles
 from ....core.permissions import default_role
@@ -19,8 +19,8 @@ from ....db.repositories import sessions as session_repo
 from ....i18n import _, _l, format_size, ngettext
 from ....settings import PERMISSIONS, ROLES
 from ...context import get_db, settings
-from ...forms import back, split_list
-from ...guards import admin_required, audit_event, safe_next
+from ...forms import back, choice, flash_outcome, last_view, page_of, pick, split_list, use_view
+from ...guards import admin_required, audit_event, safe_next, user_or_404
 from ... import search
 from . import bp
 
@@ -44,13 +44,10 @@ def _initials(user) -> str:
 
 def _user_filters() -> dict:
     a = request.args
-    status = a.get("status", "all")
-    source = a.get("source", "")
-    role = a.get("role", "")
     return {"q": a.get("q", "").strip(),
-            "status": status if status in USER_STATUS_FILTERS else "all",
-            "source": source if source in accounts.sources() else "",
-            "role": role if role in ROLES or role in (settings().get("roles") or {}) else "",
+            "status": choice("status", USER_STATUS_FILTERS, "all"),
+            "source": choice("source", accounts.sources(), ""),
+            "role": choice("role", (*ROLES, *(settings().get("roles") or {})), ""),
             "group": a.get("group", "")}  # identificador público del grupo
 
 
@@ -59,14 +56,6 @@ def _filtered_users(f: dict) -> list:
     return users.list_all(get_db(), search=f["q"], status=None if f["status"] == "all" else f["status"],
                           source=f["source"] or None, role=f["role"] or None,
                           group_id=group["id"] if group else (-1 if f["group"] else None))
-
-
-def _user_or_404(user_uid: str):
-    """La cuenta por su identificador público (el de las direcciones); 404 si no existe."""
-    user = users.get_by_uid(get_db(), user_uid)
-    if user is None:
-        abort(404)
-    return user
 
 
 def _group_names(user_rows) -> dict:
@@ -80,19 +69,16 @@ def _group_names(user_rows) -> dict:
 @bp.route("/users/")
 @admin_required
 def users_index():
-    view = session.get("users_view")
-    return redirect(url_for("admin.users_panel" if view == "panel" else "admin.users_list"))
+    return redirect(url_for("admin.users_panel" if last_view("users_view") == "panel" else "admin.users_list"))
 
 
 @bp.route("/users")
 @admin_required
 def users_list():
-    session["users_view"] = "list"
+    use_view("users_view", "list")
     f = _user_filters()
     rows = _filtered_users(f)
-    page = max(request.args.get("page", 1, type=int), 1)
-    pages = max((len(rows) + PAGE_SIZE - 1) // PAGE_SIZE, 1)
-    page = min(page, pages)
+    page, pages = page_of(len(rows), PAGE_SIZE)
     shown = rows[(page - 1) * PAGE_SIZE: page * PAGE_SIZE]
     return render_template("admin/users.html", users=shown, total=len(rows), page=page, pages=pages,
                            session_count=len(session_repo.list_all(get_db())),
@@ -140,10 +126,7 @@ def users_bulk():
             errors.append(f"{user['username']}: {exc.message}")
         else:
             done += 1
-    if done:
-        flash(ngettext("Done for %(num)s user.", "Done for %(num)s users.", done), "info")
-    for error in errors:
-        flash(error, "error")
+    flash_outcome(ngettext("Done for %(num)s user.", "Done for %(num)s users.", done) if done else None, errors)
     return back(url_for("admin.users_list"))
 
 
@@ -173,22 +156,14 @@ def _user_detail(user) -> dict:
             "role_permissions": [PERMISSION_LABELS[p] for p in PERMISSIONS if p in perms]}
 
 
-def _pick(rows, wanted: str | None):
-    for row in rows:
-        if row["uid"] == wanted:
-            return row
-    return rows[0] if rows else None
-
-
 @bp.route("/users/panel")
 @admin_required
 def users_panel():
-    session["users_view"] = "panel"
+    use_view("users_view", "panel")
     f = _user_filters()
     rows = _filtered_users(f)
-    current = _pick(rows, request.args.get("u"))
-    tab = request.args.get("tab", "profile")
-    tab = tab if tab in USER_TABS else "profile"
+    current = pick(rows, request.args.get("u"))
+    tab = choice("tab", USER_TABS, "profile")
     ctx = {}
     if current is not None:
         ctx = {**_user_detail(current), "form": {**dict(current), "enabled": bool(current["enabled"])}}
@@ -200,7 +175,7 @@ def users_panel():
 @admin_required
 def user_status(user_uid: str):
     """Activa o desactiva una cuenta (también de Entra ID o PAM: desactivar bloquea el acceso)."""
-    user = _user_or_404(user_uid)
+    user = user_or_404(user_uid)
     enabled = request.form.get("enabled") == "1"
     try:
         accounts.set_enabled(get_db(), user, g.user, enabled)
@@ -220,7 +195,7 @@ def user_mfa_reset(user_uid: str):
     """Quita la verificación en dos pasos de otra cuenta: el camino de vuelta para quien perdió el móvil y los códigos.
     No existe lo contrario: nadie puede activar la de otro (solo el dueño da de alta la aplicación que tiene en la
     mano). La propia se quita desde Mi perfil, con un código."""
-    user = _user_or_404(user_uid)
+    user = user_or_404(user_uid)
     if user["id"] == g.user["id"]:
         flash(_("Turn off your own two-step verification in My profile."), "error")
     elif mfa.disable(get_db(), user):
@@ -363,7 +338,7 @@ def user_new():
 @bp.route("/users/<user_uid>", methods=["GET", "POST"])
 @admin_required
 def user_edit(user_uid: str):
-    user = _user_or_404(user_uid)
+    user = user_or_404(user_uid)
     form = {**dict(user), "enabled": bool(user["enabled"])}
     if request.method == "POST":
         # Activar o desactivar no es «editar»: tiene su botón (admin.user_status), con su confirmación y sus
@@ -393,7 +368,7 @@ def user_password(user_uid: str):
 
     Cierra sus sesiones, pero sus tokens de API siguen valiendo (la extensión de VS Code o la unidad de red no se
     desconectan por un olvido). Para cortarle el paso del todo está Desactivar, o revocar sus tokens en la ficha."""
-    user = _user_or_404(user_uid)
+    user = user_or_404(user_uid)
     done_url = back(url_for("admin.user_edit", user_uid=user_uid))
     # Se comprueba aquí (y otra vez en accounts.set_password), no se da por bueno que el botón estuviera
     # desactivado: un POST a mano sobre la propia cuenta o una de SSO es un 403 y queda en la auditoría
@@ -428,15 +403,13 @@ def user_password(user_uid: str):
 def _user_groups_context(user) -> dict:
     """Grupos del usuario (con origen), grupos a los que se puede añadir y grupos del proveedor sin alta."""
     rows = group_core.memberships(get_db(), user)
+    every = group_repo.list_all(get_db())
     mine = {g["id"] for g in rows}
-    names = {g["name"] for g in rows} | {g["external_id"] for g in rows if g["external_id"]}
-    known = {g["name"] for g in group_repo.list_all(get_db())} | \
-        {g["external_id"] for g in group_repo.list_all(get_db()) if g["external_id"]}
-    unknown = sorted(group_core.split(user["external_groups"]) - names - known)
+    unknown = sorted(group_core.split(user["external_groups"]) - group_core.refs(rows) - group_core.refs(every))
     from ..groups import directory_names
     return {"memberships": rows, "unknown_groups": unknown,
             "unknown_names": directory_names(unknown, user["source"]),
-            "addable_groups": [g for g in group_repo.list_all(get_db()) if g["id"] not in mine]}
+            "addable_groups": [g for g in every if g["id"] not in mine]}
 
 
 def _favorites_back(user_uid: str):
@@ -448,7 +421,7 @@ def _favorites_back(user_uid: str):
 @admin_required
 def user_favorite_add(user_uid: str):
     """Añade a la persona un favorito en una de sus carpetas (que exista)."""
-    user = _user_or_404(user_uid)
+    user = user_or_404(user_uid)
     try:
         added = favorites.add_for(get_db(), user, settings(), request.form.get("root", ""),
                                   request.form.get("path", ""))
@@ -463,7 +436,7 @@ def user_favorite_add(user_uid: str):
 @bp.route("/users/<user_uid>/favorites/remove", methods=["POST"])
 @admin_required
 def user_favorite_remove(user_uid: str):
-    user = _user_or_404(user_uid)
+    user = user_or_404(user_uid)
     root, rel = request.form.get("root", ""), request.form.get("rel", "")
     favorites.remove(get_db(), user, root, rel)
     audit_event("favorite_removed_by_admin", user["username"], f"{root}:/{rel}")
@@ -473,7 +446,7 @@ def user_favorite_remove(user_uid: str):
 @bp.route("/users/<user_uid>/favorites/clear", methods=["POST"])
 @admin_required
 def user_favorites_clear(user_uid: str):
-    user = _user_or_404(user_uid)
+    user = user_or_404(user_uid)
     removed = favorites.clear(get_db(), user)
     audit_event("favorites_cleared_by_admin", user["username"], f"removed={removed}")
     flash(ngettext("%(num)s favorite removed.", "%(num)s favorites removed.", removed), "info")
@@ -483,9 +456,9 @@ def user_favorites_clear(user_uid: str):
 @bp.route("/users/<user_uid>/groups", methods=["POST"])
 @admin_required
 def user_group_add(user_uid: str):
-    user = users.get_by_uid(get_db(), user_uid)
+    user = user_or_404(user_uid)
     group = group_repo.get_by_uid(get_db(), request.form.get("group_uid", ""))
-    if user is None or group is None:
+    if group is None:
         abort(404)
     group_core.add_member(get_db(), group, user)
     audit_event("group_member_added", group["name"], user["username"])
@@ -497,7 +470,7 @@ def user_group_add(user_uid: str):
 @bp.route("/users/<user_uid>/delete", methods=["POST"])
 @admin_required
 def user_delete(user_uid: str):
-    user = _user_or_404(user_uid)
+    user = user_or_404(user_uid)
     try:
         accounts.delete_account(get_db(), user, g.user)
     except accounts.AccountError as exc:

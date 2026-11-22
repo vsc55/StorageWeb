@@ -16,8 +16,6 @@ Los códigos pendientes viven en memoria de este proceso.
 """
 from __future__ import annotations
 
-import base64
-import hashlib
 import hmac
 import re
 import secrets
@@ -30,6 +28,7 @@ from urllib.parse import urlencode
 from ..db.repositories import users
 from ..i18n import _
 from . import tokens
+from ..text import pkce_challenge
 
 CODE_SECONDS = 300
 MAX_PENDING = 1000
@@ -113,8 +112,7 @@ def back_url(redirect_uri: str, **params: str) -> str:
     return f"{redirect_uri}?{urlencode(params)}"
 
 
-def challenge_of(verifier: str) -> str:
-    return base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).rstrip(b"=").decode("ascii")
+challenge_of = pkce_challenge
 
 
 def redeem(conn: Connection, code: str | None, verifier: str | None, max_days: int = 0):

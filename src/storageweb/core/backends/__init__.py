@@ -24,8 +24,9 @@ from pathlib import Path
 from ...i18n import _
 from ...settings import location_types
 from .base import (Backend, BackendError, Entry, RemoteBackend, UnavailableBackend, clean_rel, copy_between,
-                   is_safe_name, join_rel, name_of, parent_rel)
+                   download_to, error_text, is_safe_name, join_rel, name_of, parent_rel, temp_name)
 from .local import LocalBackend
+from .. import named
 
 TYPES: dict[str, type[RemoteBackend]] = {}
 CLIENT_FACTORIES: dict[str, object] = {}  # tipo → función que crea el cliente (los tests la sustituyen)
@@ -69,7 +70,7 @@ def clear_clients() -> None:
 
 
 def find_location(cfg: dict, name: str) -> dict | None:
-    return next((loc for loc in cfg["storage"].get("locations", []) if loc["name"] == name), None)
+    return named.find(cfg["storage"].get("locations", []), name)
 
 
 def type_of(location: dict) -> type[RemoteBackend]:
@@ -108,6 +109,6 @@ def staging_dir(cfg: dict) -> Path:
 discover()
 
 __all__ = ["CLIENT_FACTORIES", "TYPES", "Backend", "BackendError", "Entry", "LocalBackend", "RemoteBackend",
-           "UnavailableBackend", "address", "backend_for", "clean_rel", "clear_clients", "copy_between", "discover",
+           "UnavailableBackend", "address", "backend_for", "clean_rel", "clear_clients", "copy_between", "discover", "download_to", "error_text",
            "find_location",
-           "is_safe_name", "join_rel", "name_of", "parent_rel", "register", "staging_dir", "type_of"]
+           "is_safe_name", "join_rel", "name_of", "parent_rel", "register", "staging_dir", "temp_name", "type_of"]

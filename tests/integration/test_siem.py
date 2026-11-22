@@ -13,7 +13,7 @@ from storageweb.core import alerts, maintenance
 from storageweb.db.repositories import audit
 from storageweb.settings import ConfigError, load_config
 from storageweb.web.context import boot_config, get_db, settings
-from tests.helpers import add_user, get_csrf, login
+from tests.helpers import get_csrf, signed_in, config_file
 
 
 @pytest.fixture(autouse=True)
@@ -38,9 +38,7 @@ def udp():
 
 def _admin(make_app, audit_cfg):
     app = make_app({"audit": audit_cfg})
-    add_user(app, "root", role="admin")
-    client = app.test_client()
-    login(client, "root")
+    client, _ = signed_in(app, "root", role="admin", csrf_url=None)
     return app, client
 
 
@@ -146,8 +144,7 @@ def test_full_queue_drops_without_blocking(monkeypatch):
 
 def test_settings_are_validated(tmp_path):
     def load(fwd):
-        p = tmp_path / "config.json"
-        p.write_text(json.dumps({"audit": fwd}), encoding="utf-8")
+        p = config_file(tmp_path, {"audit": fwd})
         return load_config(p)
     assert load({})["audit"]["syslog"] == ""
     assert load({"file": "audit.jsonl"})["audit"]["file"] == str(tmp_path / "audit.jsonl")

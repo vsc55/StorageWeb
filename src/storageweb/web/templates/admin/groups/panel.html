@@ -1,26 +1,20 @@
 {% extends "admin/_layout.html" %}
 {% from "admin/groups/_macros.html" import source_badge, page_head, filters_form, group_fields, member_list, share_chips, detected_box with context %}
+{% from "admin/_panels.html" import md_list, md_item, tab_nav with context %}
+{% from "_forms.html" import post_button with context %}
 {% block title %}{{ _("Groups") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
 {{ page_head('panel') }}
 {{ filters_form(search, source, 'groups.panel_view', '<input type="hidden" name="tab" value="%s">'|format(tab)|safe) }}
 
 <div class="master-detail" data-partial>
-  <aside class="md-list" aria-label="{{ _('List of groups') }}">
-    <ul>
-      {% for gr in groups %}
-      <li><a class="md-item{% if current and gr['id'] == current['id'] %} active{% endif %}"
-             href="{{ url_for('groups.panel_view', g=gr['uid'], tab=tab, q=search or None, source=source or None) }}"
-             {% if current and gr['id'] == current['id'] %}aria-current="true"{% endif %}>
+  {% call(gr) md_list(_('List of groups'), groups, _("No groups.")) %}
+    {%- call md_item(url_for('groups.panel_view', g=gr['uid'], tab=tab, q=search or None, source=source or None), current and gr['id'] == current['id']) %}
         <span class="md-item-text"><strong>{{ (gr|group_label) }}</strong>
           <span class="muted small">{{ gr['name'] }} · {{ ngettext("%(num)s member", "%(num)s members", gr['members']) }}</span></span>
         {{ source_badge(gr['source']) }}
-      </a></li>
-      {% else %}
-      <li class="muted small md-empty">{{ _("No groups.") }}</li>
-      {% endfor %}
-    </ul>
-  </aside>
+    {% endcall -%}
+  {% endcall %}
 
   <section class="md-detail">
     {% if current %}
@@ -31,18 +25,13 @@
         <p class="muted small"><code>{{ current['name'] }}</code>{% if (current|group_description) %} · {{ (current|group_description) }}{% endif %}</p>
       </div>
       {% if current['builtin'] %}<span class="badge"><svg class="icon icon-xs" aria-hidden="true"><use href="#i-lock"></use></svg> {{ _("Built-in group") }}</span>{% else %}
-      <form method="post" action="{{ url_for('groups.delete', group_uid=current['uid']) }}" class="inline js-confirm"
-            data-confirm="{{ _('Delete the group «%(name)s»?', name=(current|group_label)) }}">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <button class="btn btn-small btn-danger" type="submit">{{ _("Delete") }}</button>
-      </form>{% endif %}
+      {{ post_button(url_for('groups.delete', group_uid=current['uid']), _("Delete"), btn='btn btn-small btn-danger',
+                     confirm=_('Delete the group «%(name)s»?', name=(current|group_label))) }}{% endif %}
     </div>
 
-    <nav class="tabs" aria-label="{{ _('Sections of the group') }}">
-      <a class="tab{% if tab == 'members' %} active{% endif %}" href="{{ url_for('groups.panel_view', g=current['uid'], tab='members') }}"{% if tab == 'members' %} aria-current="page"{% endif %}>{{ _("Members (%(count)s)", count=members|length) }}</a>
-      <a class="tab{% if tab == 'shares' %} active{% endif %}" href="{{ url_for('groups.panel_view', g=current['uid'], tab='shares') }}"{% if tab == 'shares' %} aria-current="page"{% endif %}>{{ _("Folders (%(count)s)", count=shares|length) }}</a>
-      <a class="tab{% if tab == 'link' %} active{% endif %}" href="{{ url_for('groups.panel_view', g=current['uid'], tab='link') }}"{% if tab == 'link' %} aria-current="page"{% endif %}>{{ _("Settings") }}</a>
-    </nav>
+    {% call(key) tab_nav(_('Sections of the group'), [('members', _("Members (%(count)s)", count=members|length)), ('shares', _("Folders (%(count)s)", count=shares|length)), ('link', _("Settings"))], tab) -%}
+      {{ url_for('groups.panel_view', g=current['uid'], tab=key) }}
+    {%- endcall %}
 
     {% if tab == 'members' %}
       {{ member_list(current, members, here) }}

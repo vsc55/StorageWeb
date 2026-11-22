@@ -14,8 +14,9 @@ from __future__ import annotations
 import copy
 
 from ..i18n import _, _l
-from . import locations
+from . import locations, named
 from .alerts import alert, source
+from ..settings.errors import UserError
 
 ENTRY_KINDS = ("all", "user", "group")
 ENTRY_LEVELS = ("write", "read")
@@ -23,10 +24,8 @@ LEVEL_LABELS = {"write": _l("Read and write"), "read": _l("Read only")}
 KIND_LABELS = {"all": _l("everyone"), "user": _l("user"), "group": _l("group")}
 
 
-class ShareError(Exception):
-    def __init__(self, message: str):
-        super().__init__(message)
-        self.message = message
+class ShareError(UserError):
+    pass
 
 
 def entries(share: dict) -> list[dict]:
@@ -79,22 +78,15 @@ def rename_user(shares: list[dict], old: str, new: str) -> list[dict] | None:
     return result if changed else None
 
 
-def find(shares: list[dict], name: str) -> dict | None:
-    return next((s for s in shares if s["name"] == name), None)
+find = named.find
 
 
 def replace(shares: list[dict], original: str | None, share: dict) -> list[dict]:
     """Copia de ``shares`` con ``original`` sustituida por ``share`` (o añadida si ``original`` es None)."""
-    result = copy.deepcopy(shares)
-    if original is None:
-        if find(result, share["name"]) is not None:
-            raise ShareError(_("Duplicate or reserved shared folder name: %(name)s", name=repr(share["name"])))
-        return result + [share]
-    for i, current in enumerate(result):
-        if current["name"] == original:
-            result[i] = share
-            return result
-    raise ShareError(_("The shared folder %(name)s does not exist.", name=repr(original)))
+    return named.replace(
+        shares, original, share,
+        duplicate=lambda: ShareError(_("Duplicate or reserved shared folder name: %(name)s", name=repr(share["name"]))),
+        missing=lambda: ShareError(_("The shared folder %(name)s does not exist.", name=repr(original))))
 
 
 def remove(shares: list[dict], name: str) -> list[dict]:

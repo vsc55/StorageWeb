@@ -16,3 +16,39 @@
 {% macro locked_notice(message) -%}
 {% if message %}<div class="flash flash-locked" role="note"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-lock"></use></svg> {{ message }}</div>{% endif %}
 {%- endmacro %}
+
+{# Zona peligrosa de una ficha (usuario, grupo, rol): la sección y sus filas. Cada fila lleva su título, el texto
+   (el cuerpo del «{% call %}») y ``action``, el botón ya pintado (un post_button o uno desactivado) #}
+{% macro danger_zone(label=None) -%}
+<section class="danger-zone"{% if label %} aria-label="{{ label }}"{% endif %}>
+  {{ caller() }}
+</section>
+{%- endmacro %}
+
+{% macro danger_row(title, action) -%}
+<div class="danger-row">
+  <div>
+    <strong>{{ title }}</strong>
+    <p class="muted small">{{ caller() }}</p>
+  </div>
+  {{ action }}
+</div>
+{%- endmacro %}
+
+{# Tarjeta para quitar algo de la configuración (una carpeta compartida, una ubicación): título, texto y el botón,
+   que pide confirmación (``confirm``) #}
+{% macro remove_card(action, title, text, label, confirm, disabled=False) -%}
+<form method="post" action="{{ action }}" class="card section-gap js-confirm"
+      data-confirm="{{ confirm }}">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <h2 class="card-title">{{ title }}</h2>
+  <p class="muted small">{{ text }}</p>
+  <button class="btn btn-danger" type="submit"{% if disabled %} disabled{% endif %}>{{ label }}</button>
+</form>
+{%- endmacro %}
+
+{# Las opciones de un desplegable de ubicaciones de almacenamiento (la primera, la del disco o «ninguna», la pone
+   quien lo usa) #}
+{% macro location_options(locations, selected) -%}
+{% for loc in locations %}<option value="{{ loc.name }}" {% if selected == loc.name %}selected{% endif %}>{{ loc.label }} · {{ location_type(loc.type).short_label }}</option>{% endfor %}
+{%- endmacro %}

@@ -8,7 +8,6 @@
 (function () {
   "use strict";
 
-  var csrf = document.querySelector('meta[name="csrf-token"]').getAttribute("content");
   var t = window.SW.t;
 
   // ------------------------------------------------------------------ acciones de la tabla
@@ -35,8 +34,7 @@
       if (f.hasAttribute("data-here")) return;
       e.preventDefault();
       // getAttribute: el formulario tiene un campo «action», que tapa la propiedad f.action
-      fetch(f.getAttribute("action"), { method: "POST", body: new FormData(f), credentials: "same-origin",
-                        headers: { "Accept": "application/json" } })
+      window.SW.fetch(f.getAttribute("action"), { method: "POST", body: new FormData(f) })
         .then(function (r) {
           if (!r.ok) throw new Error(r.status);
           var li = f.closest("li");
@@ -169,10 +167,7 @@
   if (details.fav) {
     details.fav.addEventListener("click", function () {
       var body = new URLSearchParams({ root: details.fav.dataset.root, path: details.fav.dataset.rel || "" });
-      fetch(details.fav.dataset.favUrl, {
-        method: "POST", body: body, credentials: "same-origin",
-        headers: { "X-CSRF-Token": csrf, "Accept": "application/json" }
-      }).then(function (res) {
+      window.SW.fetch(details.fav.dataset.favUrl, { method: "POST", body: body }).then(function (res) {
         if (!res.ok) throw new Error(String(res.status));
         window.location.reload();
       }).catch(function () { window.SW.alert(t("Network error.")); });
@@ -217,8 +212,7 @@
     var chain = Promise.resolve();
     forms.forEach(function (f) {
       chain = chain.then(function () {
-        return fetch(f.action, { method: "POST", body: new FormData(f), headers: { "X-CSRF-Token": csrf },
-                                 credentials: "same-origin" });
+        return window.SW.fetch(f.action, { method: "POST", body: new FormData(f), headers: { "Accept": "*/*" } });
       });
     });
     chain.then(function () { window.location.reload(); },
@@ -232,12 +226,7 @@
     if (sel.length === 1 && sel[0].dataset.zip) { window.location.href = sel[0].dataset.zip; return; }
     var f = document.getElementById("zip-form");
     if (!f) return;
-    f.querySelectorAll('input[name="items"]').forEach(function (i) { i.remove(); });
-    sel.forEach(function (r) {
-      var i = document.createElement("input");
-      i.type = "hidden"; i.name = "items"; i.value = r.dataset.rel;
-      f.appendChild(i);
-    });
+    window.SW.setHidden(f, "items", sel.map(function (r) { return r.dataset.rel; }));
     f.submit();  // la respuesta es un adjunto: la página se queda donde está
   }
 
@@ -269,7 +258,6 @@
   window.SW.files = {
     table: table,
     here: { root: table.dataset.root, path: table.dataset.path || "" },
-    csrf: csrf,
     rows: rows,
     checkbox: checkbox,
     selected: selected,

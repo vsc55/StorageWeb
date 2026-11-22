@@ -2,21 +2,18 @@
 con un registro de npm falso (sin red)."""
 from __future__ import annotations
 
-import importlib.util
 from datetime import datetime, timezone
-from pathlib import Path
 
 import pytest
+
+from tests.helpers import load_tool
 
 NOW = datetime(2026, 11, 20, tzinfo=timezone.utc)
 
 
 @pytest.fixture(scope="module")
 def vendor():
-    spec = importlib.util.spec_from_file_location("vendor", Path(__file__).resolve().parents[2] / "tools" / "vendor.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_tool("tools/vendor.py")
 
 
 def _registry(vendor, latest: str, published: str, advisories=()):

@@ -1,16 +1,9 @@
 {# Tarjeta de un método sin plantilla propia: interruptor y sus campos de primer nivel, a partir de su
    configuración (providers.AuthMethod.config). El formulario lo lee settings/auth_forms.generic_parser. #}
-{% from "admin/settings/_macros.html" import origin, err_class, field_error, lock with context %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, lock, provider_head with context %}
 {% set sec = cfg.auth[m.key] %}
 <section class="provider-card{% if sec.enabled %} is-on{% endif %}{{ err_class('auth.' ~ m.key) }}" aria-labelledby="p-{{ m.key }}">
-  <div class="provider-head">
-    <span class="provider-icon" aria-hidden="true"><svg class="icon"><use href="#i-{{ m.icon }}"></use></svg></span>
-    <div class="provider-text">
-      <span class="provider-title"><strong id="p-{{ m.key }}">{{ m.label }}</strong> {{ origin('auth.' ~ m.key ~ '.enabled') }}</span>
-      <span class="muted small">{{ m.description }} · {{ ngettext("%(num)s user", "%(num)s users", user_counts.get(m.key, 0)) }}</span>
-    </div>
-    <label class="switch"><input{{ lock('auth.' ~ m.key ~ '.enabled') }} type="checkbox" name="{{ m.key }}_enabled" {% if sec.enabled %}checked{% endif %}> <span>{{ _("Enabled") }}</span></label>
-  </div>
+  {{ provider_head(m.key, m.label, m.icon, m.description) }}
   {{ field_error('auth.' ~ m.key) }}
   {% set editable = m.config.defaults.items()|rejectattr('0', 'equalto', 'enabled')|list %}
   {% if editable %}

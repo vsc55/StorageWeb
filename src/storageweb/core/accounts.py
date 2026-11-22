@@ -25,20 +25,19 @@ from ..settings.defaults import ROLES
 from . import groups as group_core
 from . import roles as role_core
 from . import maintenance
-from . import shares as share_core
 from . import storage
 from .alerts import alert, source
 from .permissions import ADMIN, USER, default_role
+from ..settings.errors import UserError
 
 _log = logging.getLogger(__name__)
 
 USERNAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@+-]{0,127}$")
 
 
-class AccountError(Exception):
+class AccountError(UserError):
     def __init__(self, message: str, code: str = "error"):
         super().__init__(message)
-        self.message = message
         self.code = code
 
 
@@ -408,9 +407,18 @@ def _check_role(conn: Connection, role: str) -> None:
 
 
 def _guard_last_admin(conn: Connection, user, new_role: str, new_enabled: bool) -> None:
-    losing_admin = user["role"] == ADMIN and user["enabled"] and (new_role != ADMIN or not new_enabled)
-    if losing_admin and users.count_admins(conn, exclude_id=user["id"]) == 0:
-        raise AccountError(_("At least one active administrator must remain."))
+    losing_admin = user["role"] == ADMIN and (new_role != ADMIN or not new_enabled)
+    if losing_admin and group_core.is_last_admin(conn, user):
+        raise AccountError(str(group_core.LAST_ADMIN))
+
+
+def _hash(password: str | None, username: str, rules: dict | None) -> str:
+    """El hash de la contraseña nueva, que tiene que cumplir las reglas (``local.rules``); si no, :class:`AccountError`
+    con el motivo."""
+    try:
+        return hash_password(password or "", username=username, **(rules or {}))
+    except ValueError as exc:
+        raise AccountError(str(exc)) from exc
 
 
 def create_account(conn: Connection, *, username: str, source: str, role: str = USER, password: str | None = None,
@@ -433,10 +441,7 @@ def create_account(conn: Connection, *, username: str, source: str, role: str = 
         raise AccountError(_("A user with that name already exists."))
     password_hash = None
     if m.stores_password:
-        try:
-            password_hash = hash_password(password or "", username=username, **(password_rules or {}))
-        except ValueError as exc:
-            raise AccountError(str(exc)) from exc
+        password_hash = _hash(password, username, password_rules)
     uid = users.create(conn, username=username, source=source, role=role, password_hash=password_hash,
                        display_name=display_name or None, email=email or None,
                        home_path=home_path or None, enabled=enabled)
@@ -477,7 +482,7 @@ def update_account(conn: Connection, user, actor, *, role: str, enabled: bool, d
     _check_role(conn, role)
     if user["id"] == actor["id"]:
         if role != ADMIN:
-            raise AccountError(_("You cannot remove the administrator role from yourself."))
+            raise AccountError(str(group_core.NOT_YOURSELF))
         if not enabled:
             raise AccountError(_("You cannot disable your own account."))
     _guard_last_admin(conn, user, role, enabled)
@@ -511,20 +516,18 @@ def set_password(conn: Connection, user, actor, password: str, *, password_rules
     m = providers.get(user["source"])
     if m is None or not m.stores_password:
         raise AccountError(_("Only local users have a password that can be changed."))
-    try:
-        password_hash = hash_password(password or "", username=user["username"], **(password_rules or {}))
-    except ValueError as exc:
-        raise AccountError(str(exc)) from exc
-    users.update(conn, user["id"], password_hash=password_hash)
+    users.update(conn, user["id"], password_hash=_hash(password, user["username"], password_rules))
     return sessions.delete_for_user(conn, user["id"])
 
 
 def set_role(conn: Connection, user, actor, role: str) -> None:
-    """Cambia solo el rol (acciones en bloque y edición rápida)."""
+    """Cambia solo el rol (acciones en bloque, edición rápida y la CLI). ``actor=None`` es la CLI: la vía de
+    rescate, sin las comprobaciones de la propia cuenta ni la del último administrador (igual en las siguientes)."""
     _check_role(conn, role)
-    if user["id"] == actor["id"] and role != ADMIN:
-        raise AccountError(_("You cannot remove the administrator role from yourself."))
-    _guard_last_admin(conn, user, role, bool(user["enabled"]))
+    if actor is not None:
+        if user["id"] == actor["id"] and role != ADMIN:
+            raise AccountError(str(group_core.NOT_YOURSELF))
+        _guard_last_admin(conn, user, role, bool(user["enabled"]))
     users.update(conn, user["id"], role=role)
 
 
@@ -535,16 +538,18 @@ def set_enabled(conn: Connection, user, actor, enabled: bool) -> None:
     sistema, y cierra la sesión abierta en su siguiente petición. Para bloquear a un usuario de
     SSO hay que desactivarlo: si se elimina y ``auto_provision`` está activo, se crea de nuevo.
     """
-    if user["id"] == actor["id"] and not enabled:
-        raise AccountError(_("You cannot disable your own account."))
-    _guard_last_admin(conn, user, user["role"], enabled)
+    if actor is not None:
+        if user["id"] == actor["id"] and not enabled:
+            raise AccountError(_("You cannot disable your own account."))
+        _guard_last_admin(conn, user, user["role"], enabled)
     users.update(conn, user["id"], enabled=enabled, disabled_reason=None)
     if not enabled:
         sessions.delete_for_user(conn, user["id"])
 
 
 def delete_account(conn: Connection, user, actor) -> None:
-    if user["id"] == actor["id"]:
-        raise AccountError(_("You cannot delete your own account."))
-    _guard_last_admin(conn, user, USER, False)
+    if actor is not None:
+        if user["id"] == actor["id"]:
+            raise AccountError(_("You cannot delete your own account."))
+        _guard_last_admin(conn, user, USER, False)
     users.delete(conn, user["id"])

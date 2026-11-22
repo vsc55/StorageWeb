@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from sqlite3 import Connection
 
-from ..connection import now_iso
+from ..connection import now_iso, owner_filter, subtree
 
 
 def list_for_user(conn: Connection, user_id: int) -> list:
@@ -33,32 +33,23 @@ def remove_all(conn: Connection, user_id: int) -> int:
     return cur.rowcount
 
 
-def _owner_clause(user_id: int | None) -> tuple[str, tuple]:
-    # En «home» la carpeta es de cada usuario: solo cambian los favoritos de quien hace la operación
-    return ("", ()) if user_id is None else (" AND user_id = ?", (user_id,))
-
-
 def moved(conn: Connection, root: str, old: str, new_root: str, new: str, user_id: int | None = None) -> None:
     """``old`` (y lo que haya dentro) pasa a ser ``new`` (en ``new_root``)."""
-    owner, args = _owner_clause(user_id)
-    conn.execute(f"""UPDATE OR IGNORE favorites SET root = ?, rel = ? || SUBSTR(rel, ?)
-                     WHERE root = ? AND (rel = ? OR rel LIKE ? ESCAPE '\\'){owner}""",
-                 (new_root, new, len(old) + 1, root, old, _like_prefix(old), *args))
-    conn.execute(f"DELETE FROM favorites WHERE root = ? AND (rel = ? OR rel LIKE ? ESCAPE '\\'){owner}",
-                 (root, old, _like_prefix(old), *args))   # los que chocaban con uno que ya había
+    owner, args = owner_filter(user_id)
+    inside, paths = subtree("rel", old)
+    conn.execute(f"UPDATE OR IGNORE favorites SET root = ?, rel = ? || SUBSTR(rel, ?) WHERE root = ? AND {inside}{owner}",
+                 (new_root, new, len(old) + 1, root, *paths, *args))
+    conn.execute(f"DELETE FROM favorites WHERE root = ? AND {inside}{owner}",
+                 (root, *paths, *args))   # los que chocaban con uno que ya había
     conn.commit()
 
 
 def removed(conn: Connection, root: str, rel: str, user_id: int | None = None) -> None:
     """Se borró ``rel``: fuera sus favoritos y los de lo que tenía dentro."""
-    owner, args = _owner_clause(user_id)
-    conn.execute(f"DELETE FROM favorites WHERE root = ? AND (rel = ? OR rel LIKE ? ESCAPE '\\'){owner}",
-                 (root, rel, _like_prefix(rel), *args))
+    owner, args = owner_filter(user_id)
+    inside, paths = subtree("rel", rel)
+    conn.execute(f"DELETE FROM favorites WHERE root = ? AND {inside}{owner}", (root, *paths, *args))
     conn.commit()
-
-
-def _like_prefix(rel: str) -> str:
-    return rel.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "/%"
 
 
 def recent(conn: Connection, username: str, limit: int = 30) -> list:

@@ -1,7 +1,6 @@
 """Copias de seguridad y restauración (sin Flask)."""
 from __future__ import annotations
 
-import io
 import json
 import os
 import tarfile
@@ -13,6 +12,7 @@ from storageweb.core import backup
 from storageweb.db import connect, init_db
 from storageweb.db.repositories import users
 from storageweb.settings import ensure_secret_key, load_config
+from tests.helpers import backup_tar
 
 
 @pytest.fixture
@@ -101,16 +101,6 @@ def test_keep_prunes_old(cfg, tmp_path):
     assert backup.list_backups(out) == made[-2:]  # las dos últimas hechas (aunque sean del mismo segundo)
 
 
-def _tar(path, members: dict, manifest: dict | None = None):
-    with tarfile.open(path, "w:gz") as tar:
-        if manifest is not None:
-            members = {"manifest.json": json.dumps(manifest).encode(), **members}
-        for name, data in members.items():
-            info = tarfile.TarInfo(name)
-            info.size = len(data)
-            tar.addfile(info, io.BytesIO(data))
-
-
 @pytest.mark.parametrize("members, manifest", [
     ({"storageweb.db": b"x", "../escape": b"x"}, {"format": 1}),       # ruta peligrosa
     ({"storageweb.db": b"x"}, None),                                   # sin manifest
@@ -119,7 +109,7 @@ def _tar(path, members: dict, manifest: dict | None = None):
 ])
 def test_rejects_invalid_archives(cfg, tmp_path, members, manifest):
     bad = tmp_path / "mala.tar.gz"
-    _tar(bad, members, manifest)
+    bad.write_bytes(backup_tar(members, manifest))
     with pytest.raises(backup.BackupError):
         backup.restore(cfg, bad, force=True)
     assert _users(cfg) == ["ana"]  # la base de datos no se ha tocado
@@ -127,7 +117,7 @@ def test_rejects_invalid_archives(cfg, tmp_path, members, manifest):
 
 def test_rejects_newer_schema(cfg, tmp_path):
     bad = tmp_path / "futura.tar.gz"
-    _tar(bad, {"storageweb.db": b"x"}, {"format": 1, "schema_version": 999})
+    bad.write_bytes(backup_tar({"storageweb.db": b"x"}, {"format": 1, "schema_version": 999}))
     with pytest.raises(backup.BackupError, match="más nueva"):
         backup.restore(cfg, bad, force=True)
 

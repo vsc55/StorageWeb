@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_space.html" import quota_meter, space_meter with context %}
+{% from "_ui.html" import entry_icon, entry_href with context %}
 {% block title %}{{ root.label }}{% if rel %} / {{ rel }}{% endif %} · {{ app_name }}{% endblock %}
 
 {% macro sort_th(key, label, cls="") -%}
@@ -29,9 +30,9 @@
       {% for f in favorites %}
       {% set f_here = f.root == root.name and f.rel == rel %}
       <li><a class="tree-item{% if f_here %} active{% endif %}" title="{{ f.root_label }}{% if f.rel %} / {{ f.rel }}{% endif %}"
-             href="{{ url_for('files.browse', root=f.root, sub=f.rel) if f.is_dir else url_for('files.view' if viewable(f.name) else 'files.download', root=f.root, sub=f.rel) }}"
+             href="{{ entry_href(f.root, f.rel, f.name, f.is_dir) }}"
              {% if f.is_dir %}data-drop-root="{{ f.root }}" data-drop-path="{{ f.rel }}"{% endif %}{% if f_here %} aria-current="page"{% endif %}>
-        <svg class="icon icon-sm {{ 'folder-icon' if f.is_dir else 'file-icon' }}" aria-hidden="true"><use href="#i-{{ 'folder' if f.is_dir else 'file' }}"></use></svg>
+        {{ entry_icon(f.is_dir, 'sm') }}
         <span class="tree-name">{{ f.name }}</span></a>
         {# La X para quitarlo de la lista: aparece al pasar el ratón o con el foco (app.js lo hace sin recargar) #}
         <form method="post" action="{{ url_for('files.favorite_toggle') }}" class="fav-remove"{% if f_here %} data-here{% endif %}>

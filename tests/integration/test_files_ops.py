@@ -8,7 +8,7 @@ import pytest
 
 from storageweb.core import files as files_core
 
-from tests.helpers import add_user, get_csrf, login, update_settings, U, G
+from tests.helpers import add_user, get_csrf, login, update_settings, U, G, signed_in, api_token, basic_auth
 
 
 @pytest.fixture
@@ -22,10 +22,7 @@ def setup(make_app, tmp_path):
         {"name": "equipo", "label": "Equipo", "path": str(shared), "users": ["*"]},
         {"name": "lectura", "label": "Lectura", "path": str(ro), "users": ["*"], "read_only": True},
     ], "hidden": ["*.tmp"]}})
-    add_user(app, "ana")
-    client = app.test_client()
-    login(client, "ana")
-    token = get_csrf(client, "/f/home/")
+    client, token = signed_in(app, "ana")
     home = tmp_path / "data" / "homes" / "ana"
     for rel, data in (("Informes/2026/año.txt", b"uno"), ("Informes/resumen.md", b"dos"), ("foto.jpg", b"jpg"),
                       ("basura.tmp", b"x"), (".oculto", b"y"), ("Vacía/.keep", None)):
@@ -318,14 +315,7 @@ def test_quota_of_a_shared_folder_in_its_page(quota_app):
 # --------------------------------------------------------------------------- cuotas que bloquean
 
 def _dav_auth(app, username="ana"):
-    import base64
-    from storageweb.core import tokens
-    from storageweb.db.repositories import users
-    from storageweb.web.context import get_db
-    with app.app_context():
-        plain, _id = tokens.create(get_db(), users.get_by_username(get_db(), username), name="dav", scope="write",
-                                   days=0)
-    return {"Authorization": "Basic " + base64.b64encode(f"{username}:{plain}".encode()).decode()}
+    return basic_auth(username, api_token(app, username))
 
 
 def test_quota_blocks_uploads_that_do_not_fit(quota_app):

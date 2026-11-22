@@ -9,15 +9,15 @@ administradores.
 """
 from __future__ import annotations
 
-import secrets
 import shutil
-from datetime import datetime, timezone
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from . import backends, backup
 from .backup import BackupError
-from .security import UPLOAD_TMP_PREFIX
 from ..i18n import _
+from ..clock import iso_from_ts
 
 
 def enabled(cfg: dict) -> bool:
@@ -44,27 +44,35 @@ def _backend(cfg: dict) -> backends.Backend:
     return backends.backend_for(_location(cfg), cfg["maintenance"]["offsite_path"], backends.staging_dir(cfg))
 
 
+@contextmanager
+def _remote() -> Iterator[None]:
+    """Lo que se hace con la ubicación: sus errores (y los del disco local al copiar) salen como
+    :class:`BackupError`, con un mensaje para la página o la CLI."""
+    try:
+        yield
+    except backends.BackendError as exc:
+        raise BackupError(exc.message) from exc
+    except OSError as exc:
+        raise BackupError(str(exc) or exc.__class__.__name__) from exc
+
+
 def _is_backup(name: str) -> bool:
-    return name.startswith(backup.PREFIX) and name.endswith(backup.SUFFIX) and backends.is_safe_name(name)
+    return backup.is_backup_name(name) and backends.is_safe_name(name)
 
 
 def send(cfg: dict, archive: Path) -> list[str]:
     """Envía ``archive`` y borra las más antiguas que sobran. Devuelve las borradas; :class:`BackupError` si
     no se pudo enviar."""
-    try:
+    with _remote():
         target = _backend(cfg)
         target.ensure_root()
-        tmp = target.staging_dir("") / f"{UPLOAD_TMP_PREFIX}{secrets.token_hex(8)}.part"
+        tmp = target.staging_file("")
         try:
             shutil.copyfile(archive, tmp)          # store() se queda con el archivo: se envía una copia
             target.store(tmp, archive.name)
         finally:
             tmp.unlink(missing_ok=True)
         return _prune(target, cfg["maintenance"]["offsite_keep"])
-    except backends.BackendError as exc:
-        raise BackupError(exc.message) from exc
-    except OSError as exc:
-        raise BackupError(str(exc) or exc.__class__.__name__) from exc
 
 
 def _entries(target: backends.Backend) -> list:
@@ -83,14 +91,10 @@ def _prune(target: backends.Backend, keep: int) -> list[str]:
 
 def list_remote(cfg: dict) -> list[dict]:
     """Las copias de la ubicación, la más reciente primero: ``{name, size, created}``."""
-    try:
+    with _remote():
         entries = _entries(_backend(cfg))
-    except backends.BackendError as exc:
-        raise BackupError(exc.message) from exc
-    except OSError as exc:
-        raise BackupError(str(exc) or exc.__class__.__name__) from exc
     return [{"name": e.name, "size": e.size,
-             "created": datetime.fromtimestamp(e.mtime, timezone.utc).isoformat(timespec="seconds")
+             "created": iso_from_ts(e.mtime)
              if e.mtime else ""} for e in reversed(entries)]
 
 
@@ -103,22 +107,16 @@ def fetch(cfg: dict, name: str, into: Path) -> Path:
     if final.exists():
         return final
     into.mkdir(parents=True, exist_ok=True)
-    tmp = into / f"{UPLOAD_TMP_PREFIX}{secrets.token_hex(8)}.part"
+    tmp = into / backends.temp_name()
     try:
-        source = _backend(cfg)
-        if source.stat(name) is None:
-            raise BackupError(_("The backup %(name)s does not exist.", name=name))
-        fh, _size, _mtime = source.open(name)
-        try:
-            with open(tmp, "wb") as out:
-                shutil.copyfileobj(fh, out, 1024 * 1024)
-        finally:
-            fh.close()
-        backup.check_restorable(tmp)
-        tmp.chmod(0o600)                           # contiene hashes de contraseñas y secretos
-        tmp.replace(final)
-        return final
-    except backends.BackendError as exc:
-        raise BackupError(exc.message) from exc
+        with _remote():
+            source = _backend(cfg)
+            if source.stat(name) is None:
+                raise BackupError(_("The backup %(name)s does not exist.", name=name))
+            backends.download_to(source, name, tmp)
+            backup.check_restorable(tmp)
+            tmp.chmod(0o600)                       # contiene hashes de contraseñas y secretos
+            tmp.replace(final)
+            return final
     finally:
         tmp.unlink(missing_ok=True)

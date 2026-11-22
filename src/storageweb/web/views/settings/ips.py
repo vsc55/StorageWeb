@@ -1,7 +1,7 @@
 """IPs bloqueadas y lista blanca (Seguridad → IPs bloqueadas)."""
 from __future__ import annotations
 
-from flask import abort, flash, g, redirect, request, url_for
+from flask import abort, flash, g, request
 
 from ....core import ipban
 from ....i18n import _, _l
@@ -9,6 +9,7 @@ from ...context import get_db
 from ...guards import admin_required, audit_event, client_ip
 from ... import search
 from . import bp
+from .common import to_section
 
 
 # --------------------------------------------------------------------------- IPs bloqueadas y permitidas
@@ -32,7 +33,7 @@ def ip_add():
             abort(400)
     except ipban.IPBanError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("settings.section", name="ips"))
+    return to_section("ips")
 
 
 @bp.route("/security/ip/<int:rule_id>/delete", methods=["POST"])
@@ -42,7 +43,7 @@ def ip_remove(rule_id: int):
     if rule:
         audit_event("ip_unbanned" if rule["kind"] == "ban" else "ip_allow_removed", rule["network"])
         flash(_("%(network)s removed.", network=rule["network"]), "info")
-    return redirect(url_for("settings.section", name="ips"))
+    return to_section("ips")
 
 
 search.action("lock", _l("Block an IP address"), "settings.section", {"name": "ips"}, "ip-rules", "ip bloquear ban",

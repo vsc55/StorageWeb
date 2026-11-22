@@ -5,7 +5,7 @@ from __future__ import annotations
 from storageweb.core import pathpicker, storage
 from storageweb.db.repositories import users
 from storageweb.web.context import get_db, settings
-from tests.helpers import U, add_user, login
+from tests.helpers import U, add_user, signed_in
 
 
 def test_disk_lists_folders_only(tmp_path):
@@ -55,9 +55,7 @@ def test_the_route_is_for_administrators(app, admin, home):
     disk = client.get(f"/admin/browse?scope=location&path={home}", headers=h).get_json()   # sin ubicación: el disco
     assert disk["path"] and [e["name"] for e in disk["entries"]] == ["Docs"]
     assert client.get("/admin/browse?scope=otro", headers=h).status_code == 400
-    luis = app.test_client()
-    add_user(app, "luis")
-    login(luis, "luis")
+    luis, _ = signed_in(app, "luis", csrf_url=None)
     assert luis.get(f"/admin/browse?scope=location&path={home}").status_code == 403
 
 

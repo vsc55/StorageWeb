@@ -5,8 +5,6 @@ from __future__ import annotations
 
 import hashlib
 import io
-import subprocess
-import sys
 
 import pytest
 
@@ -16,8 +14,7 @@ from storageweb.providers.local import breach
 from storageweb.settings import ConfigError
 from storageweb.settings.loader import normalize
 from storageweb.web.context import boot_config
-from tests.helpers import PASSWORD, add_user, get_csrf, login, settings_form, stored_settings, visible
-from tests.integration.test_cli import ENV, ROOT
+from tests.helpers import PASSWORD, get_csrf, run_cli, settings_form, stored_settings, visible, signed_in
 
 
 def test_the_rules():
@@ -125,9 +122,7 @@ def test_the_page(app, admin, monkeypatch):
     assert sec["password_min_distinct"] == 6 and sec["password_breach_check"] is True
     # Lo que se pide se dice al poner una contraseña
     monkeypatch.setattr(breach, "_fetch", lambda prefix, timeout: "")
-    add_user(app, "ana")
-    ana = app.test_client()
-    login(ana, "ana")
+    ana, _ = signed_in(app, "ana", csrf_url=None)
     assert "con una mayúscula, un número" in ana.get("/profile/security").get_data(as_text=True)
     t = get_csrf(ana, "/profile/security")
     page = ana.post("/profile/password", data={"_csrf": t, "current_password": PASSWORD,
@@ -163,10 +158,7 @@ def test_the_cli(write_config, tmp_path):
     lista.write_text("clave-de-la-casa-1\n", encoding="utf-8")
 
     def run(*args):
-        res = subprocess.run([sys.executable, "-m", "storageweb", "--config", str(cfg), *args],
-                             capture_output=True, text=True, encoding="utf-8", cwd=ROOT, env=ENV)
-        assert res.returncode == 0, res.stderr
-        return res.stdout
+        return run_cli(cfg, *args, ok=True).stdout
     assert "La lista que viene con StorageWeb" in run("password-list")
     assert "1 contraseñas" in run("password-list", "--file", str(lista))
     assert "Lista propia" in run("password-list")
@@ -197,9 +189,7 @@ def test_the_tester(app, admin, monkeypatch):
     assert by_key["require"]["label"] == "Con una mayúscula"
     # Solo administradores, y solo desde la página (CSRF)
     assert client.post("/admin/settings/passwords/test", data={"test_password": "x"}).status_code in (400, 403)
-    luis = app.test_client()
-    add_user(app, "luis")
-    login(luis, "luis")
+    luis, _ = signed_in(app, "luis", csrf_url=None)
     assert luis.post("/admin/settings/passwords/test", data={"test_password": "x"},
                      headers={"X-CSRF-Token": get_csrf(luis, "/profile/security")}).status_code == 403
 

@@ -1,5 +1,6 @@
 {% extends "admin/settings/_layout.html" %}
 {% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
+{% from "admin/_page.html" import location_options with context %}
 {% block section %}
 {# Sistema → Copias automáticas: cada cuánto, cuántas se conservan y la copia fuera del servidor #}
 {% set m = cfg.maintenance %}
@@ -24,7 +25,7 @@
     <label class="{{ err_class('maintenance.offsite_location') }}"><span class="label-row">{{ _("Also send backups to") }} {{ origin('maintenance.offsite_location') }}</span>
       <select{{ lock('maintenance.offsite_location') }} name="offsite_location">
         <option value="">{{ _("Nowhere else (only this server)") }}</option>
-        {% for loc in cfg.storage.locations %}<option value="{{ loc.name }}" {% if m.offsite_location == loc.name %}selected{% endif %}>{{ loc.label }} · {{ location_type(loc.type).short_label }}</option>{% endfor %}
+        {{ location_options(cfg.storage.locations, m.offsite_location) }}
       </select>
       {% if not cfg.storage.locations %}<small class="muted"><a href="{{ url_for('locations.index') }}">{{ _("Add a storage location") }}</a></small>{% endif %}
       {{ field_error('maintenance.offsite_location') }}</label>

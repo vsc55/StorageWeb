@@ -10,7 +10,7 @@ Todas comparten las acciones (alta, edición, miembros, baja); ``next`` decide a
 """
 from __future__ import annotations
 
-from flask import Blueprint, abort, flash, g, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, g, jsonify, redirect, render_template, request, url_for
 
 from ...core import groups as group_core
 from ... import providers
@@ -18,15 +18,16 @@ from ...core import accounts
 from ...db.repositories import users
 from ...db.repositories import groups as repo
 from ...i18n import _, _l, ngettext
-from ...settings import ConfigError, runtime_view
-from ..context import get_db, invalidate_settings, runtime, settings
-from ..forms import back
-from ..guards import admin_required, audit_event
+from ...settings import runtime_view
+from ..context import get_db, runtime, settings
+from ..forms import back, choice, flash_outcome, last_view, pick, use_view
+from ..guards import admin_required, audit_event, user_or_404
 from .. import search
+from .settings.common import save_partial
+from ...settings.layers import CONFIG_ORIGINS
 
 bp = Blueprint("groups", __name__, url_prefix="/admin/groups")
 
-VIEWS = ("list", "panel")  # vistas de Personas → Grupos; la matriz está en Acceso
 TABS = ("members", "shares", "link")
 
 
@@ -37,10 +38,6 @@ def _shares() -> list[dict]:
     return settings()["storage"]["shares"]
 
 
-
-
-def _remember(view: str) -> None:
-    session["groups_view"] = view
 
 
 @bp.app_template_filter("group_label")
@@ -124,8 +121,9 @@ def _get_group(group_uid: str):
     return group
 
 
-def _form_data() -> dict:
-    f = request.form
+def _form_data(f=None) -> dict:
+    """Los campos del grupo del formulario (o de ``f``: la URL, al venir de «Dar de alta» un grupo detectado)."""
+    f = request.form if f is None else f
     return {"label": f.get("label", "").strip(), "description": f.get("description", "").strip(),
             "source": f.get("source", group_core.LOCAL), "external_id": f.get("external_id", "").strip()}
 
@@ -135,18 +133,21 @@ def _form_data() -> dict:
 @bp.route("/")
 @admin_required
 def index():
-    view = session.get("groups_view")
-    return redirect(url_for(f"groups.{view if view in VIEWS else 'list'}_view"))
+    return redirect(url_for(f"groups.{last_view('groups_view')}_view"))
+
+
+def _filtered() -> tuple[str, str, list]:
+    """La búsqueda de Lista y Paneles (``?q=``, ``?source=``) y los grupos que casan."""
+    search = request.args.get("q", "").strip()
+    source = choice("source", group_core.group_sources(), "")
+    return search, source, repo.list_all(get_db(), search=search, source=source or None)
 
 
 @bp.route("/list")
 @admin_required
 def list_view():
-    _remember("list")
-    search = request.args.get("q", "").strip()
-    source = request.args.get("source", "")
-    source = source if source in group_core.group_sources() else ""
-    rows = repo.list_all(get_db(), search=search, source=source or None)
+    use_view("groups_view", "list")
+    search, source, rows = _filtered()
     shares = _shares()
     detected = group_core.detected(get_db(), shares)
     return render_template("admin/groups/list.html", groups=rows, search=search, source=source,
@@ -158,11 +159,8 @@ def list_view():
 @bp.route("/new", methods=["GET", "POST"])
 @admin_required
 def new():
-    form = {"name": request.args.get("name", ""), "label": request.args.get("label", ""),
-            "description": request.args.get("description", ""),
-            "source": request.args.get("source", group_core.LOCAL), "external_id": request.args.get("external_id", "")}
-    if form["source"] not in group_core.group_sources():
-        form["source"] = group_core.LOCAL
+    form = {**_form_data(request.args), "name": request.args.get("name", ""),
+            "source": choice("source", group_core.group_sources(), group_core.LOCAL)}
     if request.method == "GET":
         _fill_from_directory(form)
     if request.method == "POST":
@@ -218,11 +216,8 @@ def register_detected():
         group = repo.get_by_id(get_db(), gid)
         _audit("group_created", group["name"], f"{group['source']}:{group['external_id'] or ''}")
         created.append(group_core.label(group))
-    if created:
-        flash(ngettext("Group registered: %(names)s.", "%(num)s groups registered: %(names)s.", len(created),
-                       names=", ".join(created)), "info")
-    for error in errors:
-        flash(error, "error")
+    flash_outcome(ngettext("Group registered: %(names)s.", "%(num)s groups registered: %(names)s.", len(created),
+                           names=", ".join(created)) if created else None, errors)
     if not created and not errors:
         flash(_("There were no groups to register."), "info")
     return back(url_for("groups.index"))
@@ -254,19 +249,14 @@ def _save_group_quota(name: str, raw: str | None) -> None:
     wanted = int(raw) if raw else None
     if current.get(name) == wanted:
         return
-    base = runtime_view(settings())
-    new = runtime_view(settings())
-    quotas = dict(new["storage"].get("group_quotas") or {})
+    quotas = dict(runtime_view(settings())["storage"].get("group_quotas") or {})
     if wanted is None:
         quotas.pop(name, None)
     else:
         quotas[name] = wanted
-    new["storage"]["group_quotas"] = quotas
-    try:
-        runtime().save(get_db(), new, g.user["username"], strict=True, base=base)
-    except ConfigError as exc:
-        raise group_core.GroupError(str(exc)) from exc
-    invalidate_settings()
+    _draft, error = save_partial(lambda: {"storage": {"group_quotas": quotas}}, strict=True)
+    if error:
+        raise group_core.GroupError(str(error)) from error
 
 
 def _sync_from_directory(group):
@@ -351,9 +341,7 @@ def member_add(group_uid: str):
 @admin_required
 def member_remove(group_uid: str, user_uid: str):
     group = _get_group(group_uid)
-    user = users.get_by_uid(get_db(), user_uid)
-    if user is None:
-        abort(404)
+    user = user_or_404(user_uid)
     try:
         group_core.remove_member(get_db(), group, user, g.user)
     except group_core.GroupError as exc:
@@ -370,20 +358,10 @@ def member_remove(group_uid: str, user_uid: str):
 @bp.route("/panel")
 @admin_required
 def panel_view():
-    _remember("panel")
-    search = request.args.get("q", "").strip()
-    source = request.args.get("source", "")
-    source = source if source in group_core.group_sources() else ""
-    rows = repo.list_all(get_db(), search=search, source=source or None)
-    current = None
-    wanted = request.args.get("g")
-    for row in rows:
-        if row["uid"] == wanted or current is None:
-            current = row
-            if row["uid"] == wanted:
-                break
-    tab = request.args.get("tab", "members")
-    tab = tab if tab in TABS else "members"
+    use_view("groups_view", "panel")
+    search, source, rows = _filtered()
+    current = pick(rows, request.args.get("g"))
+    tab = choice("tab", TABS, "members")
     ctx = {"from_directory": False}
     if current is not None:
         current, from_directory = _sync_from_directory(current)
@@ -410,14 +388,12 @@ def _matrix(rows, shares) -> list[dict]:
 def matrix_view():
     rows = repo.list_all(get_db())
     if request.method == "POST":
-        base = runtime_view(settings())
-        new = runtime_view(settings())
-        shares = new["storage"]["shares"]
+        shares = runtime_view(settings())["storage"]["shares"]
         changes = []
         for row in rows:
             for share in list(shares):
                 value = request.form.get(f"access-{row['uid']}-{share['name']}")
-                if value is None or group_core.open_to_everyone(share) or share.get("origin") in ("file", "env"):
+                if value is None or group_core.open_to_everyone(share) or share.get("origin") in CONFIG_ORIGINS:
                     continue
                 current = next(s for s in shares if s["name"] == share["name"])
                 if value != group_core.share_level(row, current):
@@ -428,20 +404,17 @@ def matrix_view():
                         return redirect(url_for("groups.matrix_view"))
                     changes.append(f"{row['name']}@{share['name']}={value}")
         if changes:
-            new["storage"]["shares"] = shares
-            try:
-                runtime().save(get_db(), new, g.user["username"], strict=True, base=base)
-            except ConfigError as exc:
-                flash(_("The changes were not saved: %(error)s", error=exc), "error")
+            _draft, error = save_partial(lambda: {"storage": {"shares": shares}}, strict=True)
+            if error:
+                flash(_("The changes were not saved: %(error)s", error=error), "error")
                 return redirect(url_for("groups.matrix_view"))
-            invalidate_settings()
             _audit("group_access_updated", None, ", ".join(changes)[:500])
             flash(_("Access saved: %(count)s changes.", count=len(changes)), "info")
         else:
             flash(_("There were no changes."), "info")
         return redirect(url_for("groups.matrix_view"))
     shares = _shares()
-    names = {r["name"] for r in rows} | {r["external_id"] for r in rows if r["external_id"]}
+    names = group_core.refs(rows)
     unregistered = sorted({ref for s in shares for ref in s["groups"] if ref not in names})
     return render_template("admin/groups/matrix.html", shares=shares, matrix=_matrix(rows, shares),
                            unregistered=unregistered, locked_message="")

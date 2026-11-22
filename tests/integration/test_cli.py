@@ -1,27 +1,8 @@
-import os
-import subprocess
-import sys
+# La CLI va en otro proceso (fixture ``cli`` de tests/conftest.py y tests.helpers.run_cli): funciona tanto con el
+# paquete instalado (pip install -e .) como sin instalar
 from pathlib import Path
 
-import pytest
-
-ROOT = Path(__file__).resolve().parents[2]
-# Funciona tanto con el paquete instalado (pip install -e .) como sin instalar
-ENV = {**os.environ, "PYTHONIOENCODING": "utf-8", "STORAGEWEB_LANG": "es",
-       "PYTHONPATH": os.pathsep.join(filter(None, [str(ROOT / "src"), os.environ.get("PYTHONPATH")]))}
-
-
-@pytest.fixture
-def cli(write_config):
-    cfg = write_config()
-
-    def run(*args, ok=True):
-        res = subprocess.run([sys.executable, "-m", "storageweb", "--config", str(cfg), *args],
-                             capture_output=True, text=True, encoding="utf-8", cwd=ROOT, env=ENV)
-        if ok:
-            assert res.returncode == 0, res.stderr
-        return res
-    return run
+from tests.helpers import run_cli
 
 
 def test_user_lifecycle(cli, make_app):
@@ -66,20 +47,14 @@ def test_check_config_and_audit(cli):
 def test_bad_config(tmp_path):
     bad = tmp_path / "config.json"
     bad.write_text("{malo", encoding="utf-8")
-    res = subprocess.run([sys.executable, "-m", "storageweb", "--config", str(bad), "user-list"],
-                         capture_output=True, text=True, cwd=ROOT, env=ENV)
-    assert res.returncode != 0
+    assert run_cli(bad, "user-list").returncode != 0
 
 
 def test_password_stdin_and_user_exists(cli, write_config):
     cfg = write_config()
-    env_cmd = [sys.executable, "-m", "storageweb", "--config", str(cfg)]
-    assert subprocess.run([*env_cmd, "user-exists", "eva"], cwd=ROOT, env=ENV).returncode == 1
-    res = subprocess.run([*env_cmd, "user-add", "eva", "--role", "admin", "--password-stdin"],
-                         input="contraseña-por-stdin\n", capture_output=True, text=True,
-                         encoding="utf-8", cwd=ROOT, env=ENV)
-    assert res.returncode == 0, res.stderr
-    assert subprocess.run([*env_cmd, "user-exists", "eva"], cwd=ROOT, env=ENV).returncode == 0
+    assert run_cli(cfg, "user-exists", "eva").returncode == 1
+    run_cli(cfg, "user-add", "eva", "--role", "admin", "--password-stdin", input="contraseña-por-stdin\n", ok=True)
+    assert run_cli(cfg, "user-exists", "eva").returncode == 0
 
     from storageweb import create_app
     from tests.helpers import login
@@ -122,8 +97,7 @@ def test_own_home_inside_the_allowed_folders(write_config, tmp_path):
     cfg = write_config({"storage": {"allowed_folders": [str(tmp_path / "data")]}})
 
     def run(*args):
-        return subprocess.run([sys.executable, "-m", "storageweb", "--config", str(cfg), *args],
-                              capture_output=True, text=True, encoding="utf-8", cwd=ROOT, env=ENV)
+        return run_cli(cfg, *args)
     fuera = str(tmp_path / "fuera" / "ana")
     res = run("user-add", "ana", "--password", "contraseña-larga", "--home", fuera)
     assert res.returncode != 0 and "permitidas" in res.stderr
@@ -131,3 +105,18 @@ def test_own_home_inside_the_allowed_folders(write_config, tmp_path):
     res = run("user-set", "ana", "--home", fuera)
     assert res.returncode != 0 and "permitidas" in res.stderr
     assert run("user-set", "ana", "--home", str(tmp_path / "data" / "ana")).returncode == 0
+
+
+def test_user_commands_go_through_the_core(cli):
+    """Los comandos de usuarios hacen lo mismo que la web (core/accounts): cambiar la contraseña o desactivar cierran
+    las sesiones y todo queda en la auditoría como «cli». Es la vía de rescate: deja quitar el rol al último
+    administrador (en la web no se puede)."""
+    cli("user-add", "jefa", "--password", "contraseña-larga", "--role", "admin")
+    cli("user-set", "jefa", "--role", "user")                   # el último administrador: aquí sí
+    assert " user " in cli("user-list").stdout
+    cli("user-passwd", "jefa", "--password", "otra-contraseña")
+    cli("user-set", "jefa", "--disable")
+    cli("user-del", "jefa")
+    log = cli("audit").stdout
+    for action in ("user_created", "user_updated", "password_reset_by_admin", "user_disabled", "user_deleted"):
+        assert action in log, action

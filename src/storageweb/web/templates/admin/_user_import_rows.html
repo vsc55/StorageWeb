@@ -1,4 +1,5 @@
 {# Las filas de Personas → Importar: en los resultados y solas (?rows=1), las de la página siguiente al bajar #}
+{% from "_forms.html" import post_button with context %}
       {% for row in people %}{% set p = row.person %}
       <tr>
         <td class="check-col">{% if not row.imported and not row.conflict %}<input type="checkbox" name="ids" value="{{ p.external_id }}"
@@ -17,12 +18,8 @@
           {% elif row.conflict %}<a class="btn btn-small" href="{{ url_for('admin.user_edit', user_uid=row.conflict['uid']) }}"
                title="{{ _('There is already an account called «%(name)s» from another sign-in method.', name=p.username) }}">{{ _("See that account") }}</a>
           {% else %}
-          <form method="post" action="{{ url_for('admin.user_import') }}" class="inline">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <input type="hidden" name="source" value="{{ method.key }}"><input type="hidden" name="q" value="{{ query }}">
-            <input type="hidden" name="external_id" value="{{ p.external_id }}">
-            <button class="btn btn-small btn-primary" type="submit">{{ _("Import") }}</button>
-          </form>
+          {{ post_button(url_for('admin.user_import'), _("Import"), btn='btn btn-small btn-primary',
+                         hidden={'source': method.key, 'q': query, 'external_id': p.external_id}) }}
           {% endif %}
         </td>
       </tr>
