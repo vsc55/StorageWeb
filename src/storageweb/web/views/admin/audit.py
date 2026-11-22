@@ -28,13 +28,16 @@ def audit_log():
     action = request.args.get("action", "").strip() or None
     level = _level_filter()
     size = choice("per_page", PAGE_SIZES, PAGE_SIZE, type=int)
+    # Va por páginas: ordena el servidor (?sort=&order=, las cabeceras de la tabla: tables.js)
+    sort = choice("sort", tuple(audit.SORTS), "ts")
+    order = choice("order", ("asc", "desc"), "desc" if sort == "ts" else "asc")
     total = audit.count(get_db(), username=username, action=action, min_level=level)
     page, pages = page_of(total, size)
     rows = audit.recent(get_db(), limit=size, offset=(page - 1) * size, username=username, action=action,
-                        min_level=level)
+                        min_level=level, sort=sort, descending=order == "desc")
     return render_template("admin/audit.html", rows=rows, user_filter=username or "", action_filter=action or "",
                            level_filter=level or "", total=total, page=page, pages=pages, page_size=size,
-                           PAGE_SIZES=PAGE_SIZES)
+                           PAGE_SIZES=PAGE_SIZES, sort=sort, order=order)
 
 
 def _level_filter() -> str | None:

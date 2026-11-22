@@ -373,3 +373,39 @@ test("alta de usuario y probador de contraseñas: el medidor con el nombre que s
   assert.ok(await page.evaluate("document.querySelector('input[name=test_password]').value.length >= 20"));
   noErrors(page);
 });
+
+test("tablas: ordenar al pulsar la cabecera (en el servidor si van por páginas) y elegir columnas, que se recuerdan", async () => {
+  // Usuarios va por páginas: ordena el servidor (?sort=&order=)
+  await page.go(`${BASE}/admin/users`);
+  const names = () => page.evaluate("[...document.querySelectorAll('table.users-table tbody td.name strong')].map((s) => s.textContent.trim())");
+  const before = await names();
+  assert.equal(await page.evaluate("document.querySelector('th[data-sort-server=user]').getAttribute('aria-sort')"), "ascending");
+  await page.navigating("document.querySelector('th[data-sort-server=user] .sort-btn').click()");
+  assert.match(await page.evaluate("location.search"), /sort=user&order=desc/);
+  assert.deepEqual(await names(), [...before].reverse());
+  // Columnas: quitar «Origen», que se recuerda al volver; «Ver todas las columnas» la devuelve
+  const sourceHidden = "getComputedStyle(document.querySelector('table.users-table thead th:nth-child(3)')).display === 'none'";
+  await page.evaluate("document.querySelector('.table-columns summary').click()");
+  await page.evaluate("[...document.querySelectorAll('.table-columns-body label')].find((l) => /Origen/.test(l.textContent)).querySelector('input').click()");
+  await page.waitFor(sourceHidden);
+  assert.ok(await page.evaluate("getComputedStyle(document.querySelector('table.users-table tbody tr td:nth-child(3)')).display === 'none'"));
+  await page.go(`${BASE}/admin/users`);
+  await page.waitFor(sourceHidden);
+  await page.evaluate("document.querySelector('.table-columns summary').click()");
+  await page.evaluate("document.querySelector('.table-columns-body .btn').click()");
+  await page.waitFor(`!(${sourceHidden})`);
+  // En el navegador: una tabla sin páginas (Sistema → Información) se ordena y se le da la vuelta
+  await page.go(`${BASE}/admin/settings/system`);
+  const result = await page.evaluate(`(() => {
+    const table = [...document.querySelectorAll('table.files')].find((t) => t.tBodies[0] && t.tBodies[0].rows.length > 3 && t.querySelector('.sort-btn'));
+    const th = table.querySelector('th .sort-btn').closest('th');
+    const column = () => [...table.tBodies[0].rows].map((r) => r.cells[th.cellIndex].textContent.trim());
+    th.querySelector('.sort-btn').click();
+    const up = column();
+    th.querySelector('.sort-btn').click();
+    return { up, down: column(), aria: th.getAttribute('aria-sort') };
+  })()`);
+  assert.equal(result.aria, "descending");
+  assert.notDeepEqual(result.up, result.down);
+  noErrors(page);
+});

@@ -55,11 +55,22 @@ def _filters(username: str | None, action: str | None, min_level: str | None = N
     return where, params
 
 
+# Por qué columnas se puede ordenar la tabla de la auditoría (el nombre de fuera → la expresión SQL, fija: nunca lo que
+# llega en la petición). El nivel, por gravedad, no por orden alfabético.
+SORTS = {"ts": "id", "user": "username COLLATE NOCASE", "action": "action", "target": "target COLLATE NOCASE",
+         "ip": "ip", "level": "CASE level " + " ".join(f"WHEN '{name}' THEN {rank}" for name, rank in
+                                                     audit_levels.RANK.items()) + " ELSE 0 END"}
+
+
 def recent(conn: Connection, limit: int = 100, username: str | None = None,
-           action: str | None = None, offset: int = 0, min_level: str | None = None) -> list:
-    """Las más recientes primero; ``offset`` para paginar; ``min_level``: de ese nivel hacia arriba."""
+           action: str | None = None, offset: int = 0, min_level: str | None = None, sort: str = "ts",
+           descending: bool = True) -> list:
+    """Las más recientes primero (o por ``sort``, una de :data:`SORTS`; lo vacío al final); ``offset`` para paginar;
+    ``min_level``: de ese nivel hacia arriba."""
     where, params = _filters(username, action, min_level)
-    return conn.execute(f"SELECT * FROM audit_log{where} ORDER BY id DESC LIMIT ? OFFSET ?",
+    column = SORTS.get(sort, SORTS["ts"])
+    order = f"{column} IS NULL, {column} {'DESC' if descending else 'ASC'}, id DESC"
+    return conn.execute(f"SELECT * FROM audit_log{where} ORDER BY {order} LIMIT ? OFFSET ?",  # noqa: S608 (fija)
                         [*params, int(limit), max(int(offset), 0)]).fetchall()
 
 

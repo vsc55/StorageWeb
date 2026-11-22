@@ -156,6 +156,7 @@
 </main>
 {% endif %}
 <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+<script src="{{ url_for('static', filename='js/tables.js') }}"></script>
 {% if is_admin %}
 <dialog class="palette" id="admin-search" aria-label="{{ _('Search the administration') }}">
   <form method="get" action="{{ url_for('admin.search') }}" role="search" data-search-url="{{ url_for('admin.search', format='json') }}">

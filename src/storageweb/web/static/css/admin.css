@@ -650,7 +650,7 @@ td.is-dirty[data-dirty-label]::after { display: none; }  /* en las tablas basta 
 .card-title-row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
 .card-title-row .card-title { margin: 0; }
 
-/* Tablas ordenables (admin/sortable.js): la cabecera es un botón con la flecha del orden */
+/* Tablas ordenables (tables.js): la cabecera es un botón con la flecha del orden */
 .sort-btn { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font: inherit; color: inherit; }
 .sort-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 3px; }
 .sort-btn::after { content: "↕"; font-size: 11px; color: var(--muted); opacity: .6; }
@@ -805,3 +805,10 @@ th[aria-sort="descending"] .sort-btn::after { content: "↓"; opacity: 1; color:
 .perm-chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .perm-chips .chip { min-height: 0; padding: 2px 10px; font-size: 12px; }
 .role-perms .checks { margin-top: 4px; }
+
+/* Tablas (tables.js): el botón Columnas encima y las columnas ocultas, por su posición */
+.table-tools { display: flex; justify-content: flex-end; margin: 0 0 6px; }
+.table-columns-body { width: 240px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.table-columns-body .check { font-size: 13px; }
+.table-columns-body .btn { align-self: flex-start; margin-top: 4px; }
+.hide-col-1 tr > :nth-child(1), .hide-col-2 tr > :nth-child(2), .hide-col-3 tr > :nth-child(3), .hide-col-4 tr > :nth-child(4), .hide-col-5 tr > :nth-child(5), .hide-col-6 tr > :nth-child(6), .hide-col-7 tr > :nth-child(7), .hide-col-8 tr > :nth-child(8), .hide-col-9 tr > :nth-child(9), .hide-col-10 tr > :nth-child(10), .hide-col-11 tr > :nth-child(11), .hide-col-12 tr > :nth-child(12), .hide-col-13 tr > :nth-child(13), .hide-col-14 tr > :nth-child(14), .hide-col-15 tr > :nth-child(15), .hide-col-16 tr > :nth-child(16), .hide-col-17 tr > :nth-child(17), .hide-col-18 tr > :nth-child(18), .hide-col-19 tr > :nth-child(19), .hide-col-20 tr > :nth-child(20) { display: none; }

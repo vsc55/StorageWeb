@@ -55,9 +55,9 @@
 </form>
 
 {{ pager('top') }}
-<table class="files small">
-  <thead><tr><th>{{ _("Date") }}</th><th>{{ _("Level") }}</th><th>{{ _("User") }}</th><th>{{ _("Action") }}</th><th>{{ _("Object") }}</th>
-             <th>IP</th><th>{{ _("Detail") }}</th></tr></thead>
+<table class="files small" data-table="audit" data-sort-key="{{ sort }}" data-sort-order="{{ order }}">
+  <thead><tr><th data-sort-server="ts">{{ _("Date") }}</th><th data-sort-server="level">{{ _("Level") }}</th><th data-sort-server="user">{{ _("User") }}</th><th data-sort-server="action">{{ _("Action") }}</th><th data-sort-server="target">{{ _("Object") }}</th>
+             <th data-sort-server="ip">IP</th><th>{{ _("Detail") }}</th></tr></thead>
   <tbody>
     {% for r in rows %}
     {# Pulsar la fila (o Enter) abre sus datos en un modal (admin/audit.js); los datos van en JSON en data-entry #}

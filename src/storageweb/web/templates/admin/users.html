@@ -34,11 +34,11 @@
 </form>
 
 <div class="table-scroll">
-<table class="files users-table">
+<table class="files users-table" data-table="users" data-sort-key="{{ filters.sort }}" data-sort-order="{{ filters.order }}">
   <thead>
     <tr><th class="col-check"><input type="checkbox" id="bulk-all" aria-label="{{ _('Select all') }}"></th>
-        <th>{{ _("User") }}</th><th>{{ _("Source") }}</th><th>{{ _("Role") }}</th>
-        <th>{{ _("Groups") }}</th><th>{{ _("Status") }}</th><th><abbr title="{{ _('Two-step verification') }}">2FA</abbr></th><th>{{ _("Last sign-in") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr>
+        <th data-sort-server="user">{{ _("User") }}</th><th data-sort-server="source">{{ _("Source") }}</th><th data-sort-server="role">{{ _("Role") }}</th>
+        <th>{{ _("Groups") }}</th><th data-sort-server="status">{{ _("Status") }}</th><th data-sort-server="mfa"><abbr title="{{ _('Two-step verification') }}">2FA</abbr></th><th data-sort-server="last_login">{{ _("Last sign-in") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr>
   </thead>
   <tbody>
     {% for u in users %}

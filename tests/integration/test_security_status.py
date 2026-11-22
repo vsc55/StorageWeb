@@ -27,12 +27,12 @@ def test_the_dashboard_and_the_checklist(app, admin):
     page = client.get("/admin/settings/security_status").get_data(as_text=True)
     for text in ("Vulnerabilidades conocidas", "IPs bloqueadas", "Intentos fallidos (24 h)", "Sesiones abiertas",
                  "Tokens de API vigentes", "Lista de comprobación", "Últimos sucesos de seguridad", "login_blocked",
-                 "203.0.113.7", "/static/js/admin/sortable.js", "/admin/settings/vulnerabilities"):
+                 "203.0.113.7", "/static/js/tables.js", "/admin/settings/vulnerabilities"):
         assert text in page, text
     assert 'name="dependency_check_hours"' not in page                     # el tablero es solo de lectura
     vuln = client.get("/admin/settings/vulnerabilities").get_data(as_text=True)
     for text in ("Comprobación automática", 'name="dependency_check_hours"', 'id="advisories"',
-                 "/static/js/admin/advisories.js", "/static/js/admin/sortable.js"):
+                 "/static/js/admin/advisories.js", "/static/js/tables.js"):
         assert text in vuln, text
     # root es administrador con contraseña y sin verificación en dos pasos, y la política no la exige: a corregir
     assert "Verificación en dos pasos de los administradores" in page and "root" in page

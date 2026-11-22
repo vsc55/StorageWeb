@@ -31,7 +31,7 @@
 <fieldset class="plain-fieldset"{% if locked_message %} disabled{% endif %}>
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
   <div class="table-scroll">
-  <table class="files matrix">
+  <table class="files matrix" data-plain>
     <thead>
       <tr>
         <th scope="col">{{ _("Group") }}</th>

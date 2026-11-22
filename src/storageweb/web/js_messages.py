@@ -56,6 +56,8 @@ JS_MESSAGES = [
     N_("%(count)s unsaved changes"),
     N_("%(count)s selected:"),
     N_("Copied"),
+    N_("Columns"),
+    N_("Show all columns"),
     N_("Show"),
     N_("Hide"),
     N_("They match."),
@@ -90,7 +92,7 @@ JS_MESSAGES = [
     N_("Empty folder."),
     N_("Only the first ones are shown: write more of the path."),
     N_("Browse"),
-    # admin/sortable.js
+    # tables.js
     N_("Sort by %(column)s"),
     # admin/system.js (la comprobación de vulnerabilidades y su barra de progreso)
     N_("Newest versions: %(done)s of %(total)s"),

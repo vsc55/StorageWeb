@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: StorageWeb VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-22 21:21+0100\n"
+"POT-Creation-Date: 2026-11-22 21:35+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -4139,6 +4139,14 @@ msgstr ""
 
 #: storageweb/web/js_messages.py
 msgid "Copied"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "Columns"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "Show all columns"
 msgstr ""
 
 #: storageweb/web/js_messages.py storageweb/web/templates/_forms.html

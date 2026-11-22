@@ -237,9 +237,9 @@ test("editor: Ctrl+S guarda y vuelve al visor", async () => {
                                box.value = 'primera línea\\nañadida desde el navegador';
                                box.dispatchEvent(new Event('input')); box.focus(); })()`);
   assert.equal(await page.evaluate("document.getElementById('editor-state').hidden"), false, "marca los cambios");
-  const loaded = page.next("Page.loadEventFired");
+  await page.markPrevious();                       // la página nueva, no un aviso de carga atrasado de otra
   await page.press("s", { ctrl: true });
-  await loaded;
+  await page.newDocument();
   assert.equal(await page.evaluate("location.pathname"), "/view/home/texto.txt",
     await page.evaluate("(document.querySelector('.flashes, .flash, .toast') || {}).textContent || document.title"));
   assert.match(await page.evaluate("document.getElementById('viewer-text').textContent"), /añadida desde el navegador/);

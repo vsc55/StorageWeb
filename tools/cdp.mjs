@@ -103,16 +103,37 @@ export async function launch(browser, options = {}) {
     }
     throw new Error(`No llegó a cumplirse: ${expression}`);
   };
+  // Esperar a «la página nueva» no puede ser esperar al siguiente Page.loadEventFired: si la página de antes aún
+  // estaba cargando (p. ej. se recargó sola al acabar una subida y faltaban las miniaturas), ese aviso llega tarde y se
+  // toma por el de la nueva, que todavía no ha ejecutado sus scripts (los tests fallaban a veces, sobre todo en la
+  // CI). Se marca el documento de antes y se espera a otro, sin la marca, ya cargado del todo.
+  const markPrevious = async () => {
+    try { await evaluate("window.__swPrevious = true"); } catch { /* sin documento todavía */ }
+  };
+  const newDocument = async (ms = 15000) => {
+    const deadline = Date.now() + ms;
+    while (Date.now() < deadline) {
+      try {
+        if (await evaluate("!window.__swPrevious && document.readyState === 'complete'")) return;
+      } catch { /* el documento se está cambiando */ }
+      await sleep(50);
+    }
+    throw new Error("La página nueva no terminó de cargar");
+  };
   const go = async (url) => {
-    const loaded = next("Page.loadEventFired");
+    await markPrevious();
     await send("Page.navigate", { url });
-    await loaded;
+    await newDocument();
   };
   /** Ejecuta ``expression`` (que navega: enviar un formulario, un clic) y espera a la página nueva. */
   const navigating = async (expression) => {
-    const loaded = next("Page.loadEventFired");
-    await evaluate(expression);
-    await loaded;
+    await markPrevious();
+    try {
+      await evaluate(expression);
+    } catch (err) {
+      if (!/context|destroyed|navigat/i.test(String(err && err.message))) throw err;   // se fue antes de contestar
+    }
+    await newDocument();
   };
   /** Inicia sesión con el formulario de usuario y contraseña. */
   const login = async (base, username, password) => {
@@ -143,7 +164,7 @@ export async function launch(browser, options = {}) {
   const userAgent = await evaluate("navigator.userAgent");
   await send("Emulation.setUserAgentOverride", { userAgent, acceptLanguage: `${lang},${lang.split("-")[0]}` });
   await send("Emulation.setLocaleOverride", { locale: lang.replace("_", "-") });
-  return { send, next, evaluate, waitFor, go, navigating, login, press, errors, close };
+  return { send, next, evaluate, waitFor, go, navigating, markPrevious, newDocument, login, press, errors, close };
 }
 
 /** El navegador de este equipo: ``STORAGEWEB_BROWSER``, Edge o Chrome en los sitios de siempre, o ``null``. */

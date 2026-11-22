@@ -8,7 +8,7 @@ from flask import abort, flash, g, jsonify, make_response, redirect, render_temp
 from ....core import accounts, favorites, mfa, roles
 from ....core.permissions import default_role
 from ....core import groups as group_core
-from ....core.permissions import ADMIN, PERMISSION_LABELS, permissions_for
+from ....core.permissions import ADMIN, PERMISSION_LABELS, permissions_for, role_label
 from ....core import quota
 from ....providers import local
 from ....core.storage import available_roots, explain_access, home_quota_mb
@@ -23,12 +23,13 @@ from ...forms import back, choice, flash_outcome, last_view, page_of, pick, spli
 from ...guards import admin_required, audit_event, safe_next, user_or_404, wants_json
 from ... import search
 from . import bp
-from ....text import initials
+from ....text import fold, initials
 
 
 # --------------------------------------------------------------------------- usuarios
 
 USER_STATUS_FILTERS = ("all", "active", "disabled")
+USER_SORTS = ("user", "source", "role", "status", "mfa", "last_login")   # la lista va por páginas: ordena el servidor
 USER_VIEWS = ("list", "panel")
 USER_TABS = ("profile", "groups", "access", "favorites", "security", "activity")
 PAGE_SIZE = 25
@@ -45,6 +46,7 @@ def _user_filters() -> dict:
     a = request.args
     return {"q": a.get("q", "").strip(),
             "status": choice("status", USER_STATUS_FILTERS, "all"),
+            "sort": choice("sort", USER_SORTS, "user"), "order": choice("order", ("asc", "desc"), "asc"),
             "source": choice("source", accounts.sources(), ""),
             "role": choice("role", (*ROLES, *(settings().get("roles") or {})), ""),
             "group": a.get("group", "")}  # identificador público del grupo
@@ -74,14 +76,33 @@ def users_index():
 def users_list():
     use_view("users_view", "list")
     f = _user_filters()
-    rows = _filtered_users(f)
+    mfa_users = mfa_repo.enrolled_ids(get_db())
+    rows = _sorted_users(_filtered_users(f), f, mfa_users)
     page, pages = page_of(len(rows), PAGE_SIZE)
     shown = rows[(page - 1) * PAGE_SIZE: page * PAGE_SIZE]
     return render_template("admin/users.html", users=shown, total=len(rows), page=page, pages=pages,
                            session_count=len(session_repo.list_all(get_db())),
                            filters=f, search=f["q"], status=f["status"], counts=users.counts(get_db()),
                            all_groups=group_repo.list_all(get_db()), group_names=_group_names(shown),
-                           page_size=PAGE_SIZE, mfa_users=mfa_repo.enrolled_ids(get_db()), importers=_importers())
+                           page_size=PAGE_SIZE, mfa_users=mfa_users, importers=_importers())
+
+
+def _sorted_users(rows, f: dict, mfa_users) -> list:
+    """La lista ordenada por la columna pulsada (``?sort=``/``?order=``, ver tables.js), antes de partirla en
+    páginas. Lo vacío (nunca entró…) va al final en los dos sentidos; a igualdad, por nombre."""
+    keys = {
+        "user": lambda u: fold(u["display_name"] or u["username"]),
+        "source": lambda u: fold(str(accounts.source_labels().get(u["source"], u["source"]))),
+        "role": lambda u: fold(str(role_label(settings(), u["role"]))),
+        "status": lambda u: 0 if u["enabled"] else 1,
+        "mfa": lambda u: 0 if u["id"] in mfa_users else 1,
+        "last_login": lambda u: u["last_login"] or "",
+    }
+    key = keys[f["sort"]]
+    by_name = sorted(rows, key=keys["user"])
+    present = [u for u in by_name if key(u) != ""]
+    missing = [u for u in by_name if key(u) == ""]
+    return sorted(present, key=key, reverse=f["order"] == "desc") + missing
 
 
 @bp.route("/users/bulk", methods=["POST"])
