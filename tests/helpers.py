@@ -250,10 +250,11 @@ def browser() -> str | None:
 
 
 @contextmanager
-def serve_in_thread(app, threads: int = 4):
-    """Sirve ``app`` con Waitress en un hilo, en un puerto libre de 127.0.0.1. Devuelve el puerto."""
+def serve_in_thread(app, threads: int = 4, **options):
+    """Sirve ``app`` con Waitress en un hilo, en un puerto libre de 127.0.0.1. Devuelve el puerto. ``options``: las
+    de Waitress (p. ej. ``cli.server.waitress_options``, que ya lleva ``threads``)."""
     from waitress.server import create_server
-    server = create_server(app, host="127.0.0.1", port=0, threads=threads)
+    server = create_server(app, host="127.0.0.1", port=0, **{"threads": threads, **options})
     closing = threading.Event()
 
     def run():

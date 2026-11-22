@@ -148,26 +148,21 @@ def test_waitress_passes_the_proxy_headers_to_the_application(make_app):
     """Con un servidor Waitress de verdad: por defecto borra X-Forwarded-* que no vienen de un trusted_proxy, y
     entonces la aplicación veía todo como HTTP y desde la IP del proxy (auditoría, sesiones y bloqueo de IPs
     con la IP del proxy, que además nunca se bloquea por ser local). Detrás de un proxy no debe borrarlas."""
-    import threading
     import urllib.error
     import urllib.request
 
-    from waitress.server import create_server
-
     from storageweb.cli.server import waitress_options
     from storageweb.web.context import get_db
+    from tests.helpers import serve_in_thread
 
     app = make_app({"server": {"behind_proxy": True}})
-    server = create_server(app, host="127.0.0.1", port=0, **waitress_options(app.config["SW"]["server"]))
-    threading.Thread(target=server.run, daemon=True).start()
-    try:
-        req = urllib.request.Request(f"http://127.0.0.1:{server.effective_port}/login", data=b"username=x",
+    with serve_in_thread(app, **waitress_options(app.config["SW"]["server"])) as port:
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/login", data=b"username=x",
                                      headers={"X-Forwarded-For": "203.0.113.7", "X-Forwarded-Proto": "https"})
         with pytest.raises(urllib.error.HTTPError) as err:   # sin token CSRF: 400 y cuenta como infracción
             urllib.request.urlopen(req, timeout=10)
+        err.value.close()                                    # lleva la respuesta abierta
         assert err.value.code == 400
-    finally:
-        server.close()
     with app.app_context():
         ips = [r["ip"] for r in get_db().execute("SELECT ip FROM ip_offenses")]
     assert ips == ["203.0.113.7"]                            # la del cliente, no la del proxy (127.0.0.1)
