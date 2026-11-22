@@ -32,7 +32,9 @@ def common_passwords(path: str | None = None) -> frozenset[str]:
         info = file.stat()
     except OSError:
         file, info = COMMON_PASSWORDS_FILE, COMMON_PASSWORDS_FILE.stat()   # la propia se borró: la de serie
-    return _read_list(str(file), (info.st_mtime_ns, info.st_size))
+    # También el id del fichero: la lista se instala en uno nuevo (fsutil.atomic_write) y en Windows dos seguidas
+    # pueden tener la misma fecha y el mismo tamaño
+    return _read_list(str(file), (info.st_mtime_ns, info.st_size, info.st_ino))
 
 
 def rules(cfg: dict) -> dict:

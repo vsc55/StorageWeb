@@ -25,10 +25,13 @@ def network_path(text: str) -> bool:
 
 
 def real(path: str) -> str:
-    """La ruta con la que se compara: real (enlaces resueltos) y, en Windows, en minúsculas. Las de red, solo
-    normalizadas: nunca se tocan."""
+    r"""La ruta con la que se compara: real (enlaces resueltos) y, en Windows, en minúsculas. Las de red, solo
+    normalizadas: nunca se tocan. Fuera de Windows, con ``/`` en lugar de ``\`` (allí ``\`` no separa carpetas y
+    ``\\nas\logs\x`` no estaría dentro de ``\\nas\logs``)."""
     value = os.path.expanduser(str(path))
     if network_path(value):
+        if os.sep == "/":
+            value = value.replace("\\", "/")
         return os.path.normcase(os.path.normpath(value))
     return os.path.normcase(os.path.realpath(value))
 

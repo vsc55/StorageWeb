@@ -95,7 +95,9 @@ jobs:
             [ "$(docker inspect -f '{{.State.Health.Status}}' sw)" = healthy ] && break; sleep 2
           done
           docker inspect -f '{{.State.Health.Status}}' sw | grep -qx healthy
-          curl -fsS http://127.0.0.1:8080/healthz | grep -q '"0.0.0+ci"'
+          curl -fsS http://127.0.0.1:8080/healthz | grep -q '"ok"'
+          # /healthz no dice la versión (sin sesión): se mira la instalada en la imagen
+          test "$(docker exec sw python -c 'import storageweb; print(storageweb.__version__)')" = 0.0.0+ci
           curl -fsS -H 'Accept-Language: es' http://127.0.0.1:8080/login | grep -q 'Iniciar sesión'
           docker exec sw storageweb user-list | grep -q '^admin .* admin '
           test "$(docker exec sw id -u)" = 10001

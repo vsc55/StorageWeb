@@ -80,6 +80,11 @@ def _apply_overrides(cfg: dict, overrides: dict) -> dict:
 
 
 def _resolve(base_dir: Path, value: str) -> Path:
+    r"""La ruta de un ajuste: absoluta, o relativa al config.json. Una ruta de red (``\\equipo\recurso``) se deja
+    tal cual en todos los sistemas: fuera de Windows no es absoluta y acabaría siendo una carpeta junto al config.json
+    (y saltándose la comprobación de rutas de red)."""
+    if server_paths.network_path(value):
+        return Path(str(value).strip())
     p = Path(os.path.expanduser(value))
     return p if p.is_absolute() else (base_dir / p)
 
@@ -176,7 +181,7 @@ def _allowed_folders(value, base_dir: Path) -> list[str]:
     for text in _lines(value, field):
         if re.search(r"[\x00-\x1f\x7f]", text) or "{" in text:
             raise ConfigError(_("%(field)s: %(path)s is not a valid folder", field=field, path=repr(text)), field)
-        path = text if server_paths.network_path(text) else str(_resolve(base_dir, os.path.expanduser(text)))
+        path = text if server_paths.network_path(text) else str(_resolve(base_dir, text))
         if server_paths.real(path) not in {server_paths.real(p) for p in found}:
             found.append(path)
     return found
@@ -336,9 +341,7 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     if storage["home_location"]:
         tmpl = _inside_location(tmpl, "storage.home_template")
     else:
-        if not Path(os.path.expanduser(tmpl.split("{username}")[0] or ".")).is_absolute():
-            tmpl = str(base_dir / tmpl)
-        tmpl = os.path.expanduser(tmpl)
+        tmpl = str(_resolve(base_dir, tmpl))
     storage["home_template"] = tmpl
     if not storage["home_location"]:
         _check_allowed(tmpl.split("{username}")[0] or tmpl, storage["allowed_folders"], "storage.home_template",

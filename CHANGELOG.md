@@ -85,6 +85,8 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 - Las iniciales del avatar salen igual en todas partes (la barra superior, *Mi perfil* y las listas).
 - En la lista de usuarios, las etiquetas de los grupos ya no se descolocan.
 - Los botones de copiar funcionan también si se entra por `http://` (el navegador solo da el portapapeles moderno con HTTPS).
+- Fuera de Windows, una ruta de red escrita con barras invertidas (por ejemplo en el fichero de auditoría o en la plantilla de las carpetas personales) se tomaba por una carpeta junto al `config.json` y se saltaba la regla de las rutas de red; ahora se trata igual en todos los sistemas, también al compararla con las carpetas permitidas.
+- Una lista propia de contraseñas comunes instalada justo después de otra del mismo tamaño podía no volver a leerse (pasaba en Windows).
 
 ## [0.1.0] - 2026-11-17
 

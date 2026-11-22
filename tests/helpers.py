@@ -254,10 +254,19 @@ def serve_in_thread(app, threads: int = 4):
     """Sirve ``app`` con Waitress en un hilo, en un puerto libre de 127.0.0.1. Devuelve el puerto."""
     from waitress.server import create_server
     server = create_server(app, host="127.0.0.1", port=0, threads=threads)
-    threading.Thread(target=server.run, daemon=True).start()
+    closing = threading.Event()
+
+    def run():
+        try:
+            server.run()
+        except OSError:
+            if not closing.is_set():   # al cerrar, el select del bucle puede ver el socket ya cerrado (macOS)
+                raise
+    threading.Thread(target=run, daemon=True).start()
     try:
         yield server.effective_port
     finally:
+        closing.set()
         server.close()
 
 
