@@ -40,7 +40,12 @@ class MemRemote {
     }
     return out;
   }
-  async stat(p) { const f = this.files.get(p); return f ? { path: p, etag: f.etag, size: f.data.length, isDir: false } : null; }
+  async stat(p) {
+    const f = this.files.get(p);
+    if (f) return { path: p, etag: f.etag, size: f.data.length, isDir: false };
+    return p === "home/w" || [...this.files.keys()].some((k) => k.startsWith(`${p}/`))
+      ? { path: p, etag: "", size: 0, isDir: true } : null;
+  }
   async get(p) { return this.files.get(p).data; }
   async put(p, data, cond = {}) {
     const cur = this.files.get(p);

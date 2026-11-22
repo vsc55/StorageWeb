@@ -128,9 +128,15 @@ class GroupDirectory:
         """``{id: {"name", "description"}}`` para rellenar el alta de un grupo; por defecto, solo el nombre."""
         return {ref: {"name": name, "description": ""} for ref, name in self.names_for(ids).items()}
 
-    def search(self, text: str) -> list[dict]:
-        """``[{"id", "name"}]`` (y ``description`` si se sabe)."""
+    def search(self, text: str, limit: int = 20) -> list[dict] | None:
+        """Los grupos cuyo nombre empieza por ``text``: ``[{"id", "name"}]`` (y ``description`` si se sabe);
+        ``None`` si no se puede leer el directorio."""
         return []
+
+    def list(self, cursor: str = "", page_size: int = 50) -> tuple[list[dict], str] | None:
+        """Una página de todos los grupos (como :meth:`search`) y el cursor de la siguiente (``""`` = no hay más), para
+        importarlos; ``None`` si no se puede leer o no se sabe listar."""
+        return None
 
     def clear_cache(self) -> None:
         """Olvida lo que tenga guardado en memoria (p. ej. tras restaurar una copia de seguridad)."""

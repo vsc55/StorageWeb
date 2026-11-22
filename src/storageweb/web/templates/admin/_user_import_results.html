@@ -1,4 +1,4 @@
-{# Los resultados de Personas → Importar: la página los incluye y admin/user-import.js los pide solos
+{# Los resultados de Personas → Importar: la página los incluye y admin/directory-import.js los pide solos
    (?partial=1) mientras se escribe #}
 {% if failed %}
 <p class="flash flash-error section-gap" role="alert">{{ _("The directory could not be read. Check the connection in Sign-in (the application needs the User.Read.All permission: «Repair permissions» adds it).") }}</p>
@@ -16,7 +16,7 @@
   </table>
   </div>
   {% if more %}
-  {# Más personas: se cargan solas al acercarse (admin/user-import.js); sin JavaScript, el enlace #}
+  {# Más personas: se cargan solas al acercarse (admin/directory-import.js); sin JavaScript, el enlace #}
   <p class="section-gap" id="import-more-row"><a class="btn btn-small" id="import-more" href="{{ more|replace('rows=1', 'rows=0') }}" data-next="{{ more }}">{{ _("Load more") }}</a></p>
   {% elif not show_all and people|length >= limit %}<p class="muted small section-gap">{{ _("Up to %(num)s results: if who you are looking for is not here, write more of the name.", num=limit) }}</p>{% endif %}
 </div>

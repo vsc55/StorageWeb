@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from flask import abort, flash, g, make_response, redirect, render_template, request, url_for
+from flask import abort, flash, g, jsonify, make_response, redirect, render_template, request, url_for
 
 from ....core import accounts, favorites, mfa, roles
 from ....core.permissions import default_role
@@ -20,9 +20,10 @@ from ....i18n import _, _l, format_size, ngettext
 from ....settings import PERMISSIONS, ROLES
 from ...context import get_db, settings
 from ...forms import back, choice, flash_outcome, last_view, page_of, pick, split_list, use_view
-from ...guards import admin_required, audit_event, safe_next, user_or_404
+from ...guards import admin_required, audit_event, safe_next, user_or_404, wants_json
 from ... import search
 from . import bp
+from ....text import initials
 
 
 # --------------------------------------------------------------------------- usuarios
@@ -37,9 +38,7 @@ BULK_ACTIONS = ("disable", "enable", "role_user", "role_admin", "add_group")
 @bp.app_template_filter("initials")
 def _initials(user) -> str:
     """Iniciales para el avatar: de su nombre visible o, si no tiene, de su usuario."""
-    name = (user["display_name"] or user["username"].split("@")[0]).strip()
-    parts = [p for p in re.split(r"[\s._-]+", name) if p]
-    return ("".join(p[0] for p in parts[:2]) if len(parts) > 1 else name[:2]).upper()
+    return initials(user["display_name"] or user["username"].split("@")[0])
 
 
 def _user_filters() -> dict:
@@ -59,11 +58,9 @@ def _filtered_users(f: dict) -> list:
 
 
 def _group_names(user_rows) -> dict:
-    """Nombre visible de los grupos de cada usuario (para la lista y las tarjetas)."""
-    result = {}
-    for u in user_rows:
-        result[u["id"]] = [group_core.label(m) for m in group_core.memberships(get_db(), u)]
-    return result
+    """Los grupos de cada usuario para la lista: ``[{"label", "enabled"}]`` (los desactivados no le dan nada)."""
+    return {u["id"]: [{"label": group_core.label(m), "enabled": bool(m["enabled"])}
+                      for m in group_core.memberships(get_db(), u)] for u in user_rows}
 
 
 @bp.route("/users/")
@@ -305,7 +302,7 @@ def user_import():
         resp.headers["X-Next"] = more
         return resp
     if request.args.get("partial") == "1":
-        # Solo los resultados: la búsqueda mientras se escribe (admin/user-import.js)
+        # Solo los resultados: la búsqueda mientras se escribe (admin/directory-import.js)
         return render_template("admin/_user_import_results.html", **context)
     return render_template("admin/user_import.html", **context)
 
@@ -320,6 +317,8 @@ def user_new():
                 "source": request.form.get("source", accounts.default_source()), "groups": split_list(request.form.get("groups", ""))}
         try:
             form.pop("quota_mb", None)
+            if form["password"] and form["password"] != request.form.get("repeat_password", form["password"]):
+                raise accounts.AccountError(_("The new passwords do not match."))
             uid = accounts.create_account(get_db(), 
                 username=form["username"], source=form["source"], role=form["role"],
                 password=form["password"], display_name=form["display_name"], email=form["email"],
@@ -379,25 +378,35 @@ def user_password(user_uid: str):
     if not accounts.stores_password(user["source"]):
         abort(403, description=_("Only local users have a password that can be changed."))
     if request.method == "POST":
+        # Desde el modal (admin/password-modal.js) se pide JSON: el error se enseña dentro, sin recargar
+        as_json = wants_json()
         new = request.form.get("password", "")
+        error = None
         if new != request.form.get("repeat_password", ""):
-            flash(_("The new passwords do not match."), "error")
+            error = _("The new passwords do not match.")
         else:
             try:
                 closed = accounts.set_password(get_db(), user, g.user, new,
                                                password_rules=local.rules(settings()))
             except accounts.AccountError as exc:
-                flash(exc.message, "error")
+                error = exc.message
             else:
                 audit_event("password_reset_by_admin", user["username"], f"sessions_closed={closed}")
-                flash(_("New password for «%(name)s». Their open sessions have been closed.", name=user["username"]),
-                      "info")
+                done = _("New password for «%(name)s». Their open sessions have been closed.", name=user["username"])
+                if as_json:
+                    return jsonify(message=done)
+                flash(done, "info")
                 return done_url
+        if as_json:
+            return jsonify(error=error), 400
+        flash(error, "error")
     # «Volver» y «Cancelar» llevan a ``next``: solo una ruta de este sitio (si no, un enlace con
     # ?next=https://otro.sitio sacaría al administrador de aquí). Uno que no lo es se ignora: vuelve a la ficha
     nxt = request.values.get("next") or ""
-    return render_template("admin/user_password.html", user=user,
-                           next_url=nxt if nxt and safe_next(nxt) == nxt else "")
+    context = {"user": user, "next_url": nxt if nxt and safe_next(nxt) == nxt else ""}
+    if request.args.get("modal") == "1":
+        return render_template("admin/_user_password_form.html", modal=True, **context)
+    return render_template("admin/user_password.html", **context)
 
 
 def _user_groups_context(user) -> dict:

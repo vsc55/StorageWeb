@@ -35,7 +35,7 @@ Cada evento tiene un nivel, según su acción (columna *Nivel* de la tabla de ac
 | Acción | Nivel | Cuándo | `detail` |
 |---|---|---|---|
 | `login` | `info` | Inicio de sesión correcto | Origen: `local`, `pam` o `entra`; con verificación en dos pasos, `+totp` (código de la aplicación), `+passkey` o `+recovery` (código de recuperación): `local+totp` |
-| `login_failed` | `warning` | Contraseña incorrecta, error del proveedor SSO o credenciales de la unidad de red no válidas | `entra:<código>` en SSO; en WebDAV, `webdav:bad_token`, `webdav:bad_password`, `webdav:password_not_allowed` (se usó la contraseña de la cuenta sin estar admitida) o `webdav:mfa_requires_token` (contraseña correcta de una cuenta con verificación en dos pasos: en la unidad de red solo valen tokens) |
+| `login_failed` | `warning` | Contraseña incorrecta, error del proveedor SSO o credenciales de la unidad de red no válidas | `entra:<código>` en SSO; en WebDAV, `webdav:bad_token`, `webdav:bad_password`, `webdav:password_not_allowed` (se usó la contraseña de la cuenta sin estar admitida) `webdav:mfa_requires_token` (contraseña correcta de una cuenta con verificación en dos pasos: en la unidad de red solo valen tokens), `webdav:token_expired` (token caducado) o `webdav:account_disabled` (token o contraseña buenos de una cuenta desactivada); `account_disabled` en la página de entrada (contraseña buena de una cuenta desactivada: no cuenta como intento fallido) |
 | `login_blocked` | `critical` | Intento durante un bloqueo por intentos fallidos | `mfa` si fue al escribir el código del segundo paso |
 | `mfa_enrolled` | `info` | Verificación en dos pasos activada (el primer factor de la cuenta) | `self` (desde *Mi perfil*) o `forced` (la política la exigía y se configuró al iniciar sesión), seguido de ` passkey` si fue con una passkey |
 | `mfa_enrol_started` | `debug` | Empezó a configurar la verificación en dos pasos en *Mi perfil* (aún sin activar) |  |
@@ -64,7 +64,9 @@ Cada evento tiene un nivel, según su acción (columna *Nivel* de la tabla de ac
 | `user_deleted` | `critical` | Baja de usuario desde la web | |
 | `user_disabled` | `info` | Cuenta desactivada desde la web (botón *Desactivar*) o por la revisión contra Entra ID (*usuario* = `system`) | Origen de la cuenta, o `entra:deleted` / `entra:disabled` / `entra:not_allowed` y las sesiones cerradas |
 | `user_enabled` | `info` | Cuenta activada de nuevo desde la web, o sola cuando Entra ID la vuelve a dejar entrar | Origen de la cuenta, o `entra:directory` / `entra:signin` |
-| `group_created` | `info` | Alta de grupo | `origen:grupo externo` |
+| `group_created` | `info` | Alta de grupo (también al clonar, al importar de Entra ID o al dar de alta uno detectado) | `origen:grupo externo`, y ` copy=<grupo>` al clonar o ` import` al importar |
+| `group_enabled` | `info` | Grupo activado de nuevo (*Personas → Grupos*) | |
+| `group_disabled` | `info` | Grupo desactivado: se conserva, pero no da carpetas, rol ni cuota a sus miembros | |
 | `group_updated` | `info` | Edición de grupo | `origen:grupo externo` |
 | `group_role_changed` | `info` | Cambió el rol que un grupo da a sus miembros (*Personas → Grupos*) | La clave del rol, o `-` si ya no da ninguno |
 | `role_created` | `info` | Se creó un rol propio (*Acceso → Roles*) | Sus permisos, separados por comas |
@@ -151,6 +153,7 @@ ecurso`) |
 | `favorite_removed_by_admin` | `info` | Un administrador quita un favorito de otra persona; *objetivo* = la persona | `carpeta:/ruta` |
 | `favorites_cleared_by_admin` | `info` | Un administrador quita todos los favoritos de otra persona; *objetivo* = la persona | `removed=N` |
 | `upload_started` | `debug` | Empezó una subida por partes (la API o el explorador); al terminar, `upload` | Tamaño en bytes |
+| `download_cut` | `warning` | Una descarga (archivo, ZIP, unidad de red o enlace para compartir) cortada a mitad porque dejó de poder hacerse: se comprueba cada 30 segundos mientras se envía | `account_disabled`, `signed_out` (sesión cerrada), `token_invalid` (token revocado o caducado), `no_access` (ya no tiene la carpeta), `no_permission`, `hidden` (la ruta pasó a estar oculta) o, en un enlace (`link=… owner=… <motivo>`), `link_closed` (revocado o caducado) |
 | `quota_exceeded` | `warning` | Algo no se subió, copió, movió o guardó porque no cabía en la cuota de la carpeta | Tamaño en bytes; `api:`, `edit:`, `copy:`, `move:` o `webdav:` delante según por dónde |
 | `restore` | `critical` | Copia restaurada | Fecha y versión de la copia |
 

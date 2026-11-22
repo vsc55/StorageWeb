@@ -49,7 +49,7 @@ pre.code { background: var(--bg-soft); border: 1px solid var(--line); border-rad
 .status-off { color: var(--danger); }
 .status-off::before { background: var(--danger); }
 .row-disabled td { color: var(--muted); }
-.row-disabled .name a { color: var(--muted); text-decoration: line-through; }
+.row-disabled .name a { color: var(--muted); }
 .danger-zone { display: flex; flex-direction: column; gap: 0; margin-top: 20px; border: 1px solid var(--danger-line); background: var(--surface);
                border-radius: 12px; padding: 0; }
 .danger-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; }
@@ -192,18 +192,33 @@ a.chip-detected:hover, .wizard-step:hover, .folder-row:hover, .quick-action:hove
 }
 
 /* --- usuarios: piezas comunes --- */
-.avatar-user { width: 32px; height: 32px; font-size: 12px; font-weight: 700; flex: 0 0 auto; cursor: inherit;
+.avatar-user, .group-avatar { width: 32px; height: 32px; font-size: 12px; font-weight: 700; flex: 0 0 auto; cursor: inherit;
                background: var(--primary-soft); color: var(--primary-ink); }
-.avatar-user.avatar-lg { width: 40px; height: 40px; font-size: 14px; }
+.avatar-user.avatar-lg, .group-avatar.avatar-lg { width: 40px; height: 40px; font-size: 14px; }
 .avatar-user.avatar-xl { width: 52px; height: 52px; font-size: 18px; }
+/* Un grupo: cuadrado de bordes redondeados (una persona, redondo) */
+.group-avatar { border-radius: 9px; }
+.group-avatar.avatar-lg { border-radius: 11px; }
+/* Acciones de la cabecera de una ficha (Clonar, Desactivar, Borrar…) */
+.head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.copy-options { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; margin: 0;
+                display: flex; flex-direction: column; gap: 6px; }
+.copy-options legend { font-size: 13px; color: var(--muted); padding: 0 4px; }
 .avatar-admin { background: var(--badge-admin-bg); color: var(--badge-admin-fg); }
-.avatar-off { background: var(--line); color: var(--muted); }
+/* Cuenta desactivada: avatar gris con el icono de prohibido en la esquina (sin tachar el nombre) */
+.avatar-off { background: var(--line); color: var(--muted); position: relative; }
+.avatar-ban { position: absolute; right: -3px; bottom: -3px; width: 15px; height: 15px; padding: 1px; border-radius: 50%;
+              background: var(--surface); color: var(--danger); fill: none; stroke: currentColor; stroke-width: 2.5;
+              stroke-linecap: round; stroke-linejoin: round; }
 .user-cell { display: flex; align-items: center; gap: 10px; color: var(--fg); }
 .user-cell:hover { text-decoration: none; }
 .user-cell > span:last-child { display: flex; flex-direction: column; }
 /* Los grupos de cada persona en la lista de usuarios (no la lista de etiquetas editable: .tags, más abajo) */
 .group-tags { display: flex; flex-wrap: wrap; gap: 4px; }
 .group-tag { padding: 1px 8px; border-radius: 10px; background: var(--bg-hover); font-size: 12px; color: var(--fg); white-space: nowrap; }
+/* Un grupo desactivado en los grupos de una persona: atenuado y con el símbolo de prohibido */
+.group-tag.is-off, .chip.is-off { color: var(--muted); }
+.group-tag.is-off .icon, .chip.is-off .icon { color: var(--danger); margin-right: 3px; vertical-align: -1px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
 .dot-on { background: var(--ok-dot); }
 .dot-off { background: var(--danger); }
@@ -551,6 +566,8 @@ td.is-dirty[data-dirty-label]::after { display: none; }  /* en las tablas basta 
 .sw-modal.is-wide { width: min(600px, calc(100vw - 32px)); }
 .sw-modal { max-height: calc(100vh - 32px); }
 .sw-modal-title { font-size: 17px; font-weight: 600; }
+.password-modal-form { padding: 20px 22px 18px; margin: 0; }
+.password-modal-form .sw-modal-title, .password-modal-form p { margin: 0; }
 .list-diff { display: flex; flex-direction: column; gap: 14px; margin-top: -8px; min-height: 0; }
 .list-diff-note { margin: 0; }
 .list-diff-counts { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -718,6 +735,26 @@ th[aria-sort="descending"] .sort-btn::after { content: "↓"; opacity: 1; color:
 .password-checks .is-bad .icon { color: var(--danger); }
 .password-checks .is-unknown .icon { color: var(--muted); }
 .js-test-username[hidden], .password-test-result[hidden] { display: none; }
+/* Medidor de las páginas de contraseña nueva (password-meter.js): barra por fortaleza, de rojo a verde */
+.pw-meter[hidden], .pw-match[hidden], .js-rules-text[hidden] { display: none; }
+.pw-meter { display: flex; flex-direction: column; gap: 4px; }
+.pw-meter-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pw-meter-bar { flex: 1 1 140px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.pw-meter-bar span { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--muted);
+                     transition: width .2s, background-color .2s; }
+.pw-meter-label { font-size: 13px; min-width: 7em; }
+.pw-meter-tools { display: flex; gap: 6px; margin-left: auto; }
+.pw-strength { display: flex; align-items: center; gap: 10px; }
+.pw-strength.is-s0 .pw-meter-bar span, .pw-strength.is-s1 .pw-meter-bar span { background: var(--danger); }
+.pw-strength.is-s2 .pw-meter-bar span { background: var(--warn-bar); }
+.pw-strength.is-s3 .pw-meter-bar span, .pw-strength.is-s4 .pw-meter-bar span { background: var(--ok-dot); }
+.pw-strength.is-s0 .pw-meter-label, .pw-strength.is-s1 .pw-meter-label { color: var(--danger); }
+.pw-strength.is-s3 .pw-meter-label, .pw-strength.is-s4 .pw-meter-label { color: var(--ok-fg); }
+.password-test-result .pw-strength { max-width: 420px; margin-bottom: 6px; }
+.pw-meter-rules { margin-top: 2px; font-size: 13px; }
+.pw-match { font-size: 12px; }
+.pw-match.text-ok { color: var(--ok-fg); }
+.pw-match.text-danger { color: var(--danger); }
 
 /* Pestañas de las páginas (.js-tabs, admin/forms.js, que le pone .tabs-side): en columna a la izquierda, como el
    menú de cada zona, del ancho de su texto más largo (como mucho 240 px); la activa, marcada en azul. En pantallas

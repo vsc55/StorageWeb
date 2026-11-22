@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import functools
+import math
+import secrets
 from pathlib import Path
 
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -152,3 +154,74 @@ def verify(password_hash: str | None, password: str) -> bool:
 def burn_time(password: str) -> None:
     """Consume el mismo tiempo que una verificación real."""
     check_password_hash(_DUMMY_HASH, password)
+
+
+# --------------------------------------------------------------------------- fortaleza y generador
+
+STRENGTH_LABELS = (_l("Very weak"), _l("Weak"), _l("Fair"), _l("Strong"), _l("Very strong"))
+_SEQUENCES = ("abcdefghijklmnopqrstuvwxyz", "0123456789", "qwertyuiopasdfghjklzxcvbnm")
+_ALPHABETS = {"lower": "abcdefghijkmnopqrstuvwxyz", "upper": "ABCDEFGHJKLMNPQRSTUVWXYZ",
+              "digit": "23456789", "symbol": "!#$%&*+-=?@_~"}   # sin los que se confunden (l, I, O, 0, 1)
+
+
+def strength(password: str) -> int:
+    """Lo difícil de adivinar que es, de 0 (muy débil) a 4 (muy fuerte), por sus bits aproximados: cuántos tipos de
+    caracteres usa y su longitud, descontando las repeticiones y las secuencias (``aaaa``, ``1234``, ``qwerty``).
+    Solo orienta (el medidor de las páginas de contraseña); lo que se acepta lo deciden las reglas (:func:`checks`)."""
+    if not password:
+        return 0
+    pool = 0
+    kinds = {_kind(c) for c in password}
+    pool += 26 if "lower" in kinds else 0
+    pool += 26 if "upper" in kinds else 0
+    pool += 10 if "digit" in kinds else 0
+    pool += 33 if "symbol" in kinds else 0
+    low = password.lower()
+    # Lo que no suma: el mismo carácter seguido y los trozos de una secuencia conocida (hacia delante o hacia atrás)
+    effective = 0.0
+    for i, char in enumerate(low):
+        prev = low[i - 1] if i else ""
+        if char == prev:
+            effective += 0.25
+        elif prev and any(prev + char in seq or char + prev in seq for seq in _SEQUENCES):
+            effective += 0.4
+        else:
+            effective += 1.0
+    bits = effective * math.log2(max(pool, 2))
+    effective_distinct = len(set(low))
+    if effective_distinct < 4:
+        bits = min(bits, 20.0)
+    for limit, score in ((40, 0), (56, 1), (72, 2), (96, 3)):
+        if bits < limit:
+            return score
+    return 4
+
+
+def verdict(password: str, results: list[dict]) -> dict:
+    """Lo que enseñan el medidor y el probador con las reglas ya comprobadas (:func:`checks`): ``score`` (0–4, nunca
+    más de 1 si alguna regla falla: no se aceptaría), ``label`` y ``ok``."""
+    failed = any(r["ok"] is False for r in results)
+    score = min(strength(password), 1) if failed else strength(password)
+    return {"score": score, "label": str(STRENGTH_LABELS[score]), "ok": not failed}
+
+
+def generate(*, username: str = "", min_length: int = MIN_PASSWORD_LENGTH, require: tuple | list = (),
+             length: int = 20, **rules_) -> str:
+    """Una contraseña aleatoria (``secrets``) que cumple las reglas de :func:`rules`: al menos ``length`` caracteres
+    (o el mínimo, si es mayor), con letras, números y símbolos (y siempre los tipos de ``require``), sin los que se
+    confunden. Se comprueba con :func:`checks` (salvo las filtraciones, que van a internet) antes de devolverla."""
+    size = min(max(int(length), int(min_length or 0), MIN_PASSWORD_LENGTH), MAX_PASSWORD_LENGTH)
+    alphabet = "".join(_ALPHABETS.values())
+    rules_ = {**rules_, "breach_check": False}
+    for _attempt in range(50):
+        chars = [secrets.choice(_ALPHABETS[k]) for k in _ALPHABETS]    # uno de cada tipo, pida lo que pida
+        chars += [secrets.choice(alphabet) for _ in range(size - len(chars))]
+        for i in range(len(chars) - 1, 0, -1):                          # barajar (Fisher-Yates con secrets)
+            j = secrets.randbelow(i + 1)
+            chars[i], chars[j] = chars[j], chars[i]
+        candidate = "".join(chars)
+        if all(c["ok"] is not False for c in checks(candidate, username=username, min_length=min_length,
+                                                     require=require, **rules_)):
+            return candidate
+    raise ValueError(_("No password could be generated with the current rules."))
+

@@ -25,7 +25,7 @@
 </form>
 
 {# Importar varias a la vez: las casillas de los resultados son de este formulario (form="import-bulk"); con JavaScript,
-   la selección se conserva entre búsquedas (admin/user-import.js añade aquí las que no están a la vista) #}
+   la selección se conserva entre búsquedas (admin/directory-import.js añade aquí las que no están a la vista) #}
 <form method="post" action="{{ url_for('admin.user_import') }}" id="import-bulk" class="import-bulk section-gap">
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
   <input type="hidden" name="source" value="{{ method.key }}"><input type="hidden" name="q" value="{{ query }}">
@@ -41,4 +41,4 @@
 </div>
 {% endblock %}
 {% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/sortable.js') }}"></script>
-<script src="{{ url_for('static', filename='js/admin/user-import.js') }}"></script>{% endblock %}
+<script src="{{ url_for('static', filename='js/admin/directory-import.js') }}"></script>{% endblock %}

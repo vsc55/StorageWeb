@@ -64,7 +64,11 @@ def description(group) -> str:
 
 
 def members(conn: Connection, group) -> list:
+    """Los miembros del grupo; los del de serie, quienes tienen el rol Administrador."""
     return repo.admins(conn) if group["builtin"] else repo.members(conn, group["id"])
+
+
+members_of = members   # para clone_group, que tiene un parámetro «members»
 
 
 def memberships(conn: Connection, user) -> list[dict]:
@@ -106,11 +110,11 @@ _clean = clean_names
 # --------------------------------------------------------------------------- lista efectiva
 
 def refresh_user(conn: Connection, user_id: int) -> None:
-    """Recalcula ``users.groups`` = grupos del proveedor + nombres de sus grupos."""
+    """Recalcula ``users.groups`` = grupos del proveedor + nombres de sus grupos, sin los desactivados."""
     user = users.get_by_id(conn, user_id)
     if user is None:
         return
-    effective = split(user["external_groups"]) | repo.member_names(conn, user_id)
+    effective = (split(user["external_groups"]) | repo.member_names(conn, user_id)) - repo.disabled_refs(conn)
     users.update(conn, user_id, groups=sorted(effective))
 
 
@@ -212,6 +216,33 @@ def set_role(conn: Connection, group, role: str | None, username: str | None = N
     repo.update(conn, group["id"], role=role)
     store.roles_changed(conn, username)
     return True
+
+
+def set_enabled(conn: Connection, group, enabled: bool) -> bool:
+    """Activa o desactiva un grupo. Desactivado se conserva entero (miembros, rol, cuota y acceso a carpetas) pero no
+    da nada a nadie hasta que se active. Devuelve si ha cambiado."""
+    if group["builtin"]:
+        raise GroupError(_("This group comes with StorageWeb and cannot be changed."))
+    if bool(group["enabled"]) == bool(enabled):
+        return False
+    repo.update(conn, group["id"], enabled=1 if enabled else 0)
+    # Sus miembros y quien lo traiga del proveedor (también sin pertenencia guardada)
+    for user in users.list_all(conn):
+        refresh_user(conn, user["id"])
+    return True
+
+
+def clone_group(conn: Connection, original, *, name: str, label: str, description: str = "",
+                members: bool = True) -> int:
+    """Un grupo local nuevo a partir de otro (también de uno de un proveedor o del de serie): sus miembros pasan a ser
+    manuales (los del de serie, quienes tienen el rol Administrador; la copia no da ese rol). El rol, la cuota y el
+    acceso a carpetas los copia quien llama (son ajustes)."""
+    gid = create_group(conn, name=name, label=label, description=description, source=LOCAL)
+    if members:
+        for member in members_of(conn, original):
+            repo.add_member(conn, member["id"], gid, "manual")
+            refresh_user(conn, member["id"])
+    return gid
 
 
 def delete_group(conn: Connection, group) -> None:

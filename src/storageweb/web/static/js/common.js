@@ -103,10 +103,35 @@
   // ``options.headers`` se suman a esas (y las cambian: p. ej. otro Accept)
   var csrfMeta = document.querySelector('meta[name="csrf-token"]');
   window.SW.csrf = csrfMeta ? csrfMeta.getAttribute("content") : "";
+  // La sesión se cerró con la página abierta (cuenta desactivada, sesión cerrada por un admin, contraseña cambiada,
+  // caducada): el servidor contesta 401 con «signed_out» (guards.needs_sign_in). Se avisa una sola vez y se va a la
+  // entrada, volviendo luego a esta página; quien hizo la petición no recibe nada (la promesa se queda sin resolver)
+  // para que no enseñe además un «Error de red» ni pegue la página de entrada en la suya.
+  var signingOut = false;
+  function watchSession(resp) {
+    if (resp.status !== 401 || resp.headers.get("X-StorageWeb-Reason") !== "signed_out") return resp;
+    if (!signingOut) {
+      signingOut = true;
+      resp.json().catch(function () { return {}; }).then(function (data) {
+        var target = (data.login || "/login") + "?next=" + encodeURIComponent(location.pathname + location.search);
+        window.SW.alert(data.error || t("Your session has ended. Sign in again.")).then(function () {
+          location.href = target;
+        });
+      });
+    }
+    return new Promise(function () {});
+  }
   window.SW.fetch = function (url, options) {
     options = options || {};
     var headers = Object.assign({ "Accept": "application/json", "X-CSRF-Token": window.SW.csrf }, options.headers || {});
-    return fetch(url, Object.assign({ credentials: "same-origin" }, options, { headers: headers }));
+    return fetch(url, Object.assign({ credentials: "same-origin" }, options, { headers: headers })).then(watchSession);
+  };
+  // Un trozo de página (HTML) que pide el JavaScript (paneles, cargar más, resultados de importar…): con la sesión y
+  // la marca X-Requested-With, para que una sesión cerrada sea el aviso de arriba y no la página de entrada
+  window.SW.page = function (url, options) {
+    options = options || {};
+    var headers = Object.assign({ "Accept": "text/html", "X-Requested-With": "fetch" }, options.headers || {});
+    return fetch(url, Object.assign({ credentials: "same-origin" }, options, { headers: headers })).then(watchSession);
   };
 
   // Un elemento con su clase y su texto: SW.el("li", "muted", t("Nothing"))
@@ -243,6 +268,31 @@
   window.SW.toast = wireToast;
   document.querySelectorAll(".toast").forEach(wireToast);
 
+  // La caja de los avisos (abajo a la derecha); se crea si la página no trae ninguno
+  window.SW.toastBox = function () {
+    var box = document.querySelector(".toasts");
+    if (!box) {
+      box = window.SW.el("div", "toasts");
+      box.setAttribute("aria-live", "polite");
+      document.body.appendChild(box);
+    }
+    return box;
+  };
+  // Un aviso desde JavaScript, como los del servidor: SW.notify(texto, "info" | "error")
+  window.SW.notify = function (text, kind) {
+    kind = kind || "info";
+    var toast = window.SW.el("div", "toast toast-" + kind);
+    toast.setAttribute("role", kind === "error" ? "alert" : "status");
+    toast.appendChild(window.SW.el("span", "toast-text", text));
+    var close = window.SW.el("button", "toast-close", "\u00d7");
+    close.type = "button";
+    close.setAttribute("aria-label", t("Close"));
+    close.title = t("Close");
+    toast.appendChild(close);
+    window.SW.toastBox().appendChild(toast);
+    wireToast(toast);
+  };
+
 
   // Menús emergentes (<details class="popover">): se abren hacia el lado donde caben (sin salirse de la pantalla
   // ni crear barras de desplazamiento) y se cierran al pulsar fuera o con Esc
@@ -295,7 +345,15 @@
         window.SW.copy(src.value).then(function (ok) { if (ok) b.textContent = t("Copied"); });
       });
     });
+    wirers.forEach(function (fn) { fn(root); });
   }
+  // Lo que un script de una página quiere preparar también en el contenido que llega después (un modal, los
+  // paneles): SW.onWire(fn) lo hace ya con la página y luego en cada SW.wire(raíz)
+  var wirers = [];
+  window.SW.onWire = function (fn) {
+    wirers.push(fn);
+    fn(document);
+  };
   window.SW.wire = wire;
   wire(document);
 })();

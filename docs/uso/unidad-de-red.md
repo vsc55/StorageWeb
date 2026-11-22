@@ -87,4 +87,24 @@ En las carpetas de solo lectura, y con un token de solo lectura, solo se puede v
 
 - *Seguridad → API y unidad de red* activa o desactiva el servidor (`security.webdav`) y si se admite la contraseña de la cuenta (`security.webdav_passwords`, desactivado por defecto). Con `security.api_tokens` desactivado y sin contraseñas, nadie puede entrar.
 - Los tokens o contraseñas erróneos cuentan para el bloqueo por intentos (con su **propio contador**: una unidad mal configurada, que reintenta sola, no bloquea el inicio de sesión en la web) y para el bloqueo automático de IPs. Usar la contraseña de la cuenta sin estar admitida no cuenta: queda en la auditoría como `webdav:password_not_allowed`, que es lo primero que hay que mirar si alguien no consigue conectar.
+- **Por qué se deniega algo:** las respuestas de error llevan la cabecera `X-StorageWeb-Reason` con un código fijo, para que un programa (la extensión de VS Code, un script) diga el motivo en vez de un error genérico. También en la API con token (`Authorization: Bearer`).
+
+    | Código | Respuesta | Qué significa |
+    |---|---|---|
+    | `account_disabled` | 401 | El token o la contraseña son buenos, pero la cuenta está desactivada |
+    | `token_expired` | 401 | El token ha caducado (por su fecha o por `security.api_token_max_days`) |
+    | `token_invalid` | 401 | El token no existe (revocado, borrado o mal copiado) |
+    | `tokens_disabled` | 401 | El servidor no admite tokens de API (`security.api_tokens`) |
+    | `password_not_allowed` | 401 | Se usó la contraseña de la cuenta y no se admite (`security.webdav_passwords`) |
+    | `mfa_requires_token` | 401 | La cuenta tiene verificación en dos pasos: solo valen tokens |
+    | `throttled` | 401 | Demasiados intentos fallidos: hay que esperar unos minutos |
+    | `signed_out` | 401 | (El JavaScript de la web) la sesión ha terminado |
+    | `ip_banned` | 403 | La IP está bloqueada |
+    | `read_only` | 403 | La carpeta es de solo lectura para esa persona |
+    | `token_read_only` | 403 | El token solo permite leer |
+    | `no_permission` | 403 | Su rol no permite eso (subir, borrar…) |
+    | `too_large` | 413 | Supera el tamaño máximo de archivo (`storage.max_file_size_mb`) |
+    | `maintenance` | 503 | Se está restaurando una copia de seguridad: reintentar en un momento (`Retry-After`) |
+
+    Una ruta a la que no se tiene acceso, o que no existe, es un 404 sin motivo (no se dice cuál de las dos). Una descarga larga que se corta a mitad (ver [Desactivar en lugar de eliminar](../administracion/usuarios-y-permisos.md#desactivar-en-lugar-de-eliminar)) cierra la conexión antes de enviar todo el `Content-Length`.
 - Detrás de un proxy, el tamaño máximo de petición tiene que ser al menos `server.max_upload_mb`: en nginx, `client_max_body_size`; en Apache, `LimitRequestBody` (desde la 2.4.54 limita a 1 GB por defecto); en Caddy, `request_body { max_size … }`. Ver [HTTPS con nginx, Apache o Caddy](../administracion/https.md). Los tres dejan pasar los métodos de WebDAV (`PROPFIND`, `MOVE`…) sin configurar nada más.

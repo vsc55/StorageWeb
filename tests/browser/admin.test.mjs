@@ -302,3 +302,74 @@ test("usuarios y grupos, vista Paneles: elegir y cambiar de pestaña sin recarga
   assert.ok(await page.evaluate(kept), "elegir un grupo no recarga");
   noErrors(page);
 });
+
+test("cambiar la contraseña de otra cuenta en un modal: el error sale dentro y al acertar se cierra con un aviso", async () => {
+  const LUIS = "document.querySelector('a[data-password-modal][aria-label$=\" luis\"]')";
+  const field = (name) => `document.querySelector('dialog.password-modal input[name=${name}]')`;
+  await page.go(`${BASE}/admin/users`);
+  await page.evaluate("window.sinRecargar = true");
+  await page.evaluate(`${LUIS}.click()`);
+  await page.waitFor("document.querySelector('dialog.password-modal[open]')");
+  assert.match(await page.evaluate("document.querySelector('dialog.password-modal .sw-modal-title').textContent"), /luis/);
+  // El medidor también en el modal (llega después: SW.onWire), con las reglas de luis
+  await page.waitFor("!document.querySelector('dialog.password-modal .pw-meter').hidden");
+  assert.ok(await page.evaluate("!!document.querySelector('dialog.password-modal .pw-meter[data-user]')"));
+  // Dos que no coinciden: el error se ve en el modal, que sigue abierto
+  await page.evaluate(`${field("password")}.value = 'Una-Clave-Larga-2026'; ${field("repeat_password")}.value = 'Otra-Distinta-2026'`);
+  await page.evaluate("document.querySelector('dialog.password-modal button[type=submit]').click()");
+  await page.waitFor("!document.querySelector('dialog.password-modal .js-password-error').hidden");
+  assert.match(await page.evaluate("document.querySelector('dialog.password-modal .js-password-error').textContent"),
+    /no coinciden/);
+  // El 400 de esa respuesta (es un error de validación, como en los demás formularios JSON) lo anota el navegador en la
+  // consola: es el esperado, se quita y cualquier otro sigue haciendo fallar el test
+  const expected = page.errors.findIndex((e) => / 400 .*\/password$/.test(e));
+  assert.notEqual(expected, -1);
+  page.errors.splice(expected, 1);
+  // Una buena: se cierra, sale el aviso y la página no se ha recargado
+  await page.evaluate(`${field("repeat_password")}.value = 'Una-Clave-Larga-2026'`);
+  await page.evaluate("document.querySelector('dialog.password-modal button[type=submit]').click()");
+  await page.waitFor("!document.querySelector('dialog.password-modal')");
+  await page.waitFor("[...document.querySelectorAll('.toast-text')].some((t) => t.textContent.includes('luis'))");
+  assert.equal(await page.evaluate("window.sinRecargar"), true);
+  // Desde Paneles también (sin que el panel cargue la página de la contraseña) y Esc lo cierra
+  await page.go(`${BASE}/admin/users/panel`);
+  await page.evaluate("[...document.querySelectorAll('.md-list a')].find((a) => a.textContent.includes('luis')).click()");
+  await page.waitFor("document.querySelector('.md-detail a[data-password-modal]')");
+  await page.evaluate("document.querySelector('.md-detail a[data-password-modal]').click()");
+  await page.waitFor("document.querySelector('dialog.password-modal[open]')");
+  assert.ok(await page.evaluate("location.pathname.endsWith('/admin/users/panel')"));
+  for (const type of ["rawKeyDown", "keyUp"]) {
+    await page.send("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+  }
+  await page.waitFor("!document.querySelector('dialog.password-modal')");
+  noErrors(page);
+});
+
+test("alta de usuario y probador de contraseñas: el medidor con el nombre que se escribe y Generar", async () => {
+  await page.go(`${BASE}/admin/users/new`);
+  await page.waitFor("!document.querySelector('.pw-meter').hidden");
+  await page.evaluate(`(() => {
+    const name = document.querySelector('input[name=username]'); name.value = 'mariano';
+    name.dispatchEvent(new Event('input', { bubbles: true }));
+    const pw = document.querySelector('[data-password-new]'); pw.value = 'mariano-Clave-26!';
+    pw.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await page.waitFor("[...document.querySelectorAll('.pw-meter-rules .is-bad')].some((li) => /nombre de usuario/.test(li.textContent))");
+  await page.evaluate("document.querySelector('.js-pw-generate').click()");
+  await page.waitFor("document.querySelector('.pw-meter .pw-strength').classList.contains('is-s4')");
+  assert.ok(await page.evaluate(`document.querySelector('[data-password-new]').value ===
+    document.querySelector('[data-password-repeat]').value`));
+  // El probador: Generar con las reglas de la página, ya probada y con su barra
+  await page.go(`${BASE}/admin/settings/passwords`);
+  // En tiempo real, sin pulsar «Probar»
+  await page.evaluate(`(() => { const i = document.querySelector('input[name=test_password]'); i.value = 'abc';
+    i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await page.waitFor("document.querySelector('.password-test-result .pw-strength').classList.contains('is-s0')");
+  await page.evaluate(`(() => { const i = document.querySelector('input[name=test_password]'); i.value = 'Tr4n-qu1L0!casa-larga';
+    i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await page.waitFor("!document.querySelector('.password-test-result .pw-strength').classList.contains('is-s0')");
+  await page.evaluate("document.querySelector('.password-test-form .js-generate').click()");
+  await page.waitFor("!document.querySelector('.password-test-result').hidden");
+  await page.waitFor("document.querySelector('.password-test-result .pw-strength').classList.contains('is-s4')");
+  assert.ok(await page.evaluate("document.querySelector('input[name=test_password]').value.length >= 20"));
+  noErrors(page);
+});

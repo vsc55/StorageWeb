@@ -17,7 +17,8 @@
 {%- endmacro %}
 
 {% macro avatar(u, size='') -%}
-<span class="avatar avatar-user{% if size %} avatar-{{ size }}{% endif %}{% if u['role'] == 'admin' %} avatar-admin{% endif %}{% if not u['enabled'] %} avatar-off{% endif %}" aria-hidden="true">{{ u|initials }}</span>
+<span class="avatar avatar-user{% if size %} avatar-{{ size }}{% endif %}{% if u['role'] == 'admin' %} avatar-admin{% endif %}{% if not u['enabled'] %} avatar-off{% endif %}" aria-hidden="true">{{ u|initials }}
+  {%- if not u['enabled'] %}<svg class="avatar-ban"><use href="#i-ban"></use></svg>{% endif %}</span>
 {%- endmacro %}
 
 {% macro status(u) -%}
@@ -34,11 +35,7 @@
 {% set more = caller %}
 {% call panels.search_form(target, filters.q, _('Search by user name, name or email'),
                            filters.q or filters.status != 'all' or filters.source or filters.role or filters.group, extra, 'user-filters') %}
-  <select name="status" aria-label="{{ _('Status') }}">
-    <option value="all" {% if filters.status == 'all' %}selected{% endif %}>{{ _("All") }}</option>
-    <option value="active" {% if filters.status == 'active' %}selected{% endif %}>{{ _("Active") }}</option>
-    <option value="disabled" {% if filters.status == 'disabled' %}selected{% endif %}>{{ _("Disabled") }}</option>
-  </select>
+  {{ panels.status_select(filters.status) }}
   <select name="source" aria-label="{{ _('Source') }}">
     <option value="">{{ _("Any source") }}</option>
     {% for s, label in SOURCE_LABELS.items() %}<option value="{{ s }}" {% if filters.source == s %}selected{% endif %}>{{ label }}</option>{% endfor %}
@@ -60,12 +57,12 @@
       <svg class="icon icon-sm" aria-hidden="true"><use href="#i-lock"></use></svg>
       <a href="{{ url_for('groups.edit', group_uid=m['uid']) }}">{{ (m|group_label) }}</a> <span class="small">· {{ _("by role") }}</span></span>
     {% elif m['origin'] == 'sync' %}
-    <span class="chip chip-sync" title="{{ _('Comes from %(source)s and is updated on each sign-in.', source=SOURCE_LABELS[m['source']]) }}">
+    <span class="chip chip-sync{% if not m['enabled'] %} is-off{% endif %}" title="{% if not m['enabled'] %}{{ _('Disabled group: it gives nothing until it is enabled again.') }} {% endif %}{{ _('Comes from %(source)s and is updated on each sign-in.', source=SOURCE_LABELS[m['source']]) }}">
       <svg class="icon icon-sm" aria-hidden="true"><use href="#i-lock"></use></svg>
-      <a href="{{ url_for('groups.edit', group_uid=m['uid']) }}">{{ (m|group_label) }}</a> <span class="small">· {{ SOURCE_LABELS[m['source']] }}</span></span>
+      <a href="{{ url_for('groups.edit', group_uid=m['uid']) }}">{% if not m['enabled'] %}<svg class="icon icon-xs" aria-hidden="true"><use href="#i-ban"></use></svg>{% endif %}{{ (m|group_label) }}</a> <span class="small">· {{ SOURCE_LABELS[m['source']] }}</span></span>
     {% else %}
-    <span class="chip">
-      <a href="{{ url_for('groups.edit', group_uid=m['uid']) }}">{{ (m|group_label) }}</a>
+    <span class="chip{% if not m['enabled'] %} is-off{% endif %}"{% if not m['enabled'] %} title="{{ _('Disabled group: it gives nothing until it is enabled again.') }}"{% endif %}>
+      <a href="{{ url_for('groups.edit', group_uid=m['uid']) }}">{% if not m['enabled'] %}<svg class="icon icon-xs" aria-hidden="true"><use href="#i-ban"></use></svg>{% endif %}{{ (m|group_label) }}</a>
       {{ post_button(url_for('groups.member_remove', group_uid=m['uid'], user_uid=user['uid']), '×', btn='chip-remove', next=next,
                      aria_label=_('Remove from the group %(name)s', name=(m|group_label))) }}
     </span>

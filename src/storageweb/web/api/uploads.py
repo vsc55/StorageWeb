@@ -114,13 +114,6 @@ def _load(upload_id: str):
     return row, root, dir_rel, core.part_path(Path(row["dir_path"]), upload_id)
 
 
-def _cleanup_stale() -> None:
-    conn = get_db()
-    for row in repo.stale(conn, settings()["storage"]["upload_stale_hours"]):
-        core.discard(core.part_path(Path(row["dir_path"]), row["id"]))
-        repo.delete(conn, row["id"])
-
-
 @bp.route("", methods=["POST"])
 def init():
     data = request.get_json(silent=True) or {}
@@ -140,7 +133,7 @@ def init():
         audit_path("quota_exceeded", root, backends.join_rel(dir_rel, filename), f"api:{size}")
         raise core.UploadError(exc.message, 507) from exc
     core.check_space(root["backend"], dir_rel, size)
-    _cleanup_stale()
+    core.discard_stale(get_db(), settings()["storage"]["upload_stale_hours"])
 
     upload_id = secrets.token_hex(16)
     staging = root["backend"].staging_dir(dir_rel)  # junto al destino si es local; si no, <data_dir>/uploads

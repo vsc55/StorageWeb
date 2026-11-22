@@ -7,7 +7,7 @@ from typing import Iterable
 
 from ..connection import now_iso, update_row
 
-_UPDATABLE = {"label", "description", "source", "external_id", "role"}
+_UPDATABLE = {"label", "description", "source", "external_id", "role", "enabled"}
 
 _WITH_COUNTS = """
     SELECT g.*,
@@ -40,8 +40,12 @@ def get_by_external(conn: Connection, source: str, external_id: str):
                         (source, external_id)).fetchone()
 
 
-def list_all(conn: Connection, search: str = "", source: str | None = None) -> list:
+def list_all(conn: Connection, search: str = "", source: str | None = None, status: str = "all") -> list:
+    """Los grupos con sus miembros; ``status``: all, active o disabled."""
     where, params = [], []
+    if status in ("active", "disabled"):
+        where.append("g.enabled = ?")
+        params.append(1 if status == "active" else 0)
     if search:
         like = f"%{search}%"
         where.append("(g.name LIKE ? OR g.label LIKE ? OR g.description LIKE ?)")
@@ -136,5 +140,18 @@ def replace_sync(conn: Connection, user_id: int, source: str, group_ids: Iterabl
 
 
 def member_names(conn: Connection, user_id: int) -> set[str]:
+    """Los grupos activos de un usuario (los desactivados no dan nada)."""
     return {r[0] for r in conn.execute(
-        "SELECT g.name FROM user_groups ug JOIN groups g ON g.id = ug.group_id WHERE ug.user_id = ?", (user_id,))}
+        "SELECT g.name FROM user_groups ug JOIN groups g ON g.id = ug.group_id WHERE ug.user_id = ? AND g.enabled = 1",
+        (user_id,))}
+
+
+def disabled_refs(conn: Connection) -> set[str]:
+    """Nombres e identificadores externos de los grupos desactivados: lo que no puede quedar en la lista efectiva
+    aunque lo mande el proveedor."""
+    refs = set()
+    for name, external_id in conn.execute("SELECT name, external_id FROM groups WHERE enabled = 0"):
+        refs.add(str(name).lower())
+        if external_id:
+            refs.add(str(external_id).lower())
+    return refs

@@ -1,0 +1,18 @@
+{# Las filas de Grupos → Importar: en los resultados y solas (?rows=1), las de la página siguiente al bajar #}
+{% from "_forms.html" import post_button with context %}
+      {% for row in rows %}{% set gr = row.group %}
+      <tr>
+        <td class="check-col">{% if not row.imported %}<input type="checkbox" name="ids" value="{{ gr.id }}"
+               form="import-bulk" class="import-pick" data-name="{{ gr.name }}" aria-label="{{ _('Select %(name)s', name=gr.name) }}">{% endif %}</td>
+        <td><strong>{{ gr.name }}</strong><br><code class="muted small">{{ gr.id }}</code></td>
+        <td class="muted">{{ gr.description or '' }}</td>
+        <td>{% if row.imported %}<span class="badge badge-ok">{{ _("already registered") }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td class="actions">
+          {% if row.imported %}<a class="btn btn-small" href="{{ url_for('groups.edit', group_uid=row.imported['uid']) }}">{{ _("Open") }}</a>
+          {% else %}
+          {{ post_button(url_for('groups.import_view'), _("Import"), btn='btn btn-small btn-primary',
+                         hidden={'source': method.key, 'q': query, 'external_id': gr.id}) }}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}

@@ -284,3 +284,73 @@ test("subir: un archivo elegido sube por partes y aparece en la carpeta", async 
   }
   noErrors(page);
 });
+
+test("editor: lo escrito que no llegó a guardarse se ofrece al volver y se recupera", async () => {
+  await page.go(`${BASE}/edit/home/borrador.txt`);
+  // Guardar deja una copia en la pestaña; el envío no llega (como si la sesión se hubiera cerrado): el archivo sigue
+  // en la misma versión. Un submit sintético dispara el aviso sin enviar el formulario.
+  await page.evaluate(`(() => { const box = document.getElementById('editor-text');
+    box.value = 'cambio sin guardar\\n'; box.dispatchEvent(new Event('input', { bubbles: true }));
+    document.getElementById('editor-form').dispatchEvent(new Event('submit', { cancelable: true })); })()`);
+  await page.go(`${BASE}/edit/home/borrador.txt`);
+  await page.waitFor("document.querySelector('dialog.sw-modal[open]')");
+  assert.match(await page.evaluate("document.querySelector('dialog.sw-modal[open]').textContent"), /no se guardaron/);
+  const saved = await page.evaluate("document.getElementById('editor-text').value");   // lo que hay en el archivo
+  await page.evaluate("document.querySelector('dialog.sw-modal[open] button[value=ok]').click()");
+  await page.waitFor("document.getElementById('editor-text').value === 'cambio sin guardar\\n'");
+  // Recuperado queda «sin guardar» (avisaría al salir): se deja como estaba para poder seguir navegando
+  await page.evaluate(`(() => { const box = document.getElementById('editor-text');
+    box.value = ${JSON.stringify(saved)}; box.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  assert.ok(await page.evaluate("document.getElementById('editor-state').hidden"), "sin cambios pendientes");
+  // Una vez recuperado (o rechazado), no se vuelve a ofrecer
+  await page.go(`${BASE}/edit/home/borrador.txt`);
+  await new Promise((r) => setTimeout(r, 300));
+  assert.ok(await page.evaluate("!document.querySelector('dialog.sw-modal[open]')"));
+  noErrors(page);
+});
+
+test("contraseña nueva: el medidor dice la fortaleza y las reglas, y Generar pone una que las cumple", async () => {
+  await page.go(`${BASE}/profile/security`);
+  await page.evaluate("document.querySelector('.pw-meter').closest('details').open = true");
+  await page.waitFor("!document.querySelector('.pw-meter').hidden");
+  assert.ok(await page.evaluate("document.querySelector('.js-rules-text').hidden"), "la lista sustituye al texto");
+  await page.evaluate(`(() => { const i = document.querySelector('[data-password-new]');
+    i.value = 'abc'; i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await page.waitFor("document.querySelector('.pw-meter .pw-strength').classList.contains('is-s0')");
+  assert.ok(await page.evaluate("!!document.querySelector('.pw-meter-rules .is-bad')"));
+  await page.evaluate("document.querySelector('.js-pw-generate').click()");
+  await page.waitFor("document.querySelector('[data-password-new]').type === 'text'");
+  await page.waitFor("document.querySelector('.pw-meter .pw-strength').classList.contains('is-s4')");
+  const state = await page.evaluate(`(() => ({
+    a: document.querySelector('[data-password-new]').value, b: document.querySelector('[data-password-repeat]').value,
+    match: document.querySelector('.pw-match').textContent, bad: document.querySelectorAll('.pw-meter-rules .is-bad').length,
+    copy: !document.querySelector('.js-pw-copy').hidden }))()`);
+  assert.ok(state.a.length >= 20 && state.a === state.b, "la misma en los dos campos");
+  assert.equal(state.match, "Coinciden.");
+  assert.equal(state.bad, 0);
+  assert.ok(state.copy, "se puede copiar");
+  noErrors(page);
+});
+
+test("sesión cerrada con la página abierta: el JavaScript avisa una vez y lleva a la entrada", async () => {
+  await page.go(`${BASE}/f/home/`);
+  // Se cierra la sesión en el servidor y se deja en el navegador la cookie vieja (como cuando la cierra un admin o
+  // se desactiva la cuenta con la página abierta)
+  const { cookies } = await page.send("Network.getCookies", { urls: [BASE] });
+  await page.evaluate(`fetch('/logout', { method: 'POST', credentials: 'same-origin', redirect: 'manual',
+    body: new URLSearchParams({ _csrf: window.SW.csrf }) })`);
+  await page.send("Network.setCookies", { cookies });
+  // Sin esperar a la promesa: con la sesión terminada no se resuelve nunca (a propósito)
+  await page.evaluate("window.respondido = false; void window.SW.fetch('/recent').then(() => { window.respondido = true; })");
+  await page.waitFor("document.querySelector('dialog.sw-modal[open]')");
+  assert.match(await page.evaluate("document.querySelector('dialog.sw-modal[open]').textContent"), /sesión ha terminado/);
+  assert.equal(await page.evaluate("window.respondido"), false, "quien pidió no recibe la página de entrada");
+  await page.navigating("document.querySelector('dialog.sw-modal[open] button[value=ok]').click()");
+  assert.match(await page.evaluate("location.pathname + location.search"), /^\/login\?next=%2Ff%2Fhome%2F/);
+  // El 401 de /recent lo provoca este escenario (el navegador lo anota en la consola): se quita; cualquier otro, no
+  const expected = page.errors.findIndex((e) => / 401 .*\/recent$/.test(e));
+  assert.notEqual(expected, -1);
+  page.errors.splice(expected, 1);
+  noErrors(page);
+  await page.login(BASE, "ana", PASSWORD);                            // para lo que venga detrás
+});

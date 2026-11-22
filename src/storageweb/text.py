@@ -61,3 +61,11 @@ def clean_names(values) -> list[str]:
     """Nombres sin espacios alrededor, en minúsculas, sin repetir y ordenados (para guardarlos o compararlos)."""
     return sorted({str(v).strip().lower() for v in values or [] if str(v).strip()})
 
+
+def initials(name: str) -> str:
+    """Dos letras para un avatar: la primera de las dos primeras palabras («Recursos humanos» → «RH», «ana.garcia» →
+    «AG») o, con una sola, sus dos primeras («Ventas» → «VE»)."""
+    name = str(name or "").strip()
+    parts = [p for p in re.split(r"[\s._-]+", name) if p]
+    return ("".join(p[0] for p in parts[:2]) if len(parts) > 1 else name[:2]).upper()
+

@@ -146,7 +146,8 @@ def test_run_due_cleans_and_backs_up(db_conn, tmp_path):
     db_conn.commit()
     done = maintenance.run_due(db_conn, cfg)
     # Más las de cada día que no dependen de nada (miniaturas de serie encendidas, enlaces caducados)
-    assert done == ["cleanup", "ipban_prune", "audit_purge", "backup", "thumbnail_cleanup", "link_cleanup"]
+    assert done == ["cleanup", "upload_cleanup", "ipban_prune", "audit_purge", "backup", "thumbnail_cleanup",
+                    "link_cleanup"]
     assert sessions.get(db_conn, "viejo") is None and len(maintenance.list_backups(cfg)) == 1
     assert maintenance.run_due(db_conn, cfg) == []                    # nada pendiente hasta la próxima
     name = maintenance.list_backups(cfg)[0]["name"]

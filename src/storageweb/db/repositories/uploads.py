@@ -35,3 +35,9 @@ def delete(conn: Connection, upload_id: str) -> None:
 def stale(conn: Connection, max_age_hours: int) -> list:
     limit = iso_ago(hours=max_age_hours)
     return conn.execute("SELECT * FROM uploads WHERE updated_at < ?", (limit,)).fetchall()
+
+
+def of_user(conn: Connection, user_id: int) -> list:
+    """Las subidas a medias de una persona."""
+    return conn.execute("SELECT * FROM uploads WHERE user_id = ?", (user_id,)).fetchall()
+

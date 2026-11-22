@@ -25,11 +25,35 @@
 {%- endmacro %}
 
 {# Contraseña nueva y repetirla, con las reglas debajo (password_rules_text). ``name``: el campo de la nueva #}
-{% macro new_password_fields(name='password', autofocus=False) -%}
-<label>{{ _("New password") }}
+{# Contraseña nueva dos veces, con su medidor (static/js/password-meter.js: fortaleza y las reglas del sistema mientras
+   se escribe, el botón Generar —una aleatoria que las cumple— y si coinciden). ``user``: el uid de otra cuenta (un
+   admin que se la cambia: la regla del nombre de usuario es la de esa persona); ``username_from``: el selector del
+   campo con el nombre de usuario (el alta de una cuenta que aún no existe); ``label``: el texto del primer campo. Sin
+   JavaScript, el texto de las reglas #}
+{# La barra de fortaleza y su etiqueta (SW.paintStrength, en password-meter.js): el medidor y el probador #}
+{% macro strength_bar() -%}
+<div class="pw-meter-bar" aria-hidden="true"><span></span></div>
+<strong class="pw-meter-label" aria-live="polite"></strong>
+{%- endmacro %}
+
+{% macro new_password_fields(name='password', autofocus=False, user=None, username_from=None, label=None) -%}
+<label>{{ label or _("New password") }}
   <input type="password" name="{{ name }}" autocomplete="new-password" minlength="{{ password_min_length() }}" required{% if autofocus %} autofocus{% endif %}
-         placeholder="{{ _('At least %(num)s characters', num=password_min_length()) }}">
-  <small class="muted">{{ password_rules_text() }}</small></label>
+         placeholder="{{ _('At least %(num)s characters', num=password_min_length()) }}" data-password-new>
+  <small class="muted js-rules-text">{{ password_rules_text() }}</small></label>
 <label>{{ _("Repeat the new password") }}
-  <input type="password" name="repeat_password" autocomplete="new-password" minlength="{{ password_min_length() }}" required></label>
+  <input type="password" name="repeat_password" autocomplete="new-password" minlength="{{ password_min_length() }}" required data-password-repeat>
+  <small class="pw-match" aria-live="polite" hidden></small></label>
+<div class="span2 pw-meter" data-check="{{ url_for('profile.password_check') }}" data-generate="{{ url_for('profile.password_generate') }}"
+     {%- if user %} data-user="{{ user }}"{% endif %}{% if username_from %} data-username-from="{{ username_from }}"{% endif %} hidden>
+  <div class="pw-meter-head pw-strength">
+    {{ strength_bar() }}
+    <span class="pw-meter-tools">
+      <button class="btn btn-small js-pw-generate" type="button"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-key"></use></svg>{{ _("Generate") }}</button>
+      <button class="btn btn-small js-pw-show" type="button" aria-pressed="false">{{ _("Show") }}</button>
+      <button class="btn btn-small js-pw-copy" type="button" hidden><svg class="icon icon-sm" aria-hidden="true"><use href="#i-copy"></use></svg>{{ _("Copy") }}</button>
+    </span>
+  </div>
+  <ul class="password-checks pw-meter-rules"></ul>
+</div>
 {%- endmacro %}

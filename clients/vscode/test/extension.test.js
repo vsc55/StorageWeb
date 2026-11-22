@@ -227,3 +227,203 @@ test("una carpeta en pausa: se ve así en el panel, no conecta y se reanuda desd
   registered.restore();
   extension.deactivate();
 });
+
+// --------------------------------------------------------------------------- avisos cuando el servidor deniega algo
+
+const MULTISTATUS = (where) => `<?xml version="1.0"?><D:multistatus xmlns:D="DAV:"><D:response><D:href>/dav/${where}/</D:href>
+  <D:propstat><D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat>
+  </D:response></D:multistatus>`;
+
+/** Una respuesta de error de StorageWeb con su motivo (X-StorageWeb-Reason). */
+const reason = (status, code, extra = {}) => new Response("", { status,
+  headers: { ...(code ? { "X-StorageWeb-Reason": code } : {}), ...extra } });
+
+/**
+ * La extensión con carpetas vinculadas a un servidor falso: `answer(method, url)` da la respuesta de cada
+ * petición. Devuelve lo registrado, las peticiones hechas y `until(fn)` para esperar a que pase algo.
+ * @param {string[]} names @param {(method: string, url: string) => Response} answer
+ */
+function linked(names, answer) {
+  const os = require("node:os");
+  const context = createContext();
+  const { vscode, registered } = createVscode();
+  const server = "http://127.0.0.1:9";
+  const folders = names.map((name, index) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), `sw-${name}-`));
+    fs.writeFileSync(path.join(dir, "mio.txt"), "local");
+    return { name, index, uri: vscode.Uri.file(dir) };
+  });
+  vscode.workspace.workspaceFolders = folders;
+  vscode.workspace.getConfiguration = (_section, uri) => ({
+    get: (k) => ({ server, username: "ana", remoteFolder: `home/${uri ? path.basename(uri.path) : "x"}` })[k],
+    update: async () => undefined,
+  });
+  vscode.workspace.fs = {
+    readFile: async () => { throw new Error("ENOENT"); },
+    writeFile: async () => undefined,
+    createDirectory: async () => undefined,
+    delete: async () => undefined,
+    stat: async () => { throw new Error("ENOENT"); },
+  };
+  context.secrets.store(`storageweb.token:${server}|ana`, "sw_x");
+  const calls = [];
+  const realFetch = global.fetch;
+  global.fetch = async (url, init) => {
+    calls.push(`${init.method} ${url}`);
+    return answer(init.method, String(url));
+  };
+  const extension = withVscode(vscode, () => require("../src/extension"));
+  extension.activate(context);
+  const until = async (/** @type {() => boolean} */ fn, ms = 3000) => {
+    for (let waited = 0; !fn() && waited < ms; waited += 10) await new Promise((r) => setTimeout(r, 10));
+    assert.ok(fn(), "no pasó a tiempo");
+  };
+  const syncs = () => registered.trees.get("storageweb.syncs").getChildren();
+  const done = () => {
+    extension.deactivate();
+    global.fetch = realFetch;
+    for (const f of folders) fs.rmSync(f.uri.fsPath, { recursive: true, force: true });
+  };
+  return { vscode, registered, calls, until, syncs, done, folders };
+}
+
+test("carpeta del servidor que ya no está: en pausa, un aviso y no se borra nada", async () => {
+  const env = linked(["proyecto"], (method) => (method === "PROPFIND" ? reason(404) : reason(500)));
+  try {
+    await env.until(() => env.registered.messages.length > 0);
+    const [msg] = env.registered.messages;
+    assert.equal(msg.kind, "warning");
+    assert.match(msg.text, /no longer have access to «home\/sw-proyecto-\w+» on the server, or it no longer exists/);
+    assert.match(msg.text, /nothing has been deleted/);
+    assert.deepEqual(msg.rest, ["Synchronize now", "Unlink"]);
+    assert.ok(fs.existsSync(path.join(env.folders[0].uri.fsPath, "mio.txt")), "lo local sigue ahí");
+    assert.ok(!env.calls.some((c) => !c.startsWith("PROPFIND")), "ni subidas ni pruebas: solo la consulta de la raíz");
+    const [node] = env.syncs();
+    assert.equal(node.info.state, "error");
+    assert.match(node.info.error, /paused/);
+  } finally {
+    env.done();
+  }
+});
+
+test("cuenta desactivada: se para y se avisa una vez aunque haya dos carpetas", async () => {
+  const env = linked(["uno", "dos"], () => reason(401, "account_disabled"));
+  try {
+    await env.until(() => env.syncs().every((n) => n.info.state === "error"));
+    const errors = env.registered.messages.filter((m) => m.kind === "error");
+    assert.deepEqual(errors.map((m) => [m.text, m.rest]), [["Your StorageWeb account is disabled: ask an administrator.", []]]);
+    assert.equal(env.syncs()[1].info.error, "Your StorageWeb account is disabled: ask an administrator.");
+    const before = env.calls.length;
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(env.calls.length, before, "no insiste");
+  } finally {
+    env.done();
+  }
+});
+
+test("token caducado: aviso con «Iniciar sesión otra vez» y «Cambiar el token…»", async () => {
+  const env = linked(["p"], () => reason(401, "token_expired"));
+  try {
+    await env.until(() => env.registered.messages.length > 0);
+    const [msg] = env.registered.messages;
+    assert.equal(msg.kind, "error");
+    assert.match(msg.text, /API token for «127\.0\.0\.1:9» has expired/);
+    assert.deepEqual(msg.rest, ["Sign in again", "Change token…"]);
+  } finally {
+    env.done();
+  }
+});
+
+test("mantenimiento: sin avisos, el estado lo dice y se reintenta en la próxima vuelta", async () => {
+  const env = linked(["p"], () => reason(503, "maintenance", { "Retry-After": "30" }));
+  try {
+    await env.until(() => env.syncs()[0].info.state === "error");
+    assert.match(env.syncs()[0].info.error, /maintenance/);
+    assert.deepEqual(env.registered.messages, []);
+  } finally {
+    env.done();
+  }
+});
+
+test("carpeta de solo lectura: un aviso (no uno por vuelta) y lo local se queda", async () => {
+  const env = linked(["p"], (method, url) => {
+    const rel = decodeURIComponent(url.replace(/^.*?\/dav\//, "").replace(/\/$/, ""));
+    if (method === "PROPFIND") return new Response(MULTISTATUS(rel), { status: 207 });
+    if (method === "PUT" || method === "MKCOL") return reason(403, "read_only");
+    return reason(500);
+  });
+  try {
+    await env.until(() => env.registered.messages.length > 0 && env.syncs()[0].info.state === "error");
+    const [node] = env.syncs();
+    await env.registered.commands.get("storageweb.syncNow")(node);  // otra vuelta: no se repite el aviso
+    await env.registered.commands.get("storageweb.syncNow")(node);
+    const warnings = env.registered.messages.filter((m) => m.kind === "warning");
+    assert.equal(warnings.length, 1, JSON.stringify(env.registered.messages));
+    assert.match(warnings[0].text, /cannot be uploaded to «home\/sw-p-\w+»: the folder is read-only for you\. They stay on this computer/);
+    assert.equal(env.syncs()[0].info.error, "cannot upload changes: the folder is read-only for you");
+    assert.ok(fs.existsSync(path.join(env.folders[0].uri.fsPath, "mio.txt")));
+    assert.equal(env.calls.filter((c) => c.startsWith("PUT")).length, 3, "solo la prueba del bucle en cada vuelta");
+  } finally {
+    env.done();
+  }
+});
+
+test("mensajes según el motivo del servidor (paneles y archivos storageweb://)", () => {
+  const { vscode } = createVscode();
+  const { messages, dav, remotefs, provider: prov } = withVscode(vscode, () => ({
+    messages: require("../src/messages"), dav: require("../src/dav"), remotefs: require("../src/remotefs"),
+    provider: require("../src/provider"),
+  }));
+  const { describe, needsToken } = messages;
+  const { translate, RemoteFsError } = remotefs;
+  const e = (status, code) => new dav.DavError(status, "x", false, "", code);
+  assert.equal(describe(e(401, "token_expired")), "The API token has expired: sign in again or set a new token.");
+  assert.equal(describe(e(401, "")), "The server rejected the user or the token.");
+  assert.equal(describe(e(403, "ip_banned")), "The server has blocked the IP address of this computer: ask an administrator.");
+  assert.equal(describe(e(403, "token_read_only")), "Not allowed: the API token only allows reading.");
+  assert.equal(describe(e(503, "maintenance")), "The server is in maintenance (restoring a backup): try again in a moment.");
+  assert.equal(describe(e(0, "interrupted")), "The transfer was interrupted before it finished: nothing was saved. Try again.");
+  assert.equal(describe(translate(e(404, ""), "compartida/x")),
+    "«compartida/x» does not exist on the server, or you no longer have access to it.");
+  assert.ok(needsToken(e(401, "token_invalid")) && !needsToken(e(401, "account_disabled")) && !needsToken(e(403, "read_only")));
+
+  // Al guardar un archivo storageweb:// en una carpeta de solo lectura, VS Code dice por qué
+  const provider = new prov.StorageWebFs(/** @type {any} */ ({}));
+  const uri = vscode.Uri.from({ scheme: "storageweb", authority: "s", path: "/compartida/a.txt" });
+  const saved = provider.error(uri, translate(e(403, "read_only"), "compartida/a.txt"));
+  assert.deepEqual([saved.code, saved.message], ["NoPermissions", "Not allowed: the folder is read-only for you."]);
+  const big = provider.error(uri, translate(e(413, "too_large"), "compartida/a.txt"));
+  assert.equal(big.message, "«a.txt»: The file is larger than the server allows.");
+  const cut = provider.error(uri, translate(e(0, "interrupted"), "compartida/a.txt"));
+  assert.equal(cut.code, "Unavailable");
+  assert.match(provider.error(uri, new RemoteFsError("NoPermissions", "", "The server rejected the user or the token")).message,
+    /rejected/);
+  provider.dispose();
+});
+
+test("los archivos abiertos dejan de comprobarse si el servidor rechaza las credenciales (y se avisa una vez)", async () => {
+  const { vscode } = createVscode();
+  const { StorageWebFs, RemoteFsError } = withVscode(vscode, () => ({
+    StorageWebFs: require("../src/provider").StorageWebFs, RemoteFsError: require("../src/remotefs").RemoteFsError,
+  }));
+  let asked = 0;
+  const remote = { stat: async () => {
+    asked++;
+    throw new RemoteFsError("NoPermissions", "a", "The server rejected the user or the token",
+      { status: 401, serverCode: "account_disabled" });
+  } };
+  const provider = new StorageWebFs(/** @type {any} */ (remote));
+  const failed = [];
+  provider.onPollError = (server, err) => failed.push([server, err.serverCode]);
+  const uri = (p) => vscode.Uri.from({ scheme: "storageweb", authority: "s1", path: p });
+  provider.watch(uri("/home/a.txt"));
+  provider.watch(uri("/home/b.txt"));
+  await provider.poll();
+  await provider.poll();
+  assert.equal(asked, 1, "una petición, no una por archivo ni por vuelta");
+  assert.deepEqual(failed, [["s1", "account_disabled"]]);
+  provider.unblock("s1");  // p. ej. tras poner un token nuevo
+  await provider.poll();
+  assert.equal(asked, 2);
+  provider.dispose();
+});

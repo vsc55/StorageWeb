@@ -1,4 +1,5 @@
 {% extends "admin/_layout.html" %}
+{% from "_forms.html" import new_password_fields with context %}
 {% from "admin/users/_macros.html" import user_head, group_chips, access_list, activity_list, favorites_list, signin_security, status_form, delete_form, favorites_clear, profile_fields, role_select, home_picker, quota_fields with context %}
 {% from "admin/_page.html" import danger_zone, danger_row with context %}
 {% block title %}{{ _("Edit %(name)s", name=user['username']) if user else _("New user") }} · {{ app_name }}{% endblock %}
@@ -151,11 +152,10 @@
         {% for s in sources %}<option value="{{ s }}" {% if form.source == s %}selected{% endif %}>{{ SOURCE_LABELS[s] }}</option>{% endfor %}
       </select>
     </label>
-    <label class="js-local-only">{{ _("Password") }}
-      <input type="password" name="password" autocomplete="new-password" minlength="{{ password_min_length() }}" required
-             placeholder="{{ _('At least %(num)s characters', num=password_min_length()) }}">
-             <small class="muted">{{ password_rules_text() }}</small>
-    </label>
+    {# Solo para las cuentas locales (admin/user-form.js lo oculta con otro origen): con el medidor y Generar #}
+    <div class="span2 form-grid js-local-only">
+      {{ new_password_fields(label=_("Password"), username_from="input[name=username]") }}
+    </div>
     <label class="check"><input type="checkbox" name="enabled" {% if form.enabled %}checked{% endif %}> {{ _("Account enabled") }}</label>
     <label>{{ _("Display name") }}
       <input type="text" name="display_name" value="{{ form.display_name or '' }}" maxlength="200">
@@ -183,4 +183,5 @@
 {% endif %}
 {% endblock %}
 {% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/user-form.js') }}"></script>
+<script src="{{ url_for('static', filename='js/password-meter.js') }}"></script>
 <script src="{{ url_for('static', filename='js/admin/path-picker.js') }}"></script>{% endblock %}

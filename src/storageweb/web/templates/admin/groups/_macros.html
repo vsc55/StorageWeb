@@ -2,9 +2,33 @@
    las de admin/_panels.html, con lo propio de grupos #}
 {% import "admin/_panels.html" as panels with context %}
 {% from "_forms.html" import post_button with context %}
+{% from "admin/users/_macros.html" import avatar, status with context %}
 
 {% macro source_badge(source) -%}
 <span class="badge badge-src badge-src-{{ source }}">{{ GROUP_SOURCE_LABELS[source] }}</span>
+{%- endmacro %}
+
+{# El avatar del grupo: un cuadrado de bordes redondeados con sus iniciales (el de una persona es redondo); gris y
+   con el icono de prohibido si está desactivado #}
+{% macro group_avatar(gr, size='') -%}
+<span class="avatar group-avatar{% if size %} avatar-{{ size }}{% endif %}{% if gr['builtin'] %} avatar-admin{% endif %}{% if not gr['enabled'] %} avatar-off{% endif %}" aria-hidden="true">{{ gr|group_initials }}
+  {%- if not gr['enabled'] %}<svg class="avatar-ban"><use href="#i-ban"></use></svg>{% endif %}</span>
+{%- endmacro %}
+
+{# Clonar (también el de serie) y Activar/Desactivar (no el de serie); lo que vaya detrás, en el «{% call %}» (Borrar,
+   en Paneles, o la marca de «Grupo de serie») #}
+{% macro group_actions(group, next) -%}
+<div class="head-actions">
+  <a class="btn btn-small" href="{{ url_for('groups.new', copy=group['uid'], next=next) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-copy"></use></svg>{{ _("Clone") }}</a>
+  {% if group['builtin'] %}
+  {% elif group['enabled'] %}
+  {{ post_button(url_for('groups.set_status', group_uid=group['uid']), _("Disable"), btn='btn btn-small', next=next, hidden={'enabled': '0'},
+                 confirm=_('Disable the group «%(name)s»? Its members lose its shared folders, role and quota until it is enabled again; nothing is deleted.', name=(group|group_label))) }}
+  {% else %}
+  {{ post_button(url_for('groups.set_status', group_uid=group['uid']), _("Enable"), btn='btn btn-small btn-primary', next=next, hidden={'enabled': '1'}) }}
+  {% endif %}
+  {{ caller() if caller else '' }}
+</div>
 {%- endmacro %}
 
 {% macro level_label(level) -%}
@@ -15,22 +39,24 @@
 {% macro page_head(view) -%}
 {% call panels.page_head(_("Groups"), _("They give access to shared folders. They can be local or come from Entra ID or the system."),
                          panels.view_switch(view, _('Groups view'), ('groups.list_view', 'groups.panel_view'))) %}
+  {% for m in group_importers() %}<a class="btn" href="{{ url_for('groups.import_view', source=m.key) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Import from %(method)s", method=m.label) }}</a>{% endfor %}
   <a class="btn btn-primary" href="{{ url_for('groups.new', next=url_for('groups.panel_view') if view == 'panel' else None) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New group") }}</a>
 {% endcall %}
 {%- endmacro %}
 
-{% macro filters_form(search, source, target, extra='') -%}
-{% call panels.search_form(target, search, _('Search by name or description'), search or source, extra) %}
+{% macro filters_form(filters, target, extra='') -%}
+{% call panels.search_form(target, filters.q, _('Search by name or description'), filters.q or filters.source or filters.status != 'all', extra) %}
+  {{ panels.status_select(filters.status) }}
   <select name="source" aria-label="{{ _('Source') }}">
     <option value="">{{ _("All sources") }}</option>
-    {% for s in GROUP_SOURCES %}<option value="{{ s }}" {% if source == s %}selected{% endif %}>{{ GROUP_SOURCE_LABELS[s] }}</option>{% endfor %}
+    {% for s in GROUP_SOURCES %}<option value="{{ s }}" {% if filters.source == s %}selected{% endif %}>{{ GROUP_SOURCE_LABELS[s] }}</option>{% endfor %}
   </select>
 {% endcall %}
 {%- endmacro %}
 
 {# Campos del grupo. ``group`` es None al crear. ``from_directory``: nombre y descripción vienen del directorio del
    proveedor (Entra ID) y se actualizan solos: no se editan. #}
-{% macro group_fields(form, group, from_directory=False) -%}
+{% macro group_fields(form, group, from_directory=False, clone=False) -%}
   {% if group %}
     <div class="field"><span class="label">{{ _("Identifier") }}</span><code>{{ group['name'] }}</code>
       <small class="muted">{{ _("Shared folders use it. It cannot be changed.") }}</small></div>
@@ -49,7 +75,7 @@
     <input type="text" name="description" value="{{ form.description or '' }}" maxlength="500"{% if from_directory %} readonly class="from-provider"{% endif %}>
     {% if from_directory %}<small class="muted">{{ _("The name and the description come from %(source)s and are updated automatically: change them there.", source=GROUP_SOURCE_LABELS[group['source']]) }}</small>{% endif %}
   </label>
-  {% if group and not group['builtin'] %}
+  {% if not (group and group['builtin']) %}
   <label>{{ _("Role of the members") }}
     <select name="role">
       <option value="" {% if not form.role %}selected{% endif %}>{{ _("None: only their own") }}</option>
@@ -63,6 +89,9 @@
     <small class="muted">{{ _("Empty = none; 0 = no quota. If someone is in several groups, the largest one applies; the quota of the user wins.") }}</small>
   </label>
   {% endif %}
+  {% if clone %}
+  <input type="hidden" name="source" value="local">
+  {% else %}
   <fieldset class="span2 source-cards">
     <legend>{{ _("Where the members come from") }}</legend>
     <label class="source-card"><input type="radio" name="source" value="local" {% if form.source == 'local' %}checked{% endif %}>
@@ -81,6 +110,7 @@
     {% if methods|selectattr('search')|list %}<small class="muted js-only">{{ _("With %(sources)s you can type the start of the group name and choose it.", sources=methods|selectattr('search')|map(attribute='label')|join(', ')) }}</small>{% endif %}
     <small class="muted">{{ _("Leave it empty for local groups.") }}</small>
   </label>
+  {% endif %}
 {%- endmacro %}
 
 {# Miembros con su origen; los sincronizados no se pueden quitar. #}
@@ -96,12 +126,13 @@
 </div>
 <div class="table-scroll">
 <table class="files">
-  <thead><tr><th>{{ _("User") }}</th><th>{{ _("Name") }}</th><th>{{ _("Membership") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr></thead>
+  <thead><tr><th>{{ _("User") }}</th><th>{{ _("Name") }}</th><th>{{ _("Status") }}</th><th>{{ _("Membership") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr></thead>
   <tbody>
   {% for m in members %}
     <tr{% if not m['enabled'] %} class="row-disabled"{% endif %}>
-      <td class="name"><a href="{{ url_for('admin.user_edit', user_uid=m['uid']) }}">{{ m['username'] }}</a></td>
+      <td class="name"><a class="user-cell" href="{{ url_for('admin.user_edit', user_uid=m['uid']) }}">{{ avatar(m) }}<span>{{ m['username'] }}</span></a></td>
       <td>{{ m['display_name'] or '' }}</td>
+      <td>{{ status(m) }}</td>
       <td>{% if m['origin'] == 'role' %}<span class="badge badge-admin">{{ _("Administrator role") }}</span>
           {% elif m['origin'] == 'sync' %}<span class="membership membership-sync"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-sync"></use></svg>{{ _("Synchronized") }}</span>
           {% else %}<span class="badge">{{ _("Manual") }}</span>{% endif %}</td>
@@ -113,7 +144,7 @@
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="4" class="muted">{{ _("No members yet.") }}{% if group['source'] != 'local' %} {{ _("Synchronized members appear when they sign in.") }}{% endif %}</td></tr>
+    <tr><td colspan="5" class="muted">{{ _("No members yet.") }}{% if group['source'] != 'local' %} {{ _("Synchronized members appear when they sign in.") }}{% endif %}</td></tr>
   {% endfor %}
   </tbody>
 </table>

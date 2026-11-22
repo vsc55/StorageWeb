@@ -325,4 +325,5 @@
   </div>
 </div>
 {% endblock %}
-{% block scripts %}{% if section == 'security' and mfa_applies %}<script src="{{ url_for('static', filename='js/passkeys.js') }}"></script>{% endif %}{% endblock %}
+{% block scripts %}{% if section == 'security' and mfa_applies %}<script src="{{ url_for('static', filename='js/passkeys.js') }}"></script>{% endif %}
+{% if section == 'security' %}<script src="{{ url_for('static', filename='js/password-meter.js') }}"></script>{% endif %}{% endblock %}

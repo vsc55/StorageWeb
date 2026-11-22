@@ -1,15 +1,17 @@
 {% extends "admin/_layout.html" %}
-{% from "admin/groups/_macros.html" import source_badge, page_head, filters_form, group_fields, member_list, share_chips, detected_box with context %}
+{% from "admin/groups/_macros.html" import source_badge, page_head, filters_form, group_fields, member_list, share_chips, detected_box, group_avatar, group_actions with context %}
+{% from "admin/users/_macros.html" import status with context %}
 {% from "admin/_panels.html" import md_list, md_item, tab_nav with context %}
 {% from "_forms.html" import post_button with context %}
 {% block title %}{{ _("Groups") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
 {{ page_head('panel') }}
-{{ filters_form(search, source, 'groups.panel_view', '<input type="hidden" name="tab" value="%s">'|format(tab)|safe) }}
+{{ filters_form(filters, 'groups.panel_view', '<input type="hidden" name="tab" value="%s">'|format(tab)|safe) }}
 
 <div class="master-detail" data-partial>
   {% call(gr) md_list(_('List of groups'), groups, _("No groups.")) %}
-    {%- call md_item(url_for('groups.panel_view', g=gr['uid'], tab=tab, q=search or None, source=source or None), current and gr['id'] == current['id']) %}
+    {%- call md_item(url_for('groups.panel_view', g=gr['uid'], tab=tab, q=filters.q or None, source=filters.source or None, status=filters.status if filters.status != 'all' else None), current and gr['id'] == current['id'], 'md-user') %}
+        {{ group_avatar(gr) }}
         <span class="md-item-text"><strong>{{ (gr|group_label) }}</strong>
           <span class="muted small">{{ gr['name'] }} · {{ ngettext("%(num)s member", "%(num)s members", gr['members']) }}</span></span>
         {{ source_badge(gr['source']) }}
@@ -21,12 +23,14 @@
     {% set here = url_for('groups.panel_view', g=current['uid'], tab=tab) %}
     <div class="page-head">
       <div>
-        <div class="inline"><h2 class="md-title">{{ (current|group_label) }}</h2>{{ source_badge(current['source']) }}</div>
+        <div class="inline">{{ group_avatar(current, 'lg') }}<h2 class="md-title">{{ (current|group_label) }}</h2>{{ source_badge(current['source']) }}{% if not current['enabled'] %}{{ status(current) }}{% endif %}</div>
         <p class="muted small"><code>{{ current['name'] }}</code>{% if (current|group_description) %} · {{ (current|group_description) }}{% endif %}</p>
       </div>
-      {% if current['builtin'] %}<span class="badge"><svg class="icon icon-xs" aria-hidden="true"><use href="#i-lock"></use></svg> {{ _("Built-in group") }}</span>{% else %}
-      {{ post_button(url_for('groups.delete', group_uid=current['uid']), _("Delete"), btn='btn btn-small btn-danger',
+      {% call group_actions(current, here) %}
+      {% if current['builtin'] %}<span class="badge"><svg class="icon icon-xs" aria-hidden="true"><use href="#i-lock"></use></svg> {{ _("Built-in group") }}</span>
+      {% else %}{{ post_button(url_for('groups.delete', group_uid=current['uid']), _("Delete"), btn='btn btn-small btn-danger',
                      confirm=_('Delete the group «%(name)s»?', name=(current|group_label))) }}{% endif %}
+      {% endcall %}
     </div>
 
     {% call(key) tab_nav(_('Sections of the group'), [('members', _("Members (%(count)s)", count=members|length)), ('shares', _("Folders (%(count)s)", count=shares|length)), ('link', _("Settings"))], tab) -%}

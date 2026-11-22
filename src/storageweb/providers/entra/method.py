@@ -197,8 +197,11 @@ class EntraDirectory(GroupDirectory):
     def details(self, ids) -> dict[str, dict]:
         return directory.info_for(self.section, ids)
 
-    def search(self, text: str) -> list[dict]:
-        return directory.search_groups(self.section, text)
+    def search(self, text: str, limit: int = 20) -> list[dict] | None:
+        return directory.search_groups(self.section, text, limit)
+
+    def list(self, cursor: str = "", page_size: int = 50) -> tuple[list[dict], str] | None:
+        return directory.list_groups(self.section, cursor, page_size)
 
     def clear_cache(self) -> None:
         directory.clear_cache()

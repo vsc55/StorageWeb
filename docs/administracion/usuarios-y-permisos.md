@@ -132,10 +132,18 @@ Los grupos que llegan del proveedor o que usan las carpetas pero no están dados
 
 Con la lectura del directorio de Entra ID (permiso `Group.Read.All`, ver [Entra ID](entra-id.md)), al darlo de alta el formulario llega relleno con el **nombre** y la **descripción** del grupo en Entra ID y un **identificador** sacado del nombre («Permitir Instalación» → `permitir-instalacion`; si ya existe, `-2`…), que puedes cambiar antes de guardar. **Dar de alta todos** los da de alta de una vez con esos datos; los App Roles, que no están en el directorio, usan su nombre como identificador. Al elegir un grupo con el buscador del alta se rellenan igual.
 
+**Importar de Entra ID** (botón junto a *Nuevo grupo*, con la lectura del directorio activada) busca grupos en el directorio mientras escribes, o los lista todos con *Mostrar todos*, y los da de alta igual que *Dar de alta*: con su nombre y descripción de Entra ID y un identificador sacado del nombre. Se pueden marcar varios, también de búsquedas distintas, e importarlos de una vez. Así puedes darles carpetas, rol y cuota antes de que entre ninguno de sus miembros: los miembros llegan en cada inicio de sesión.
+
+**Desactivar** un grupo (en su ficha o en Paneles) lo deja como está, con sus miembros, su rol, su cuota y su acceso a carpetas, pero no da nada a nadie mientras siga desactivado: es como si sus miembros no estuvieran en él, aunque Entra ID o el sistema los sigan mandando. *Activar* lo devuelve tal cual. El grupo de serie no se desactiva. Las personas que Entra ID o el sistema mandan en él siguen apareciendo como miembros sincronizados (sin efecto), así que al activarlo ya están dentro. El **mapeo de roles** y los **grupos permitidos para entrar** de Entra ID van aparte: miran los grupos que manda Microsoft al iniciar sesión, no los de StorageWeb, y siguen aplicándose aunque el grupo con ese identificador esté desactivado aquí. Ver [Los grupos en cada inicio de sesión](entra-id.md#los-grupos-en-cada-inicio-de-sesion). La búsqueda tiene un filtro de estado (*Todos*, *Activos*, *Deshabilitados*).
+
+**Clonar** abre *Nuevo grupo* relleno con lo de otro grupo: el nombre «X (copia)», la descripción, el rol y la cuota, y dos casillas marcadas para copiar también **sus miembros** y **su acceso a las carpetas compartidas**. La copia es siempre un grupo local: sus miembros quedan como añadidos a mano, aunque el original venga de Entra ID o del sistema. Las carpetas definidas en `config.json` no se cambian desde la web: si el original tiene acceso a alguna, se avisa para que lo añadas allí.
+
+Cada grupo se ve con un **cuadrado con sus iniciales** (las personas, con un círculo); el de un grupo o una persona desactivados sale en gris con un símbolo de prohibido en la esquina.
+
 Hay dos vistas para elegir, con el selector *Lista · Paneles* (se recuerda la última):
 
-- **Lista:** tabla de grupos y una ficha por grupo con sus datos, miembros, carpetas y baja.
-- **Paneles:** lista a la izquierda y detalle con las pestañas *Miembros*, *Carpetas* y *Ajustes*.
+- **Lista:** tabla de grupos (con su estado) y una ficha por grupo con sus datos, miembros, carpetas, *Clonar*, *Desactivar* y baja.
+- **Paneles:** lista a la izquierda y detalle con *Clonar*, *Desactivar*, *Eliminar* y las pestañas *Miembros*, *Carpetas* y *Ajustes*.
 
 ![Personas → Grupos: locales y de Entra ID, con sus miembros y carpetas](../img/admin/grupos.webp)
 
@@ -160,7 +168,7 @@ Eliminar un grupo quita el acceso que da; no toca usuarios ni archivos. La [deci
     La ficha de cada usuario muestra su **acceso efectivo** (qué carpetas ve, con qué permiso y por qué: su carpeta, abierta a todos, por su nombre o por un grupo) y su **actividad reciente** en la auditoría.
 
     ![La ficha de una usuaria de Entra ID: datos de solo lectura, acceso efectivo, sesiones y actividad](../img/admin/usuario.webp)
-    La lista se puede filtrar por estado (*Todos*, *Activos*, *Desactivados*) y cada fila tiene sus acciones como iconos: **Editar** (lápiz), **Cambiar contraseña** (llave; desactivada en las cuentas de Entra ID o PAM, cuya contraseña se gestiona allí) y **Desactivar**/**Activar**; con el ratón encima se ve qué hace cada uno. *Cambiar contraseña* también está en la vista de paneles, y no dentro de *Editar*. El servidor vuelve a comprobarlo todo: un botón desactivado no se salta con una petición hecha a mano. La ficha de cada usuario se ordena por lo que se viene a hacer: arriba, quién es (rol, origen, estado, alta y último acceso); después lo que se edita, *Perfil* (nombre y email), *Acceso* (el rol y los grupos, que deciden juntos qué puede hacer y qué ve; el resultado, en *Acceso efectivo* al lado) y *Carpeta personal* (ruta, cuota y lo que ocupa), con una barra *Cambios sin guardar* que solo aparece al tocar algo (y avisa si se sale sin guardar); luego *Inicio de sesión y seguridad* (verificación en dos pasos y quitarla, sesiones y tokens), *Favoritos* (los enlaces de arriba de su explorador: todos, también los que ya no le sirven porque perdió el acceso o están ocultos; quitar uno o todos y añadirle uno de sus carpetas que exista, sin tocar sus archivos; auditado) y, al final, la zona peligrosa: desactivar y eliminar. Activar o desactivar se hace solo con su botón, no al editar. Lleva a su propia página, con la contraseña nueva dos veces; al guardarla se cierran todas las sesiones de esa persona (`password_reset_by_admin` en la auditoría), pero sus tokens de API siguen valiendo; para cortarle el paso del todo, desactívala o revoca sus tokens en la ficha. La propia se cambia en *Mi perfil*, que pide la actual.
+    La lista se puede filtrar por estado (*Todos*, *Activos*, *Desactivados*) y cada fila tiene sus acciones como iconos: **Editar** (lápiz), **Cambiar contraseña** (llave; desactivada en las cuentas de Entra ID o PAM, cuya contraseña se gestiona allí) y **Desactivar**/**Activar**; con el ratón encima se ve qué hace cada uno. *Cambiar contraseña* también está en la vista de paneles, y no dentro de *Editar*. El servidor vuelve a comprobarlo todo: un botón desactivado no se salta con una petición hecha a mano. La ficha de cada usuario se ordena por lo que se viene a hacer: arriba, quién es (rol, origen, estado, alta y último acceso); después lo que se edita, *Perfil* (nombre y email), *Acceso* (el rol y los grupos, que deciden juntos qué puede hacer y qué ve; el resultado, en *Acceso efectivo* al lado) y *Carpeta personal* (ruta, cuota y lo que ocupa), con una barra *Cambios sin guardar* que solo aparece al tocar algo (y avisa si se sale sin guardar); luego *Inicio de sesión y seguridad* (verificación en dos pasos y quitarla, sesiones y tokens), *Favoritos* (los enlaces de arriba de su explorador: todos, también los que ya no le sirven porque perdió el acceso o están ocultos; quitar uno o todos y añadirle uno de sus carpetas que exista, sin tocar sus archivos; auditado) y, al final, la zona peligrosa: desactivar y eliminar. Activar o desactivar se hace solo con su botón, no al editar. Se abre en una ventana encima de la lista o de los paneles, sin salir de ellos, con la contraseña nueva dos veces (si no cumple las reglas o no coinciden, el aviso sale en la misma ventana; sin JavaScript, en su propia página); al guardarla se cierran todas las sesiones de esa persona (`password_reset_by_admin` en la auditoría), pero sus tokens de API siguen valiendo; para cortarle el paso del todo, desactívala o revoca sus tokens en la ficha. La propia se cambia en *Mi perfil*, que pide la actual.
 
 === "CLI"
 
@@ -180,7 +188,19 @@ Los campos de ruta de la administración (la carpeta personal, los favoritos, la
 
 ### Desactivar en lugar de eliminar
 
-Desactivar funciona con **cualquier origen**: local, Entra ID o PAM. Una cuenta desactivada no puede iniciar sesión aunque Microsoft o el sistema la sigan autenticando: StorageWeb rechaza el acceso con «Tu cuenta está deshabilitada». Su sesión abierta se cierra en la siguiente petición, y sus archivos, grupos y preferencias se conservan para cuando se active de nuevo.
+Desactivar funciona con **cualquier origen**: local, Entra ID o PAM. Una cuenta desactivada no puede iniciar sesión aunque Microsoft o el sistema la sigan autenticando: StorageWeb rechaza el acceso con «Tu cuenta está deshabilitada» (también con usuario y contraseña, si la contraseña es la buena: no cuenta como intento fallido). Sus archivos, grupos y preferencias se conservan para cuando se active de nuevo.
+
+**Qué pasa en ese momento** (y, salvo la sesión, también cuando alguien pierde el acceso a una carpeta, por ejemplo al desactivar el grupo que se la daba):
+
+| | Qué pasa |
+|---|---|
+| Sesiones en la web | Se cierran al momento. Si tenía una página abierta, su siguiente clic lleva a la entrada; lo que pida el JavaScript de la página avisa «Tu sesión ha terminado» y lleva a la entrada, y al volver se regresa a la misma página. Un envío de esa página (guardar, borrar…) no da «token CSRF no válido» ni cuenta para bloquear la IP. |
+| Editor | Si estaba guardando, lo escrito no se pierde: al volver al archivo se ofrece recuperarlo. |
+| Tokens de API, unidad de red y extensión de VS Code | Dejan de valer en la siguiente petición (vuelven a valer si se activa de nuevo). El programa recibe el motivo (`X-StorageWeb-Reason: account_disabled`) y la extensión lo dice tal cual. Los reintentos de un token que fue bueno no cuentan para bloquear la IP. |
+| Descargas en curso (archivo, ZIP, unidad de red, enlaces) | Se comprueba cada 30 segundos mientras se envían: si ya no puede, **se cortan** a mitad (el cliente sabe que no la tiene entera) y queda `download_cut` en la auditoría. |
+| Subidas por partes (archivos grandes) | La parte siguiente se rechaza y lo subido a medias **se borra** al momento. Las que nadie sigue se borran solas a las `storage.upload_stale_hours` (cada hora). |
+| Subida o descarga de una sola vez ya empezada | Termina. |
+| Enlaces para compartir que creó | Dejan de funcionar al momento (y su descarga en curso se corta). |
 
 Al eliminar un usuario, **sus archivos se conservan** en el disco, pero se pierde la cuenta.
 

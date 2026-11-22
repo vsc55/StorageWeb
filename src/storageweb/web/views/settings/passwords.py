@@ -83,9 +83,26 @@ def password_test():
         rules = _page_rules()
     except ConfigError as exc:
         return jsonify({"ok": False, "checks": [], "summary": str(exc)})
-    results = list(local.checks(password, username=username, **rules))
+    live = request.form.get("live") == "1"      # mientras se escribe: sin preguntar a internet en cada tecla
+    results = list(local.checks(password, username=username, **{**rules, "breach_check": rules["breach_check"]
+                                                                  and not live}))
+    if live and rules["breach_check"]:
+        results.append({"key": "breach", "label": _("Does not appear in known data breaches"), "ok": None,
+                        "message": _("Press «Try» to check it.")})
     failed = [r for r in results if r["ok"] is False]
-    return jsonify({"ok": not failed, "checks": results,
+    return jsonify({**local.verdict(password, results), "checks": results,
                     "summary": _("It would be accepted.") if not failed else
                     ngettext("It would be rejected: %(num)s rule is not met.",
                              "It would be rejected: %(num)s rules are not met.", len(failed))})
+
+
+@bp.route("/passwords/generate", methods=["POST"])
+@admin_required
+def password_generate():
+    """El botón «Generar» del probador: una aleatoria que cumple las reglas que hay en la página (guardadas o no)."""
+    try:
+        rules = _page_rules()
+        password = local.generate(username=request.form.get("test_username", "").strip()[:200], **rules)
+    except (ConfigError, ValueError) as exc:
+        return jsonify(error=str(exc)), 400
+    return jsonify(password=password)

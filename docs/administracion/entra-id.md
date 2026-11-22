@@ -142,6 +142,26 @@ También se puede configurar a mano en **Seguridad → Inicio de sesión**, o fi
 | `sync_role_on_login` | Con mapeos definidos, el rol se recalcula en cada login: Entra manda. Si está desactivado, el rol solo se asigna al crear el usuario y luego lo gestiona el admin. |
 | `allowed_groups` | Si no está vacío, solo entran los miembros de estos grupos o App Roles. |
 
+### Los grupos en cada inicio de sesión
+
+Los grupos que manda Microsoft en el token (Object IDs y App Roles) se usan en este orden, y cada paso va por su
+cuenta:
+
+1. **¿Puede entrar?** Con `allowed_groups`, se mira si alguno de los grupos del token está en la lista. Si no, no
+   entra.
+2. **Su rol.** `role_mappings` convierte los grupos del token en **el rol propio de la persona** (por ejemplo,
+   Administrador); con `sync_role_on_login`, en cada inicio de sesión.
+3. **Sus grupos de StorageWeb.** Se guardan los grupos del token y la persona queda como miembro **sincronizado** de
+   cada grupo dado de alta en *Personas → Grupos* con ese identificador. Sus carpetas compartidas, el rol de sus
+   grupos y su cuota salen de ahí.
+
+Los pasos 1 y 2 miran **el token**, no los grupos de StorageWeb: no hace falta que el grupo esté dado de alta, y
+**desactivar** en StorageWeb un grupo con ese identificador no cambia ni quién entra ni el rol que le pone el mapeo.
+Desactivarlo solo afecta al paso 3: la persona sigue apareciendo como miembro sincronizado de ese grupo, pero no le
+da carpetas, rol ni cuota hasta que se vuelva a activar (y entonces ya está dentro, sin esperar a que vuelva a entrar).
+Para que alguien deje de ser administrador por un grupo de Entra ID, quita ese grupo de `role_mappings` o saca a la
+persona del grupo en Entra ID.
+
 ### Importar personas antes de que entren
 
 ![Personas → Importar de Entra ID: la lista con una seleccionada, otra ya importada y el aviso de quien no tiene la aplicación asignada](../img/admin/importar.webp)

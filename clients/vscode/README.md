@@ -14,6 +14,7 @@ Al sincronizar:
 - No sincroniza `.git`, `node_modules`, `.venv`, `__pycache__`, temporales ni `.vscode/settings.json`, ni lo que ignore el `.gitignore`. Más en `.storagewebignore` (formato de `.gitignore`, se sincroniza) o con clic derecho → *No sincronizar* en el Explorador.
 - **Pausar y reanudar** desde el panel *Sincronización* o la barra de estado.
 - **Protección contra bucles:** no sincroniza una carpeta que contiene donde el servidor guarda la carpeta remota.
+- **Avisos claros** cuando el servidor deniega algo (cuenta desactivada, token caducado, carpeta de solo lectura o a la que ya no tienes acceso, IP bloqueada, mantenimiento, archivo demasiado grande), una vez y sin borrar nada en tu equipo.
 
 ## Requisitos
 

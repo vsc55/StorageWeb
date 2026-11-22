@@ -81,7 +81,7 @@ def test_live_search_returns_only_the_results(entra_app, graph):
     app = entra_app()
     client, _token = _admin(app)
     page = client.get("/admin/users/import").get_data(as_text=True)
-    assert 'id="import-results"' in page and "/static/js/admin/user-import.js" in page
+    assert 'id="import-results"' in page and "/static/js/admin/directory-import.js" in page
     part = client.get("/admin/users/import?source=entra&q=ju&partial=1").get_data(as_text=True)
     assert "Juan Pérez" in part and "<html" not in part and 'name="external_id" value="oid-juan"' in part
     assert client.get("/admin/users/import?q=j&partial=1").get_data(as_text=True).strip() == ""   # menos de 2 letras

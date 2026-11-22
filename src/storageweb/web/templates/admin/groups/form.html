@@ -1,16 +1,24 @@
 {% extends "admin/_layout.html" %}
-{% from "admin/groups/_macros.html" import source_badge, group_fields, member_list, share_chips with context %}
+{% from "admin/groups/_macros.html" import source_badge, group_fields, member_list, share_chips, group_avatar, group_actions with context %}
+{% from "admin/users/_macros.html" import status with context %}
 {% from "admin/_page.html" import danger_zone, danger_row with context %}
 {% from "_forms.html" import post_button with context %}
 {% block title %}{{ _("Group «%(name)s»", name=(group|group_label)) if group else _("New group") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
 <div class="page-head">
   <div class="inline">
-    <h1>{% if group %}{{ _("Group «%(name)s»", name=(group|group_label)) }}{% else %}{{ _("New group") }}{% endif %}</h1>
-    {% if group %}{{ source_badge(group['source']) }}{% endif %}
+    {% if group %}{{ group_avatar(group, 'lg') }}{% endif %}
+    <h1>{% if group %}{{ _("Group «%(name)s»", name=(group|group_label)) }}{% elif original %}{{ _("Clone «%(name)s»", name=(original|group_label)) }}{% else %}{{ _("New group") }}{% endif %}</h1>
+    {% if group %}{{ source_badge(group['source']) }}{% if not group['enabled'] %}{{ status(group) }}{% endif %}{% endif %}
   </div>
-  <a class="btn btn-ghost" href="{{ url_for('groups.index') }}">← {{ _("Back") }}</a>
+  <div class="head-actions">
+    {% if group %}{{ group_actions(group, request.path) }}{% endif %}
+    <a class="btn btn-ghost" href="{{ url_for('groups.index') }}">← {{ _("Back") }}</a>
+  </div>
 </div>
+{% if group and not group['enabled'] %}
+<p class="flash flash-error" role="note">{{ _("This group is disabled: its members do not get its shared folders, role or quota until it is enabled again.") }}</p>
+{% endif %}
 
 {% if group and group['builtin'] %}
 <div class="card builtin-note">
@@ -24,7 +32,18 @@
 <form method="post" class="card form-grid">
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
   {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
-  {{ group_fields(form, group, from_directory) }}
+  {% if original %}<input type="hidden" name="copy" value="{{ original['uid'] }}">{% endif %}
+  {{ group_fields(form, group, from_directory, clone=original is not none) }}
+  {% if original %}
+  <fieldset class="span2 copy-options">
+    <legend>{{ _("Copy from «%(name)s»", name=(original|group_label)) }}</legend>
+    <label class="check"><input type="checkbox" name="copy_members" value="1" checked>
+      {{ ngettext("Its member (%(num)s), added by hand", "Its members (%(num)s), added by hand", copy_counts.members) }}</label>
+    <label class="check"><input type="checkbox" name="copy_access" value="1" checked>
+      {{ ngettext("Its access to %(num)s shared folder", "Its access to %(num)s shared folders", copy_counts.shares) }}</label>
+    <small class="muted">{{ _("The copy is a local group: its members are kept by hand, even if the original comes from a provider.") }}</small>
+  </fieldset>
+  {% endif %}
   <div class="span2 form-actions">
     <button class="btn btn-primary" type="submit">{{ _("Save changes") if group else _("Create group") }}</button>
   </div>

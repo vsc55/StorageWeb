@@ -76,6 +76,13 @@ test("remotefs: rutas limpias y errores de WebDAV con los códigos de VS Code", 
   assert.equal(code(401), "NoPermissions");
   assert.equal(code(0), "Unavailable");
   assert.equal(translate(new DavError(500, "boom"), "p") instanceof DavError, true, "otros errores, tal cual");
+  // El motivo de StorageWeb viaja con el error para explicarlo (messages.js)
+  const why = translate(new DavError(403, "x", false, "", "read_only"), "p");
+  assert.deepEqual([why.code, why.status, why.serverCode], ["NoPermissions", 403, "read_only"]);
+  assert.equal(translate(new DavError(403, "x", true), "p").code, "Hidden");
+  assert.equal(code(413), "TooLarge");
+  assert.equal(code(503), "Unavailable");
+  assert.equal(translate(new DavError(0, "x", false, "", "interrupted"), "p").serverCode, "interrupted");
 
   // La caché de stat dura poco y se invalida al escribir
   let now = 0, stats = 0;

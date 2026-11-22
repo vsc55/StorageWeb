@@ -1,29 +1,32 @@
 {% extends "admin/_layout.html" %}
-{% from "admin/groups/_macros.html" import source_badge, page_head, filters_form, detected_box with context %}
+{% from "admin/groups/_macros.html" import source_badge, page_head, filters_form, detected_box, group_avatar with context %}
+{% from "admin/users/_macros.html" import status with context %}
 {% block title %}{{ _("Groups") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
 {{ page_head('list') }}
-{{ filters_form(search, source, 'groups.list_view') }}
+{{ filters_form(filters, 'groups.list_view') }}
 
 <div class="table-scroll">
 <table class="files">
   <thead>
-    <tr><th>{{ _("Group") }}</th><th>{{ _("Source") }}</th><th>{{ _("Linked to") }}</th><th class="num">{{ _("Members") }}</th>
+    <tr><th>{{ _("Group") }}</th><th>{{ _("Source") }}</th><th>{{ _("Status") }}</th><th>{{ _("Linked to") }}</th><th class="num">{{ _("Members") }}</th>
         <th>{{ _("Shared folders") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr>
   </thead>
   <tbody>
     {% for gr in groups %}
-    <tr>
-      <td class="name"><a href="{{ url_for('groups.edit', group_uid=gr['uid']) }}"><strong>{{ (gr|group_label) }}</strong></a>{% if gr['builtin'] %} <svg class="icon icon-sm muted-icon" aria-label="{{ _('Built-in group') }}" role="img"><use href="#i-lock"></use></svg>{% endif %}
-        <div class="muted small"><code>{{ gr['name'] }}</code>{% if (gr|group_description) %} · {{ (gr|group_description) }}{% endif %}</div></td>
+    <tr{% if not gr['enabled'] %} class="row-disabled"{% endif %}>
+      <td class="name"><a class="user-cell" href="{{ url_for('groups.edit', group_uid=gr['uid']) }}">{{ group_avatar(gr) }}
+        <span><span class="inline"><strong>{{ (gr|group_label) }}</strong>{% if gr['builtin'] %} <svg class="icon icon-sm muted-icon" aria-label="{{ _('Built-in group') }}" role="img"><use href="#i-lock"></use></svg>{% endif %}</span>
+        <span class="muted small"><code>{{ gr['name'] }}</code>{% if (gr|group_description) %} · {{ (gr|group_description) }}{% endif %}</span></span></a></td>
       <td>{{ source_badge(gr['source']) }}</td>
+      <td>{{ status(gr) }}</td>
       <td class="muted small">{% if gr['external_id'] %}{% if names.get(gr['external_id']) %}{{ names[gr['external_id']] }}<br>{% endif %}<code>{{ gr['external_id'] }}</code>{% else %}—{% endif %}</td>
       <td class="num">{{ gr['members'] }}{% if gr['source'] != 'local' and gr['manual_members'] %} <span class="muted small">({{ _("+%(num)s manual", num=gr['manual_members']) }})</span>{% endif %}</td>
       <td class="small">{{ shares_by_group[gr['id']] | map(attribute='label') | join(', ') or '—' }}</td>
       <td class="actions"><a class="btn btn-small" href="{{ url_for('groups.edit', group_uid=gr['uid']) }}">{{ _("Edit") }}</a></td>
     </tr>
     {% else %}
-    <tr><td colspan="6" class="muted">{{ _("No groups.") }}</td></tr>
+    <tr><td colspan="7" class="muted">{{ _("No groups.") }}</td></tr>
     {% endfor %}
   </tbody>
 </table>

@@ -113,4 +113,18 @@ def test_without_network_the_directory_answers_empty(graph, monkeypatch):
     monkeypatch.setattr(oauth2, "_http_post", down)
     assert ed.names_for(ECFG, [G1]) == {}
     assert ed.info_for(ECFG, [G1]) == {}
-    assert ed.search_groups(ECFG, "Ventas") == []
+    assert ed.search_groups(ECFG, "Ventas") is None          # «no se pudo leer» (el buscador del alta: vacío)
+    assert ed.list_groups(ECFG) is None
+
+
+def test_list_groups_by_pages(graph):
+    calls, answers, _tokens = graph
+    answers[("GET", "/groups?")] = (200, {"value": [{"id": G1.upper(), "displayName": "Sistemas", "description": "IT"}],
+                                          "@odata.nextLink": "https://evil.example/x?$skiptoken=NEXT1"})
+    groups, following = ed.list_groups(ECFG, "", 1)
+    assert groups == [{"id": G1, "name": "Sistemas", "description": "IT"}] and following == "NEXT1"
+    assert calls[-1][1].startswith("/groups?$select=id,displayName,description&$top=1&$orderby=displayName")
+    ed.list_groups(ECFG, following, 1)
+    assert calls[-1][1].endswith("$skiptoken=NEXT1")                      # la dirección la compone StorageWeb
+    assert ed.list_groups(ECFG, "a b<script>", 1) is None
+    assert ed.names_for(ECFG, [G1]) == {G1: "Sistemas"}                     # el nombre queda guardado

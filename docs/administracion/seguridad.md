@@ -67,8 +67,18 @@ La clave de cifrado es, por orden, la variable de entorno `STORAGEWEB_SECRETS_KE
 
 Las reglas de las contraseñas de las cuentas locales están en *Seguridad → Contraseñas*. Se aplican al ponerlas
 (crear la cuenta, cambiarla en *Mi perfil*, un administrador a otra persona o `storageweb-admin user-add`/
-`user-passwd`); las que ya existen no se tocan. Se guardan con el hash scrypt de Werkzeug. Quien la escribe ve
-debajo del campo lo que se le pide («Al menos 12 caracteres, con una mayúscula, un número.»).
+`user-passwd`); las que ya existen no se tocan. Se guardan con el hash scrypt de Werkzeug.
+
+Quien escribe una contraseña nueva (*Mi perfil → Seguridad*, un administrador en *Cambiar contraseña* de otra
+cuenta o en *Nuevo usuario*, donde se usa el nombre de usuario que se está escribiendo) ve **mientras escribe** un
+medidor con su fortaleza (de *Muy débil* a *Muy fuerte*; orientativa: una que no
+cumple las reglas nunca pasa de *Débil*) y la lista de reglas con lo que se cumple y lo que no, las mismas que se
+aplicarán al guardar (las de esa cuenta: la del nombre de usuario es la suya). La de las filtraciones no se comprueba
+mientras se escribe (iría a internet en cada tecla): se dice que se comprueba al guardar. **Generar** pone una
+contraseña aleatoria que cumple las reglas (al menos 20 caracteres o el mínimo, si es mayor, con letras, números y
+símbolos y sin los que se confunden, como `l`, `I`, `O`, `0`, `1`), la enseña para poder copiarla y la escribe en los
+dos campos. También se ve si la repetida coincide. Sin JavaScript, debajo del campo sale lo que se pide («Al menos 12
+caracteres, con una mayúscula, un número.»).
 
 ![Seguridad → Contraseñas, pestaña Probar: regla por regla, por qué se rechazaría](../img/admin/contrasenas.webp)
 
@@ -84,7 +94,9 @@ debajo del campo lo que se le pide («Al menos 12 caracteres, con una mayúscula
 
 La pestaña *Probar*, en la misma página, dice regla por regla si una contraseña (y, si se
 escribe, un nombre de usuario) se aceptaría con las reglas que hay en la otra pestaña, aunque aún no
-estén guardadas, y sin guardarla en ningún sitio.
+estén guardadas, y sin guardarla en ningún sitio, con la misma barra de fortaleza. Se actualiza sola mientras escribes
+(y al cambiar las reglas de la otra pestaña); las filtraciones conocidas, que van a internet, solo al pulsar *Probar*.
+**Generar** pone una aleatoria que cumple esas reglas (las de la página, guardadas o no) y la prueba.
 
 Lo que más protege es la longitud. Obligar a mezclar tipos de caracteres las hace más difíciles de recordar más que
 de adivinar (así lo dice NIST SP 800-63B): por eso viene apagado.

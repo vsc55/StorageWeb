@@ -9,17 +9,24 @@
  *   el servidor no la pisa (error `Conflict`). VS Code, además, avisa al guardar si el archivo cambió desde
  *   que se abrió (compara la fecha y el tamaño de `stat`), por eso la caché de `stat` dura muy poco.
  * - Los errores son `RemoteFsError` con un `code` como los de VS Code (FileNotFound, FileExists,
- *   FileNotADirectory, FileIsADirectory, NoPermissions, Unavailable) o `Conflict`.
+ *   FileNotADirectory, FileIsADirectory, NoPermissions, Unavailable) o `Conflict`, `Hidden` (oculto en el
+ *   servidor) y `TooLarge`; llevan el estado HTTP y el motivo de StorageWeb (`serverCode`) para explicarlo.
  */
 
 const { DavError } = require("./dav");
 
 class RemoteFsError extends Error {
-  /** @param {string} code @param {string} path @param {string} [message] */
-  constructor(code, path, message) {
+  /**
+   * `status` y `serverCode`: los del error de WebDAV del que viene (el estado HTTP y el motivo que da StorageWeb
+   * en `X-StorageWeb-Reason`, p. ej. `read_only` o `account_disabled`; ver messages.js).
+   * @param {string} code @param {string} path @param {string} [message] @param {{status?: number, serverCode?: string}} [from]
+   */
+  constructor(code, path, message, from = {}) {
     super(message || `${code}: ${path}`);
     this.code = code;
     this.path = path;
+    this.status = from.status;
+    this.serverCode = from.serverCode || "";
   }
 }
 
@@ -44,19 +51,25 @@ function parentOf(path) {
 function translate(err, path, onConflict = "Conflict") {
   if (err instanceof RemoteFsError) return err;
   if (!(err instanceof DavError)) return err;
+  const from = { status: err.status, serverCode: err.code };
   switch (err.status) {
     case 404:
     case 409:  // falta la carpeta de encima
-      return new RemoteFsError("FileNotFound", path, err.message);
+      return new RemoteFsError("FileNotFound", path, err.message, from);
     case 412:
-      return new RemoteFsError(onConflict, path, err.message);
+      return new RemoteFsError(onConflict, path, err.message, from);
     case 401:
-      return new RemoteFsError("NoPermissions", path, "The server rejected the user or the token");
-    case 403:
+      return new RemoteFsError("NoPermissions", path, "The server rejected the user or the token", from);
+    case 403:  // también la IP bloqueada y las carpetas o tokens de solo lectura (serverCode)
     case 405:
-      return new RemoteFsError("NoPermissions", path, err.message);
-    case 0:
-      return new RemoteFsError("Unavailable", path, err.message);
+      return new RemoteFsError(err.hidden ? "Hidden" : "NoPermissions", path, err.message, from);
+    case 413:  // más grande de lo que admite el servidor
+      return new RemoteFsError("TooLarge", path, err.message, from);
+    case 0:     // sin red o una descarga cortada a medias
+    case 502:
+    case 503:   // en mantenimiento (restaurando una copia)
+    case 504:
+      return new RemoteFsError("Unavailable", path, err.message, from);
     default:
       return err;
   }

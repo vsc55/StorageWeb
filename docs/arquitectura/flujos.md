@@ -37,7 +37,8 @@ sequenceDiagram
     S->>E: POST /token (code, code_verifier, client_secret)
     E-->>S: id_token
     S->>S: Validar aud, azp, iss, exp, nbf, nonce, tid
-    S->>S: allowed_groups → buscar por oid → vincular, crear o rechazar → rol
+    S->>S: allowed_groups (token) → buscar por oid → vincular, crear o rechazar → rol (role_mappings, token)
+    S->>S: grupos del token → pertenencias sincronizadas → lista efectiva (sin los grupos desactivados)
     S-->>N: 302 a la página pedida, con sesión
 ```
 
@@ -48,6 +49,12 @@ Reglas del alta (`core.accounts.login_with_claims`):
 3. Si existe un usuario local o PAM con ese nombre, se **rechaza** el login.
 4. Si no existe ninguno, se crea el usuario cuando `auto_provision` está activo; si no, se rechaza.
 5. El rol se calcula con `resolve_role`, a partir de `role_mappings`, `default_role` y `sync_role_on_login`.
+6. Los grupos del token se guardan (`users.external_groups`) y `core.groups.sync_user` deja a la persona como miembro
+   sincronizado de los grupos dados de alta con ese identificador, también de los desactivados. La lista efectiva
+   (`users.groups`, de la que salen carpetas, rol de grupo y cuota) no incluye los desactivados.
+
+`allowed_groups` y `role_mappings` (pasos de arriba y 5) miran los grupos del token, no los de StorageWeb: un grupo
+desactivado en StorageWeb no cambia quién entra ni el rol propio de la persona.
 
 ## Subida por partes
 

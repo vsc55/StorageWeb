@@ -24,6 +24,7 @@ from ..i18n import _
 from ..settings import store
 from ..settings.defaults import PERMISSIONS
 from ..text import slug
+from . import named
 from .permissions import ADMIN, NONE, ROLE_LABELS, USER, role_permissions
 from ..settings.errors import UserError
 
@@ -112,31 +113,9 @@ def copy_of(conn: Connection, cfg: dict, key: str) -> dict | None:
         if role is None:
             return None
         label, description, permissions = role["label"], role["description"] or "", list(role["permissions"])
-    taken = {r["label"].lower() for r in repo.list_all(conn)} | {str(v).lower() for v in ROLE_LABELS.values()}
-    base = _without_copy(label)         # clonar «X (copia)» propone «X (copia 2)», no «X (copia) (copia)»
-    for num in range(1, 1000):
-        template = _("%(name)s (copy)", name="\0") if num == 1 else _("%(name)s (copy %(num)s)", name="\0", num=num)
-        room = LABEL_MAX - (len(template) - 1)          # el sufijo cabe siempre, aunque el nombre sea largo
-        name = template.replace("\0", base[:room].rstrip())
-        if name.lower() not in taken:
-            return {"label": name, "description": description, "permissions": permissions, "source": label}
-    return {"label": "", "description": description, "permissions": permissions, "source": label}
-
-
-def _without_copy(label: str) -> str:
-    """«X (copia)», «X (copia 3)», «X (copia) (copia)» → «X» (con los textos del idioma de la petición)."""
-    patterns = []
-    for template in (_("%(name)s (copy)", name="\0"), _("%(name)s (copy %(num)s)", name="\0", num="\1")):
-        patterns.append(re.compile(re.escape(template).replace("\\\0", "\0").replace("\0", "(.+?)")
-                                   .replace("\\\1", "\1").replace("\1", r"\d+"), re.IGNORECASE))
-    while True:
-        for pattern in patterns:
-            found = pattern.fullmatch(label)
-            if found and found.group(1).strip():
-                label = found.group(1).strip()
-                break
-        else:
-            return label
+    taken = [r["label"] for r in repo.list_all(conn)] + [str(v) for v in ROLE_LABELS.values()]
+    return {"label": named.copy_label(label, taken, LABEL_MAX), "description": description,
+            "permissions": permissions, "source": label}
 
 
 def _free_key(conn: Connection, label: str) -> str:

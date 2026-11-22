@@ -39,6 +39,42 @@ class SyncLoopError extends Error {
   }
 }
 
+/**
+ * La carpeta vinculada del servidor ya no está: se borró o esta persona ya no tiene acceso (el servidor no
+ * distingue los dos casos a propósito). Se lanza antes de planificar nada: no se borra nada en local por eso.
+ */
+class RemoteRootMissing extends Error {
+  /** @param {string} remoteRoot */
+  constructor(remoteRoot) {
+    super(`The server folder no longer exists or you no longer have access to it: ${remoteRoot}`);
+    this.remoteRoot = remoteRoot;
+  }
+}
+
+/** 403 por permisos al escribir en el servidor: el resto de escrituras de la pasada fallaría igual. */
+const DENIED = new Set(["read_only", "token_read_only", "no_permission"]);
+
+/**
+ * Errores tras los que no tiene sentido seguir con la pasada: sin red (o descarga cortada), credenciales o cuenta
+ * rechazadas (401), IP bloqueada y servidor en mantenimiento o caído (502/503/504).
+ * @param {unknown} err
+ */
+function isFatal(err) {
+  if (!(err instanceof DavError)) return false;
+  return err.status === 0 || err.status === 401 || (err.status === 403 && err.code === "ip_banned")
+    || err.status === 502 || err.status === 503 || err.status === 504;
+}
+
+/** ¿Una escritura rechazada por permisos? Da el código (read_only, token_read_only, no_permission) o "". @param {unknown} err */
+function deniedCode(err) {
+  return err instanceof DavError && err.status === 403 && !err.hidden && DENIED.has(err.code) ? err.code : "";
+}
+
+/** ¿Más grande de lo que admite el servidor? @param {unknown} err */
+function isTooLarge(err) {
+  return err instanceof DavError && err.status === 413;
+}
+
 const PROBE_PREFIX = ".storageweb-probe-";
 const HIDDEN_RETRY_MS = 24 * 3600 * 1000;
 const SAVE_EVERY = 200;          // acciones entre guardados del estado (una pasada larga no empieza de cero)
@@ -130,6 +166,8 @@ class SyncEngine {
     /** @type {Set<string>} carpetas remotas que ya existen */
     this.remoteDirs = new Set();
     this.cancelled = false;
+    /** @type {Map<string, string>} lo que el servidor no admitió por tamaño (ruta → «tamaño:fecha»): no se reintenta hasta que cambie */
+    this.tooLarge = new Map();
   }
 
   /** Para la pasada en curso en cuanto termine el archivo que está tratando (se guarda lo hecho). */
@@ -144,7 +182,14 @@ class SyncEngine {
    */
   async checkLoop(scanned) {
     const name = PROBE_PREFIX + crypto.randomBytes(8).toString("hex");
-    await this.remote.put(this.rpath(name), Buffer.from("StorageWeb: loop check\n"), { ifNoneMatch: true });
+    try {
+      await this.remote.put(this.rpath(name), Buffer.from("StorageWeb: loop check\n"), { ifNoneMatch: true });
+    } catch (err) {
+      // Sin permiso para escribir (no se podría subir nada, así que tampoco hay bucle) u oculto en el servidor
+      // (storage.hidden): no se puede comprobar ahora; se devuelve el error para que la pasada lo tenga en cuenta
+      if (deniedCode(err) || (err instanceof DavError && err.hidden)) return /** @type {DavError} */ (err);
+      throw err;
+    }
     let found;
     try {
       const local = scanned || await this.local.scan();
@@ -153,6 +198,36 @@ class SyncEngine {
       await this.remote.remove(this.rpath(name)).catch(() => undefined);
     }
     if (found !== undefined) throw new SyncLoopError(found.slice(0, -name.length).replace(/\/$/, ""));
+    return null;
+  }
+
+  /**
+   * Comprueba que la carpeta vinculada sigue en el servidor (y es una carpeta): si no, RemoteRootMissing.
+   * Los errores que no son un 404 (sin red, 401…) se lanzan tal cual.
+   */
+  async checkRoot() {
+    if (!this.remote.stat) return;
+    let entry;
+    try {
+      entry = await this.remote.stat(this.root);
+    } catch (err) {
+      if (err instanceof DavError && err.status === 404) throw new RemoteRootMissing(this.root);
+      throw err;
+    }
+    if (!entry || !entry.isDir) throw new RemoteRootMissing(this.root);
+  }
+
+  /**
+   * Un 404/409 al escribir o recorrer puede ser que desapareció la carpeta vinculada: entonces RemoteRootMissing;
+   * si no, no hace nada (el que llama lanza el error original). @param {unknown} err
+   */
+  async rootGone(err) {
+    if (!(err instanceof DavError && (err.status === 404 || err.status === 409))) return;
+    try {
+      await this.checkRoot();
+    } catch (missing) {
+      if (missing instanceof RemoteRootMissing) throw missing;
+    }
   }
 
   /** @param {string} path */
@@ -163,7 +238,8 @@ class SyncEngine {
   async ensureRemoteDir(path) {
     const dir = path.split("/").slice(0, -1).join("/");
     if (!dir || this.remoteDirs.has(dir)) return;
-    await this.remote.mkdirs(this.rpath(dir));
+    // Solo lo de dentro de la carpeta vinculada: si ella desapareció, no se vuelve a crear (sería otra, vacía)
+    await this.remote.mkdirs(this.rpath(dir), this.root.split("/").length);
     const parts = dir.split("/");
     for (let i = 1; i <= parts.length; i++) this.remoteDirs.add(parts.slice(0, i).join("/"));
   }
@@ -172,14 +248,29 @@ class SyncEngine {
    * Sincronización completa. `confirmDeletes(n)` decide si se borran `n` archivos de golpe; si dice
    * que no, en vez de borrar se recuperan (se vuelve a bajar o a subir lo que falta).
    * `checkLoop`: antes, comprobar que la carpeta local no contiene la copia del servidor (ver SyncLoopError).
+   *
+   * Si la carpeta del servidor ya no está (o ya no hay acceso), RemoteRootMissing antes de planificar nada. En el
+   * resumen, además: `denied`, el código si el servidor no deja escribir (read_only, token_read_only,
+   * no_permission; las demás escrituras de la pasada no se intentan, las descargas sí, y lo local que no se pudo
+   * subir se queda), con `notUploaded` cambios sin subir y `restored`, lo borrado aquí que se ha vuelto a bajar
+   * (no se puede borrar allí y no se deja como borrado pendiente); `tooLarge`, lo que no admite por tamaño; `loopChecked`,
+   * false si se pidió comprobar el bucle y no se pudo (sin permiso de escritura u oculto en el servidor); `fatal`,
+   * el error que paró la pasada (sin red, 401, IP bloqueada, mantenimiento), que también está en `errors`.
    * @param {{confirmDeletes?: (count: number) => Promise<boolean>, maxDeletes?: number, checkLoop?: boolean}} [options]
    */
   async run(options = {}) {
     const state = await this.store.load();
-    if (options.checkLoop) await this.checkLoop();
+    await this.checkRoot();
+    const probe = options.checkLoop ? await this.checkLoop() : null;
     const local = await this.local.scan();
     for (const key of [...local.keys()]) if (key.split("/").pop().startsWith(PROBE_PREFIX)) local.delete(key);
-    const remote = await this.remote.walk(this.root, (rel, isDir) => this.skip(rel, isDir));
+    let remote;
+    try {
+      remote = await this.remote.walk(this.root, (rel, isDir) => this.skip(rel, isDir));
+    } catch (err) {
+      await this.rootGone(err);  // desapareció justo ahora
+      throw err;
+    }
     this.remoteDirs = new Set();
     for (const path of remote.keys()) {  // las carpetas de los archivos remotos ya existen: no hace falta crearlas
       const parts = path.split("/").slice(0, -1);
@@ -202,7 +293,15 @@ class SyncEngine {
     }
     // `noSpace`: el servidor no tiene cuota (o disco) para lo que falta por subir: se para y se avisa
     const summary = { uploaded: 0, downloaded: 0, deletedLocal: 0, deletedRemote: 0, hidden: 0, noSpace: "",
+      denied: "", notUploaded: 0, /** @type {string[]} */ tooLarge: [], /** @type {string[]} */ restored: [],
+      /** @type {boolean | undefined} */ loopChecked: options.checkLoop ? !probe : undefined,
+      /** @type {DavError | undefined} el error que paró la pasada (sin red, 401, IP bloqueada, mantenimiento) */
+      fatal: undefined,
       /** @type {{path: string, copy: string}[]} */ conflicts: [], /** @type {{path: string, error: string}[]} */ errors: [] };
+    if (probe) {
+      summary.denied = deniedCode(probe);
+      this.log(`! loop check skipped: ${probe.message}`);
+    }
     let done = 0, saved = Date.now();
     for (const action of actions) {
       if (this.cancelled) break;
@@ -210,13 +309,28 @@ class SyncEngine {
         await this.store.save(state);
         saved = Date.now();
       }
+      // Sin permiso para escribir, lo borrado aquí no queda como borrado pendiente (si más adelante dieran permiso,
+      // se borraría en el servidor sin que nadie se acuerde de por qué): se vuelve a bajar
+      const act = summary.denied && action.type === "deleteRemote" ? { ...action, type: "restore" } : action;
+      if (this.skipWrite(act, local, summary)) continue;
       try {
-        await this.apply(action, local, remote, state, summary);
+        try {
+          await this.apply(act, local, remote, state, summary);
+        } catch (err) {
+          if (act.type !== "deleteRemote" || !deniedCode(err)) throw err;
+          summary.denied = deniedCode(err);
+          this.log(`! ${act.path}: the server does not allow deleting (${summary.denied}): downloaded again`);
+          await this.apply({ type: "restore", path: act.path }, local, remote, state, summary);
+        }
       } catch (err) {
+        if (this.refused(err, action.path, local, summary)) continue;
         const message = err instanceof Error ? err.message : String(err);
         summary.errors.push({ path: action.path, error: message });
         this.log(`! ${action.type} ${action.path}: ${message}`);
-        if (err instanceof DavError && (err.status === 0 || err.status === 401)) break;  // sin red o sin acceso
+        if (isFatal(err)) {  // sin red, sin acceso, IP bloqueada o servidor en mantenimiento
+          summary.fatal = /** @type {DavError} */ (err);
+          break;
+        }
         if (err instanceof DavError && err.status === 507) {   // sin cuota: el resto de subidas fallaría igual
           summary.noSpace = err.reason || message;
           break;
@@ -225,6 +339,51 @@ class SyncEngine {
     }
     await this.store.save(state);
     return summary;
+  }
+
+  /**
+   * ¿Se salta esta acción sin intentarla? Las subidas cuando ya se sabe que el servidor no deja escribir (los
+   * borrados no llegan aquí: se vuelven a bajar, ver `restore`) y las de lo que no admitió por tamaño y no ha
+   * cambiado desde entonces. Nada se borra ni se pisa en local por eso: queda pendiente para cuando se pueda.
+   * @param {Action} action @param {Map<string, LocalEntry>} local
+   * @param {{denied: string, notUploaded: number, tooLarge: string[]}} summary
+   */
+  skipWrite(action, local, summary) {
+    if (action.type !== "upload" && action.type !== "deleteRemote") return false;
+    if (summary.denied) {
+      summary.notUploaded++;
+      return true;
+    }
+    const l = local.get(action.path), big = this.tooLarge.get(action.path);
+    if (action.type === "upload" && big && l && big === `${l.size}:${l.mtime}`) {
+      summary.tooLarge.push(action.path);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Un rechazo que no es un fallo de la pasada: sin permiso para escribir (se apunta y no se intentan las demás
+   * escrituras) o demasiado grande (se apunta la ruta y no se reintenta hasta que cambie).
+   * @param {unknown} err @param {string} path @param {Map<string, LocalEntry>} local
+   * @param {{denied: string, notUploaded: number, tooLarge: string[]}} summary @returns {boolean} si era uno de esos
+   */
+  refused(err, path, local, summary) {
+    const code = deniedCode(err);
+    if (code) {
+      summary.denied = code;
+      summary.notUploaded++;
+      this.log(`! ${path}: the server does not allow writing (${code}): kept only here`);
+      return true;
+    }
+    if (isTooLarge(err)) {
+      const l = local.get(path);
+      if (l) this.tooLarge.set(path, `${l.size}:${l.mtime}`);
+      if (!summary.tooLarge.includes(path)) summary.tooLarge.push(path);
+      this.log(`! ${path}: larger than the server allows: kept only here`);
+      return true;
+    }
+    return false;
   }
 
   /** @param {Action} action */
@@ -251,6 +410,8 @@ class SyncEngine {
     } else if (type === "download") {
       state.set(path, await this.download(path, r.etag));
       summary.downloaded++;
+    } else if (type === "restore") {
+      await this.restore(path, r.etag, state, summary);
     } else if (type === "deleteLocal") {
       await this.local.remove(path);
       state.delete(path);
@@ -277,6 +438,23 @@ class SyncEngine {
     } else if (type === "conflict") {
       await this.conflict(path, r.etag, state, summary);
     }
+  }
+
+  /**
+   * Lo borrado aquí que no se puede borrar en el servidor (sin permiso para escribir) se vuelve a bajar. Si ya
+   * tampoco está allí, borrado en los dos sitios: se olvida.
+   * @param {string} path @param {string} etag @param {Map<string, StateEntry>} state @param {{restored: string[]}} summary
+   */
+  async restore(path, etag, state, summary) {
+    try {
+      state.set(path, await this.download(path, etag));
+    } catch (err) {
+      if (!(err instanceof DavError && err.status === 404)) throw err;
+      state.delete(path);
+      return;
+    }
+    summary.restored.push(path);
+    this.log(`↓ ${path} (deleted here, but the server does not allow deleting it: downloaded again)`);
   }
 
   /** El servidor oculta esta ruta para todos: se queda solo aquí (ni se sube ni se borra). */
@@ -309,46 +487,78 @@ class SyncEngine {
   /** Conflicto: la local pasa a «(conflicto …)» y se sube; la del servidor se queda con el nombre. */
   async conflict(path, etag, state, summary, remoteData) {
     const copy = conflictName(path, this.conflictLabel);
+    const data = remoteData || await this.remote.get(this.rpath(path));  // antes de tocar nada aquí
     await this.local.rename(path, copy);
-    const data = remoteData || await this.remote.get(this.rpath(path));
     const l = await this.local.write(path, data);
     state.set(path, { size: l.size, mtime: l.mtime, etag });
-    state.set(copy, await this.upload(copy, undefined, false));
     summary.conflicts.push({ path, copy });
+    // La copia se sube si se puede; si el servidor no deja escribir (o es muy grande), se queda solo aquí
+    if (summary.denied) {
+      summary.notUploaded++;
+    } else {
+      try {
+        state.set(copy, await this.upload(copy, undefined, false));
+      } catch (err) {
+        const entry = await this.local.stat(copy);
+        if (!this.refused(err, copy, new Map(entry ? [[copy, entry]] : []), summary)) throw err;
+      }
+    }
     this.log(`⚠ ${path} → ${copy}`);
   }
 
   /**
    * Sube o borra en el servidor los archivos que acaban de cambiar aquí (al guardar), sin recorrer todo.
    * Devuelve false si hace falta una sincronización completa (el servidor cambió entre medias).
+   * En `report` deja, como el resumen de `run`, `denied` (el servidor no deja escribir: no se intenta el resto),
+   * `notUploaded`, `restored` (lo borrado aquí que se ha vuelto a bajar porque no se puede borrar allí) y `tooLarge`.
+   * RemoteRootMissing si la carpeta del servidor ya no está.
    * @param {string[]} paths
+   * @param {{denied?: string, notUploaded?: number, tooLarge?: string[], restored?: string[]}} [report]
    */
-  async push(paths) {
+  async push(paths, report = {}) {
     const state = await this.store.load();
+    const summary = { denied: "", notUploaded: 0, /** @type {string[]} */ tooLarge: [], /** @type {string[]} */ restored: [] };
     let clean = true;
-    for (const path of paths) {
-      if (this.cancelled) break;
-      if (this.skip(path)) continue;
-      const l = await this.local.stat(path), s = state.get(path);
-      if (s && s.hidden) continue;  // oculto en el servidor
-      try {
+    try {
+      for (const path of paths) {
+        if (this.cancelled) break;
+        if (this.skip(path)) continue;
+        const l = await this.local.stat(path), s = state.get(path);
+        if (s && s.hidden) continue;  // oculto en el servidor
         if (l && s && l.size === s.size && l.mtime === s.mtime) continue;  // sin cambios (p. ej. lo bajamos nosotros)
-        if (l) {
-          state.set(path, await this.upload(path, s && s.etag, !!s));
-        } else if (s) {
-          await this.remote.remove(this.rpath(path), { ifMatch: s.etag });
-          state.delete(path);
-          this.log(`✕ ${path} (server)`);
+        if (!l && !s) continue;
+        const local = new Map(l ? [[path, l]] : []);
+        if (!l && s && summary.denied) {  // borrado aquí sin permiso para borrar allí: se vuelve a bajar
+          await this.restore(path, s.etag, state, summary);
+          continue;
         }
-      } catch (err) {
-        if (err instanceof DavError && err.hidden && l) this.markHidden(path, new Map([[path, l]]), state);
-        else if (err instanceof DavError && err.status === 412) clean = false;  // cambió en el servidor: conflicto
-        else throw err;
+        if (this.skipWrite({ type: l ? "upload" : "deleteRemote", path }, local, summary)) continue;
+        try {
+          if (l) {
+            state.set(path, await this.upload(path, s && s.etag, !!s));
+          } else if (s) {
+            await this.remote.remove(this.rpath(path), { ifMatch: s.etag });
+            state.delete(path);
+            this.log(`✕ ${path} (server)`);
+          }
+        } catch (err) {
+          if (err instanceof DavError && err.hidden && l) this.markHidden(path, local, state);
+          else if (err instanceof DavError && err.status === 412) clean = false;  // cambió en el servidor: conflicto
+          else if (!l && s && deniedCode(err)) {
+            summary.denied = deniedCode(err);
+            await this.restore(path, s.etag, state, summary);
+          } else if (!this.refused(err, path, local, summary)) {
+            await this.rootGone(err);
+            throw err;
+          }
+        }
       }
+    } finally {
+      await this.store.save(state);
+      Object.assign(report, summary);
     }
-    await this.store.save(state);
     return clean;
   }
 }
 
-module.exports = { SyncEngine, SyncLoopError, conflictName, plan };
+module.exports = { SyncEngine, SyncLoopError, RemoteRootMissing, conflictName, deniedCode, isFatal, plan };

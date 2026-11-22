@@ -67,3 +67,13 @@
   {% endfor %}
 </nav>
 {%- endmacro %}
+
+{# El desplegable de estado de las búsquedas (Usuarios, Grupos): all, active o disabled #}
+{% macro status_select(value) -%}
+<select name="status" aria-label="{{ _('Status') }}">
+  <option value="all" {% if value == 'all' %}selected{% endif %}>{{ _("All") }}</option>
+  <option value="active" {% if value == 'active' %}selected{% endif %}>{{ _("Active") }}</option>
+  <option value="disabled" {% if value == 'disabled' %}selected{% endif %}>{{ _("Disabled") }}</option>
+</select>
+{%- endmacro %}
+

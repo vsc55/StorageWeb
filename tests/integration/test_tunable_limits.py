@@ -120,12 +120,15 @@ def test_unused_tokens_warning_can_be_tuned_or_turned_off(make_app):
 
 
 def test_upload_cleanup_uses_the_setting(make_app, monkeypatch):
-    from storageweb.web.api import uploads as api
+    """La tarea de cada hora (upload_cleanup) borra las subidas a medias con más horas sin partes que el ajuste."""
+    from storageweb.core import maintenance
+    from storageweb.core import uploads as core
+    from storageweb.web.context import get_db, settings
     asked = []
-    monkeypatch.setattr(api.repo, "stale", lambda conn, hours: asked.append(hours) or [])
+    monkeypatch.setattr(core.repo, "stale", lambda conn, hours: asked.append(hours) or [])
     app = make_app({"storage": {"upload_stale_hours": 72}})
     with app.test_request_context():
-        api._cleanup_stale()
+        assert "upload_cleanup" in maintenance.run_due(get_db(), settings())
     assert asked == [72]
 
 

@@ -8,13 +8,15 @@
   var source = document.getElementById("source-select");
   if (source) {
     var pwdField = document.querySelector(".js-local-only");
-    var pwdInput = pwdField && pwdField.querySelector("input");
+    var pwdInputs = pwdField ? pwdField.querySelectorAll("input[type=password], input[data-password-new], input[data-password-repeat]") : [];
     var sync = function () {
       var isLocal = source.value === "local";
       if (!pwdField) return;
       pwdField.hidden = !isLocal;
-      pwdInput.required = isLocal;
-      if (!isLocal) pwdInput.value = "";
+      pwdInputs.forEach(function (input) {
+        input.required = isLocal;
+        if (!isLocal) input.value = "";
+      });
     };
     source.addEventListener("change", sync);
     sync();

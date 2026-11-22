@@ -334,7 +334,40 @@
     }
   });
 
-  form.addEventListener("submit", function () { saving = true; });
+  // ------------------------------------------------------------------ lo escrito no se pierde al guardar
+  // Al guardar se deja una copia en esta pestaña (sessionStorage) con la versión del archivo sobre la que se
+  // escribió. Si el guardado no llega (la sesión se había cerrado: cuenta desactivada, sesión cerrada por un admin,
+  // caducada… y se vuelve aquí tras entrar otra vez), el archivo sigue en esa versión y se ofrece recuperarla. Si se
+  // guardó, la versión ya es otra y la copia se tira.
+  var versionInput = form.querySelector("input[name=version]");
+  var draftKey = "sw-edit-draft:" + location.pathname;
+  function readDraft() {
+    try { return JSON.parse(window.sessionStorage.getItem(draftKey) || "null"); } catch (e) { return null; }
+  }
+  function dropDraft() {
+    try { window.sessionStorage.removeItem(draftKey); } catch (e) { /* sin almacenamiento */ }
+  }
+  var draft = readDraft();
+  if (draft && versionInput && draft.version === versionInput.value && draft.text !== box.value) {
+    window.SW.confirm(t("Your last changes to this file were not saved (your session may have ended). Restore them?"),
+      { ok: t("Restore") }).then(function (yes) {
+      dropDraft();
+      if (!yes) return;
+      box.value = draft.text;
+      if (eolInput && draft.eol) eolInput.value = draft.eol;
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  } else if (draft) {
+    dropDraft();
+  }
+
+  form.addEventListener("submit", function () {
+    saving = true;
+    try {
+      window.sessionStorage.setItem(draftKey, JSON.stringify({
+        version: versionInput ? versionInput.value : "", text: box.value, eol: eolInput ? eolInput.value : "" }));
+    } catch (e) { /* sin almacenamiento: se guarda igual */ }
+  });
   window.SW.guardUnload(function () { return dirty && !saving; });
   box.focus();
 })();

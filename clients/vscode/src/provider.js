@@ -12,6 +12,7 @@
 
 const vscode = require("vscode");
 
+const { codeOf, describe, isRejected, reasonText, statusOf } = require("./messages");
 const { RemoteFsError, parentOf } = require("./remotefs");
 
 const t = vscode.l10n.t;
@@ -40,6 +41,15 @@ class StorageWebFs {
     /** @type {ReturnType<typeof setTimeout> | null} */
     this.timer = null;
     this.polling = false;
+    /**
+     * Servidores que no se comprueban (servidor → el error): rechazó las credenciales, la cuenta o la IP. Seguir
+     * preguntando cada pocos segundos solo sumaría intentos fallidos (y el servidor acabaría bloqueando la IP).
+     * Se vuelve a comprobar en cuanto una operación de la persona funciona o con `unblock` (token nuevo).
+     * @type {Map<string, unknown>}
+     */
+    this.blocked = new Map();
+    /** @type {((server: string, err: unknown) => void) | null} avisa (una vez) de que un servidor dejó de comprobarse */
+    this.onPollError = null;
     const win = vscode.window;
     // Al volver a la ventana, se comprueba enseguida (mientras no está activa no se pregunta al servidor)
     this.focusListener = win.onDidChangeWindowState
@@ -87,14 +97,27 @@ class StorageWebFs {
     try {
       /** @type {vscode.FileChangeEvent[]} */
       const events = [];
+      /** @type {Set<string>} servidores que esta vez no responden (sin red, mantenimiento): no se insiste */
+      const skipped = new Set();
       for (const entry of [...this.watched.values()]) {
+        const server = entry.uri.authority;
+        if (this.blocked.has(server) || skipped.has(server)) continue;
         const before = entry.last;
         let now;
         try {
           now = await this.signature(entry.uri);
         } catch (err) {
-          if (!(err instanceof RemoteFsError) || err.code !== "FileNotFound") continue;  // sin red: la próxima vez
-          now = "missing";
+          if (err instanceof RemoteFsError && err.code === "FileNotFound") {
+            now = "missing";
+          } else {
+            if (isRejected(err) || codeOf(err) === "ip_banned") {
+              this.blocked.set(server, err);
+              if (this.onPollError) this.onPollError(server, err);
+            } else {
+              skipped.add(server);  // sin red o en mantenimiento: la próxima vez
+            }
+            continue;
+          }
         }
         entry.last = now;
         if (before === null || before === now) continue;
@@ -132,33 +155,55 @@ class StorageWebFs {
     if (this.focusListener) this.focusListener.dispose();
   }
 
-  /** @param {vscode.Uri} uri @param {unknown} err */
+  /**
+   * Error de remotefs → el de VS Code, con la explicación del servidor si la hay (cuenta desactivada, token
+   * caducado, carpeta de solo lectura, IP bloqueada, mantenimiento, demasiado grande, descarga cortada…).
+   * @param {vscode.Uri} uri @param {unknown} err
+   */
   error(uri, err) {
-    if (!(err instanceof RemoteFsError)) return err;
+    if (!(err instanceof RemoteFsError)) {
+      return err instanceof Error && !(err instanceof vscode.FileSystemError) && (codeOf(err) || statusOf(err))
+        ? new vscode.FileSystemError(describe(err)) : err;
+    }
+    const name = uri.path.split("/").pop() || "";
+    const explained = reasonText(err.serverCode, err.status);
     switch (err.code) {
       case "FileNotFound": return vscode.FileSystemError.FileNotFound(uri);
       case "FileExists": return vscode.FileSystemError.FileExists(uri);
       case "FileNotADirectory": return vscode.FileSystemError.FileNotADirectory(uri);
       case "FileIsADirectory": return vscode.FileSystemError.FileIsADirectory(uri);
       case "NoPermissions":
-        return vscode.FileSystemError.NoPermissions(err.message.startsWith("The server rejected")
-          ? t("The server rejected the user or the token.") : uri);
-      case "Unavailable": return vscode.FileSystemError.Unavailable(t("Cannot connect to the server: {0}", err.message));
+        return vscode.FileSystemError.NoPermissions(explained || (isRejected(err) ? describe(err) : uri));
+      case "Hidden":
+        return vscode.FileSystemError.NoPermissions(
+          t("«{0}» is hidden on the server for everyone (storage.hidden): it cannot be created there.", name));
+      case "TooLarge":
+        return new vscode.FileSystemError(t("«{0}»: {1}", name, explained || describe(err)));
+      case "Unavailable":
+        return vscode.FileSystemError.Unavailable(explained
+          || (err.status && err.status >= 500 ? describe(err) : t("Cannot connect to the server: {0}", err.message)));
       case "Conflict":
         return new vscode.FileSystemError(
-          t("«{0}» changed on the server while saving: it was not overwritten. Reopen it to see the new version.",
-            uri.path.split("/").pop() || ""));
-      default: return new vscode.FileSystemError(err.message);
+          t("«{0}» changed on the server while saving: it was not overwritten. Reopen it to see the new version.", name));
+      default: return new vscode.FileSystemError(explained || err.message);
     }
   }
 
   /** @template T @param {vscode.Uri} uri @param {() => Promise<T>} job @returns {Promise<T>} */
   async call(uri, job) {
     try {
-      return await job();
+      const result = await job();
+      this.blocked.delete(uri.authority);  // vuelve a funcionar: se vuelve a comprobar lo abierto
+      return result;
     } catch (err) {
       throw this.error(uri, err);
     }
+  }
+
+  /** Volver a comprobar lo abierto de un servidor (o de todos): p. ej. tras cambiar su token. @param {string} [server] */
+  unblock(server) {
+    if (server === undefined) this.blocked.clear();
+    else this.blocked.delete(server);
   }
 
   /** @param {vscode.Uri} uri @param {vscode.FileChangeType} type */

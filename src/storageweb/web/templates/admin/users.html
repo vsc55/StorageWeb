@@ -49,7 +49,9 @@
         <span><strong>{{ u['display_name'] or u['username'] }}</strong>{% if u['display_name'] and u['display_name'] != u['username'] %}<span class="muted small">{{ u['username'] }}</span>{% endif %}</span></a></td>
       <td><span class="badge badge-src badge-src-{{ u['source'] }}">{{ SOURCE_LABELS[u['source']] }}</span></td>
       <td><span class="badge badge-{{ u['role'] }}">{{ role_label(u['role']) }}</span></td>
-      <td><span class="group-tags">{% for name in group_names[u['id']] %}<span class="group-tag">{{ name }}</span>{% endfor %}</span></td>
+      <td><span class="group-tags">{% for gr in group_names[u['id']] %}<span class="group-tag{% if not gr.enabled %} is-off{% endif %}"
+        {%- if not gr.enabled %} title="{{ _('Disabled group: it gives nothing until it is enabled again.') }}"{% endif %}>
+        {%- if not gr.enabled %}<svg class="icon icon-xs" aria-hidden="true"><use href="#i-ban"></use></svg>{% endif %}{{ gr.label }}</span>{% endfor %}</span></td>
       <td>{{ status_badge(u) }}</td>
       <td>{% if u['id'] in mfa_users %}<span class="badge badge-ok">{{ _("On") }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
       <td class="small">{{ u['last_login']|datetime }}</td>
@@ -67,7 +69,7 @@
         <a class="btn btn-icon btn-small" href="{{ url_for('profile.section', section='security') }}#password"
            title="{{ _('Yours is changed in My profile, with the current one.') }}" aria-label="{{ _('Change password') }}"><svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg></a>
         {% else %}
-        <a class="btn btn-icon btn-small" href="{{ url_for('admin.user_password', user_uid=u['uid'], next=request.full_path) }}"
+        <a class="btn btn-icon btn-small" data-password-modal href="{{ url_for('admin.user_password', user_uid=u['uid'], next=request.full_path) }}"
            title="{{ _('Change password') }}" aria-label="{{ _('Change password') }} {{ u['username'] }}"><svg class="icon" aria-hidden="true"><use href="#i-key"></use></svg></a>
         {% endif %}
         {% if u['id'] != current_user['id'] %}
@@ -97,4 +99,6 @@
 </nav>
 {% endif %}
 {% endblock %}
-{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/bulk.js') }}"></script>{% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/bulk.js') }}"></script>
+<script src="{{ url_for('static', filename='js/admin/password-modal.js') }}"></script>
+<script src="{{ url_for('static', filename='js/password-meter.js') }}"></script>{% endblock %}

@@ -36,7 +36,7 @@ from ...core.uploads import UploadError, check_space
 from ...i18n import _
 from ..context import get_db, settings
 from ..downloads import SANDBOX, etag, send_entry
-from ..guards import audit_path, root_perms
+from ..guards import audit_path, deny, missing_reason, root_perms, transfer_guard
 
 bp = Blueprint("dav", __name__, url_prefix="/dav")
 
@@ -95,7 +95,7 @@ def _perms(root: dict) -> frozenset[str]:
 
 def _require(root: dict, *needed: str) -> None:
     if not set(needed) <= _perms(root):
-        abort(403)
+        deny(403, missing_reason(root, needed))  # el cliente sabe si es solo lectura, su token o su rol
 
 
 def _stat(root: dict, rel: str):
@@ -348,7 +348,7 @@ def _put(root: dict, rel: str) -> Response:
     length = request.content_length
     limit = settings()["storage"]["max_file_size_mb"] * 1024 * 1024
     if limit and length and length > limit:
-        abort(413)
+        deny(413, "too_large")
     old_size = entry.size if entry is not None else 0  # sobrescribir libera lo anterior
     _check_quota(root, rel, length or 0, old_size)
     try:
@@ -366,7 +366,7 @@ def _put(root: dict, rel: str) -> Response:
                     break
                 received += len(block)
                 if limit and received > limit:
-                    abort(413)
+                    deny(413, "too_large")
                 out.write(block)
         if not length:
             _check_quota(root, rel, received, old_size)  # sin Content-Length: ahora se sabe cuánto es
@@ -568,7 +568,7 @@ def dav(sub: str = ""):
         _require(root, "download")
         if method == "GET":
             _audit("download", root, rel)
-        return send_entry(root, rel, entry, head=method == "HEAD")
+        return send_entry(root, rel, entry, head=method == "HEAD", guard=transfer_guard([(root, rel)]))
     if method == "PUT":
         return _put(root, rel)
     if method == "MKCOL":

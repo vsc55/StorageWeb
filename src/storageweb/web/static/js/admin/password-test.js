@@ -1,7 +1,10 @@
 // Seguridad → Contraseñas: el probador. Envía la contraseña escrita (y el usuario, si lo hay) con las reglas que hay
 // en la página ahora, guardadas o no (el formulario de ajustes entero, from_page=1), a settings.password_test, que
 // contesta con cada regla (ok: true / false / null = sin comprobar) y lo pinta como lista. No guarda nada, y no es un
-// <form> ni un type="password" para que el navegador no ofrezca guardar la contraseña.
+// <form> ni un type="password" para que el navegador no ofrezca guardar la contraseña. La lista y la barra de fortaleza
+// se pintan con SW.paintChecks / SW.paintStrength (password-meter.js); «Generar» pide una que cumpla esas reglas. Se
+// prueba sola mientras se escribe (y al cambiar las reglas), salvo las filtraciones conocidas, que van a internet: esas,
+// con el botón «Probar».
 (function () {
   "use strict";
 
@@ -26,43 +29,39 @@
     password.classList.toggle("is-masked", !event.target.checked);
   });
 
-  function icon(name) { return window.SW.icon(name, "icon-sm"); }
+  var strength = box.querySelector(".pw-strength");
 
   function paint(data) {
-    list.innerHTML = "";
-    data.checks.forEach(function (c) {
-      var li = document.createElement("li");
-      li.className = c.ok === true ? "is-ok" : c.ok === false ? "is-bad" : "is-unknown";
-      li.appendChild(icon(c.ok === true ? "check-circle" : c.ok === false ? "x" : "clock"));
-      var text = document.createElement("span");
-      text.textContent = c.label;
-      li.appendChild(text);
-      if (c.message) {
-        var why = document.createElement("small");
-        why.className = "muted";
-        why.textContent = c.message;
-        li.appendChild(why);
-      }
-      list.appendChild(li);
-    });
+    window.SW.paintChecks(list, data.checks);
+    window.SW.paintStrength(strength, data.checks.length ? data : null);
     summary.textContent = data.summary;
     summary.className = "password-test-summary " + (data.ok ? "text-ok" : "text-danger");
     box.hidden = false;
   }
 
-  function body() {
+  function body(live) {
     var data = settingsForm ? new FormData(settingsForm) : new FormData();
+    if (live) data.append("live", "1");      // mientras se escribe: sin ir a internet (filtraciones)
     form.querySelectorAll("input[name]").forEach(function (input) { data.append(input.name, input.value); });
     if (settingsForm) data.append("from_page", "1");
     return data;
   }
 
-  function run() {
-    if (!password.value) { password.focus(); return; }
-    button.disabled = true;
-    window.SW.getJSON(form.dataset.action, { method: "POST", body: body() })
-      .then(paint)
+  // ``quiet``: la comprobación mientras se escribe (sin mover el foco ni desactivar el botón). Una respuesta que llega
+  // tarde (de lo que se escribía antes) se descarta
+  var seq = 0;
+  var timer = null;
+  function run(quiet) {
+    if (!password.value) {
+      if (quiet) { ++seq; box.hidden = true; } else { password.focus(); }
+      return;
+    }
+    var mine = ++seq;
+    if (!quiet) button.disabled = true;
+    window.SW.getJSON(form.dataset.action, { method: "POST", body: body(quiet) })
+      .then(function (data) { if (mine === seq) paint(data); })
       .catch(function () {
+        if (mine !== seq) return;
         list.innerHTML = "";
         summary.textContent = t("Network error.");
         summary.className = "password-test-summary text-danger";
@@ -70,12 +69,35 @@
       })
       .finally(function () { button.disabled = false; });
   }
+  function later() {
+    clearTimeout(timer);
+    timer = setTimeout(function () { run(true); }, 250);
+  }
 
-  button.addEventListener("click", run);
+  button.addEventListener("click", function () { run(false); });
+  // En tiempo real: al escribir la contraseña o el usuario, y al cambiar las reglas de la otra pestaña
+  password.addEventListener("input", later);
+  if (nameField) nameField.querySelector("input").addEventListener("input", function () { if (password.value) later(); });
+  if (settingsForm) {
+    ["input", "change"].forEach(function (type) {
+      settingsForm.addEventListener(type, function () { if (password.value) later(); });
+    });
+  }
+  // Generar: una aleatoria con las reglas que hay en la página (guardadas o no), a la vista y ya probada
+  form.querySelector(".js-generate").addEventListener("click", function () {
+    window.SW.getJSON(form.dataset.generate, { method: "POST", body: body() })
+      .then(function (data) {
+        password.value = data.password;
+        password.classList.remove("is-masked");
+        form.querySelector(".js-show-password").checked = true;
+        run(false);
+      })
+      .catch(function () { window.SW.alert(t("No password could be generated with the current rules.")); });
+  });
   form.addEventListener("keydown", function (event) {
     if (event.key === "Enter" && event.target.tagName === "INPUT" && event.target.type === "text") {
       event.preventDefault();
-      run();
+      run(false);
     }
   });
 })();

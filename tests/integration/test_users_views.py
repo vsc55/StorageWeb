@@ -3,7 +3,7 @@ import pytest
 
 from storageweb.core import groups as gc
 from storageweb.web.context import get_db
-from tests.helpers import add_user, login, visible, U, G, get_user, audit_actions
+from tests.helpers import add_user, login, visible, U, G, get_user, audit_actions, last_audit
 
 
 @pytest.fixture
@@ -200,3 +200,26 @@ def test_entra_accounts_can_be_disabled_but_not_your_own(make_app):
     client.post(f"/admin/users/{root['uid']}", data=form)
     with app.app_context():
         assert user_repo.get_by_username(get_db(), "root")["enabled"]
+
+
+def test_change_password_in_a_modal(app, admin):
+    """El formulario solo (?modal=1) para el modal de admin/password-modal.js, y respuestas JSON: el error para
+    enseñarlo dentro y el aviso al acertar (sin flash: ya lo enseña el modal)."""
+    client, token = admin
+    luis = add_user(app, "luis")
+    url = f"/admin/users/{U(luis)}/password"
+    fragment = client.get(url + "?modal=1").get_data(as_text=True)
+    assert fragment.lstrip().startswith(("{#", "<form")) and "<html" not in fragment
+    assert "password-modal-form" in fragment and "js-password-error" in fragment and "data-close" in fragment
+    page = client.get(url).get_data(as_text=True)
+    assert "<html" in page and 'class="card form-grid"' in page                  # sin JavaScript, la página
+    assert "data-password-modal" in client.get("/admin/users").get_data(as_text=True)
+    json_headers = {"Accept": "application/json", "X-CSRF-Token": token}
+    resp = client.post(url, data={"password": "Una-Clave-Larga-2026", "repeat_password": "otra"},
+                       headers=json_headers)
+    assert resp.status_code == 400 and "no coinciden" in resp.get_json()["error"]
+    resp = client.post(url, data={"password": "Una-Clave-Larga-2026", "repeat_password": "Una-Clave-Larga-2026"},
+                       headers=json_headers)
+    assert resp.status_code == 200 and "luis" in resp.get_json()["message"]
+    assert last_audit(app, "password_reset_by_admin")["target"] == "luis"
+    assert login(app.test_client(), "luis", "Una-Clave-Larga-2026").status_code == 302

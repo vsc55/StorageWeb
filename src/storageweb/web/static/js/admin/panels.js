@@ -56,13 +56,7 @@
     // Los avisos que trae la respuesta («Cambios guardados»…), abajo a la derecha como siempre
     var toasts = doc.querySelector(".toasts");
     if (toasts) {
-      var box = document.querySelector(".toasts");
-      if (!box) {
-        box = document.createElement("div");
-        box.className = "toasts";
-        box.setAttribute("aria-live", "polite");
-        document.body.appendChild(box);
-      }
+      var box = window.SW.toastBox();
       Array.prototype.slice.call(toasts.children).forEach(function (toast) {
         box.appendChild(toast);
         window.SW.toast(toast);
@@ -83,9 +77,8 @@
     busy = new AbortController();
     var detail = document.querySelector(".md-detail");
     if (detail) detail.classList.add("is-loading");
-    var request = Object.assign({ credentials: "same-origin", signal: busy.signal,
-                                  headers: { "X-Requested-With": "fetch" } }, options || {});
-    return fetch(url, request).then(function (response) {
+    var request = Object.assign({ signal: busy.signal }, options || {});
+    return window.SW.page(url, request).then(function (response) {
       return response.text().then(function (html) {
         busy = null;
         var final = new URL(response.url);

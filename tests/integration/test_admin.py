@@ -180,7 +180,8 @@ def test_disable_user(app, admin):
     assert 'name="enabled"' not in client.get(f"/admin/users/{U(uid)}").get_data(as_text=True).split("danger-zone")[0]
     client.post(f"/admin/users/{U(uid)}/status", data={"_csrf": token, "enabled": "0"})
     assert not get_user(app, "ana")["enabled"]
-    assert "incorrectos" in login(app.test_client(), "ana").get_data(as_text=True)
+    other = app.test_client()                                   # con su contraseña buena se le dice por qué
+    assert "deshabilitada" in other.get(login(other, "ana").location).get_data(as_text=True)
     client.post(f"/admin/users/{U(uid)}", data={"_csrf": token, "role": "user", "enabled": "on"})
     assert not get_user(app, "ana")["enabled"]                                       # ni con la casilla a mano
 

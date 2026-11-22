@@ -145,6 +145,25 @@ Lo más rápido: en el *Explorador*, clic derecho sobre un archivo o carpeta →
 
 En el panel *Sincronización*, el botón de pausa de cada carpeta (o el de arriba, para todas), o el icono de la barra de estado → **Pausar la sincronización**. Para en el acto la pasada que esté en marcha, deja de vigilar tus cambios y de consultar el servidor. La pausa se mantiene aunque cierres o recargues VS Code, hasta que pulses **Reanudar** (o *Sincronizar ahora* sobre esa carpeta). Al reanudar se hace una sincronización completa con lo que haya cambiado en los dos lados mientras tanto.
 
+## Cuando el servidor no deja hacer algo
+
+StorageWeb dice a la extensión por qué deniega algo (cabecera `X-StorageWeb-Reason`), y la extensión lo explica en vez de dar un error genérico. Cada aviso sale **una vez**, no en cada vuelta: se repite solo si cambia, al reanudar o al pulsar *Sincronizar ahora*. El estado de la carpeta (panel *Sincronización* y barra de estado) lo sigue diciendo mientras dure.
+
+| Qué pasa | Qué hace la extensión |
+|---|---|
+| Tu cuenta está **desactivada** | Para la sincronización y avisa: «Tu cuenta de StorageWeb está desactivada: pregunta a un administrador». |
+| El **token ha caducado** o se revocó | Para y ofrece **Iniciar sesión otra vez** (en el navegador) o **Cambiar el token…**. |
+| El servidor ya no admite tokens, o la cuenta tiene verificación en dos pasos y se usó la contraseña | Para y lo explica. |
+| **Demasiados intentos fallidos** | Espera 5 minutos y lo vuelve a intentar sola. |
+| La **IP de tu equipo está bloqueada** | Para y avisa: lo tiene que desbloquear un administrador. |
+| El servidor está **en mantenimiento** (restaurando una copia) | Sin avisos: el estado lo dice y lo vuelve a intentar en la siguiente vuelta. |
+| La **carpeta del servidor ya no existe o ya no tienes acceso** | La sincronización de esa carpeta queda **en pausa** y **no se borra nada** en tu equipo. El aviso ofrece *Sincronizar ahora* (cuando vuelvas a tener acceso) y *Desvincular*. El servidor no distingue los dos casos a propósito. |
+| La carpeta es **de solo lectura** para ti, el **token es de solo lectura** o tu **rol no deja subir** | Avisa de que los cambios no se pueden subir y por qué. No intenta el resto de subidas de esa vuelta, pero lo que cambie en el servidor sigue llegando. Lo que modificaste y no se pudo subir **se queda en tu equipo** (en un conflicto, tu versión queda como copia solo aquí). Lo que **borraste** en tu equipo **se vuelve a bajar** del servidor (el aviso lo dice): no queda como borrado pendiente que se haría solo si más adelante te dieran permiso. |
+| Un archivo **supera el tamaño máximo** del servidor | Avisa con los nombres, sube lo demás y no lo vuelve a intentar hasta que el archivo cambie. |
+| Una **descarga se corta a medias** (p. ej. al desactivar la cuenta o quitar el acceso mientras tanto) | Se trata como un fallo de red: nunca se guarda un archivo incompleto. |
+
+Con los archivos del servidor abiertos directamente (`storageweb://`), al abrir o guardar sale el mismo motivo («No permitido: la carpeta es de solo lectura para ti», «El token de API ha caducado…»). Si el servidor rechaza las credenciales, la cuenta o la IP, la extensión deja de comprobar si esos archivos cambian (seguir preguntando solo sumaría intentos fallidos) y lo avisa una vez; vuelve a comprobarlos al cambiar el token o en cuanto algo funciona otra vez.
+
 ## Ajustes
 
 | Ajuste | Por defecto | |
@@ -186,7 +205,8 @@ La lógica está en módulos sin VS Code que se prueban con Node:
 | Módulo | |
 |---|---|
 | `src/sync.js` | Motor de sincronización: tres vías, conflictos, comprobación de bucle, cancelar, rutas ocultas en el servidor |
-| `src/dav.js` | Cliente WebDAV |
+| `src/dav.js` | Cliente WebDAV (el motivo de `X-StorageWeb-Reason` en `DavError.code`; descargas cortadas = error de red) |
+| `src/messages.js` | Qué decir según el motivo que da el servidor (lo usan los avisos, los paneles y `storageweb://`) |
 | `src/remotefs.js` | Los archivos de un servidor como sistema de archivos |
 | `src/servers.js` | Lista de servidores (tokens en el almacén de secretos) |
 | `src/connect.js` | Iniciar sesión en el navegador (PKCE, [ADR 0016](../arquitectura/decisiones/0016-conectar-aplicaciones-con-el-navegador.md)) |

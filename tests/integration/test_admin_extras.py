@@ -172,7 +172,7 @@ def test_grant_groups_and_group_names(entra_admin, monkeypatch):
 
     gid = "11111111-1111-1111-1111-111111111111"
     monkeypatch.setattr(entra_directory, "names_for", lambda ecfg, ids: {gid: "Sistemas"} if gid in ids else {})
-    monkeypatch.setattr(entra_directory, "search_groups", lambda ecfg, q: [{"id": gid, "name": "Sistemas"}])
+    monkeypatch.setattr(entra_directory, "search_groups", lambda ecfg, q, limit=20: [{"id": gid, "name": "Sistemas"}])
     uid = add_user(app, "eva@x.com", password=None, source="entra", external_id="o-eva")
     from storageweb.core import groups as gc
     with app.app_context():

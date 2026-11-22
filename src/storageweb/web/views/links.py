@@ -25,7 +25,7 @@ from ... import patterns
 from ..context import boot_config, external_url, get_db, login_limiter, runtime, settings
 from ..downloads import csv_response, send_entry, zip_response
 from ..forms import flash_outcome, next_url, remembered
-from ..guards import audit_event, client_ip, login_required, safe_next
+from ..guards import TransferGuard, audit_event, client_ip, login_required, safe_next
 
 bp = Blueprint("links", __name__)
 
@@ -265,6 +265,29 @@ def _for_download(token: str, folder: bool):
     return (link, root, rel, entry), None
 
 
+def _link_guard(link, root: dict, rel: str) -> TransferGuard:
+    """Una descarga larga desde un enlace se corta a mitad si lo revocan o caduca, o si quien lo creó deja de poder
+    compartir eso (cuenta desactivada, carpeta o permiso perdidos: :func:`links.resolve`, como en cada visita)."""
+    link_id = link["id"]
+
+    def check() -> str:
+        conn, cfg = get_db(), settings()
+        now = repo.get_by_id(conn, link_id)
+        if now is None or links.state(now) in ("revoked", "expired"):
+            return "link_closed"
+        try:
+            links.resolve(conn, cfg, now)
+        except links.LinkError:
+            return "no_access"
+        return "hidden" if storage.is_hidden(cfg, rel) else ""
+
+    def cut(why: str) -> None:
+        _audit("download_cut", link, root, rel, why)
+        _record(link, "refused", path=rel, detail=f"cut:{why}")
+
+    return TransferGuard(check, cut)
+
+
 @bp.route("/s/<token>/download")
 def public_download(token: str):
     found, error = _for_download(token, folder=False)
@@ -274,7 +297,7 @@ def public_download(token: str):
     _audit("link_download", link, root, rel)
     _record(link, "download", path=rel, detail=str(entry.size))
     metrics.inc("storageweb_link_downloads_total")
-    return send_entry(root, rel, entry)
+    return send_entry(root, rel, entry, guard=_link_guard(link, root, rel))
 
 
 @bp.route("/s/<token>/zip")
@@ -285,7 +308,7 @@ def public_zip(token: str):
     link, root, rel, _entry = found
     _audit("link_download", link, root, rel, "zip")
     _record(link, "zip", path=rel)
-    return zip_response(settings(), [(root, rel)])
+    return zip_response(settings(), [(root, rel)], guard=_link_guard(link, root, rel))
 
 
 @bp.route("/s/<token>/upload", methods=["POST"])

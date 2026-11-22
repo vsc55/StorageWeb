@@ -24,11 +24,12 @@ const { ConnectError, exchange, parseCallback, startRequest } = require("./conne
 const { DavClient, DavError } = require("./dav");
 const { DEFAULT_EXCLUDES, excluder, ignorePatterns } = require("./glob");
 const { LocalFs } = require("./localfs");
+const { DENIED, codeOf, deniedReason, describe, needsToken, reasonText } = require("./messages");
 const { SCHEME, StorageWebFs, remoteUri } = require("./provider");
 const { RemoteFs, RemoteFsError, parentOf } = require("./remotefs");
 const { ServerStore, hostOf, normalizeUrl, secretKey } = require("./servers");
-const { SyncEngine, SyncLoopError } = require("./sync");
-const { ServersTree, SyncTree, describe } = require("./views");
+const { RemoteRootMissing, SyncEngine, SyncLoopError } = require("./sync");
+const { ServersTree, SyncTree } = require("./views");
 
 const t = vscode.l10n.t;
 const SECTION = "storageweb";
@@ -36,6 +37,8 @@ const PENDING = "storageweb.pendingLinks";
 const SIGN_IN_MINUTES = 5;
 const IGNORE_FILE = ".storagewebignore";
 const PAUSED = "storageweb.paused";
+const THROTTLED_RETRY_MINUTES = 5;
+const MAX_NAMES = 5;
 
 /** @type {vscode.OutputChannel} */
 let output;
@@ -51,6 +54,15 @@ let remote;
 let serversTree;
 /** @type {SyncTree} */
 let syncTree;
+/** @type {StorageWebFs} */
+let fsProvider;
+/**
+ * Avisos ya mostrados de un servidor y usuario («servidor|usuario|motivo»): la cuenta desactivada, el token
+ * caducado o la IP bloqueada se avisan una vez aunque haya varias carpetas o vueltas, hasta que algo vuelve
+ * a funcionar, se cambia el token o la persona pide sincronizar.
+ * @type {Set<string>}
+ */
+const notified = new Set();
 /** @type {Map<string, FolderSync>} carpeta (uri) → su sincronización */
 const running = new Map();
 /** @type {Map<string, number>} última orden de arranque por carpeta (guardar la configuración la repite) */
@@ -80,6 +92,34 @@ function binding(folder) {
 /** @param {unknown} err */
 function showError(err) {
   vscode.window.showErrorMessage(t("StorageWeb: {0}", describe(err)));
+}
+
+/** @param {{server: string, username: string}} who */
+function noticePrefix(who) {
+  return `${normalizeUrl(who.server) || who.server}|${who.username.toLowerCase()}|`;
+}
+
+/**
+ * Muestra un aviso sobre un servidor y usuario solo si no se ha mostrado ya (ver `notified`).
+ * @param {{server: string, username: string}} who @param {string} reason @param {() => void} show
+ */
+function notifyOnce(who, reason, show) {
+  const key = noticePrefix(who) + reason;
+  if (notified.has(key)) return;
+  notified.add(key);
+  show();
+}
+
+/** Lo de ese servidor y usuario se vuelve a avisar si vuelve a pasar. @param {{server: string, username: string}} who */
+function clearNotices(who) {
+  const prefix = noticePrefix(who);
+  for (const key of [...notified]) if (key.startsWith(prefix)) notified.delete(key);
+}
+
+/** Una lista de nombres para un aviso: los primeros y cuántos más. @param {string[]} paths */
+function someNames(paths) {
+  const names = paths.slice(0, MAX_NAMES).map((p) => p.split("/").pop() || p).join(", ");
+  return paths.length > MAX_NAMES ? t("{0} and {1} more", names, paths.length - MAX_NAMES) : names;
 }
 
 // --------------------------------------------------------------------------- servidores
@@ -210,6 +250,7 @@ function serverChanged(id) {
   if (id) {
     clients.delete(id);
     remote.forget(id);
+    if (fsProvider) fsProvider.unblock(id);
   }
   serversTree.refresh();
 }
@@ -267,13 +308,50 @@ async function setTokenCommand(/** @type {any} */ node) {
   if (!profile) return;
   const credentials = await askCredentials(profile.url,
     t("StorageWeb: token for {0} ({1})", store.title(profile), profile.username), profile.username);
-  if (!credentials) return;
-  const { token } = credentials;
+  if (credentials) await saveToken(profile, credentials.token);
+}
+
+/**
+ * Guarda el token nuevo de un servidor (si funciona) y vuelve a arrancar sus carpetas sincronizadas.
+ * @param {import("./servers").ServerProfile} profile @param {string} token
+ */
+async function saveToken(profile, token) {
   if (!(await checkAccess(new DavClient(profile.url, profile.username, token)))) return;
   await store.setToken(profile, token);
   serverChanged(profile.id);
+  clearNotices({ server: profile.url, username: profile.username });
   for (const folder of foldersOf(profile)) await startFolder(folder);
   vscode.window.showInformationMessage(t("StorageWeb: token saved for {0}.", store.title(profile)));
+}
+
+/**
+ * El token ya no vale (caducó, se revocó…): iniciar sesión otra vez en el navegador con la misma cuenta.
+ * @param {import("./servers").ServerProfile} profile
+ */
+async function signInAgain(profile) {
+  const got = await signInWithBrowser(profile.url);
+  if (!got) return;
+  if (got.username.toLowerCase() !== profile.username.toLowerCase()) {
+    showError(new Error(t("You signed in as «{0}», but this server is set up for «{1}». Add it as another server instead.",
+      got.username, profile.username)));
+    return;
+  }
+  await saveToken(profile, got.token);
+}
+
+/**
+ * Los botones para arreglar un token que ya no vale: iniciar sesión otra vez o cambiarlo (sin perfil, vincular).
+ * @param {{server: string, username: string}} who @param {vscode.WorkspaceFolder} [folder]
+ * @returns {[string[], (choice: string | undefined) => unknown]}
+ */
+function tokenFixes(who, folder) {
+  const again = t("Sign in again"), change = t("Change token…");
+  const profile = store.find(who.server, who.username);
+  return [[again, change], (choice) => {
+    if (!choice) return undefined;
+    if (!profile) return vscode.commands.executeCommand("storageweb.link", folder);
+    return choice === again ? signInAgain(profile) : setTokenCommand({ profile });
+  }];
 }
 
 async function editServerCommand(/** @type {any} */ node) {
@@ -376,10 +454,28 @@ async function copyAll(pairs, title) {
           done++;
         } catch (err) {
           showError(err);
+          if (stopsBatch(err)) break;  // el resto fallaría igual: un aviso, no uno por archivo
         }
       }
     });
   return done;
+}
+
+/**
+ * ¿Un error tras el que no tiene sentido seguir copiando? Sin red, servidor en mantenimiento, credenciales,
+ * cuenta o IP rechazadas, o una carpeta en la que no se puede escribir. Los de un archivo (demasiado grande,
+ * oculto en el servidor, ya existe…) no paran el resto. Se mira el código y el texto del error de VS Code
+ * (lo demás que pone provider.js no llega hasta aquí). @param {unknown} err
+ */
+function stopsBatch(err) {
+  if (!(err instanceof Error)) return false;
+  const code = /** @type {any} */ (err).code;
+  if (code === "Unavailable") return true;
+  if (code !== "NoPermissions") return false;
+  const fatal = [...DENIED, "ip_banned", "account_disabled", "token_expired", "token_invalid", "tokens_disabled",
+    "password_not_allowed", "mfa_requires_token", "throttled"].map((c) => reasonText(c, 403));
+  fatal.push(t("The server rejected the user or the token."));
+  return fatal.some((text) => err.message.includes(text));
 }
 
 async function newFolderCommand(/** @type {any} */ node) {
@@ -611,6 +707,12 @@ class FolderSync {
     this.error = undefined;
     this.busy = false;
     this.stopped = false;
+    /** En pausa por un error (bucle, carpeta del servidor que ya no está): «Sincronizar ahora» la vuelve a arrancar. */
+    this.halted = false;
+    this.retryTimer = undefined;
+    /** Lo último avisado de esta carpeta (para no repetirlo en cada vuelta): sin permiso para escribir, demasiado grandes. */
+    this.deniedShown = "";
+    this.tooLargeShown = "";
     this.loopChecked = false;  // la primera pasada comprueba que no se sincroniza consigo misma
     this.queuedSync = false;
     this.lastDuration = 0;
@@ -657,8 +759,15 @@ class FolderSync {
     clearInterval(this.timer);
     clearTimeout(this.debounce);
     clearTimeout(this.reload);
+    clearTimeout(this.retryTimer);
     for (const d of this.disposables) d.dispose();
     this.disposables = [];
+  }
+
+  /** En pausa hasta que la persona pida sincronizar (un error que no se arregla solo). */
+  halt() {
+    this.pause();
+    this.halted = true;
   }
 
   /** Para del todo, también la pasada en curso (en cuanto termine el archivo que está tratando). */
@@ -707,11 +816,52 @@ class FolderSync {
     this.pending.clear();
     if (!paths.length) return Promise.resolve();
     return this.serial(async () => {
-      const clean = await this.engine.push(paths);
+      /** @type {{denied?: string, notUploaded?: number, tooLarge?: string[], restored?: string[]}} */
+      const report = {};
+      const clean = await this.engine.push(paths, report);
       this.error = undefined;
       this.lastSync = new Date();
+      this.refusals({ denied: report.denied || "", tooLarge: report.tooLarge || [], restored: report.restored || [] }, false);
       if (!clean) await this.fullSync();  // cambió en el servidor entre medias
     });
+  }
+
+  /**
+   * Lo que el servidor no aceptó sin que sea un fallo: escrituras sin permiso y archivos demasiado grandes. Se
+   * avisa una vez (otra vez solo si cambia o tras reanudar); lo demás queda en el estado de la carpeta.
+   * `full`: de una sincronización completa (si ya no pasa, se olvida lo avisado).
+   * @param {{denied: string, tooLarge: string[], restored?: string[]}} r @param {boolean} full
+   */
+  refusals(r, full) {
+    const restored = r.restored || [];
+    if (r.denied) {
+      if (!this.error) this.error = t("cannot upload changes: {0}", deniedReason(r.denied));
+      if (r.denied !== this.deniedShown) {
+        this.deniedShown = r.denied;
+        const [buttons, act] = r.denied === "token_read_only" ? tokenFixes(this.bind, this.folder) : [[], () => undefined];
+        vscode.window.showWarningMessage(restored.length
+          ? t("StorageWeb: the changes in «{0}» cannot be uploaded to «{1}»: {2}. They stay on this computer; changes on the server still arrive. The files deleted here were downloaded again: {3}",
+            this.folder.name, this.bind.remoteFolder, deniedReason(r.denied), someNames(restored))
+          : t("StorageWeb: the changes in «{0}» cannot be uploaded to «{1}»: {2}. They stay on this computer; changes on the server still arrive.",
+            this.folder.name, this.bind.remoteFolder, deniedReason(r.denied)), ...buttons).then(act);
+      } else if (restored.length) {
+        // Ya se avisó de que no se puede escribir, pero esto lo acaba de borrar la persona: que sepa por qué vuelve
+        vscode.window.showWarningMessage(
+          t("StorageWeb: what you deleted in «{0}» cannot be deleted on the server ({1}), so it was downloaded again: {2}",
+            this.folder.name, deniedReason(r.denied), someNames(restored)));
+      }
+    } else if (full) {
+      this.deniedShown = "";
+    }
+    const key = [...r.tooLarge].sort().join("\n");
+    if (key && key !== this.tooLargeShown) {
+      this.tooLargeShown = key;
+      vscode.window.showWarningMessage(
+        t("StorageWeb: these files of «{0}» are larger than the server allows and were not uploaded (they stay on this computer): {1}",
+          this.folder.name, someNames(r.tooLarge)));
+    } else if (!key && full) {
+      this.tooLargeShown = "";
+    }
   }
 
   /** Sincronización completa (también desde el comando y el temporizador). Si ya hay una en cola, esa. */
@@ -744,9 +894,11 @@ class FolderSync {
         return answer === remove;
       },
     });
-    this.loopChecked = true;
+    if (summary.loopChecked !== false) this.loopChecked = true;  // sin permiso de escritura no se pudo: la próxima
     this.lastSync = new Date();
     this.error = summary.errors.length ? summary.errors[0].error : undefined;
+    this.refusals(summary, true);
+    if (!summary.fatal) clearNotices(this.bind);  // el servidor contesta: lo que pase de nuevo se vuelve a avisar
     if (summary.noSpace) {
       vscode.window.showWarningMessage(t("StorageWeb: «{0}» could not upload everything because there is no space on the server. {1}",
         this.folder.name, summary.noSpace));
@@ -770,14 +922,35 @@ class FolderSync {
       log(t("{0}: ↑ {1} · ↓ {2} · deleted {3}", this.folder.name, summary.uploaded, summary.downloaded,
         summary.deletedLocal + summary.deletedRemote));
     }
+    if (summary.notUploaded) {
+      log(t("{0}: {1} changes were not uploaded: {2}", this.folder.name, summary.notUploaded, deniedReason(summary.denied)));
+    }
+    if (summary.fatal) throw summary.fatal;  // lo que paró la pasada (401, IP bloqueada, mantenimiento…): ver fail
   }
 
   fail(err) {
     const message = err instanceof Error ? err.message : String(err);
     this.error = message;
     log(`${this.folder.name}: ${message}`);
+    if (err instanceof RemoteRootMissing) {
+      // Se borró o ya no hay acceso: en pausa (nada se borra aquí) hasta que la persona pida sincronizar
+      this.halt();
+      this.error = t("no access to «{0}» on the server, or it no longer exists: paused", this.bind.remoteFolder);
+      const again = t("Synchronize now"), unlink = t("Unlink");
+      vscode.window.showWarningMessage(
+        t("StorageWeb: you no longer have access to «{0}» on the server, or it no longer exists. The synchronization of «{1}» is paused; nothing has been deleted.",
+          this.bind.remoteFolder, this.folder.name), again, unlink).then((choice) => {
+        if (choice === again) return startFolder(this.folder);
+        if (choice === unlink) return unlinkCommand(this.folder);
+        return undefined;
+      });
+      return;
+    }
+    if (err instanceof DavError) {
+      if (this.failedOnServer(err)) return;
+    }
     if (err instanceof SyncLoopError) {
-      this.pause();  // no se sincroniza sola; «Sincronizar ahora» lo vuelve a comprobar
+      this.halt();  // no se sincroniza sola; «Sincronizar ahora» lo vuelve a comprobar
       this.error = err.localDir ? t("it contains the server copy of «{0}» ({1})", this.bind.remoteFolder, err.localDir)
         : t("it is the server copy of «{0}»", this.bind.remoteFolder);
       const exclude = t("Exclude «{0}»", err.localDir), unlink = t("Unlink");
@@ -796,16 +969,68 @@ class FolderSync {
       });
       return;
     }
-    if (err instanceof DavError && err.status === 401) {
-      this.stop();
-      running.delete(this.folder.uri.toString());
-      const profile = store.find(this.bind.server, this.bind.username);
-      const fix = t("Change token…");
-      vscode.window.showErrorMessage(
-        t("StorageWeb: the server rejected the user or the token of «{0}» (revoked or expired?).", this.folder.name),
-        fix).then((c) => c && (profile ? setTokenCommand({ profile })
-        : vscode.commands.executeCommand("storageweb.link", this.folder)));
+  }
+
+  /**
+   * Lo que dice el servidor al denegar algo (ver messages.js): se para o se espera, y se avisa una vez.
+   * @param {DavError} err @returns {boolean} si era uno de esos casos
+   */
+  failedOnServer(err) {
+    const who = this.bind, code = err.code;
+    const title = (() => {
+      const profile = store.find(who.server, who.username);
+      return profile ? store.title(profile) : hostOf(who.server);
+    })();
+    if (err.status === 401) {
+      if (code === "throttled") {
+        // Demasiados intentos fallidos: se espera (seguir probando los alargaría) y se vuelve a probar sola
+        this.halt();
+        this.error = describe(err);
+        const key = this.folder.uri.toString();
+        this.retryTimer = setTimeout(() => { if (running.get(key) === this) startFolder(this.folder); },
+          THROTTLED_RETRY_MINUTES * 60000);
+        notifyOnce(who, "401:throttled", () => vscode.window.showWarningMessage(
+          t("StorageWeb: {0} ({1}). «{2}» will try again in {3} minutes.", describe(err), title, this.folder.name,
+            THROTTLED_RETRY_MINUTES)));
+        return true;
+      }
+      this.stop();  // con estas credenciales no va a funcionar: no se insiste (cada intento cuenta como fallido)
+      this.error = describe(err);
+      notifyOnce(who, `401:${code}`, () => {
+        if (code === "account_disabled" || code === "tokens_disabled") {
+          vscode.window.showErrorMessage(describe(err));
+          return;
+        }
+        const [buttons, act] = tokenFixes(who, this.folder);
+        const text = code === "token_expired"
+          ? t("StorageWeb: the API token for «{0}» has expired. Sign in again or set a new token.", title)
+          : code === "token_invalid"
+            ? t("StorageWeb: the server no longer recognizes the API token for «{0}» (revoked or deleted). Sign in again or set a new token.", title)
+            : code === "password_not_allowed" || code === "mfa_requires_token"
+              ? t("StorageWeb: {0} ({1})", describe(err), title)
+              : t("StorageWeb: the server rejected the user or the token of «{0}» (revoked or expired?).", this.folder.name);
+        vscode.window.showErrorMessage(text, ...(code ? buttons : [buttons[1]])).then(act);
+      });
+      return true;
     }
+    if (err.status === 403 && code === "ip_banned") {
+      this.stop();
+      this.error = describe(err);
+      notifyOnce(who, "403:ip_banned", () => vscode.window.showErrorMessage(t("StorageWeb: {0} ({1})", describe(err), title)));
+      return true;
+    }
+    if (err.status === 503 || err.status === 502 || err.status === 504) {
+      // Pasajero (restaurando una copia, o el servidor reiniciándose): sin avisos; se reintenta en la próxima vuelta
+      this.error = code === "maintenance"
+        ? t("the server is in maintenance (restoring a backup): it will try again shortly")
+        : t("the server is not responding (HTTP {0}): it will try again shortly", err.status);
+      return true;
+    }
+    if (err.status === 0 && code === "interrupted") {
+      this.error = t("a download was interrupted (nothing was saved): it will try again shortly");
+      return true;
+    }
+    return false;
   }
 }
 
@@ -1161,7 +1386,7 @@ async function syncNowCommand(/** @type {any} */ node) {
   }
   if (node && node.info) {
     const s = running.get(node.info.folder.uri.toString());
-    if (s) await s.sync();
+    if (s) await syncAgain(s);
     else if (node.info.state === "notoken") await linkCommand(node.info.folder);
     return;
   }
@@ -1170,7 +1395,17 @@ async function syncNowCommand(/** @type {any} */ node) {
       .then((c) => c && vscode.commands.executeCommand("storageweb.link"));
     return;
   }
-  await Promise.all([...running.values()].map((s) => s.sync()));
+  await Promise.all([...running.values()].map(syncAgain));
+}
+
+/**
+ * La persona pide sincronizar: una pasada completa o, si se paró por un error (token, cuenta, IP, carpeta que
+ * ya no está, bucle), volver a arrancarla; lo que vuelva a fallar se vuelve a avisar. @param {FolderSync} s
+ */
+async function syncAgain(s) {
+  if (!s.stopped && !s.halted) return s.sync();
+  clearNotices(s.bind);
+  return startFolder(s.folder);
 }
 
 /** @param {string} url @param {string} folderPath */
@@ -1231,7 +1466,19 @@ function activate(context) {
     if (!client) throw new RemoteFsError("NoPermissions", "", "The server rejected the user or the token");
     return client;
   });
-  const fsProvider = new StorageWebFs(remote);
+  fsProvider = new StorageWebFs(remote);
+  // Los archivos abiertos de un servidor que rechaza las credenciales, la cuenta o la IP dejan de comprobarse: se avisa una vez
+  fsProvider.onPollError = (id, err) => {
+    const profile = store.get(id);
+    if (!profile) return;
+    notifyOnce({ server: profile.url, username: profile.username }, `poll:${codeOf(err)}`, () => {
+      const [buttons, act] = needsToken(err) ? tokenFixes({ server: profile.url, username: profile.username })
+        : [[], () => undefined];
+      vscode.window.showWarningMessage(
+        t("StorageWeb: the files open from «{0}» are no longer checked for changes: {1}", store.title(profile), describe(err)),
+        ...buttons).then(act);
+    });
+  };
   serversTree = new ServersTree(store, remote);
   syncTree = new SyncTree(syncInfos);
   const serversView = vscode.window.createTreeView("storageweb.servers", { treeDataProvider: serversTree, showCollapseAll: true });

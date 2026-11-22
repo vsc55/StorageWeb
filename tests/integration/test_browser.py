@@ -77,6 +77,7 @@ def test_in_a_real_browser(make_app, home, monkeypatch):
     add_user(app, "ana")
     add_user(app, "root", role="admin")
     add_user(app, "pepa")      # la de las passkeys (tests/browser/passkeys.test.mjs)
+    add_user(app, "luis")      # el del modal de contraseña (tests/browser/admin.test.mjs)
     many = home / "Muchos"
     many.mkdir(parents=True)
     for i in range(120):
@@ -84,6 +85,7 @@ def test_in_a_real_browser(make_app, home, monkeypatch):
     (home / "notas.md").write_text(MARKDOWN, encoding="utf-8")
     (home / "texto.txt").write_text("primera línea\n", encoding="utf-8")
     (home / "borrar.txt").write_text("x", encoding="utf-8")
+    (home / "borrador.txt").write_text("original\n", encoding="utf-8")   # el editor que recupera lo no guardado
     # Una imagen de verdad (Pillow, dependencia de desarrollo): también tiene miniatura en el explorador
     from PIL import Image
     Image.new("RGBA", (1, 1), (255, 255, 255, 255)).save(home / "foto.png", "PNG")

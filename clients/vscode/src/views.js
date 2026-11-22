@@ -11,8 +11,7 @@
 
 const vscode = require("vscode");
 
-const { DavError } = require("./dav");
-const { RemoteFsError } = require("./remotefs");
+const { describe, isRejected, needsToken } = require("./messages");
 const { remoteUri } = require("./provider");
 const { hostOf } = require("./servers");
 
@@ -36,19 +35,6 @@ function humanSize(bytes) {
     i++;
   }
   return `${i ? value.toFixed(value < 10 ? 1 : 0) : value} ${units[i]}`;
-}
-
-/** El servidor no acepta el usuario o el token (revocado, caducado…). @param {unknown} err */
-function isRejected(err) {
-  return (err instanceof DavError && err.status === 401)
-    || (err instanceof RemoteFsError && err.message.startsWith("The server rejected"));
-}
-
-/** @param {unknown} err */
-function describe(err) {
-  if (isRejected(err)) return t("The server rejected the user or the token.");
-  if (err instanceof DavError && err.status === 404) return t("This StorageWeb does not have the network drive (WebDAV) enabled.");
-  return err instanceof Error ? err.message : String(err);
 }
 
 class ServersTree {
@@ -155,10 +141,12 @@ class ServersTree {
     try {
       entries = await this.remote.list(profile.id, path);
     } catch (err) {
-      const rejected = isRejected(err);
-      return [{ kind: "message", id: `${profile.id}:${path}:!error`, icon: rejected ? "key" : "warning",
+      // Lo que se arregla con otro token lleva a ponerlo; lo demás (cuenta desactivada, IP bloqueada,
+      // mantenimiento, sin red, sin acceso…), a reintentar
+      const fix = needsToken(err);
+      return [{ kind: "message", id: `${profile.id}:${path}:!error`, icon: fix ? "key" : "warning",
         text: describe(err),
-        command: rejected
+        command: fix
           ? { command: "storageweb.setToken", title: t("Set token…"), arguments: [{ kind: "server", profile }] }
           : { command: "storageweb.refreshNode", title: t("Retry"), arguments: [node] } }];
     }

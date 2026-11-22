@@ -12,6 +12,7 @@ from __future__ import annotations
 import csv
 import io
 import mimetypes
+import time
 from collections.abc import Iterable
 from datetime import datetime, timezone
 from urllib.parse import quote
@@ -23,13 +24,36 @@ from ..core import backends
 from ..core import files as files_core
 
 SANDBOX = "sandbox"
+CHECK_SECONDS = 30.0   # cada cuánto se vuelve a comprobar, mientras se envía, que se puede seguir (ver guarded)
+
+
+def guarded(body, guard):
+    """Los trozos de ``body`` mientras ``guard()`` no diga que hay que parar (lo pregunta cada
+    :data:`CHECK_SECONDS`): una descarga de horas no sigue saliendo si a mitad se desactiva la cuenta o se pierde el
+    acceso. Al cortar, la conexión se cierra antes de enviar todo lo anunciado (``Content-Length``) y el cliente
+    sabe que no la tiene entera. Siempre cierra ``body`` (el archivo)."""
+    last = time.monotonic()
+    try:
+        for chunk in body:
+            if time.monotonic() - last >= CHECK_SECONDS:
+                last = time.monotonic()
+                why = guard()
+                if why:
+                    guard.cut(why)
+                    return
+            yield chunk
+    finally:
+        close = getattr(body, "close", None)
+        if callable(close):
+            close()
 
 
 def send_entry(root: dict, rel: str, entry, *, head: bool = False, mimetype: str | None = None,
-               csp: str = SANDBOX):
+               csp: str = SANDBOX, guard=None):
     """Respuesta con el archivo ``rel`` de ``root`` (``entry`` = su ``Entry``). ``head``: solo cabeceras.
 
-    Con ``mimetype``, en línea (no como adjunto) y con ese tipo; ``csp`` es la política de la respuesta."""
+    Con ``mimetype``, en línea (no como adjunto) y con ese tipo; ``csp`` es la política de la respuesta. Con
+    ``guard`` (``guards.transfer_guard``…), se corta a mitad si deja de poder descargarse (:func:`guarded`)."""
     local = root["backend"].local_path(rel)
     inline = mimetype is not None
     if local is not None:
@@ -54,6 +78,8 @@ def send_entry(root: dict, rel: str, entry, *, head: bool = False, mimetype: str
     elif rv.status_code in (200, 206):  # un 304 no manda nada
         metrics.inc("storageweb_download_bytes_total", rv.content_length or 0,
                     via="webdav" if request.blueprint == "dav" else "web")
+        if guard is not None:
+            rv.response = stream_with_context(guarded(rv.response, guard))
     return rv
 
 
@@ -74,10 +100,13 @@ def attachment(body, mimetype: str, filename: str) -> Response:
     return rv
 
 
-def zip_response(cfg: dict, items: list[tuple[dict, str]]) -> Response:
-    """Carpetas y archivos (``(raíz, ruta)``) como un ZIP que se va generando mientras se descarga."""
-    return attachment(stream_with_context(files_core.zip_stream(cfg, items)), "application/zip",
-                      files_core.zip_name(items))
+def zip_response(cfg: dict, items: list[tuple[dict, str]], guard=None) -> Response:
+    """Carpetas y archivos (``(raíz, ruta)``) como un ZIP que se va generando mientras se descarga; con ``guard``,
+    se corta a mitad si deja de poder descargarse (:func:`guarded`)."""
+    body = files_core.zip_stream(cfg, items)
+    if guard is not None:
+        body = guarded(body, guard)
+    return attachment(stream_with_context(body), "application/zip", files_core.zip_name(items))
 
 
 def csv_response(header: list[str], rows: Iterable[list], filename: str) -> Response:

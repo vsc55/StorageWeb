@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: StorageWeb VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-22 16:24+0100\n"
+"POT-Creation-Date: 2026-11-22 21:21+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -771,6 +771,10 @@ msgstr "sí"
 msgid "(template)"
 msgstr "(plantilla)"
 
+#: storageweb/core/accounts.py storageweb/web/guards.py storageweb/web/views/mfa.py
+msgid "Your account is disabled."
+msgstr "Tu cuenta está deshabilitada."
+
 #: storageweb/core/accounts.py
 msgid "People cannot be imported from that sign-in method now."
 msgstr "Ahora no se pueden importar personas de ese método de inicio de sesión."
@@ -801,10 +805,6 @@ msgstr "Ya existe una cuenta con ese nombre. Contacta con el administrador."
 #: storageweb/core/accounts.py
 msgid "Your account is not registered in the application. Contact the administrator."
 msgstr "Tu cuenta no está dada de alta en la aplicación. Contacta con el administrador."
-
-#: storageweb/core/accounts.py storageweb/web/views/mfa.py
-msgid "Your account is disabled."
-msgstr "Tu cuenta está deshabilitada."
 
 #: storageweb/core/accounts.py storageweb/core/groups.py storageweb/web/views/settings/entra.py
 #, python-format
@@ -1210,8 +1210,8 @@ msgstr "El límite de descargas tiene que estar entre 1 y %(num)s."
 msgid "The secrets key is not available."
 msgstr "La clave de los secretos no está disponible."
 
-#: storageweb/core/links.py storageweb/web/templates/admin/users/_macros.html
-#: storageweb/web/templates/admin/users/panel.html
+#: storageweb/core/links.py storageweb/web/templates/admin/_panels.html
+#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/admin/users/panel.html
 msgid "Active"
 msgstr "Activo"
 
@@ -1414,6 +1414,16 @@ msgstr "Imagen externa no cargada:"
 #: storageweb/core/markdown.py
 msgid "open the link"
 msgstr "abrir el enlace"
+
+#: storageweb/core/named.py
+#, python-format
+msgid "%(name)s (copy)"
+msgstr "%(name)s (copia)"
+
+#: storageweb/core/named.py
+#, python-format
+msgid "%(name)s (copy %(num)s)"
+msgstr "%(name)s (copia %(num)s)"
 
 #: storageweb/core/network.py
 msgid ""
@@ -1903,16 +1913,6 @@ msgstr "Ya hay un rol con la clave «%(key)s»."
 #, python-format
 msgid "A role called «%(name)s» already exists."
 msgstr "Ya hay un rol que se llama «%(name)s»."
-
-#: storageweb/core/roles.py
-#, python-format
-msgid "%(name)s (copy)"
-msgstr "%(name)s (copia)"
-
-#: storageweb/core/roles.py
-#, python-format
-msgid "%(name)s (copy %(num)s)"
-msgstr "%(name)s (copia %(num)s)"
 
 #: storageweb/core/roles.py
 msgid "The built-in roles cannot be changed here."
@@ -2928,7 +2928,6 @@ msgid "a symbol (neither a letter nor a digit)"
 msgstr "un símbolo (ni letra ni número)"
 
 #: storageweb/providers/local/__init__.py storageweb/web/templates/_forms.html
-#: storageweb/web/templates/admin/user_form.html
 #, python-format
 msgid "At least %(num)s characters"
 msgstr "Al menos %(num)s caracteres"
@@ -2987,7 +2986,8 @@ msgstr "No es una de las contraseñas comunes"
 msgid "That password is one of the most common ones: choose another."
 msgstr "Esa contraseña es de las más comunes: elige otra."
 
-#: storageweb/providers/local/__init__.py
+#: storageweb/providers/local/__init__.py storageweb/web/views/profile.py
+#: storageweb/web/views/settings/passwords.py
 msgid "Does not appear in known data breaches"
 msgstr "No aparece en filtraciones conocidas"
 
@@ -3001,6 +3001,30 @@ msgstr[1] "Esa contraseña aparece en %(num)s filtraciones conocidas: elige otra
 #: storageweb/providers/local/__init__.py
 msgid "Have I Been Pwned did not answer: it is accepted without this check."
 msgstr "Have I Been Pwned no ha contestado: se acepta sin esta comprobación."
+
+#: storageweb/providers/local/__init__.py
+msgid "Very weak"
+msgstr "Muy débil"
+
+#: storageweb/providers/local/__init__.py
+msgid "Weak"
+msgstr "Débil"
+
+#: storageweb/providers/local/__init__.py
+msgid "Fair"
+msgstr "Aceptable"
+
+#: storageweb/providers/local/__init__.py
+msgid "Strong"
+msgstr "Fuerte"
+
+#: storageweb/providers/local/__init__.py
+msgid "Very strong"
+msgstr "Muy fuerte"
+
+#: storageweb/providers/local/__init__.py storageweb/web/js_messages.py
+msgid "No password could be generated with the current rules."
+msgstr "No se ha podido generar una contraseña con las reglas actuales."
 
 #: storageweb/providers/local/method.py storageweb/web/templates/admin/settings/auth/local.html
 msgid "User name and password stored in StorageWeb"
@@ -4011,6 +4035,10 @@ msgstr "Token de API no válido o caducado."
 msgid "API tokens can only be used to list, download and upload files."
 msgstr "Los tokens de API solo sirven para listar, descargar y subir archivos."
 
+#: storageweb/web/guards.py storageweb/web/js_messages.py
+msgid "Your session has ended. Sign in again."
+msgstr "Tu sesión ha terminado. Vuelve a entrar."
+
 #: storageweb/web/guards.py
 msgid "This section is for administrators only."
 msgstr "Esta sección es solo para administradores."
@@ -4104,6 +4132,16 @@ msgstr "Hay una subida en curso"
 #: storageweb/web/js_messages.py
 msgid "Network error."
 msgstr "Error de red."
+
+#: storageweb/web/js_messages.py
+msgid "Your last changes to this file were not saved (your session may have ended). Restore them?"
+msgstr ""
+"Tus últimos cambios en este archivo no se guardaron (puede que tu sesión hubiera terminado). "
+"¿Recuperarlos?"
+
+#: storageweb/web/js_messages.py storageweb/web/templates/admin/settings/backups.html
+msgid "Restore"
+msgstr "Restaurar"
 
 #: storageweb/web/js_messages.py
 msgid "This passkey is already on your account."
@@ -4213,6 +4251,22 @@ msgstr "%(count)s seleccionados:"
 #: storageweb/web/js_messages.py
 msgid "Copied"
 msgstr "Copiado"
+
+#: storageweb/web/js_messages.py storageweb/web/templates/_forms.html
+msgid "Show"
+msgstr "Mostrar"
+
+#: storageweb/web/js_messages.py
+msgid "Hide"
+msgstr "Ocultar"
+
+#: storageweb/web/js_messages.py
+msgid "They match."
+msgstr "Coinciden."
+
+#: storageweb/web/js_messages.py
+msgid "They do not match yet."
+msgstr "Todavía no coinciden."
 
 #: storageweb/web/js_messages.py storageweb/web/templates/admin/settings/sessions.html
 #: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/base.html
@@ -4383,9 +4437,9 @@ msgid "Back to the default"
 msgstr "Volver a la predeterminada"
 
 #: storageweb/web/js_messages.py storageweb/web/templates/admin/_panels.html
-#: storageweb/web/templates/admin/search.html storageweb/web/templates/admin/settings/files.html
-#: storageweb/web/templates/admin/user_import.html storageweb/web/templates/base.html
-#: storageweb/web/templates/search.html
+#: storageweb/web/templates/admin/groups/import.html storageweb/web/templates/admin/search.html
+#: storageweb/web/templates/admin/settings/files.html storageweb/web/templates/admin/user_import.html
+#: storageweb/web/templates/base.html storageweb/web/templates/search.html
 msgid "Search"
 msgstr "Buscar"
 
@@ -4449,10 +4503,10 @@ msgstr "aquí"
 msgid "Accept"
 msgstr "Aceptar"
 
-#: storageweb/web/js_messages.py storageweb/web/templates/admin/roles/_macros.html
+#: storageweb/web/js_messages.py storageweb/web/templates/admin/_user_password_form.html
+#: storageweb/web/templates/admin/roles/_macros.html
 #: storageweb/web/templates/admin/settings/backup_restore.html
-#: storageweb/web/templates/admin/settings/entra_register.html
-#: storageweb/web/templates/admin/user_password.html storageweb/web/templates/browse.html
+#: storageweb/web/templates/admin/settings/entra_register.html storageweb/web/templates/browse.html
 #: storageweb/web/templates/connect.html storageweb/web/templates/edit.html
 #: storageweb/web/templates/mfa_setup.html
 msgid "Cancel"
@@ -4755,6 +4809,7 @@ msgid "Operation · applies at once"
 msgstr "Operación · se aplica al momento"
 
 #: storageweb/web/search.py storageweb/web/templates/admin/_user_import_results.html
+#: storageweb/web/templates/admin/groups/_import_results.html
 #: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/groups/list.html
 #: storageweb/web/templates/admin/roles/list.html storageweb/web/templates/admin/settings/backups.html
 #: storageweb/web/templates/admin/settings/ips.html
@@ -4833,7 +4888,7 @@ msgid "File"
 msgstr "Archivo"
 
 #: storageweb/web/templates/_file_rows.html storageweb/web/templates/admin/_user_import_rows.html
-#: storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/admin/groups/_import_rows.html storageweb/web/templates/admin/users.html
 #, python-format
 msgid "Select %(name)s"
 msgstr "Seleccionar %(name)s"
@@ -4855,6 +4910,10 @@ msgstr "Nueva contraseña"
 #: storageweb/web/templates/_forms.html
 msgid "Repeat the new password"
 msgstr "Repite la nueva contraseña"
+
+#: storageweb/web/templates/_forms.html storageweb/web/templates/admin/settings/passwords.html
+msgid "Generate"
+msgstr "Generar"
 
 #: storageweb/web/templates/_link_filter.html
 msgid "Show links"
@@ -5201,6 +5260,7 @@ msgid "Clear selection"
 msgstr "Quitar selección"
 
 #: storageweb/web/templates/admin/_user_import_results.html
+#: storageweb/web/templates/admin/groups/_import_results.html
 #: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/admin/users.html
 #: storageweb/web/templates/browse.html
 msgid "Select all"
@@ -5265,7 +5325,8 @@ msgstr "Página %(page)s de %(pages)s"
 msgid "Next"
 msgstr "Siguiente"
 
-#: storageweb/web/templates/admin/_user_import_results.html storageweb/web/templates/browse.html
+#: storageweb/web/templates/admin/_user_import_results.html
+#: storageweb/web/templates/admin/groups/_import_results.html storageweb/web/templates/browse.html
 msgid "Load more"
 msgstr "Cargar más"
 
@@ -5303,7 +5364,8 @@ msgstr "Selecciona un archivo o una carpeta para ver su detalle."
 msgid "Type"
 msgstr "Tipo"
 
-#: storageweb/web/templates/admin/_user_import_rows.html storageweb/web/templates/admin/overview.html
+#: storageweb/web/templates/admin/_user_import_rows.html
+#: storageweb/web/templates/admin/groups/_import_rows.html storageweb/web/templates/admin/overview.html
 #: storageweb/web/templates/browse.html storageweb/web/templates/share.html
 msgid "Open"
 msgstr "Abrir"
@@ -5514,9 +5576,9 @@ msgstr "Iniciar sesión"
 msgid "Link activity"
 msgstr "Actividad del enlace"
 
-#: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/user_form.html
-#: storageweb/web/templates/admin/user_import.html storageweb/web/templates/admin/user_password.html
-#: storageweb/web/templates/link_activity.html
+#: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/groups/import.html
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/user_import.html
+#: storageweb/web/templates/admin/user_password.html storageweb/web/templates/link_activity.html
 msgid "Back"
 msgstr "Volver"
 
@@ -5777,6 +5839,7 @@ msgstr "La que usas para entrar con tu nombre de usuario."
 msgid "You sign in with %(source)s, so your password is managed there."
 msgstr "Inicias sesión con %(source)s, así que tu contraseña se gestiona allí."
 
+#: storageweb/web/templates/admin/_user_password_form.html
 #: storageweb/web/templates/admin/user_password.html storageweb/web/templates/admin/users.html
 #: storageweb/web/templates/admin/users/panel.html storageweb/web/templates/profile.html
 msgid "Change password"
@@ -6028,9 +6091,11 @@ msgstr[1] "Los tokens pueden durar como mucho %(num)s días: lo decide el admini
 msgid "Kind"
 msgstr "Tipo"
 
+#: storageweb/web/templates/admin/_panels.html storageweb/web/templates/admin/groups/_macros.html
+#: storageweb/web/templates/admin/groups/list.html
 #: storageweb/web/templates/admin/settings/server_folders.html
 #: storageweb/web/templates/admin/settings/sharing.html storageweb/web/templates/admin/users.html
-#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/profile.html
+#: storageweb/web/templates/profile.html
 msgid "Status"
 msgstr "Estado"
 
@@ -6401,6 +6466,15 @@ msgstr "Paneles"
 msgid "Clear"
 msgstr "Limpiar"
 
+#: storageweb/web/templates/admin/_panels.html
+msgid "All"
+msgstr "Todos"
+
+#: storageweb/web/templates/admin/_panels.html storageweb/web/templates/admin/users/_macros.html
+#: storageweb/web/templates/admin/users/panel.html storageweb/web/views/admin/users.py
+msgid "Disabled"
+msgstr "Deshabilitado"
+
 #: storageweb/web/templates/admin/_user_import_results.html
 msgid ""
 "The directory could not be read. Check the connection in Sign-in (the application needs the "
@@ -6419,6 +6493,7 @@ msgid "Nobody in the directory starts with «%(text)s»."
 msgstr "En el directorio no hay nadie que empiece por «%(text)s»."
 
 #: storageweb/web/templates/admin/_user_import_results.html
+#: storageweb/web/templates/admin/groups/_import_results.html
 #: storageweb/web/templates/admin/settings/system.html
 msgid "State"
 msgstr "Estado"
@@ -6454,8 +6529,23 @@ msgid "See that account"
 msgstr "Ver esa cuenta"
 
 #: storageweb/web/templates/admin/_user_import_rows.html
+#: storageweb/web/templates/admin/groups/_import_rows.html
 msgid "Import"
 msgstr "Importar"
+
+#: storageweb/web/templates/admin/_user_password_form.html
+#: storageweb/web/templates/admin/user_password.html
+#, python-format
+msgid "Change the password of «%(name)s»"
+msgstr "Cambiar la contraseña de «%(name)s»"
+
+#: storageweb/web/templates/admin/_user_password_form.html
+msgid ""
+"Their open sessions are closed and they will sign in with the new one. Give it to them by a safe "
+"way; they can change it afterwards in My profile."
+msgstr ""
+"Se cierran sus sesiones abiertas y entrará con la nueva. Dásela por un medio seguro; luego puede "
+"cambiarla en Mi perfil."
 
 #: storageweb/web/templates/admin/audit.html storageweb/web/templates/admin/users.html
 #, python-format
@@ -6876,7 +6966,8 @@ msgstr "separados por comas; los que no existan se crean como grupos locales"
 msgid "Create user"
 msgstr "Crear usuario"
 
-#: storageweb/web/templates/admin/user_import.html storageweb/web/templates/admin/users/_macros.html
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/user_import.html
+#: storageweb/web/templates/admin/users/_macros.html
 #, python-format
 msgid "Import from %(method)s"
 msgstr "Importar de %(method)s"
@@ -6891,7 +6982,7 @@ msgstr ""
 " primer inicio de sesión (nombre de usuario, rol según el mapeo y sus grupos), para darles "
 "carpetas y cuotas desde ahora."
 
-#: storageweb/web/templates/admin/user_import.html
+#: storageweb/web/templates/admin/groups/import.html storageweb/web/templates/admin/user_import.html
 msgid "Sign-in method"
 msgstr "Método de inicio de sesión"
 
@@ -6899,7 +6990,7 @@ msgstr "Método de inicio de sesión"
 msgid "Name, user name or email (at least 2 letters)"
 msgstr "Nombre, usuario o correo (al menos 2 letras)"
 
-#: storageweb/web/templates/admin/user_import.html
+#: storageweb/web/templates/admin/groups/import.html storageweb/web/templates/admin/user_import.html
 msgid "Show all"
 msgstr "Mostrar todos"
 
@@ -6908,26 +6999,13 @@ msgstr "Mostrar todos"
 msgid "%(num)s selected"
 msgstr "%(num)s seleccionadas"
 
-#: storageweb/web/templates/admin/user_import.html
+#: storageweb/web/templates/admin/groups/import.html storageweb/web/templates/admin/user_import.html
 msgid "Clear the selection"
 msgstr "Quitar la selección"
 
 #: storageweb/web/templates/admin/user_import.html
 msgid "Import the selected"
 msgstr "Importar las seleccionadas"
-
-#: storageweb/web/templates/admin/user_password.html
-#, python-format
-msgid "Change the password of «%(name)s»"
-msgstr "Cambiar la contraseña de «%(name)s»"
-
-#: storageweb/web/templates/admin/user_password.html
-msgid ""
-"Their open sessions are closed and they will sign in with the new one. Give it to them by a safe "
-"way; they can change it afterwards in My profile."
-msgstr ""
-"Se cierran sus sesiones abiertas y entrará con la nueva. Dásela por un medio seguro; luego puede "
-"cambiarla en Mi perfil."
 
 #: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/panel.html
 #, python-format
@@ -6941,9 +7019,10 @@ msgid_plural "%(num)s open sessions"
 msgstr[0] "%(num)s sesión abierta"
 msgstr[1] "%(num)s sesiones abiertas"
 
-#: storageweb/web/templates/admin/access/folder.html storageweb/web/templates/admin/groups/_macros.html
-#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/groups/matrix.html
-#: storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/admin/access/folder.html
+#: storageweb/web/templates/admin/groups/_import_results.html
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/groups/list.html
+#: storageweb/web/templates/admin/groups/matrix.html storageweb/web/templates/admin/users.html
 msgid "Group"
 msgstr "Grupo"
 
@@ -6968,11 +7047,13 @@ msgstr "Añadir a un grupo"
 msgid "Change role to %(role)s"
 msgstr "Cambiar el rol a %(role)s"
 
-#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/panel.html
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/admin/users/panel.html
 msgid "Enable"
 msgstr "Activar"
 
-#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/panel.html
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/admin/users/panel.html
 msgid "Disable"
 msgstr "Desactivar"
 
@@ -6983,6 +7064,10 @@ msgstr "Grupo…"
 #: storageweb/web/templates/admin/users.html
 msgid "Last sign-in"
 msgstr "Último acceso"
+
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/_macros.html
+msgid "Disabled group: it gives nothing until it is enabled again."
+msgstr "Grupo desactivado: no da nada hasta que se vuelva a activar."
 
 #: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/_macros.html
 #, python-format
@@ -7202,6 +7287,50 @@ msgstr ""
 msgid "Role permissions"
 msgstr "Permisos del rol"
 
+#: storageweb/web/templates/admin/groups/_import_results.html
+msgid ""
+"The directory could not be read. Check the connection in Sign-in (the application needs the "
+"Group.Read.All permission: «Repair permissions» adds it)."
+msgstr ""
+"No se ha podido leer el directorio. Revisa la conexión en Inicio de sesión (la aplicación "
+"necesita el permiso Group.Read.All: «Reparar permisos» lo añade)."
+
+#: storageweb/web/templates/admin/groups/_import_results.html
+msgid "The directory has no groups."
+msgstr "El directorio no tiene grupos."
+
+#: storageweb/web/templates/admin/groups/_import_results.html
+#, python-format
+msgid "No group in the directory starts with «%(text)s»."
+msgstr "Ningún grupo del directorio empieza por «%(text)s»."
+
+#: storageweb/web/templates/admin/groups/_import_results.html
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/roles/_macros.html
+msgid "Description"
+msgstr "Descripción"
+
+#: storageweb/web/templates/admin/groups/_import_results.html
+#, python-format
+msgid "Up to %(num)s results: if what you are looking for is not here, write more of the name."
+msgstr "Hasta %(num)s resultados: si no está lo que buscas, escribe más del nombre."
+
+#: storageweb/web/templates/admin/groups/_import_rows.html
+msgid "already registered"
+msgstr "ya dado de alta"
+
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/roles/_macros.html
+msgid "Clone"
+msgstr "Clonar"
+
+#: storageweb/web/templates/admin/groups/_macros.html
+#, python-format
+msgid ""
+"Disable the group «%(name)s»? Its members lose its shared folders, role and quota until it is "
+"enabled again; nothing is deleted."
+msgstr ""
+"¿Desactivar el grupo «%(name)s»? Sus miembros pierden sus carpetas compartidas, su rol y su cuota"
+" hasta que se vuelva a activar; no se borra nada."
+
 #: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/groups/matrix.html
 msgid "Read-only"
 msgstr "Solo lectura"
@@ -7247,10 +7376,6 @@ msgstr "En minúsculas, p. ej. rrhh. Lo usan las carpetas compartidas."
 #: storageweb/web/templates/admin/groups/_macros.html
 msgid "e.g. Human Resources"
 msgstr "p. ej. Recursos Humanos"
-
-#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/roles/_macros.html
-msgid "Description"
-msgstr "Descripción"
 
 #: storageweb/web/templates/admin/groups/_macros.html
 #, python-format
@@ -7419,6 +7544,19 @@ msgstr "Dar de alta"
 msgid "Group «%(name)s»"
 msgstr "Grupo «%(name)s»"
 
+#: storageweb/web/templates/admin/groups/form.html
+#, python-format
+msgid "Clone «%(name)s»"
+msgstr "Clonar «%(name)s»"
+
+#: storageweb/web/templates/admin/groups/form.html
+msgid ""
+"This group is disabled: its members do not get its shared folders, role or quota until it is "
+"enabled again."
+msgstr ""
+"Este grupo está desactivado: sus miembros no reciben sus carpetas compartidas, su rol ni su cuota"
+" hasta que se vuelva a activar."
+
 #: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/groups/list.html
 #: storageweb/web/templates/admin/groups/panel.html
 msgid "Built-in group"
@@ -7432,6 +7570,33 @@ msgid ""
 msgstr ""
 "Viene de serie: no se puede editar ni eliminar. Las carpetas compartidas pueden usarlo con el "
 "identificador %(name)s."
+
+#: storageweb/web/templates/admin/groups/form.html
+#, python-format
+msgid "Copy from «%(name)s»"
+msgstr "Copiar de «%(name)s»"
+
+#: storageweb/web/templates/admin/groups/form.html
+#, python-format
+msgid "Its member (%(num)s), added by hand"
+msgid_plural "Its members (%(num)s), added by hand"
+msgstr[0] "Su miembro (%(num)s), como añadido a mano"
+msgstr[1] "Sus miembros (%(num)s), como añadidos a mano"
+
+#: storageweb/web/templates/admin/groups/form.html
+#, python-format
+msgid "Its access to %(num)s shared folder"
+msgid_plural "Its access to %(num)s shared folders"
+msgstr[0] "Su acceso a %(num)s carpeta compartida"
+msgstr[1] "Su acceso a %(num)s carpetas compartidas"
+
+#: storageweb/web/templates/admin/groups/form.html
+msgid ""
+"The copy is a local group: its members are kept by hand, even if the original comes from a "
+"provider."
+msgstr ""
+"La copia es un grupo local: sus miembros quedan como añadidos a mano, aunque el original venga de"
+" un proveedor."
 
 #: storageweb/web/templates/admin/groups/form.html
 msgid "Create group"
@@ -7463,6 +7628,34 @@ msgstr "Sus miembros pierden el acceso que da. Los usuarios y los archivos no se
 #, python-format
 msgid "Shared folders that use it: %(shares)s."
 msgstr "Carpetas compartidas que lo usan: %(shares)s."
+
+#: storageweb/web/templates/admin/groups/import.html
+#, python-format
+msgid "Import groups from %(method)s"
+msgstr "Importar grupos de %(method)s"
+
+#: storageweb/web/templates/admin/groups/import.html
+msgid ""
+"Search for groups in the directory and register them now, with their name and description from "
+"there: you can give them shared folders, a role and a quota before their members sign in. Members"
+" arrive at each sign-in."
+msgstr ""
+"Busca grupos en el directorio y dalos de alta ya, con su nombre y su descripción de allí: puedes "
+"darles carpetas compartidas, un rol y una cuota antes de que entren sus miembros. Los miembros "
+"llegan en cada inicio de sesión."
+
+#: storageweb/web/templates/admin/groups/import.html
+msgid "Start of the group name (at least 2 letters)"
+msgstr "Principio del nombre del grupo (al menos 2 letras)"
+
+#: storageweb/web/templates/admin/groups/import.html
+#, python-format
+msgid "%(num)s groups selected"
+msgstr "%(num)s seleccionados"
+
+#: storageweb/web/templates/admin/groups/import.html
+msgid "Import the selected groups"
+msgstr "Importar los seleccionados"
 
 #: storageweb/web/templates/admin/groups/list.html
 msgid "Linked to"
@@ -7731,10 +7924,6 @@ msgstr "Usar para las cuentas nuevas"
 #: storageweb/web/templates/admin/roles/_macros.html
 msgid "A new role with the same permissions"
 msgstr "Un rol nuevo con los mismos permisos"
-
-#: storageweb/web/templates/admin/roles/_macros.html
-msgid "Clone"
-msgstr "Clonar"
 
 #: storageweb/web/templates/admin/roles/_macros.html
 msgid "Built-in: it comes with StorageWeb"
@@ -8372,10 +8561,6 @@ msgid ""
 msgstr ""
 "Base de datos, config.json y secret_key, en %(folder)s. Los archivos no se incluyen: cópialos con"
 " tu herramienta habitual."
-
-#: storageweb/web/templates/admin/settings/backups.html
-msgid "Restore"
-msgstr "Restaurar"
 
 #: storageweb/web/templates/admin/settings/backups.html
 msgid "Send outside"
@@ -10455,18 +10640,9 @@ msgstr "vacío = todos"
 msgid "Users view"
 msgstr "Vista de usuarios"
 
-#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/admin/users/panel.html
-#: storageweb/web/views/admin/users.py
-msgid "Disabled"
-msgstr "Deshabilitado"
-
 #: storageweb/web/templates/admin/users/_macros.html
 msgid "Search by user name, name or email"
 msgstr "Buscar por usuario, nombre o email"
-
-#: storageweb/web/templates/admin/users/_macros.html
-msgid "All"
-msgstr "Todos"
 
 #: storageweb/web/templates/admin/users/_macros.html
 msgid "Any source"
@@ -10833,6 +11009,20 @@ msgstr "Grupo «%(name)s» creado."
 
 #: storageweb/web/views/groups.py
 #, python-format
+msgid "The access to shared folders was not copied: %(error)s"
+msgstr "No se ha copiado el acceso a las carpetas compartidas: %(error)s"
+
+#: storageweb/web/views/groups.py
+#, python-format
+msgid ""
+"Shared folders set in config.json are not changed from the web: give access to the new group "
+"there (%(shares)s)."
+msgstr ""
+"Las carpetas compartidas de config.json no se cambian desde la web: dale acceso allí al grupo "
+"nuevo (%(shares)s)."
+
+#: storageweb/web/views/groups.py
+#, python-format
 msgid "Group registered: %(names)s."
 msgid_plural "%(num)s groups registered: %(names)s."
 msgstr[0] "Grupo dado de alta: %(names)s."
@@ -10848,6 +11038,18 @@ msgstr "La cuota tiene que ser un número entero de MB (0 = sin cuota; vacío = 
 
 #: storageweb/web/views/groups.py
 #, python-format
+msgid "Group «%(name)s» enabled."
+msgstr "Grupo «%(name)s» activado."
+
+#: storageweb/web/views/groups.py
+#, python-format
+msgid "Group «%(name)s» disabled: its members no longer get its shared folders, role or quota."
+msgstr ""
+"Grupo «%(name)s» desactivado: sus miembros ya no reciben sus carpetas compartidas, su rol ni su "
+"cuota."
+
+#: storageweb/web/views/groups.py
+#, python-format
 msgid "Group «%(name)s» deleted. Users and files have not been touched."
 msgstr "Grupo «%(name)s» eliminado. Los usuarios y los archivos no se han tocado."
 
@@ -10860,6 +11062,23 @@ msgstr "«%(user)s» añadido al grupo «%(group)s»."
 #, python-format
 msgid "«%(user)s» removed from the group «%(group)s»."
 msgstr "«%(user)s» quitado del grupo «%(group)s»."
+
+#: storageweb/web/views/groups.py
+msgid ""
+"No sign-in method can import groups now (for Microsoft Entra ID: enabled, with the client secret "
+"and the Group.Read.All permission)."
+msgstr ""
+"Ahora no se pueden importar grupos de ningún método de inicio de sesión (para Microsoft Entra ID:"
+" activado, con el secreto de cliente y el permiso Group.Read.All)."
+
+#: storageweb/web/views/groups.py
+#, python-format
+msgid "The group %(id)s is not in the directory."
+msgstr "El grupo %(id)s no está en el directorio."
+
+#: storageweb/web/views/groups.py
+msgid "Select at least one group."
+msgstr "Elige al menos un grupo."
 
 #: storageweb/web/views/groups.py
 #, python-format
@@ -11020,6 +11239,10 @@ msgstr "Lo que has compartido con gente de fuera: vuelve a copiar un enlace o de
 #: storageweb/web/views/profile.py
 msgid "Profile saved."
 msgstr "Perfil guardado."
+
+#: storageweb/web/views/profile.py
+msgid "It is checked when saving."
+msgstr "Se comprueba al guardar."
 
 #: storageweb/web/views/profile.py
 msgid "The current password is not correct."
@@ -11611,6 +11834,10 @@ msgstr "%(network)s quitada."
 #: storageweb/web/views/settings/passwords.py
 msgid "Choose a text file with one password per line."
 msgstr "Elige un fichero de texto con una contraseña por línea."
+
+#: storageweb/web/views/settings/passwords.py
+msgid "Press «Try» to check it."
+msgstr "Pulsa «Probar» para comprobarla."
 
 #: storageweb/web/views/settings/passwords.py
 msgid "It would be accepted."

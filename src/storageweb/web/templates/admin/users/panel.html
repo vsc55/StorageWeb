@@ -10,7 +10,7 @@
 <div class="master-detail" data-partial>
   {% call(u) md_list(_('List of users'), users, _("No users.")) %}
     {%- call md_item(url_for('admin.users_panel', u=u['uid'], tab=tab, q=filters.q or None, status=filters.status if filters.status != 'all' else None, source=filters.source or None, role=filters.role or None),
-                     current and u['id'] == current['id'], 'md-user is-off' if not u['enabled'] else 'md-user') %}
+                     current and u['id'] == current['id'], 'md-user') %}
         {{ avatar(u) }}
         <span class="md-item-text"><strong>{{ u['display_name'] or u['username'] }}</strong>
           <span class="muted small">{{ u['username'] }}</span></span>
@@ -28,7 +28,7 @@
       <button class="btn btn-small btn-danger" type="button" disabled title="{{ _('You cannot disable your own account.') }}">{{ _("Disable") }}</button>
       {% endif %}
       {% if current['id'] != current_user['id'] and auth_method(current['source']) and auth_method(current['source']).stores_password %}
-      <a class="btn btn-small" href="{{ url_for('admin.user_password', user_uid=current['uid'], next=here) }}">{{ _("Change password") }}</a>
+      <a class="btn btn-small" data-password-modal href="{{ url_for('admin.user_password', user_uid=current['uid'], next=here) }}">{{ _("Change password") }}</a>
       {% endif %}
       {% if current['id'] != current_user['id'] %}
       {{ delete_form(current, 'btn btn-small btn-danger', next=url_for('admin.users_panel', tab=tab)) }}
@@ -78,4 +78,6 @@
 </div>
 {% endblock %}
 {% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/path-picker.js') }}"></script>
-<script src="{{ url_for('static', filename='js/admin/panels.js') }}"></script>{% endblock %}
+<script src="{{ url_for('static', filename='js/admin/panels.js') }}"></script>
+<script src="{{ url_for('static', filename='js/admin/password-modal.js') }}"></script>
+<script src="{{ url_for('static', filename='js/password-meter.js') }}"></script>{% endblock %}

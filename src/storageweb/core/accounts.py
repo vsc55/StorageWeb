@@ -26,6 +26,7 @@ from . import groups as group_core
 from . import roles as role_core
 from . import maintenance
 from . import storage
+from . import uploads
 from .alerts import alert, source
 from .permissions import ADMIN, USER, default_role
 from ..settings.errors import UserError
@@ -87,7 +88,8 @@ def _auth_alerts(ctx):
 # --------------------------------------------------------------------------- login con contraseña
 
 def authenticate_password(conn: Connection, cfg: dict, username: str, password: str):
-    """Comprueba usuario y contraseña con el método de la cuenta o, si no existe, con los que dan de alta."""
+    """Comprueba usuario y contraseña con el método de la cuenta o, si no existe, con los que dan de alta. ``None``
+    si no valen; :class:`AccountError` (código ``disabled``) si valen pero la cuenta está desactivada."""
     user = users.get_by_username(conn, username)
     identity, used = None, None
     if user is not None:
@@ -111,7 +113,8 @@ def authenticate_password(conn: Connection, cfg: dict, username: str, password: 
         user = users.get_by_id(conn, users.create(conn, username=username, source=used.key,
                                                   role=identity.role or default_role(cfg), home_path=identity.home))
     if not user["enabled"]:
-        return None
+        # La contraseña es buena: quien la escribe es esa persona, así que se le dice por qué no entra
+        raise AccountError(_("Your account is disabled."), "disabled")
     users.touch_login(conn, user["id"], **({"role": identity.role} if identity.role else {}))
     if used.external_groups:
         group_core.sync_external(conn, user["id"], used.key, identity.groups)
@@ -335,6 +338,7 @@ def _sync_hours(cfg: dict) -> float:
 def _disable_by_directory(conn: Connection, user, key: str, why: str) -> None:
     users.update(conn, user["id"], enabled=False, disabled_reason=users.DIRECTORY)
     closed = sessions.delete_for_user(conn, user["id"])
+    uploads.discard_for_user(conn, user["id"])
     _log.warning("Account %s disabled: %s in %s", user["username"], why, key)
     audit.log(conn, "user_disabled", user["username"], username="system", detail=f"{key}:{why}; sessions={closed}")
 
@@ -545,6 +549,7 @@ def set_enabled(conn: Connection, user, actor, enabled: bool) -> None:
     users.update(conn, user["id"], enabled=enabled, disabled_reason=None)
     if not enabled:
         sessions.delete_for_user(conn, user["id"])
+        uploads.discard_for_user(conn, user["id"])   # sus subidas a medias: ya no puede seguirlas
 
 
 def delete_account(conn: Connection, user, actor) -> None:
@@ -552,4 +557,5 @@ def delete_account(conn: Connection, user, actor) -> None:
         if user["id"] == actor["id"]:
             raise AccountError(_("You cannot delete your own account."))
         _guard_last_admin(conn, user, USER, False)
+    uploads.discard_for_user(conn, user["id"])
     users.delete(conn, user["id"])

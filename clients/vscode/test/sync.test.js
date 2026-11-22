@@ -5,7 +5,7 @@ const { test } = require("node:test");
 
 const { DavError, parseMultistatus } = require("../src/dav");
 const { excluder, DEFAULT_EXCLUDES } = require("../src/glob");
-const { SyncEngine, conflictName, plan } = require("../src/sync");
+const { RemoteRootMissing, SyncEngine, conflictName, plan } = require("../src/sync");
 
 let clock = 1000;
 
@@ -182,4 +182,168 @@ test("parseMultistatus: prefijos, entidades, códigos de escape y propstat 404",
     ["home/w/año & más.txt", "año & más.txt", 12, "123-12", false]);
   assert.ok(file.mtime > 0);
   assert.throws(() => parseMultistatus('<!DOCTYPE x [<!ENTITY a "b">]><x/>', "/dav/"));
+});
+
+/** El servidor deniega con un motivo (cabecera X-StorageWeb-Reason). */
+const denied = (status, code) => new DavError(status, `HTTP ${status}`, false, "", code);
+
+test("la carpeta del servidor ya no está (o ya no hay acceso): error propio antes de planificar, sin borrar nada", async () => {
+  const { local, remote, engine } = setup();
+  local.set("a.txt", "1");
+  local.set("b/c.txt", "2");
+  await engine.run();
+  remote.files.clear();                       // borrada en el servidor (o sin acceso: 404 igual)
+  remote.stat = async () => null;
+  remote.walk = async () => { throw new DavError(404, "PROPFIND home/w: HTTP 404"); };
+  const puts = remote.puts.length;
+  let asked = false;
+  await assert.rejects(engine.run({ checkLoop: true, maxDeletes: 0, confirmDeletes: async () => { asked = true; return true; } }),
+    (err) => err instanceof RemoteRootMissing && err.remoteRoot === "home/w");
+  assert.equal(asked, false, "no llega a planificar borrados");
+  assert.deepEqual([local.text("a.txt"), local.text("b/c.txt")], ["1", "2"], "nada se borra aquí");
+  assert.equal(remote.puts.length, puts, "ni siquiera deja el archivo de prueba del bucle");
+
+  // Al guardar: el PUT falla (409, falta la carpeta de encima) y no se vuelve a crear la carpeta vinculada
+  const mkdirs = [];
+  remote.mkdirs = async (p, from) => { mkdirs.push([p, from]); };
+  remote.put = async () => { throw new DavError(409, "PUT: HTTP 409"); };
+  local.set("nueva/d.txt", "3");
+  await assert.rejects(engine.push(["nueva/d.txt"]), RemoteRootMissing);
+  assert.deepEqual(mkdirs, [["home/w/nueva", 2]], "solo las carpetas de dentro de home/w");
+});
+
+test("403 de solo lectura al subir: se apunta, no se intenta el resto de escrituras y las descargas siguen", async () => {
+  const { local, remote, engine, state } = setup();
+  local.set("viejo.txt", "v");
+  await engine.run();
+  local.set("a.txt", "a");
+  local.set("b.txt", "b");
+  local.files.delete("viejo.txt");          // borrado aquí: no se intenta borrar allí, se vuelve a bajar
+  remote.set("suyo.txt", "del servidor");
+  let attempts = 0;
+  remote.put = async () => { attempts++; throw denied(403, "read_only"); };
+  remote.remove = async () => { attempts++; throw denied(403, "read_only"); };
+  const s = await engine.run();
+  assert.equal(s.denied, "read_only");
+  assert.equal(attempts, 1, "un intento; el resto de escrituras no");
+  assert.equal(s.notUploaded, 2);
+  assert.deepEqual(s.errors, [], "no es un fallo de la pasada");
+  assert.equal(local.text("suyo.txt"), "del servidor", "lo del servidor sigue llegando");
+  assert.deepEqual([local.text("a.txt"), local.text("b.txt")], ["a", "b"], "lo modificado aquí se queda");
+  assert.ok(!state().has("a.txt"), "y queda pendiente para cuando se pueda");
+  assert.deepEqual(s.restored, ["viejo.txt"]);
+  assert.equal(local.text("viejo.txt"), "v", "lo borrado aquí vuelve: no queda como borrado pendiente");
+
+  // Conflicto sin permiso para escribir: la del servidor con el nombre, la tuya como copia solo aquí
+  remote.set("suyo.txt", "cambio allí");
+  local.set("suyo.txt", "cambio aquí");
+  const c = await engine.run();
+  assert.equal(local.text("suyo.txt"), "cambio allí");
+  assert.equal(local.text(c.conflicts[0].copy), "cambio aquí");
+  assert.equal(c.denied, "read_only");
+
+  // Al guardar, igual: se apunta en el informe y no se pisa nada
+  const report = {};
+  local.set("a.txt", "a2");
+  assert.equal(await engine.push(["a.txt", "b.txt"], report), true);
+  assert.equal(report.denied, "read_only");
+  assert.equal(report.notUploaded, 2);
+  assert.equal(local.text("a.txt"), "a2");
+});
+
+test("sin permiso para escribir, lo borrado aquí se vuelve a bajar: si luego dan permiso, no se borra en el servidor", async () => {
+  const { local, remote, engine, state } = setup();
+  for (const n of ["a", "b", "c"]) local.set(`${n}.txt`, n);
+  await engine.run();
+  const put = remote.put.bind(remote), remove = remote.remove.bind(remote);
+  let writable = false;
+  const removed = [];
+  const get = remote.get.bind(remote);
+  remote.get = async (p) => { if (!remote.files.has(p)) throw new DavError(404, `GET ${p}: HTTP 404`); return get(p); };
+  remote.put = async (...args) => { if (!writable) throw denied(403, "no_permission"); return put(...args); };
+  remote.remove = async (p, cond) => {
+    if (!writable) throw denied(403, "no_permission");
+    removed.push(p);
+    return remove(p, cond);
+  };
+
+  // Borrado en una sincronización completa: el primer intento de borrar allí falla y se vuelve a bajar; el
+  // segundo ni se intenta (ya se sabe que no deja escribir), también se vuelve a bajar
+  local.files.delete("a.txt");
+  local.files.delete("b.txt");
+  const s = await engine.run();
+  assert.equal(s.denied, "no_permission");
+  assert.deepEqual(s.restored, ["a.txt", "b.txt"]);
+  assert.deepEqual(s.errors, []);
+  assert.deepEqual([local.text("a.txt"), local.text("b.txt")], ["a", "b"]);
+  assert.equal(s.deletedRemote, 0);
+
+  // Borrado al guardar (push): igual
+  local.files.delete("c.txt");
+  const report = {};
+  assert.equal(await engine.push(["c.txt"], report), true);
+  assert.deepEqual([report.denied, report.restored], ["no_permission", ["c.txt"]]);
+  assert.equal(local.text("c.txt"), "c");
+
+  // Si un archivo ya tampoco está en el servidor, no hay nada que bajar: se olvida (borrado en los dos sitios)
+  remote.files.delete("home/w/c.txt");
+  local.files.delete("c.txt");
+  await engine.push(["c.txt"], {});
+  assert.ok(!state().has("c.txt"));
+
+  // Más adelante dan permiso de escritura: nada de lo borrado entonces se borra ahora en el servidor
+  writable = true;
+  const later = await engine.run();
+  assert.deepEqual(removed, [], "ningún borrado pendiente");
+  assert.equal(later.deletedRemote, 0);
+  assert.deepEqual([remote.text("a.txt"), remote.text("b.txt")], ["a", "b"]);
+});
+
+test("token de solo lectura: la prueba del bucle no se puede hacer y no rompe la pasada", async () => {
+  const { local, remote, engine } = setup();
+  local.set("a.txt", "a");
+  remote.set("b.txt", "b");
+  remote.put = async () => { throw denied(403, "token_read_only"); };
+  const s = await engine.run({ checkLoop: true });
+  assert.equal(s.loopChecked, false, "hay que volver a probarla");
+  assert.equal(s.denied, "token_read_only");
+  assert.equal(local.text("b.txt"), "b");
+});
+
+test("401 con motivo, IP bloqueada y mantenimiento paran la pasada y dicen por qué", async () => {
+  for (const [status, code] of [[401, "account_disabled"], [401, "token_expired"], [403, "ip_banned"], [503, "maintenance"]]) {
+    const { local, remote, engine } = setup();
+    for (const n of ["a", "b", "c"]) local.set(`${n}.txt`, n);
+    let attempts = 0;
+    remote.put = async () => { attempts++; throw denied(status, code); };
+    const s = await engine.run();
+    assert.equal(attempts, 1, `${code}: no lo intenta con todos`);
+    assert.equal(s.fatal && s.fatal.code, code);
+    assert.equal(s.errors.length, 1);
+    assert.equal(s.denied, "");
+    assert.equal(local.files.size, 3, "nada se borra aquí");
+  }
+});
+
+test("413 demasiado grande: se apunta, el resto sigue y no se vuelve a subir hasta que cambie", async () => {
+  const { local, remote, engine } = setup();
+  local.set("grande.bin", "xxxxxxxxxx");
+  local.set("normal.txt", "ok");
+  const put = remote.put.bind(remote);
+  let big = 0;
+  remote.put = async (p, data, cond) => {
+    if (p.endsWith(".bin")) { big++; throw new DavError(413, "PUT", false, "Too large", "too_large"); }
+    return put(p, data, cond);
+  };
+  let s = await engine.run();
+  assert.deepEqual(s.tooLarge, ["grande.bin"]);
+  assert.equal(s.uploaded, 1);
+  assert.deepEqual(s.errors, []);
+  s = await engine.run();
+  assert.equal(big, 1, "no se reintenta sin cambios");
+  assert.deepEqual(s.tooLarge, ["grande.bin"], "pero sigue apuntado");
+  local.set("grande.bin", "yyyyyyyyyy");
+  await engine.run();
+  assert.equal(big, 2, "cambió: se vuelve a probar");
+  assert.equal(local.text("grande.bin"), "yyyyyyyyyy");
 });

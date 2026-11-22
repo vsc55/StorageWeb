@@ -11,14 +11,20 @@
 class DavError extends Error {
   /**
    * `hidden`: el servidor oculta esa ruta para todos (`storage.hidden`): ni existe ni se puede crear.
-   * `reason`: el motivo que da el servidor (p. ej. por qué no cabe en la cuota, con el 507).
-   * @param {number} status @param {string} message @param {boolean} [hidden] @param {string} [reason]
+   * `reason`: el motivo que da el servidor en texto (p. ej. por qué no cabe en la cuota, con el 507).
+   * `code`: el código de la cabecera `X-StorageWeb-Reason` (`account_disabled`, `token_expired`, `read_only`,
+   * `ip_banned`, `maintenance`, `too_large`…; ver messages.js) o, con estado 0, `interrupted` (una descarga que
+   * se cortó a medias: el servidor cerró la conexión antes de mandarlo todo).
+   * @param {number} status @param {string} message @param {boolean} [hidden] @param {string} [reason] @param {string} [code]
    */
-  constructor(status, message, hidden = false, reason = "") {
+  constructor(status, message, hidden = false, reason = "", code = "") {
     super(reason ? `${message}: ${reason}` : message);
     this.status = status;
     this.hidden = hidden;
     this.reason = reason;
+    this.code = code;
+    /** @type {string | undefined} la ruta pedida (relativa a /dav/), si el error es la respuesta del servidor */
+    this.path = undefined;
   }
 }
 
@@ -39,6 +45,33 @@ async function reasonOf(resp) {
 
 /** Marca de StorageWeb en las respuestas sobre una ruta oculta para todos (solo de esa ruta, nunca la lista). */
 const HIDDEN_HEADER = "X-StorageWeb-Hidden";
+/** Por qué StorageWeb deniega algo (un código corto: `account_disabled`, `read_only`, `maintenance`…). */
+const REASON_HEADER = "X-StorageWeb-Reason";
+
+/**
+ * El cuerpo entero de una respuesta. Si la conexión se corta antes de tiempo (el servidor la cierra a mitad,
+ * p. ej. porque se desactivó la cuenta o se perdió el acceso mientras tanto) o llegan menos bytes de los que
+ * anunció `Content-Length`, DavError con estado 0 (como sin red) y código `interrupted`: nunca datos a medias.
+ * @param {Response} resp @param {string} method @param {string} path @returns {Promise<Buffer>}
+ */
+async function readBody(resp, method, path) {
+  let data;
+  try {
+    data = Buffer.from(await resp.arrayBuffer());
+  } catch (err) {
+    throw new DavError(0, `${method} ${path}: the transfer was interrupted: ${err && err.message ? err.message : err}`,
+      false, "", "interrupted");
+  }
+  // Comprimida, `Content-Length` es lo que ocupa comprimida (fetch la descomprime): solo se compara sin comprimir
+  const encoding = (resp.headers.get("Content-Encoding") || "identity").trim().toLowerCase();
+  const announced = resp.headers.get("Content-Length");
+  const expected = announced !== null && /^\d+$/.test(announced.trim()) ? Number(announced) : -1;
+  if (encoding === "identity" && expected >= 0 && data.length !== expected) {
+    throw new DavError(0, `${method} ${path}: the transfer was interrupted (${data.length} of ${expected} bytes)`,
+      false, "", "interrupted");
+  }
+  return data;
+}
 
 /**
  * `label`: el nombre que muestra StorageWeb (en las carpetas de arriba, p. ej. el de una compartida).
@@ -144,8 +177,12 @@ class DavClient {
     const ok = opts.ok || [200, 201, 204, 207];
     if (!ok.includes(resp.status)) {
       const hidden = resp.headers.get(HIDDEN_HEADER) === "1";
-      throw new DavError(resp.status, `${method} ${path}: HTTP ${resp.status}${hidden ? " (hidden on the server)" : ""}`,
-        hidden, await reasonOf(resp));
+      const code = (resp.headers.get(REASON_HEADER) || "").trim().toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 64);
+      const err = new DavError(resp.status,
+        `${method} ${path}: HTTP ${resp.status}${code ? ` (${code})` : ""}${hidden ? " (hidden on the server)" : ""}`,
+        hidden, await reasonOf(resp), code);
+      err.path = path.split("/").filter(Boolean).join("/");
+      throw err;
     }
     return resp;
   }
@@ -167,7 +204,7 @@ class DavClient {
   async listing(path) {
     const resp = await this.request("PROPFIND", path, { headers: { Depth: "1" }, ok: [207] });
     const own = path.split("/").filter(Boolean).join("/");
-    const entries = parseMultistatus(await resp.text(), this.base);
+    const entries = parseMultistatus((await readBody(resp, "PROPFIND", path)).toString("utf8"), this.base);
     return { self: entries.find((e) => e.path === own) || null, children: entries.filter((e) => e.path !== own) };
   }
 
@@ -175,7 +212,7 @@ class DavClient {
   async stat(path) {
     try {
       const resp = await this.request("PROPFIND", path, { headers: { Depth: "0" }, ok: [207] });
-      return parseMultistatus(await resp.text(), this.base)[0] || null;
+      return parseMultistatus((await readBody(resp, "PROPFIND", path)).toString("utf8"), this.base)[0] || null;
     } catch (err) {
       if (err instanceof DavError && err.status === 404) return null;
       throw err;
@@ -220,10 +257,13 @@ class DavClient {
     return (await this.download(path)).data;
   }
 
-  /** El contenido y su versión (ETag). @param {string} path @returns {Promise<{data: Buffer, etag: string}>} */
+  /**
+   * El contenido y su versión (ETag). Una descarga cortada a medias es un DavError (estado 0, `interrupted`),
+   * nunca un contenido incompleto. @param {string} path @returns {Promise<{data: Buffer, etag: string}>}
+   */
   async download(path) {
     const resp = await this.request("GET", path, { ok: [200] });
-    const data = Buffer.from(await resp.arrayBuffer());
+    const data = await readBody(resp, "GET", path);
     let etag = (resp.headers.get("ETag") || "").replace(/^W\//, "").replace(/"/g, "");
     if (!etag) {
       const entry = await this.stat(path);
@@ -250,11 +290,12 @@ class DavClient {
 
   /**
    * Crea la carpeta y las de encima que falten (la primera parte es una carpeta de StorageWeb, «home»
-   * o una compartida, que ya existe). @param {string} path
+   * o una compartida, que ya existe). `from`: cuántas partes hay como poco (las de encima no se crean nunca:
+   * la sincronización no vuelve a crear la carpeta vinculada si desaparece). @param {string} path @param {number} [from]
    */
-  async mkdirs(path) {
+  async mkdirs(path, from = 1) {
     const parts = path.split("/").filter(Boolean);
-    for (let i = 2; i <= parts.length; i++) {
+    for (let i = Math.max(2, from + 1); i <= parts.length; i++) {
       await this.request("MKCOL", parts.slice(0, i).join("/"), { ok: [201, 405] });  // 405 = ya existe
     }
   }
@@ -291,4 +332,4 @@ class DavClient {
   }
 }
 
-module.exports = { DavClient, DavError, parseMultistatus };
+module.exports = { DavClient, DavError, REASON_HEADER, parseMultistatus, readBody };

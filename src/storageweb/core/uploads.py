@@ -10,16 +10,26 @@ El ``.part`` está en la zona local del backend (``Backend.staging_dir``): en el
 junto al destino (al terminar, renombrado atómico); con S3 o SMB, en ``<data_dir>/uploads`` (al
 terminar se envía). El progreso real es su tamaño, así que una subida interrumpida (corte de red,
 recarga de la página, reinicio del servidor) puede continuar donde se quedó.
+
+Una subida a medias que nadie sigue (más de ``storage.upload_stale_hours`` sin partes nuevas) se borra en la tarea
+``upload_cleanup`` (cada hora) y al empezar otra; las de una persona, también al desactivar o borrar su cuenta.
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import BinaryIO
 
+from sqlite3 import Connection
+
+from ..db.repositories import uploads as repo
 from ..i18n import _
+from . import maintenance
 from .security import UPLOAD_TMP_PREFIX
 from .backends import Backend, BackendError
 from ..settings.errors import UserError
+
+log = logging.getLogger(__name__)
 
 MB = 1024 * 1024
 MAX_CHUNK = 32 * MB          # tamaño de parte que usa el navegador
@@ -108,3 +118,28 @@ def discard(part: Path) -> None:
         part.unlink()
     except FileNotFoundError:
         pass
+
+
+def _drop(conn: Connection, rows) -> int:
+    for row in rows:
+        discard(part_path(Path(row["dir_path"]), row["id"]))
+        repo.delete(conn, row["id"])
+    return len(rows)
+
+
+def discard_stale(conn: Connection, max_age_hours: int) -> int:
+    """Borra las subidas a medias sin partes nuevas desde hace ``max_age_hours`` (su ``.part`` y su fila)."""
+    return _drop(conn, repo.stale(conn, max_age_hours))
+
+
+def discard_for_user(conn: Connection, user_id: int) -> int:
+    """Borra las subidas a medias de una persona (al desactivar o borrar su cuenta: ya no puede seguirlas)."""
+    return _drop(conn, repo.of_user(conn, user_id))
+
+
+@maintenance.task("upload_cleanup", every=lambda cfg: 1, order=12)
+def _cleanup_task(conn: Connection, cfg: dict) -> None:
+    removed = discard_stale(conn, int(cfg["storage"]["upload_stale_hours"]))
+    if removed:
+        log.info("Abandoned uploads removed: %s", removed)
+

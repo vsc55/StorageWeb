@@ -6,13 +6,15 @@
 Y la **matriz de accesos** (``/admin/groups/matrix``, en Acceso): acceso de cada grupo a cada
 carpeta compartida. No es una vista de grupos, así que ``/admin/groups/`` nunca lleva a ella.
 
-Todas comparten las acciones (alta, edición, miembros, baja); ``next`` decide a dónde volver.
+Todas comparten las acciones (alta, clonar, edición, activar o desactivar, miembros, baja); ``next`` decide a dónde
+volver. Y **Importar de…** (``/admin/groups/import``): buscar grupos en el directorio de un método (Entra ID) y darlos de
+alta, como Personas → Importar.
 """
 from __future__ import annotations
 
-from flask import Blueprint, abort, flash, g, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, g, jsonify, make_response, redirect, render_template, request, url_for
 
-from ...core import groups as group_core
+from ...core import groups as group_core, named
 from ... import providers
 from ...core import accounts
 from ...db.repositories import users
@@ -25,10 +27,15 @@ from ..guards import admin_required, audit_event, user_or_404
 from .. import search
 from .settings.common import save_partial
 from ...settings.layers import CONFIG_ORIGINS
+from ...text import initials
 
 bp = Blueprint("groups", __name__, url_prefix="/admin/groups")
 
 TABS = ("members", "shares", "link")
+STATUS_FILTERS = ("all", "active", "disabled")
+SEARCH_LIMIT = 25      # importar: al buscar, lo que empieza por lo escrito
+PAGE_SIZE_ALL = 50     # importar: «Mostrar todos», grupos por página (los siguientes, al bajar)
+IMPORT_MAX = 200       # importar: «Importar seleccionados», grupos por envío
 
 
 _audit = audit_event
@@ -48,6 +55,12 @@ def _group_label(group) -> str:
 @bp.app_template_filter("group_description")
 def _group_description(group) -> str:
     return group_core.description(group)
+
+
+@bp.app_template_filter("group_initials")
+def _group_initials(group) -> str:
+    """Iniciales para el avatar cuadrado del grupo, de su nombre visible."""
+    return initials(group_core.label(group))
 
 
 def _directories(only: str | None = None):
@@ -91,11 +104,20 @@ def directory_names(ids, only: str | None = None) -> dict[str, str]:
 def directory_search(method: str):
     """Buscador de grupos por nombre en el directorio de un método, para el formulario de alta (JSON)."""
     for _m, directory in _directories(method):
-        found = directory.search(request.args.get("q", ""))
+        found = directory.search(request.args.get("q", "")) or []
         for item in found:  # identificador que se propondría al darlo de alta
             item["suggested_name"] = group_core.suggest_name(get_db(), item.get("name"), item.get("id"))
         return jsonify(groups=found, available=directory.configured())
     abort(404)
+
+
+def _importers() -> list:
+    """Los métodos de los que se pueden importar grupos ahora (el botón «Importar de…»): con directorio de grupos que
+    sepa listarlos (Entra ID con Group.Read.All)."""
+    cfg = settings()
+    return [m for m in providers.methods()
+            if m.external_groups and m.enabled(cfg) and (d := m.directory(m.section(cfg))) is not None
+            and d.configured()]
 
 
 def _group_methods() -> list[dict]:
@@ -110,7 +132,8 @@ def _group_methods() -> list[dict]:
 @bp.context_processor
 def _labels():
     return {"GROUP_SOURCE_LABELS": group_core.group_source_labels(), "SOURCE_LABELS": accounts.source_labels(),
-            "GROUP_SOURCES": group_core.group_sources(), "group_methods": _group_methods}
+            "GROUP_SOURCES": group_core.group_sources(), "group_methods": _group_methods,
+            "group_importers": _importers}
 
 
 def _get_group(group_uid: str):
@@ -136,47 +159,117 @@ def index():
     return redirect(url_for(f"groups.{last_view('groups_view')}_view"))
 
 
-def _filtered() -> tuple[str, str, list]:
-    """La búsqueda de Lista y Paneles (``?q=``, ``?source=``) y los grupos que casan."""
-    search = request.args.get("q", "").strip()
-    source = choice("source", group_core.group_sources(), "")
-    return search, source, repo.list_all(get_db(), search=search, source=source or None)
+def _filtered() -> tuple[dict, list]:
+    """La búsqueda de Lista y Paneles (``?q=``, ``?source=``, ``?status=``) y los grupos que casan."""
+    f = {"q": request.args.get("q", "").strip(), "source": choice("source", group_core.group_sources(), ""),
+         "status": choice("status", STATUS_FILTERS, "all")}
+    return f, repo.list_all(get_db(), search=f["q"], source=f["source"] or None, status=f["status"])
 
 
 @bp.route("/list")
 @admin_required
 def list_view():
     use_view("groups_view", "list")
-    search, source, rows = _filtered()
+    filters, rows = _filtered()
     shares = _shares()
     detected = group_core.detected(get_db(), shares)
-    return render_template("admin/groups/list.html", groups=rows, search=search, source=source,
+    return render_template("admin/groups/list.html", groups=rows, filters=filters,
                            shares_by_group={r["id"]: group_core.shares_of(r, shares) for r in rows},
                            detected=detected, names=directory_names(
                                [d["id"] for d in detected] + [r["external_id"] for r in rows if r["external_id"]]))
 
 
+def _original():
+    """El grupo que se clona (``?copy=<uid>``, también al enviar), o ``None``."""
+    uid = request.values.get("copy", "")
+    return repo.get_by_uid(get_db(), uid) if uid else None
+
+
+def _after_create(group):
+    """A dónde ir tras crear un grupo: desde Paneles, a su ficha en Paneles; si no, a ``next`` o a su ficha."""
+    if request.form.get("next", "").startswith(url_for("groups.panel_view")):
+        return redirect(url_for("groups.panel_view", g=group["uid"]))
+    return back(url_for("groups.edit", group_uid=group["uid"]))
+
+
 @bp.route("/new", methods=["GET", "POST"])
 @admin_required
 def new():
+    """Alta de un grupo; con ``copy``, **Clonar**: el alta rellena con lo del original (nombre «X (copia)», descripción,
+    rol y cuota) y la opción de copiar sus miembros y su acceso a carpetas. El clon siempre es local."""
+    original = _original()
     form = {**_form_data(request.args), "name": request.args.get("name", ""),
-            "source": choice("source", group_core.group_sources(), group_core.LOCAL)}
-    if request.method == "GET":
+            "source": choice("source", group_core.group_sources(), group_core.LOCAL), "role": "", "home_quota_mb": ""}
+    if original is not None:
+        label = named.copy_label(group_core.label(original), [r["label"] for r in repo.list_all(get_db())], 200)
+        form.update(label=label, name=group_core.suggest_name(get_db(), label), source=group_core.LOCAL,
+                    description=group_core.description(original), external_id="",
+                    role="" if original["builtin"] else original["role"] or "",
+                    home_quota_mb=_shares_quota(original["name"]))
+    elif request.method == "GET":
         _fill_from_directory(form)
     if request.method == "POST":
-        form = {**_form_data(), "name": request.form.get("name", "").strip()}
-        _fill_from_directory(form)
+        form = {**_form_data(), "name": request.form.get("name", "").strip(), "role": request.form.get("role", ""),
+                "home_quota_mb": request.form.get("home_quota_mb", "")}
+        data = {k: form[k] for k in ("name", "label", "description", "source", "external_id")}
+        if original is None:
+            _fill_from_directory(data)
         try:
-            gid = group_core.create_group(get_db(), **form)
+            if original is not None:
+                gid = group_core.clone_group(get_db(), original, name=data["name"], label=data["label"],
+                                             description=data["description"],
+                                             members=request.form.get("copy_members") == "1")
+            else:
+                gid = group_core.create_group(get_db(), **data)
         except group_core.GroupError as exc:
             flash(exc.message, "error")
         else:
             group = repo.get_by_id(get_db(), gid)
-            _audit("group_created", group["name"], f"{group['source']}:{group['external_id'] or ''}")
+            _audit("group_created", group["name"], f"{group['source']}:{group['external_id'] or ''}"
+                   + (f" copy={original['name']}" if original is not None else ""))
+            _settings_of_new(group, original)
             flash(_("Group «%(name)s» created.", name=group_core.label(group)), "info")
-            return back(url_for("groups.edit", group_uid=group["uid"]))
-    return render_template("admin/groups/form.html", group=None, form=form, next=request.args.get("next", ""),
-                           from_directory=False)
+            return _after_create(group)
+    return render_template("admin/groups/form.html", group=None, form=form, next=request.values.get("next", ""),
+                           from_directory=False, original=original,
+                           copy_counts=_copy_counts(original) if original is not None else None)
+
+
+def _copy_counts(original) -> dict:
+    """Lo que se copiaría al clonar: cuántos miembros y a cuántas carpetas da acceso."""
+    return {"members": len(group_core.members(get_db(), original)),
+            "shares": len(group_core.shares_of(original, _shares()))}
+
+
+def _settings_of_new(group, original) -> None:
+    """Rol, cuota y (al clonar) acceso a carpetas del grupo recién creado: son ajustes, se guardan aparte. Lo que no
+    se puede (cuota fijada en config.json, carpeta de config.json…) se avisa sin deshacer el alta."""
+    try:
+        if request.form.get("role") and group_core.set_role(get_db(), group, request.form.get("role"),
+                                                            g.user["username"]):
+            _audit("group_role_changed", group["name"], request.form.get("role"))
+        _save_group_quota(group["name"], request.form.get("home_quota_mb"))
+    except group_core.GroupError as exc:
+        flash(exc.message, "error")
+    if original is None or request.form.get("copy_access") != "1":
+        return
+    shares = runtime_view(settings())["storage"]["shares"]
+    copied, skipped = [], []
+    for share in group_core.shares_of(original, _shares()):
+        if share.get("origin") in CONFIG_ORIGINS:
+            skipped.append(share["label"])
+            continue
+        shares = group_core.apply_access(shares, group, share["name"], share["level"])
+        copied.append(f"{group['name']}@{share['name']}={share['level']}")
+    if copied:
+        _draft, error = save_partial(lambda: {"storage": {"shares": shares}}, strict=True)
+        if error:
+            flash(_("The access to shared folders was not copied: %(error)s", error=error), "error")
+        else:
+            _audit("group_access_updated", None, ", ".join(copied)[:500])
+    if skipped:
+        flash(_("Shared folders set in config.json are not changed from the web: give access to the new group "
+                "there (%(shares)s).", shares=", ".join(skipped)), "error")
 
 
 def _fill_from_directory(form: dict) -> None:
@@ -303,6 +396,25 @@ def edit(group_uid: str):
                            shares=group_core.shares_of(group, _shares()), next="")
 
 
+@bp.route("/<group_uid>/status", methods=["POST"])
+@admin_required
+def set_status(group_uid: str):
+    """Activar o desactivar (``enabled`` = 1 o 0). Desactivado se conserva entero, pero no da nada a sus miembros."""
+    group = _get_group(group_uid)
+    enabled = request.form.get("enabled") == "1"
+    try:
+        changed = group_core.set_enabled(get_db(), group, enabled)
+    except group_core.GroupError as exc:
+        flash(exc.message, "error")
+    else:
+        if changed:
+            _audit("group_enabled" if enabled else "group_disabled", group["name"])
+            flash(_("Group «%(name)s» enabled.", name=group_core.label(group)) if enabled else
+                  _("Group «%(name)s» disabled: its members no longer get its shared folders, role or quota.",
+                    name=group_core.label(group)), "info")
+    return back(url_for("groups.edit", group_uid=group_uid))
+
+
 @bp.route("/<group_uid>/delete", methods=["POST"])
 @admin_required
 def delete(group_uid: str):
@@ -359,7 +471,7 @@ def member_remove(group_uid: str, user_uid: str):
 @admin_required
 def panel_view():
     use_view("groups_view", "panel")
-    search, source, rows = _filtered()
+    filters, rows = _filtered()
     current = pick(rows, request.args.get("g"))
     tab = choice("tab", TABS, "members")
     ctx = {"from_directory": False}
@@ -369,10 +481,73 @@ def panel_view():
                "shares": group_core.shares_of(current, _shares()),
                "form": {**dict(current), "home_quota_mb": _shares_quota(current["name"])},
                "quota_lock": _quota_lock(current["name"])}
-    return render_template("admin/groups/panel.html", groups=rows, current=current, tab=tab, search=search,
-                           source=source,
+    return render_template("admin/groups/panel.html", groups=rows, current=current, tab=tab, filters=filters,
                            detected=(detected := group_core.detected(get_db(), _shares())),
                            names=directory_names([d["id"] for d in detected]), **ctx)
+
+
+# --------------------------------------------------------------------------- importar de un directorio
+
+@bp.route("/import", methods=["GET", "POST"])
+@admin_required
+def import_view():
+    """Buscar grupos en el directorio de un método (Entra ID) y darlos de alta: el nombre y la descripción de allí y
+    un identificador sacado del nombre, como «Dar de alta» un grupo detectado. Lo que manda el navegador es solo el
+    identificador del grupo, que se vuelve a leer del directorio."""
+    methods = _importers()
+    if not methods:
+        flash(_("No sign-in method can import groups now (for Microsoft Entra ID: enabled, with the client secret "
+                "and the Group.Read.All permission)."), "error")
+        return redirect(url_for("groups.index"))
+    key = request.values.get("source") or methods[0].key
+    method = next((m for m in methods if m.key == key), methods[0])
+    directory = method.directory(method.section(settings()))
+    query = request.values.get("q", "").strip()[:100]
+    show_all = request.values.get("all") == "1" and not query
+    if request.method == "POST":
+        single = request.form.get("external_id", "")
+        wanted = [single] if single else list(dict.fromkeys(request.form.getlist("ids")))[:IMPORT_MAX]
+        infos = directory.details([w.lower() for w in wanted]) if wanted else {}
+        created, errors = [], []
+        for external_id in wanted:
+            info = infos.get(external_id.lower())
+            if info is None:
+                errors.append(_("The group %(id)s is not in the directory.", id=external_id))
+                continue
+            try:
+                gid = group_core.register_external(get_db(), source=method.key, external_id=external_id, info=info)
+            except group_core.GroupError as exc:
+                errors.append(f"{info['name']}: {exc.message}")
+                continue
+            group = repo.get_by_id(get_db(), gid)
+            _audit("group_created", group["name"], f"{group['source']}:{group['external_id'] or ''} import")
+            created.append(group_core.label(group))
+        flash_outcome(ngettext("Group registered: %(names)s.", "%(num)s groups registered: %(names)s.", len(created),
+                               names=", ".join(created)) if created else None, errors)
+        if not wanted:
+            flash(_("Select at least one group."), "error")
+        return redirect(url_for("groups.import_view", source=method.key, q=query or None,
+                                all="1" if request.form.get("all") == "1" else None))
+    found, following = None, ""
+    if show_all:
+        page = directory.list(request.args.get("cursor", "")[:4096], PAGE_SIZE_ALL)
+        found, following = page if page is not None else (None, "")
+    elif len(query) >= 2:
+        found = directory.search(query, SEARCH_LIMIT)
+    rows = [{"group": item, "imported": repo.get_by_external(get_db(), method.key, item["id"])}
+            for item in found or []]
+    more = url_for("groups.import_view", source=method.key, all="1", cursor=following, rows="1") if following else ""
+    context = {"methods": methods, "method": method, "query": query, "rows": rows, "show_all": show_all,
+               "failed": (show_all or len(query) >= 2) and found is None, "limit": SEARCH_LIMIT, "more": more}
+    if request.args.get("rows") == "1":
+        # Solo las filas de la página siguiente (al bajar); la dirección de la otra, en X-Next
+        resp = make_response(render_template("admin/groups/_import_rows.html", **context))
+        resp.headers["X-Next"] = more
+        return resp
+    if request.args.get("partial") == "1":
+        # Solo los resultados: la búsqueda mientras se escribe (admin/directory-import.js)
+        return render_template("admin/groups/_import_results.html", **context)
+    return render_template("admin/groups/import.html", **context)
 
 
 # --------------------------------------------------------------------------- vista C

@@ -1,5 +1,14 @@
 # Cambios
 
+## 0.6.0
+
+- **Avisos claros cuando el servidor deniega algo**, con el motivo que da StorageWeb (cabecera `X-StorageWeb-Reason`): cuenta desactivada, token caducado o revocado (con *Iniciar sesión otra vez* y *Cambiar el token…*), tokens desactivados en el servidor, verificación en dos pasos, demasiados intentos fallidos (espera 5 minutos y lo vuelve a intentar sola), IP bloqueada, servidor en mantenimiento (sin aviso: lo vuelve a intentar en la próxima vuelta) y archivos demasiado grandes. Cada aviso sale una vez, no en cada vuelta. Los mismos textos en el panel *Servidores* y al abrir o guardar archivos `storageweb://`.
+- **Carpeta del servidor que ya no está o a la que ya no hay acceso:** la sincronización queda en pausa sin borrar nada en el equipo, con *Sincronizar ahora* y *Desvincular*. Al subir, ya no se vuelve a crear la carpeta vinculada si ha desaparecido.
+- **Carpeta o token de solo lectura, o rol sin permiso para subir:** avisa una vez de que los cambios no se pueden subir, no intenta el resto de subidas de la pasada y sigue bajando lo que cambie en el servidor. Lo modificado que no se pudo subir se queda en el equipo; lo borrado en el equipo se vuelve a bajar (y el aviso lo dice), para que no quede un borrado pendiente que se haría solo si más adelante dan permiso.
+- **Archivos más grandes de lo que admite el servidor:** avisa con los nombres y no los vuelve a subir hasta que cambien.
+- **Descargas cortadas a medias** (el servidor cierra la conexión, p. ej. al desactivar la cuenta): se tratan como un error de red y nunca se guarda un archivo incompleto.
+- Los archivos `storageweb://` abiertos dejan de comprobarse si el servidor rechaza las credenciales o la IP (seguir preguntando solo sumaría intentos fallidos) y se avisa una vez. Subir varios archivos se para en el primer error que afectaría a todos (sin red, sin permiso…), con un solo aviso.
+
 ## 0.4.0
 
 - **Pausar y reanudar** la sincronización de cada carpeta o de todas (panel *Sincronización* y barra de estado). Para la pasada en curso y se mantiene al recargar VS Code.

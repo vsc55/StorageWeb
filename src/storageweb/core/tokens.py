@@ -104,22 +104,42 @@ def rotate(conn: Connection, user, token, max_days: int = 0) -> tuple[str, int]:
     return plain, token_id
 
 
-def authenticate(conn: Connection, plain: str, ip: str | None = None, max_days: int = 0):
-    """Devuelve (usuario, token) o None si el token no existe, caducó (por su fecha o por la política
-    ``max_days``) o su usuario está desactivado."""
+def check(conn: Connection, plain: str, ip: str | None = None, max_days: int = 0):
+    """``((usuario, token), "")`` si vale; si no, ``(None, motivo)``: ``token_invalid`` (no existe: revocado,
+    borrado o inventado), ``token_expired`` (caducó por su fecha o por la política ``max_days``) o
+    ``account_disabled`` (su cuenta está desactivada). El motivo se le dice al cliente (cabecera
+    ``X-StorageWeb-Reason``): los dos últimos solo los ve quien tiene un token que fue bueno."""
     if not plain or not plain.startswith(PREFIX) or len(plain) > 100:
-        return None
+        return None, "token_invalid"
     token = repo.get_by_hash(conn, hash_token(plain))
     if token is None:
-        return None
+        return None, "token_invalid"
     expires = effective_expiry(token, max_days)
     if expires and expires < now_iso():
-        return None
+        return None, "token_expired"
     user = users.get_by_id(conn, token["user_id"])
-    if user is None or not user["enabled"]:
-        return None
+    if user is None:
+        return None, "token_invalid"
+    if not user["enabled"]:
+        return None, "account_disabled"
     repo.touch(conn, token["id"], ip)
-    return user, token
+    return (user, token), ""
+
+
+def authenticate(conn: Connection, plain: str, ip: str | None = None, max_days: int = 0):
+    """Devuelve (usuario, token) o None si el token no existe, caducó (por su fecha o por la política
+    ``max_days``) o su usuario está desactivado (:func:`check` dice cuál)."""
+    return check(conn, plain, ip, max_days)[0]
+
+
+def still_valid(conn: Connection, token_id: int, max_days: int = 0) -> bool:
+    """Si un token ya comprobado sigue valiendo (no se ha revocado ni ha caducado): para cortar una descarga en
+    curso hecha con él."""
+    token = repo.get(conn, token_id)
+    if token is None:
+        return False
+    expires = effective_expiry(token, max_days)
+    return not (expires and expires < now_iso())
 
 
 def restrict(permissions: frozenset[str], token) -> frozenset[str]:

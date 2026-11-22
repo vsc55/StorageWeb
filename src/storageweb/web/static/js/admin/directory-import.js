@@ -1,6 +1,7 @@
-// Personas → Importar: la lista de personas del directorio se va formando mientras se escribe, sin pulsar Buscar;
-// «Mostrar todos» las trae por páginas y carga las siguientes al bajar; y se pueden marcar varias e importarlas de una
-// vez («Importar seleccionados»), también de búsquedas distintas: la selección se conserva al buscar otra cosa.
+// Importar de un directorio (Personas → Importar y Grupos → Importar, de Entra ID): la lista se va formando mientras se
+// escribe, sin pulsar Buscar; «Mostrar todos» la trae por páginas y carga las siguientes al bajar; y se pueden marcar
+// varios e importarlos de una vez («Importar seleccionados»), también de búsquedas distintas: la selección se conserva
+// al buscar otra cosa. Las dos páginas usan los mismos id (import-search, import-results, import-bulk…).
 //
 // Los resultados los da el servidor ya pintados: ?partial=1 (la lista entera) y ?rows=1 (solo las filas de la página
 // siguiente, con la dirección de la otra en X-Next). Las casillas son del formulario #import-bulk (form="import-bulk");
@@ -97,8 +98,8 @@
     controller = "AbortController" in window ? new AbortController() : null;
     extra.partial = "1";
     results.setAttribute("aria-busy", "true");
-    fetch(base + "?" + params(extra).toString(), {
-      credentials: "same-origin", headers: { "Accept": "text/html" }, signal: controller ? controller.signal : undefined
+    window.SW.page(base + "?" + params(extra).toString(), {
+      signal: controller ? controller.signal : undefined
     }).then(function (r) {
       if (!r.ok) throw new Error(r.status);
       return r.text();
@@ -154,7 +155,7 @@
     if (loadingMore || !link.dataset.next) return;
     loadingMore = true;
     var mine = seq;
-    fetch(link.dataset.next, { credentials: "same-origin", headers: { "Accept": "text/html" } })
+    window.SW.page(link.dataset.next)
       .then(function (r) {
         if (!r.ok) throw new Error(r.status);
         return r.text().then(function (html) { return { html: html, next: r.headers.get("X-Next") || "" }; });

@@ -21,7 +21,7 @@ from ...i18n import _, format_datetime, format_size, ngettext
 from ..context import boot_config, get_db, settings
 from ..downloads import SANDBOX, etag, send_entry, zip_response
 from ..forms import choice, flash_outcome, next_url, page_of
-from ..guards import audit_path, login_required, root_perms, safe_next, wants_json
+from ..guards import audit_path, login_required, root_perms, safe_next, transfer_guard, wants_json
 from ...clock import iso_from_ts
 
 bp = Blueprint("files", __name__)
@@ -230,7 +230,7 @@ def _listing(entries: list[dict], sort: str, descending: bool) -> dict:
 def download(root, sub):
     r, rel, entry = _file(root, sub)
     _audit("download", r, rel)
-    return send_entry(r, rel, entry)
+    return send_entry(r, rel, entry, guard=transfer_guard([(r, rel)]))
 
 
 # --------------------------------------------------------------------------- favoritos y recientes
@@ -359,7 +359,8 @@ def inline(root, sub):
     first = request.range is None or not request.range.ranges or request.range.ranges[0][0] == 0
     if first and request.method != "HEAD":
         _audit("download", r, rel, "view")
-    rv = send_entry(r, rel, entry, mimetype=preview.mime_of(name), csp=_INLINE_CSP.get(kind, SANDBOX))
+    rv = send_entry(r, rel, entry, mimetype=preview.mime_of(name), csp=_INLINE_CSP.get(kind, SANDBOX),
+                    guard=transfer_guard([(r, rel)]))
     if kind == "pdf":
         rv.headers["X-Frame-Options"] = "SAMEORIGIN"     # el visor lo pone en un marco (el resto: DENY)
     rv.headers["Cross-Origin-Resource-Policy"] = "same-origin"   # ninguna otra web lo incrusta
@@ -723,7 +724,7 @@ def roots_json():
 def _zip_response(items: list[tuple[dict, str]]):
     for root, _rel_ in items:
         _require(root, "download")
-    rv = zip_response(settings(), items)
+    rv = zip_response(settings(), items, guard=transfer_guard(items))
     for root, rel in items:
         _audit("download", root, rel, detail="zip")
     return rv

@@ -55,7 +55,13 @@ def login():
             audit.log(get_db(), "login_blocked", username=username, ip=ip)
             flash(_("Too many failed attempts. Wait a few minutes."), "error")
         else:
-            user = accounts.authenticate_password(get_db(), cfg, username, password)
+            try:
+                user = accounts.authenticate_password(get_db(), cfg, username, password)
+            except accounts.AccountError as exc:
+                # Contraseña buena, cuenta desactivada: no es un intento de adivinar, así que no cuenta ni bloquea
+                audit.log(get_db(), "login_failed", username=username, ip=ip, detail="account_disabled")
+                flash(exc.message, "error")
+                return redirect(url_for("auth.login", manual=1, next=next_url or None))
             step = mfa.needed(get_db(), cfg, user) if user else ""
             if step:
                 # Falta el segundo factor: no hay sesión todavía (y el limitador no se reinicia hasta el código)

@@ -3,7 +3,7 @@ import io
 import re
 
 from storageweb import __version__
-from tests.helpers import PASSWORD, add_user, get_csrf, login
+from tests.helpers import PASSWORD, add_user, get_csrf, last_audit, login
 from storageweb.web.context import get_db
 
 
@@ -118,7 +118,14 @@ def test_disabled_user_cannot_login(app, client):
         conn = get_db()
         conn.execute("UPDATE users SET enabled = 0 WHERE id = ?", (uid,))
         conn.commit()
-    assert "incorrectos" in login(client, "ana").get_data(as_text=True)
+    # Con la contraseña buena se le dice por qué (es esa persona) y no cuenta como intento fallido
+    resp = login(client, "ana")
+    assert resp.status_code == 302
+    assert "Tu cuenta está deshabilitada" in client.get(resp.location).get_data(as_text=True)
+    assert last_audit(app, "login_failed")["detail"] == "account_disabled"
+    # Con una contraseña mala, como siempre: no se revela nada
+    page = login(client, "ana", password="otra-cosa").get_data(as_text=True)
+    assert "incorrectos" in page and "desactivada" not in page
 
 
 def test_disabling_user_kills_session(app, logged):

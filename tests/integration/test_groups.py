@@ -6,7 +6,7 @@ from storageweb.core.storage import available_roots
 from storageweb.db.repositories import users
 from storageweb.db.repositories import groups as repo
 from storageweb.web.context import get_db, settings
-from tests.helpers import add_user, page_form, visible, U, G, audit_actions
+from tests.helpers import add_user, page_form, visible, U, G, audit_actions, last_audit, signed_in
 
 
 @pytest.fixture
@@ -313,3 +313,224 @@ def test_register_all_detected(app, admin, directory):
     html = client.get("/admin/groups/list").get_data(as_text=True)
     assert "Grupos sin dar de alta" not in html
     assert audit_actions(app).count("group_created") >= 3
+
+
+# --------------------------------------------------------------------------- desactivar, clonar e importar
+
+def _roots(app, uid):
+    with app.app_context():
+        return {r["name"] for r in available_roots(users.get_by_id(get_db(), uid), settings())}
+
+
+def _with_access(client, token, gid, share="software", level="write"):
+    client.post("/admin/groups/matrix", data={"_csrf": token, f"access-{G(gid)}-{share}": level})
+
+
+def _builtin(app):
+    with app.app_context():
+        return repo.get_builtin(get_db(), "admins")
+
+
+def _editors_role(app, gid):
+    from storageweb.core import roles
+    with app.app_context():
+        role = roles.create(get_db(), "Editores", permissions=["edit"])
+        gc.set_role(get_db(), _get(app, gid), role)
+    return role
+
+
+def test_a_disabled_group_gives_nothing_until_enabled(app, admin):
+    client, token = admin
+    gid = _group(app, "it", label="Sistemas")
+    ana = add_user(app, "ana")
+    with app.app_context():
+        gc.add_member(get_db(), _get(app, gid), users.get_by_id(get_db(), ana))
+    role = _editors_role(app, gid)
+    _with_access(client, token, gid)
+    assert "software" in _roots(app, ana)
+    resp = client.post(f"/admin/groups/{G(gid)}/status", data={"_csrf": token, "enabled": "0"})
+    assert resp.status_code == 302
+    with app.app_context():
+        assert "it" not in users.groups_of(users.get_by_id(get_db(), ana)) and not _get(app, gid)["enabled"]
+    assert "software" not in _roots(app, ana)                         # ni su carpeta…
+    html = client.get("/admin/groups/list").get_data(as_text=True)
+    assert 'class="row-disabled"' in html and "avatar-ban" in html
+    assert "Sistemas" in client.get("/admin/groups/list?status=disabled").get_data(as_text=True)
+    assert "Sistemas" not in visible(client.get("/admin/groups/list?status=active").get_data(as_text=True))
+    # …pero se conserva entero: miembros, rol y acceso
+    with app.app_context():
+        assert [m["username"] for m in gc.members(get_db(), _get(app, gid))] == ["ana"]
+        assert _get(app, gid)["role"] == role
+    client.post(f"/admin/groups/{G(gid)}/status", data={"_csrf": token, "enabled": "1"})
+    assert "software" in _roots(app, ana)
+    assert audit_actions(app)[:2] == ["group_enabled", "group_disabled"]
+    admins = _builtin(app)
+    client.post(f"/admin/groups/{G(admins['id'])}/status", data={"_csrf": token, "enabled": "0"})
+    assert _builtin(app)["enabled"]                                   # el de serie, nunca
+
+
+def test_the_provider_cannot_bring_back_a_disabled_group(app):
+    gid = _group(app, "it", label="Sistemas", source="entra", external_id="oid-it")
+    eva = add_user(app, "eva@x.com", password=None, source="entra", external_id="o-eva")
+    with app.app_context():
+        gc.set_enabled(get_db(), _get(app, gid), False)
+        gc.sync_external(get_db(), eva, "entra", ["oid-it", "oid-otro"])
+        assert users.groups_of(users.get_by_id(get_db(), eva)) == {"oid-otro"}   # ni el nombre ni el Object ID
+        gc.set_enabled(get_db(), _get(app, gid), True)
+        assert users.groups_of(users.get_by_id(get_db(), eva)) == {"oid-it", "oid-otro", "it"}
+
+
+def test_clone_with_members_role_and_access(app, admin):
+    client, token = admin
+    gid = _group(app, "it", label="Sistemas", source="entra", external_id="oid-it", description="Soporte")
+    eva = add_user(app, "eva@x.com", password=None, source="entra", external_id="o-eva")
+    ana = add_user(app, "ana")
+    with app.app_context():
+        gc.sync_external(get_db(), eva, "entra", ["oid-it"])            # sincronizada
+        gc.add_member(get_db(), _get(app, gid), users.get_by_id(get_db(), ana))
+    role = _editors_role(app, gid)
+    _with_access(client, token, gid, level="read")
+    page = client.get(f"/admin/groups/new?copy={G(gid)}").get_data(as_text=True)
+    assert "Clonar «Sistemas»" in page and 'value="Sistemas (copia)"' in page and 'value="Soporte"' in page
+    assert "Sus miembros (2)" in page and "Su acceso a 1 carpeta compartida" in page
+    assert 'name="source" value="local"' in page and 'name="external_id"' not in page
+    resp = client.post("/admin/groups/new", data={
+        "_csrf": token, "copy": G(gid), "name": "it-copia", "label": "Sistemas (copia)", "description": "Soporte",
+        "source": "entra", "role": role, "home_quota_mb": "", "copy_members": "1", "copy_access": "1"})
+    assert resp.status_code == 302
+    with app.app_context():
+        clone = repo.get_by_name(get_db(), "it-copia")
+        members = {m["username"]: m["origin"] for m in repo.members(get_db(), clone["id"])}
+        software = next(s for s in settings()["storage"]["shares"] if s["name"] == "software")
+    assert clone["source"] == "local" and clone["role"] == role       # siempre local, aunque se mande otro
+    assert members == {"ana": "manual", "eva@x.com": "manual"}
+    assert gc.share_level(clone, software) == "read"
+    assert "copy=it" in last_audit(app, "group_created")["detail"]
+    # Sin las casillas: solo los datos
+    client.post("/admin/groups/new", data={"_csrf": token, "copy": G(gid), "name": "it-vacio", "label": "Vacío",
+                                           "source": "local"})
+    with app.app_context():
+        empty = repo.get_by_name(get_db(), "it-vacio")
+        software = next(s for s in settings()["storage"]["shares"] if s["name"] == "software")
+        assert not repo.members(get_db(), empty["id"])
+    assert gc.share_level(empty, software) == "none"
+    # Clonar la copia propone «(copia 2)», no «(copia) (copia)»
+    assert 'value="Sistemas (copia 2)"' in client.get(f"/admin/groups/new?copy={G(clone['id'])}").get_data(as_text=True)
+
+
+def test_clone_from_the_panels_goes_to_the_new_group(app, admin):
+    client, token = admin
+    gid = _group(app, "it", label="Sistemas")
+    page = client.get(f"/admin/groups/panel?g={G(gid)}").get_data(as_text=True)
+    assert f"/admin/groups/new?copy={G(gid)}" in page and "Desactivar" in page
+    resp = client.post("/admin/groups/new", data={"_csrf": token, "copy": G(gid), "name": "it2", "label": "Otro",
+                                                  "source": "local", "next": f"/admin/groups/panel?g={G(gid)}"})
+    with app.app_context():
+        new = repo.get_by_name(get_db(), "it2")
+    assert resp.location.endswith(f"/admin/groups/panel?g={new['uid']}")
+
+
+def test_group_avatar_with_initials(app, admin):
+    client, _ = admin
+    _group(app, "rrhh", label="Recursos humanos")
+    html = client.get("/admin/groups/list").get_data(as_text=True)
+    assert 'class="avatar group-avatar" aria-hidden="true">RH</span>' in html
+    assert ">RH</span>" in client.get("/admin/groups/panel").get_data(as_text=True)
+
+
+@pytest.fixture
+def groups_directory(monkeypatch):
+    from storageweb.providers.entra import directory as entra_directory
+    everyone = sorted(({"id": k, **v} for k, v in DIRECTORY.items()), key=lambda g: g["name"])
+    monkeypatch.setattr(entra_directory, "configured", lambda ecfg: True)
+    monkeypatch.setattr(entra_directory, "info_for",
+                        lambda ecfg, ids: {i: DIRECTORY[i] for i in ids if i in DIRECTORY})
+    monkeypatch.setattr(entra_directory, "search_groups", lambda ecfg, text, limit=20: [
+        g for g in everyone if g["name"].lower().startswith(text.lower())])
+
+    def pages(ecfg, skiptoken="", page_size=50):
+        start = int(skiptoken or 0)
+        return everyone[start:start + 1], (str(start + 1) if start + 1 < len(everyone) else "")
+    monkeypatch.setattr(entra_directory, "list_groups", pages)
+
+
+def test_import_groups_from_entra(entra_app, groups_directory):
+    app = entra_app()
+    client, token = signed_in(app, "root", role="admin", csrf_url="/admin/groups/list")
+    assert "/admin/groups/import?source=entra" in client.get("/admin/groups/list").get_data(as_text=True)
+    page = client.get("/admin/groups/import?source=entra&q=ven").get_data(as_text=True)
+    assert "Ventas España" in page and "Permitir Instalación" not in page and "directory-import.js" in page
+    assert "Permitir" in client.get("/admin/groups/import?source=entra&q=per&partial=1").get_data(as_text=True)
+    # Todos, por páginas (uno por página aquí): la siguiente se pide sola con ?rows=1
+    page = client.get("/admin/groups/import?source=entra&all=1").get_data(as_text=True)
+    assert "Permitir Instalación" in page and 'id="import-more"' in page
+    rows = client.get("/admin/groups/import?source=entra&all=1&cursor=1&rows=1")
+    assert "Ventas España" in rows.get_data(as_text=True) and rows.headers["X-Next"] == ""
+    # Uno, y luego varios (el ya importado no se duplica)
+    client.post("/admin/groups/import", data={"_csrf": token, "source": "entra", "external_id": G_SALES})
+    with app.app_context():
+        sales = repo.get_by_external(get_db(), "entra", G_SALES)
+    assert (sales["name"], sales["label"], sales["description"]) == ("ventas-espana", "Ventas España", "Equipo comercial")
+    assert "ya dado de alta" in client.get("/admin/groups/import?source=entra&q=ven").get_data(as_text=True)
+    client.post("/admin/groups/import", data={"_csrf": token, "source": "entra", "ids": [G_SALES, G_IT, "no-existe"]})
+    with app.app_context():
+        assert repo.get_by_external(get_db(), "entra", G_IT)["name"] == "permitir-instalacion"
+        assert len([g for g in repo.list_all(get_db()) if g["source"] == "entra"]) == 2
+    assert last_audit(app, "group_created")["detail"].endswith(" import")
+
+
+def test_import_groups_needs_the_directory(app, admin):
+    client, _ = admin
+    resp = client.get("/admin/groups/import")
+    assert resp.status_code == 302 and resp.location.endswith("/admin/groups/")
+    assert "/admin/groups/import" not in client.get("/admin/groups/list").get_data(as_text=True)
+
+
+def test_clone_the_builtin_group(app, admin):
+    """El de serie también se clona: la copia es local, con quienes tienen el rol Administrador como miembros a mano
+    (no les da ese rol) y su acceso a carpetas; no se desactiva."""
+    client, token = admin
+    admins = _builtin(app)
+    _with_access(client, token, admins["id"], level="read")
+    page = client.get(f"/admin/groups/panel?g={admins['uid']}").get_data(as_text=True)
+    assert f"/admin/groups/new?copy={admins['uid']}" in page and "Desactivar" not in page
+    page = client.get(f"/admin/groups/new?copy={admins['uid']}").get_data(as_text=True)
+    assert "Sus miembros (1)" in page or "Su miembro (1)" in page
+    client.post("/admin/groups/new", data={"_csrf": token, "copy": admins["uid"], "name": "jefes", "label": "Jefes",
+                                           "source": "local", "copy_members": "1", "copy_access": "1"})
+    with app.app_context():
+        clone = repo.get_by_name(get_db(), "jefes")
+        software = next(s for s in settings()["storage"]["shares"] if s["name"] == "software")
+        assert [m["origin"] for m in repo.members(get_db(), clone["id"])] == ["manual"]
+    assert not clone["builtin"] and clone["source"] == "local" and clone["role"] is None
+    assert gc.share_level(clone, software) == "read"
+
+def test_a_disabled_group_gives_no_permissions_or_quota(app, admin):
+    """Lo que da un grupo (rol con sus permisos, cuota de la carpeta personal) desaparece al desactivarlo y vuelve al
+    activarlo, sin volver a entrar: todo se calcula con la lista efectiva de grupos de la persona."""
+    from storageweb.core.permissions import permissions_for
+    from storageweb.core.storage import home_quota_mb
+    from storageweb.db.repositories import catalog
+    client, token = admin
+    gid = _group(app, "it", label="Sistemas")
+    ana = add_user(app, "ana")
+    _editors_role(app, gid)
+    with app.app_context():
+        gc.add_member(get_db(), _get(app, gid), users.get_by_id(get_db(), ana))
+        catalog.set_group_quota(get_db(), "it", 50)
+        catalog.bump_all(get_db(), None)
+        get_db().commit()
+
+    def gives():
+        with app.app_context():
+            user = users.get_by_id(get_db(), ana)
+            return "edit" in permissions_for(user, settings()), home_quota_mb(user, settings())
+    assert gives() == (True, 50)
+    client.post(f"/admin/groups/{G(gid)}/status", data={"_csrf": token, "enabled": "0"})
+    assert gives() == (False, 0)
+    # La persona lo ve marcado en su ficha y en la lista (sigue siendo miembro)
+    page = client.get(f"/admin/users/{U(ana)}").get_data(as_text=True)
+    assert 'class="chip is-off"' in page and "Grupo desactivado: no da nada" in page
+    assert 'class="group-tag is-off"' in client.get("/admin/users").get_data(as_text=True)
+    client.post(f"/admin/groups/{G(gid)}/status", data={"_csrf": token, "enabled": "1"})
+    assert gives() == (True, 50)

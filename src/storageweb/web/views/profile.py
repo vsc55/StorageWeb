@@ -1,10 +1,10 @@
 """Perfil del usuario: datos personales, idioma, tema, contraseña, sesiones y tokens de API."""
 from __future__ import annotations
 
-from flask import Blueprint, abort, flash, g, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, g, jsonify, redirect, render_template, request, session, url_for
 
 from ...core import links, mfa, quota, storage, tokens
-from ...core.permissions import permissions_for
+from ...core.permissions import is_admin, permissions_for
 from ...core.accounts import source_labels, stores_password
 from ...db.repositories import api_tokens, audit, users
 from ...db.repositories import sessions as session_repo
@@ -12,7 +12,7 @@ from ...i18n import LOCALES, _, _l, locale_display_name, ngettext
 from ...i18n import normalize as normalize_locale
 from ...providers import local
 from ..context import external_url, get_db, runtime, settings
-from ..guards import audit_event, client_ip, login_required, require_api_tokens, safe_next
+from ..guards import audit_event, client_ip, login_required, require_api_tokens, safe_next, user_or_404
 from . import mfa as mfa_views
 from .links import listing_context as link_listing
 
@@ -160,6 +160,47 @@ def profile():
 @login_required
 def section(section: str):
     return _render(section)
+
+
+def _password_owner() -> str:
+    """El nombre de usuario de quien tendrá la contraseña que se comprueba o se genera: el propio o, para un
+    administrador, el de ``user`` (el modal de *Cambiar contraseña* de otra cuenta) o ``username`` (el alta de una
+    cuenta que aún no existe): la regla del nombre de usuario es la de esa persona."""
+    uid = request.form.get("user", "")
+    name = request.form.get("username")
+    if (uid and uid != g.user["uid"]) or name is not None:
+        if not is_admin(g.user):
+            abort(403)
+        return user_or_404(uid)["username"] if uid else name.strip()[:200]
+    return g.user["username"]
+
+
+@bp.route("/profile/password/check", methods=["POST"])
+@login_required
+def password_check():
+    """El medidor de las páginas de contraseña nueva (static/js/password-meter.js): la fortaleza (0–4) y cada regla de
+    las que se aplicarán al guardar, para lo escrito. La de las filtraciones no (iría a internet en cada tecla): se
+    dice que se comprueba al guardar. No guarda nada ni la apunta en ningún sitio."""
+    password = request.form.get("password", "")[:local.MAX_PASSWORD_LENGTH * 8]
+    owner = _password_owner()
+    rules = local.rules(settings())
+    results = list(local.checks(password, username=owner, **{**rules, "breach_check": False}))
+    if rules["breach_check"]:
+        results.append({"key": "breach", "label": _("Does not appear in known data breaches"), "ok": None,
+                        "message": _("It is checked when saving.")})
+    return jsonify(**local.verdict(password, results), checks=results)
+
+
+@bp.route("/profile/password/generate", methods=["POST"])
+@login_required
+def password_generate():
+    """Una contraseña aleatoria que cumple las reglas del sistema (el botón «Generar» de las páginas de contraseña)."""
+    owner = _password_owner()
+    try:
+        password = local.generate(username=owner, **local.rules(settings()))
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    return jsonify(password=password)
 
 
 @bp.route("/profile/password", methods=["POST"])

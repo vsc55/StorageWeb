@@ -42,7 +42,7 @@
   }
 
   function fetchRows(url) {
-    return fetch(url, { credentials: "same-origin", headers: { "Accept": "text/html" } }).then(function (r) {
+    return window.SW.page(url).then(function (r) {
       if (!r.ok) throw new Error(r.status);
       return r.text().then(function (html) {
         return { html: html, next: r.headers.get("X-Next") || "", total: parseInt(r.headers.get("X-Total"), 10) || 0 };

@@ -88,22 +88,39 @@ def can_read_groups(access_token: str) -> tuple[bool, str]:
     return _can_read(access_token, f"{GRAPH}/groups?$top=1&$select=id")
 
 
-def search_groups(ecfg: dict, text: str, limit: int = 20) -> list[dict]:
-    """Grupos cuyo nombre empieza por ``text``: ``[{id, name, description}]``. Vacío si no se puede leer el
-    directorio."""
-    text = (text or "").strip()
-    if len(text) < 2 or not configured(ecfg):
-        return []
-    query = urllib.parse.quote(text.replace("'", "''"))
-    data = _graph(ecfg, "GET", f"{GRAPH}/groups?$filter=startswith(displayName,'{query}')"
-                                 f"&$select={SELECT}&$top={limit}", "Entra group search failed")
-    if data is None:
-        return []
-    groups = [{"id": g["id"].lower(), **_details(g)} for g in data.get("value", [])]
+def _remember_groups(found: list[dict]) -> list[dict]:
+    """``[{id, name, description}]`` de los grupos de Graph, guardando su nombre (así no se vuelven a pedir)."""
+    groups = [{"id": g["id"].lower(), **_details(g)} for g in found]
     with _lock:
         for g in groups:
             _info[g["id"]] = (time.monotonic() + NAME_TTL, {"name": g["name"], "description": g["description"]})
-    return sorted(groups, key=lambda g: g["name"].lower())
+    return groups
+
+
+def search_groups(ecfg: dict, text: str, limit: int = 20) -> list[dict] | None:
+    """Grupos cuyo nombre empieza por ``text``: ``[{id, name, description}]``. ``None`` si no se puede leer el
+    directorio (sin configurar, sin permiso, sin red…); ``[]`` si no hay ninguno o el texto es corto."""
+    text = (text or "").strip()
+    if not configured(ecfg):
+        return None
+    if len(text) < 2:
+        return []
+    query = urllib.parse.quote(text.replace("'", "''"))
+    data = _graph(ecfg, "GET", f"{GRAPH}/groups?$filter=startswith(displayName,'{query}')"
+                                 f"&$select={SELECT}&$top={int(limit)}", "Entra group search failed")
+    if data is None:
+        return None
+    return sorted(_remember_groups(data.get("value", [])), key=lambda g: g["name"].lower())
+
+
+def list_groups(ecfg: dict, skiptoken: str = "", page_size: int = 50) -> tuple[list[dict], str] | None:
+    """Una página de todos los grupos, por nombre: ``([{id, name, description}], marcador de la siguiente o "")``.
+    ``None`` si no se puede leer el directorio (ver :func:`_page`)."""
+    page = _page(ecfg, f"{GRAPH}/groups?$select={SELECT}", skiptoken, page_size, "Entra group list failed")
+    if page is None:
+        return None
+    found, following = page
+    return _remember_groups(found), following
 
 
 def names_for(ecfg: dict, ids) -> dict[str, str]:
@@ -200,19 +217,19 @@ def search_users(ecfg: dict, text: str, limit: int = 25) -> list[dict] | None:
 _SKIPTOKEN_RE = re.compile(r"^[A-Za-z0-9_\-.~!*'()%+=/]{1,4096}$")
 
 
-def list_users(ecfg: dict, skiptoken: str = "", page_size: int = 50) -> tuple[list[dict], str] | None:
-    """Una página de todas las cuentas, por nombre: ``(cuentas, marcador de la siguiente o "")``. ``None`` si no se
-    puede leer el directorio. El marcador es el ``$skiptoken`` de Graph y NADA más: la dirección de la página
-    siguiente la compone esto, nunca la que llegue de fuera (con ella el servidor mandaría su token a cualquier
-    sitio)."""
+def _page(ecfg: dict, url: str, skiptoken: str, page_size: int, what: str) -> tuple[list[dict], str] | None:
+    """Una página de una lista de Graph (``url`` con su ``$select``), por nombre: ``(objetos, marcador de la
+    siguiente o "")``. ``None`` si no se puede leer el directorio. El marcador es el ``$skiptoken`` de Graph y NADA
+    más: la dirección de la página siguiente la compone esto, nunca la que llegue de fuera (con ella el servidor
+    mandaría su token a cualquier sitio)."""
     if not configured(ecfg):
         return None
     if skiptoken and not _SKIPTOKEN_RE.match(skiptoken):
         return None
-    url = f"{GRAPH}/users?$select={USER_SELECT}&$top={max(1, min(int(page_size), 999))}&$orderby=displayName"
+    url += f"&$top={max(1, min(int(page_size), 999))}&$orderby=displayName"
     if skiptoken:
         url += "&$skiptoken=" + urllib.parse.quote(skiptoken, safe="")
-    data = _graph(ecfg, "GET", url, "Entra user list failed")
+    data = _graph(ecfg, "GET", url, what)
     if data is None:
         return None
     following = ""
@@ -221,6 +238,11 @@ def list_users(ecfg: dict, skiptoken: str = "", page_size: int = 50) -> tuple[li
         query = urllib.parse.parse_qs(urllib.parse.urlsplit(link).query)
         following = (query.get("$skiptoken") or [""])[0]
     return data.get("value", []), following
+
+
+def list_users(ecfg: dict, skiptoken: str = "", page_size: int = 50) -> tuple[list[dict], str] | None:
+    """Una página de todas las cuentas, por nombre: ``(cuentas, marcador de la siguiente o "")`` (:func:`_page`)."""
+    return _page(ecfg, f"{GRAPH}/users?$select={USER_SELECT}", skiptoken, page_size, "Entra user list failed")
 
 
 def get_user(ecfg: dict, oid: str) -> dict | None:
