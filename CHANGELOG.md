@@ -6,6 +6,10 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 
 ## [Sin publicar]
 
+## [0.2.0] - 2026-11-22
+
+Segunda versión de la serie **0.x**. La base de datos se pone al día sola al arrancar (migraciones 002 a 010); antes de actualizar, haz una copia de seguridad (*Sistema → Copias de seguridad* o `storageweb backup`).
+
 ### Añadido
 
 - **Todas las tablas se ordenan y dejan elegir columnas** (`tables.js`, en todas las páginas, en lugar de `admin/sortable.js` en unas pocas): al pulsar el título de una columna, con el tipo deducido de lo que hay en ella (texto, números, fechas, tamaños); *Usuarios* y *Auditoría*, que van por páginas, se ordenan en el servidor (`?sort=&order=`; el nivel de la auditoría, por gravedad). El botón **Columnas** oculta las que no se quieran ver y se recuerda por tabla en el navegador.
@@ -102,6 +106,13 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 - Los botones de copiar funcionan también si se entra por `http://` (el navegador solo da el portapapeles moderno con HTTPS).
 - Fuera de Windows, una ruta de red escrita con barras invertidas (por ejemplo en el fichero de auditoría o en la plantilla de las carpetas personales) se tomaba por una carpeta junto al `config.json` y se saltaba la regla de las rutas de red; ahora se trata igual en todos los sistemas, también al compararla con las carpetas permitidas.
 - Una lista propia de contraseñas comunes instalada justo después de otra del mismo tamaño podía no volver a leerse (pasaba en Windows).
+
+### Notas de actualización
+
+- **Extensión de VS Code:** la 0.6.0 viene con esta versión. Instálala de nuevo (`.vsix` de la release, o `python tools/build_vsix.py --install`): VS Code no recarga una extensión con la misma versión.
+- **Alta de usuarios desde la web:** ahora se pide la contraseña dos veces. Un script que enviara el formulario de *Nuevo usuario* tiene que mandar también `repeat_password` (la CLI no cambia).
+- **Programas que usan la unidad de red o la API:** los errores llevan ahora el motivo en la cabecera `X-StorageWeb-Reason` (ver *Unidad de red → Para el administrador*); los códigos de estado no cambian.
+- **Grupos desactivados:** la migración 010 añade el estado a los grupos; todos los que ya existían quedan activos.
 
 ## [0.1.0] - 2026-11-17
 
