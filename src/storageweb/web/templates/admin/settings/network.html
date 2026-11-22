@@ -1,6 +1,10 @@
 {% extends "admin/settings/_layout.html" %}
 {% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
 {% block section %}
+{# Una pestaña por sección (admin/forms.js): el nombre público (el formulario), la comprobación y el proxy #}
+<div class="js-tabs">
+<fieldset class="tab-panel">
+  <legend>{{ _("Public name") }}</legend>
 {{ form_start() }}
   <div class="card form-grid">
     {% set pub = cfg.network.public_url %}
@@ -14,8 +18,10 @@
   </div>
   {{ save_bar() }}
 </form>
-
-<div class="card section-gap">
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Check") }}</legend>
+<div class="card">
   <h3 class="card-title">{{ _("Check of this request") }}</h3>
   <ul class="check-list section-gap">
     {% for level, text in notes %}
@@ -31,8 +37,10 @@
     {% endfor %}
   </dl>
 </div>
-
-<div class="card section-gap">
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Proxy and HTTPS") }}</legend>
+<div class="card">
   <h3 class="card-title">{{ _("Reverse proxy and HTTPS (config.json, requires restarting)") }}</h3>
   <p class="muted small">{{ _("StorageWeb serves plain HTTP; HTTPS and the certificate are handled by the reverse proxy (nginx, Apache, Caddy…).") }}</p>
   <dl class="kv section-gap">
@@ -142,5 +150,7 @@ server {
   - "traefik.http.services.storageweb.loadbalancer.server.port={{ example.port }}"</pre>
     <p class="muted small">{{ _("Traefik itself needs the entry points web and websecure, the certificate resolver «le», readTimeout=0 for large uploads through the network drive and the encoded characters allowed: the full file is packaging/docker/compose.traefik.yaml in the repository.") }}</p>
   </details>
+</div>
+</fieldset>
 </div>
 {% endblock %}

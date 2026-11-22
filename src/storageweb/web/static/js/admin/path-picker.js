@@ -11,8 +11,6 @@
 (function () {
   "use strict";
 
-  var fields = document.querySelectorAll("input[data-browse]");
-  if (!fields.length) return;
   var t = window.SW.t;
   var counter = 0;
   var meta = document.querySelector('meta[name="csrf-token"]');
@@ -162,7 +160,15 @@
     });
   }
 
-  Array.prototype.forEach.call(fields, function (input) {
+  // Al cargar la página y con el contenido que llega sin recargar (admin/panels.js: evento «sw:content»)
+  function wireFields(root) {
+    root.querySelectorAll("input[data-browse]").forEach(wireField);
+  }
+  document.addEventListener("sw:content", function (e) { wireFields(e.detail); });
+  wireFields(document);
+
+  function wireField(input) {
+    if (input.closest(".path-field")) return;              // ya tiene su botón
     var button = document.createElement("button");
     button.type = "button";
     button.className = "btn path-browse";
@@ -178,5 +184,5 @@
     wrap.appendChild(input);
     wrap.appendChild(button);
     wireSuggest(input);
-  });
+  }
 })();

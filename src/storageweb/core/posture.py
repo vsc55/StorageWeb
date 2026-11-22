@@ -19,6 +19,7 @@ from .. import providers
 from ..db.repositories import api_tokens, mfa as mfa_repo, users
 from ..i18n import _, ngettext
 from . import advisories
+from .permissions import ADMIN, default_role
 
 STATES = ("bad", "warn", "ok", "info")      # también el orden en la página: lo grave, arriba
 
@@ -103,6 +104,17 @@ def password_accounts(conn: Connection) -> list:
         if user["enabled"] and method is not None and method.password and not method.sso:
             out.append(user)
     return out
+
+
+@check(15)
+def _default_role(ctx: Context) -> dict | None:
+    """Solo si las cuentas nuevas son administradoras (Acceso → Roles, la estrella): cualquier otro rol es normal."""
+    if default_role(ctx.cfg) != ADMIN:
+        return None
+    return result("default_role", "bad", _("Role of new accounts"),
+                  _("New accounts are administrators: anyone who gets an account, also on their first sign-in with "
+                    "an identity provider, can change everything. Choose another role with the star in Roles."),
+                  "permissions")
 
 
 @check(20)
@@ -278,3 +290,19 @@ def _libraries(ctx: Context) -> dict:
     stale = when < (datetime.now(timezone.utc) - timedelta(days=30)).date().isoformat()
     return result("libraries", "warn" if stale and not hours else "ok", _("Vulnerabilities in the libraries"),
                   _("None known on %(date)s.", date=when) + " " + auto, "vulnerabilities", "advisories")
+
+
+@check(95)
+def _share_links(ctx: Context) -> dict:
+    sharing = ctx.cfg.get("sharing") or {}
+    if not sharing.get("links"):
+        return result("share_links", "ok", _("Share links"), _("Turned off: nothing can be shared with people outside."),
+                      "sharing")
+    if not int(sharing.get("max_days") or 0):
+        return result("share_links", "warn", _("Share links"),
+                      _("They can be created without an expiry: a forgotten link stays open forever. Set a maximum."),
+                      "sharing")
+    return result("share_links", "ok", _("Share links"),
+                  ngettext("They expire in %(num)s day at most.", "They expire in %(num)s days at most.",
+                           int(sharing["max_days"]))
+                  + (" " + _("A password is required.") if sharing.get("require_password") else ""), "sharing")

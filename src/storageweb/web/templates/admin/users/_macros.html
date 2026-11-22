@@ -17,7 +17,7 @@
 
 {% macro badges(u) -%}
 <span class="badge badge-src badge-src-{{ u['source'] }}">{{ SOURCE_LABELS[u['source']] }}</span>
-<span class="badge badge-{{ u['role'] }}">{{ ROLE_LABELS[u['role']] }}</span>
+<span class="badge badge-{{ u['role'] }}">{{ role_label(u['role']) }}</span>
 {%- endmacro %}
 
 {# Filtros comunes (lista y paneles); ``target`` = endpoint del formulario #}
@@ -37,7 +37,7 @@
   </select>
   <select name="role" aria-label="{{ _('Role') }}">
     <option value="">{{ _("Any role") }}</option>
-    {% for r in ROLES %}<option value="{{ r }}" {% if filters.role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}
+    {% for r, r_label in role_choices() %}<option value="{{ r }}" {% if filters.role == r %}selected{% endif %}>{{ r_label }}</option>{% endfor %}
   </select>
   {{ caller() if caller else '' }}
   <button class="btn" type="submit">{{ _("Search") }}</button>
@@ -102,7 +102,7 @@
   {% endfor %}
 </ul>
 <p class="muted small">{{ _("Allowed actions: %(perms)s.", perms=role_permissions|join(', ') or '—') }}
-  {% if user['role'] != 'admin' %}<a href="{{ url_for('settings.section', name='permissions') }}">{{ _("Change them in Settings") }}</a>{% endif %}</p>
+  {% if user['role'] != 'admin' %}<a href="{{ url_for('roles.index') }}">{{ _("Change them in Settings") }}</a>{% endif %}</p>
 {% endif %}
 {%- endmacro %}
 

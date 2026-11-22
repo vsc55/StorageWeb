@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from flask import abort, flash, g, redirect, render_template, request, session, url_for
 
 from .... import siem
-from ....core import branding, maintenance, offsite, passwords, storage
+from ....core import branding, links, maintenance, offsite, passwords, storage, thumbnails
 from ....providers import local
 from ....core.backup import BackupError
 from ....core.permissions import PERMISSION_LABELS, ROLE_LABELS
@@ -23,20 +23,22 @@ from ...guards import admin_required, audit_event, client_ip, safe_next
 from . import bp
 from . import auth_forms
 from ....settings import store as settings_store
-from ...forms import split_list
+from ...forms import remembered, split_list
 from .common import checked, form_int, network_context, save_partial
 
 
-SECTIONS = ("general", "storage", "quotas", "permissions", "security_status", "vulnerabilities", "auth", "passwords", "security",
+SECTIONS = ("general", "storage", "quotas", "security_status", "vulnerabilities", "auth", "passwords", "security",
             "clients", "ips",
             "sessions", "network",
-            "server_folders", "files", "preview", "audit_settings", "auto_backups", "monitoring", "backups", "system")
+            "sharing", "server_folders", "files", "preview", "audit_settings", "auto_backups", "monitoring", "backups", "system")
 SECTION_LABELS = {name: nav.PAGES[name].label for name in SECTIONS}
 SECTION_DESCRIPTIONS = {
     "general": _l("Name of the application, default language, logo and color."),
     "storage": _l("Where personal folders live and how they are created."),
     "quotas": _l("How much each personal folder can hold, whether what does not fit is blocked and how often the "
                  "usage is measured again."),
+    "sharing": _l("Links to share a file or a folder with people without an account, and drop boxes to receive "
+                  "files. Who can create them is the permission «Share with links» of the role."),
     "server_folders": _l("Which folders of the server disk can hold shared and personal folders, and the only ones "
                          "that Browse shows on it."),
     "files": _l("What the file browser shows, what does not exist for anyone, the largest file and how folders "
@@ -45,7 +47,6 @@ SECTION_DESCRIPTIONS = {
                          "a SIEM or syslog."),
     "auto_backups": _l("Backups made by the service itself and the copy outside the server."),
     "monitoring": _l("Metrics for Prometheus: who can read them and how."),
-    "permissions": _l("What the «User» role can do. Administrators always have every permission."),
     "auth": _l("How users sign in. Several methods can be enabled at the same time."),
     "security": _l("Protection against password guessing and automatic IP blocking."),
     "passwords": _l("What a new password of a local account must have and which ones are rejected: common ones, "
@@ -67,7 +68,7 @@ SECTION_DESCRIPTIONS = {
                  "the startup settings and where each value comes from: default, web, config.json or environment."),
 }
 # Antiguas direcciones de secciones que ahora están en otra página
-MOVED = {"shares": "folders", "maintenance": "auto_backups"}
+MOVED = {"shares": "folders", "maintenance": "auto_backups", "permissions": "permissions"}   # Roles: roles.index
 WIZARD_STEPS = (1, 2, 3, 4)
 
 
@@ -94,6 +95,19 @@ def _quotas() -> dict:
                                           _("Measure the quota usage again every (minutes)")),
         "quota_warn_percent": form_int("quota_warn_percent", "storage.quota_warn_percent",
                                        _("Warn from (percent of the quota)")),
+    }}
+
+
+def _sharing() -> dict:
+    return {"sharing": {
+        "links": checked("sharing_links"),
+        "default_days": form_int("sharing_default_days", "sharing.default_days", _("Days a link lasts by default")),
+        "max_days": form_int("sharing_max_days", "sharing.max_days", _("Days a link can last at most")),
+        "require_password": checked("sharing_require_password"),
+        "upload_links": checked("sharing_upload_links"),
+        "keep_days": form_int("sharing_keep_days", "sharing.keep_days", _("Keep removed or expired links (days)")),
+        "history_days": form_int("sharing_history_days", "sharing.history_days",
+                                 _("Keep the history of the links (days)")),
     }}
 
 
@@ -137,9 +151,6 @@ def _files() -> dict:
     }}
 
 
-def _permissions() -> dict:
-    return {"permissions": {"user": {p: checked(f"perm_{p}") for p in PERMISSIONS}}}
-
 
 def _network() -> dict:
     return {"network": {"public_url": request.form.get("public_url", "").strip()}}
@@ -178,7 +189,11 @@ def _preview() -> dict:
         "enabled": checked("preview_enabled"),
         "diagrams": checked("preview_diagrams"),
         "highlight": checked("preview_highlight"),
-        **{key: checked(f"preview_{key}") for key in ("images", "pdf", "video", "audio")},
+        **{key: checked(f"preview_{key}") for key in ("images", "pdf", "video", "audio", "thumbnails")},
+        "thumbnail_max_mb": form_int("preview_thumbnail_max_mb", "preview.thumbnail_max_mb",
+                                     _("Thumbnails: largest image (MB)")),
+        "thumbnail_cache_mb": form_int("preview_thumbnail_cache_mb", "preview.thumbnail_cache_mb",
+                                       _("Thumbnails: space for the cache (MB)")),
         "max_mb": form_int("preview_max_mb", "preview.max_mb", _("Largest file to view (MB)")),
         "extensions": _extensions("preview_extensions"),
         "blocked_extensions": _extensions("preview_blocked_extensions"),
@@ -224,10 +239,17 @@ def _monitoring() -> dict:
     }}
 
 
-PARSERS = {"general": _general, "storage": _storage, "quotas": _quotas, "server_folders": _server_folders, "passwords": _passwords, "files": _files, "permissions": _permissions,
+PARSERS = {"general": _general, "storage": _storage, "quotas": _quotas, "server_folders": _server_folders, "passwords": _passwords, "sharing": _sharing, "files": _files,
            "auth": auth_forms.parse, "security": _security, "clients": _clients, "network": _network, "preview": _preview,
            "audit_settings": _audit_settings, "auto_backups": _auto_backups, "monitoring": _monitoring,
            "vulnerabilities": _vulnerabilities}
+
+
+def _share_rows(rows) -> list[dict]:
+    """Los enlaces para la tabla de la administración: con su estado, sin el token (ni cifrado: un administrador no
+    abre los enlaces de los demás desde aquí; los puede quitar)."""
+    return [{**{k: row[k] for k in row.keys() if k not in ("token_hash", "token_enc", "password_hash")},
+             "has_password": bool(row["password_hash"]), "state": links.state(row)} for row in rows]
 
 
 def _display(draft: dict | None) -> dict:
@@ -285,6 +307,18 @@ def _render(section: str, cfg: dict, status: int = 200, error: ConfigError | Non
         ctx.update(system_info.context())
     if section == "network":
         ctx.update(network_context(cfg))
+    if section == "sharing":
+        show = remembered("show", "admin_links_show", links.BUCKETS, "active")
+        deleted = links.deleted_history(get_db())
+        rows, counts = links.split(_share_rows(links.all_links(get_db())), show, len(deleted))
+        ctx.update(share_links=rows, link_show=show, link_counts=counts,
+                   deleted_links=deleted if show == "deleted" else [],
+                   BUCKETS=links.BUCKETS, bucket_label=links.bucket_label,
+                   MODE_LABELS=links.MODE_LABELS, STATE_LABELS=links.STATE_LABELS,
+                   link_activity=links.activity(get_db(), [r["uid"] for r in rows]))
+    if section == "preview":
+        ctx.update(thumbnails_available=thumbnails.available(), pillow_version=thumbnails.pillow_version(),
+                   thumbnail_usage=thumbnails.usage(boot_config()["data_dir"]))
     if section == "passwords":
         ctx.update(password_kinds=list(local.KIND_LABELS.items()),
                    password_list=passwords.status(boot_config()["data_dir"]))

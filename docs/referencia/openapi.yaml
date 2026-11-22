@@ -67,7 +67,7 @@ paths:
   /healthz:
     get:
       summary: Estado del servicio
-      description: Sin autenticación. Comprueba que la base de datos responde. Lo usa el healthcheck de Docker.
+      description: Sin autenticación. Comprueba que la base de datos responde. Lo usa el healthcheck de Docker. No da la versión (sin sesión no se enseña).
       security: []
       responses:
         "200":
@@ -78,7 +78,6 @@ paths:
                 type: object
                 properties:
                   status: {type: string, enum: [ok]}
-                  version: {type: string}
         "503":
           description: La base de datos no responde
           content:

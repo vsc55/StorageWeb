@@ -9,12 +9,12 @@ from datetime import datetime, timezone
 from urllib.parse import quote, unquote, urlsplit
 
 from flask import (Blueprint, Response, abort, current_app, flash, g, jsonify, make_response, redirect,
-                   render_template, request, stream_with_context, url_for)
+                   render_template, request, send_file, stream_with_context, url_for)
 from markupsafe import Markup, escape
 
 from ... import patterns
 from ... import metrics
-from ...core import backends, favorites, markdown, preview, storage, tokens
+from ...core import backends, favorites, links, markdown, preview, storage, thumbnails, tokens
 from ...core import files as files_core
 from ...core import quota
 from ...core.permissions import PERMISSION_LABELS, effective_for_root, permissions_for
@@ -74,6 +74,11 @@ def _viewable(name: str) -> bool:
     return preview.kind_of(name, settings()["preview"]) is not None
 
 
+def _thumbable(name: str) -> bool:
+    """Si el archivo tiene miniatura (``preview.thumbnails``, Pillow y una imagen que abre el visor)."""
+    return thumbnails.can_thumb(name, settings()["preview"])
+
+
 def _wants_json() -> bool:
     return request.headers.get("Accept", "").startswith("application/json")
 
@@ -131,7 +136,7 @@ def browse(root, sub):
     _audit("folder_listed", r, rel, ", ".join(f"{k}={request.args[k]}" for k in ("page", "q", "rows")
                                               if request.args.get(k)) or None)
     rows = {"root": r, "rows": listing["rows"], "perms": _perms(r), "viewable": _viewable,
-            "favorite_keys": favorites.keys(get_db(), g.user)}
+            "thumbable": _thumbable, "favorite_keys": favorites.keys(get_db(), g.user)}
     if request.args.get("rows") == "1":
         # Solo las filas (explorador: cargar más al bajar o filtrar entre todos), con lo que falta en cabeceras
         resp = make_response(render_template("_file_rows.html", **rows))
@@ -146,8 +151,21 @@ def browse(root, sub):
                            space=storage.space_of(r, rel), quota_status=quota.status(r),
                            max_upload_mb=boot_config()["server"]["max_upload_mb"],
                            sort=sort, descending=descending,
-                           favorites=favorites.listing(get_db(), g.user, settings()),
+                           favorites=favorites.listing(get_db(), g.user, settings()), share=_share_config(r),
                            max_file_size_mb=settings()["storage"]["max_file_size_mb"])
+
+
+def _share_config(root: dict) -> dict | None:
+    """Lo que necesita el botón «Compartir enlace» (js/files/share.js), o None si aquí no se puede compartir."""
+    cfg = settings()
+    if g.get("api_token") is not None or not links.can_share(cfg, g.user, root):
+        return None
+    perms = _perms(root)
+    opts = cfg["sharing"]
+    return {"url": url_for("links.create"), "root": root["name"], "days": links.allowed_days(cfg),
+            "default_days": opts["default_days"], "require_password": opts["require_password"],
+            "download": "download" in perms, "upload": bool(opts["upload_links"]) and "upload" in perms,
+            "password_min": links.PASSWORD_MIN, "mine": url_for("profile.section", section="links")}
 
 
 def _listing(entries: list[dict], sort: str, descending: bool) -> dict:
@@ -332,6 +350,31 @@ def inline(root, sub):
     if kind == "pdf":
         rv.headers["X-Frame-Options"] = "SAMEORIGIN"     # el visor lo pone en un marco (el resto: DENY)
     rv.headers["Cross-Origin-Resource-Policy"] = "same-origin"   # ninguna otra web lo incrusta
+    return rv
+
+
+@bp.route("/thumb/<root>/<path:sub>")
+@login_required
+def thumbnail(root, sub):
+    """La miniatura de una imagen (``core/thumbnails``) para el explorador. Con permiso de descargar, como el archivo.
+    La dirección lleva la fecha del archivo (``?v=``): cambia con él, así que el navegador la puede guardar días.
+    No se audita (al abrir una carpeta se piden decenas); si no puede haberla, 404 y el explorador deja el icono."""
+    r = _root(root)
+    _require(r, "download")
+    rel = _rel(sub)
+    entry = _stat(r, rel)
+    if entry is None or entry.is_dir:
+        abort(404)
+    try:
+        path = thumbnails.get(settings(), r, rel, entry)
+    except thumbnails.ThumbnailError as exc:
+        if exc.busy:
+            return Response(exc.message, 503, mimetype="text/plain", headers={"Retry-After": "5"})
+        abort(404)
+    rv = send_file(path, mimetype=thumbnails.mimetype(), conditional=True, etag=True, max_age=7 * 86400)
+    rv.headers["Cache-Control"] = "private, max-age=604800"
+    rv.headers["Content-Security-Policy"] = SANDBOX
+    rv.headers["Cross-Origin-Resource-Policy"] = "same-origin"
     return rv
 
 
@@ -599,6 +642,7 @@ def rename(root, sub):
         storage.check_visible_name(settings(), backends.join_rel(parent, new_name))
         r["backend"].rename(rel, new_name)
         favorites.moved(get_db(), g.user, r["name"], rel, r["name"], backends.join_rel(parent, new_name))
+        links.moved(get_db(), g.user, r["name"], rel, r["name"], backends.join_rel(parent, new_name))
         _audit("rename", r, rel, detail=new_name)
         flash(_("Renamed."), "info")
     except ValueError as exc:
@@ -625,6 +669,7 @@ def delete(root, sub):
         r["backend"].delete(rel)
         quota.invalidate(r)
         favorites.deleted(get_db(), g.user, r["name"], rel)
+        links.deleted(get_db(), g.user, r["name"], rel)
         _audit("delete", r, rel)
         flash(_("«%(name)s» deleted.", name=backends.name_of(rel)), "info")
     except (OSError, backends.BackendError) as exc:
@@ -689,6 +734,7 @@ def transfer():
         done.append(backends.name_of(new_rel))
         if move:
             favorites.moved(get_db(), g.user, src["name"], rel, dst["name"], new_rel)
+            links.moved(get_db(), g.user, src["name"], rel, dst["name"], new_rel)
         if size:
             quota.record(dst, size)
             if move:

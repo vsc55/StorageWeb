@@ -31,7 +31,7 @@ from werkzeug.exceptions import HTTPException
 
 from ... import patterns
 from ... import metrics
-from ...core import backends, favorites, quota, storage, tokens
+from ...core import backends, favorites, links, quota, storage, tokens
 from ...core.permissions import effective_for_root, permissions_for
 from ...core.security import UPLOAD_TMP_PREFIX, PathError, safe_filename
 from ...core.uploads import UploadError, check_space
@@ -421,6 +421,7 @@ def _delete(root: dict, rel: str) -> Response:
         abort(502)
     quota.invalidate(root)
     favorites.deleted(get_db(), g.user, root["name"], rel)
+    links.deleted(get_db(), g.user, root["name"], rel)
     _audit("delete", root, rel)
     return _empty(204)
 
@@ -493,6 +494,7 @@ def _copy_move(root: dict, rel: str, move: bool) -> Response:
     quota.invalidate(root, dst_root)
     if move:
         favorites.moved(get_db(), g.user, root["name"], rel, dst_root["name"], dst_rel)
+        links.moved(get_db(), g.user, root["name"], rel, dst_root["name"], dst_rel)
     target = f"{dst_root['name']}:/{dst_rel}"
     _audit("rename" if move else "upload", root, rel, f"webdav:{'move' if move else 'copy'}:{target}")
     return _empty(204 if existing is not None else 201)

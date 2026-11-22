@@ -183,6 +183,26 @@ def update_group(conn: Connection, group, *, label: str, description: str, sourc
         _resync(conn, before, source)
 
 
+def set_role(conn: Connection, group, role: str | None, username: str | None = None) -> bool:
+    """El rol que da el grupo a sus miembros (sumado al suyo; ``None`` = ninguno). Nunca Administrador: un grupo
+    local no debe poder hacer administrador a quien se añada a él (eso lo da el rol de la persona o el mapeo de roles
+    de Entra ID). Devuelve si ha cambiado."""
+    from . import roles as role_core  # noqa: PLC0415 (roles importa permissions, que importa de aquí)
+    from ..settings import store  # noqa: PLC0415
+    role = (role or "").strip() or None
+    if group["builtin"]:
+        raise GroupError(_("This group comes with StorageWeb and cannot be changed."))
+    if role == "admin":
+        raise GroupError(_("A group cannot make its members administrators: give that role to each person."))
+    if role is not None and not role_core.exists(conn, role):
+        raise GroupError(_("Invalid role: %(role)s", role=role))
+    if (group["role"] if "role" in group.keys() else None) == role:
+        return False
+    repo.update(conn, group["id"], role=role)
+    store.roles_changed(conn, username)
+    return True
+
+
 def delete_group(conn: Connection, group) -> None:
     if group["builtin"]:
         raise GroupError(_("This group comes with StorageWeb and cannot be deleted."))

@@ -1,0 +1,33 @@
+{# Páginas de estado (errores y el enlace para compartir que ya no funciona): sin sesión, el marco del inicio de
+   sesión (la imagen de la marca y la columna con el tema y el idioma); con sesión, dentro de la aplicación. La
+   tarjeta: icono, título y texto, «Qué puedes hacer» y abajo el código y la acción. Variables:
+   status_icon, status_title, status_text, status_tips [(icono, texto)], status_code (texto), status_action
+   (texto, url). Nunca enseña la versión. #}
+{% extends "_login_frame.html" %}
+{% block content %}{% if current_user %}<div class="status-page">{{ self.panel() }}</div>{% else %}{{ super() }}{% endif %}{% endblock %}
+{% block panel_class %} status-panel{% endblock %}
+{% block panel %}
+<div class="status-card">
+  <div class="status-top">
+    <span class="status-icon"><svg class="icon" aria-hidden="true"><use href="#i-{{ status_icon }}"></use></svg></span>
+    <div class="status-text">
+      <h1>{{ status_title }}</h1>
+      {% if status_text %}<p class="muted">{{ status_text }}</p>{% endif %}
+    </div>
+  </div>
+  {% if status_tips %}
+  <div class="status-tips">
+    <p class="status-tips-title">{{ _("What you can do") }}</p>
+    <ul>
+      {% for icon, tip in status_tips %}<li><svg class="icon icon-sm" aria-hidden="true"><use href="#i-{{ icon }}"></use></svg><span>{{ tip }}</span></li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+  {% if status_code or status_action %}
+  <div class="status-foot">
+    <span class="muted small">{{ status_code or '' }}</span>
+    {% if status_action %}<a class="btn btn-primary" href="{{ status_action[1] }}">{{ status_action[0] }}</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

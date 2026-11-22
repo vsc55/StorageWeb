@@ -4,6 +4,10 @@
 {# Sistema → Carpetas del servidor: en qué carpetas del disco puede haber carpetas compartidas y personales #}
 {% set st = cfg.storage %}
 {{ form_start() }}
+  {# Una pestaña por sección (admin/forms.js); el formulario y la barra de guardar, para todas #}
+  <div class="js-tabs">
+  <fieldset class="tab-panel">
+    <legend>{{ _("Allowed") }}</legend>
   <div class="card form-grid">
     <label class="span2 {{ err_class('storage.allowed_folders') }}"><span class="label-row">{{ _("Allowed server folders") }} {{ origin('storage.allowed_folders') }}</span>
       <textarea{{ lock('storage.allowed_folders') }} name="allowed_folders" rows="5" class="mono" spellcheck="false" placeholder="D:\Datos&#10;/srv/storageweb">{{ st.allowed_folders|join('\n') }}</textarea>
@@ -11,8 +15,10 @@
       {{ field_error('storage.allowed_folders') }}</label>
     <p class="muted small span2">{{ _("The real path is compared: a symbolic link that leads outside them is outside. A folder that is already outside stops opening («not available») until it is moved or its folder is added. So that only whoever manages the server can widen the list, set it in config.json or in an environment variable: then it cannot be changed here.") }}</p>
   </div>
-
-  <div class="card stack section-gap">
+  </fieldset>
+  <fieldset class="tab-panel">
+    <legend>{{ _("In use") }}</legend>
+  <div class="card stack">
     <h3 class="card-title">{{ _("Folders of the server disk in use") }}</h3>
     {% if disk_folders %}
     <table class="files small">
@@ -34,6 +40,8 @@
     {% else %}
     <p class="muted">{{ _("No folder uses the server disk: they are all in storage locations.") }}</p>
     {% endif %}
+  </div>
+  </fieldset>
   </div>
   {{ save_bar() }}
 </form>

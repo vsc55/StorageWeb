@@ -3,6 +3,10 @@
 {% block section %}
 {% set sec = cfg.security %}
 {{ form_start() }}
+  {# Una pestaña por sección (admin/forms.js); el formulario y la barra de guardar, para todas #}
+  <div class="js-tabs">
+  <fieldset class="tab-panel">
+    <legend>{{ _("Failed sign-ins") }}</legend>
   <div class="card form-grid">
     <h3 class="card-title span2">{{ _("Failed sign-ins") }}</h3>
     <label class="{{ err_class('security.max_login_failures') }}"><span class="label-row">{{ _("Failed attempts before locking") }} {{ origin('security.max_login_failures') }}</span>
@@ -13,8 +17,10 @@
       {{ field_error('security.lockout_minutes') }}</label>
     <p class="muted small span2">{{ _("After that many failed attempts from the same user name and address, sign-in is blocked for those minutes.") }}</p>
   </div>
-
-  <div class="card form-grid section-gap">
+  </fieldset>
+  <fieldset class="tab-panel">
+    <legend>{{ _("Automatic IP blocking") }}</legend>
+  <div class="card form-grid">
     <h3 class="card-title span2">{{ _("Automatic IP blocking") }}</h3>
     <label class="check span2"><input{{ lock('security.ipban_enabled') }} type="checkbox" name="ipban_enabled" {% if sec.ipban_enabled %}checked{% endif %}>
       <span>{{ _("Block addresses with many offenses") }} {{ origin('security.ipban_enabled') }}
@@ -26,6 +32,8 @@
     <label class="{{ err_class('security.ipban_minutes') }}"><span class="label-row">{{ _("Block for (minutes)") }} {{ origin('security.ipban_minutes') }}</span>
       <input{{ lock('security.ipban_minutes') }} type="number" name="ipban_minutes" value="{{ sec.ipban_minutes }}" min="0">
       <small class="muted">{{ _("0 = until an administrator removes it") }}</small>{{ field_error('security.ipban_minutes') }}</label>
+  </div>
+  </fieldset>
   </div>
   {{ save_bar() }}
 </form>

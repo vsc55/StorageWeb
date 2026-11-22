@@ -296,6 +296,9 @@ def edit(group_uid: str):
         try:
             group_core.update_group(get_db(), group, **data)
             _save_group_quota(group["name"], request.form.get("home_quota_mb"))
+            if "role" in request.form and group_core.set_role(get_db(), group, request.form.get("role"),
+                                                              g.user["username"]):
+                _audit("group_role_changed", group["name"], request.form.get("role") or "-")
         except group_core.GroupError as exc:
             flash(exc.message, "error")
             form.update(data)
@@ -369,7 +372,9 @@ def member_remove(group_uid: str, user_uid: str):
 def panel_view():
     _remember("panel")
     search = request.args.get("q", "").strip()
-    rows = repo.list_all(get_db(), search=search)
+    source = request.args.get("source", "")
+    source = source if source in group_core.group_sources() else ""
+    rows = repo.list_all(get_db(), search=search, source=source or None)
     current = None
     wanted = request.args.get("g")
     for row in rows:
@@ -387,6 +392,7 @@ def panel_view():
                "form": {**dict(current), "home_quota_mb": _shares_quota(current["name"])},
                "quota_lock": _quota_lock(current["name"])}
     return render_template("admin/groups/panel.html", groups=rows, current=current, tab=tab, search=search,
+                           source=source,
                            detected=(detected := group_core.detected(get_db(), _shares())),
                            names=directory_names([d["id"] for d in detected]), **ctx)
 

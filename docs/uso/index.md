@@ -88,13 +88,16 @@ Los archivos de texto, las imágenes, los PDF, los vídeos y el audio se abren e
 
 ![Una imagen en el visor, con su nombre, su tipo y Descargar](../img/uso/visor-imagen.webp)
 
+Las imágenes se ven en **miniatura** en la lista y, más grandes, en el panel de detalle (si el administrador las
+tiene activadas).
+
 Se ven enteros los archivos de texto de hasta 2 MB (el administrador puede cambiarlo; las imágenes, los PDF, el vídeo y el audio no tienen límite). Un texto más grande, como un log, se ve **por partes**: de entrada la última, con los botones *Principio*, *Anterior*, *Siguiente* y *Final* para moverse; solo se lee esa parte, también en almacenamiento remoto. Un Markdown más grande, o un archivo que no es texto, se descarga. Si no está en UTF-8, se muestra como Windows-1252 (lo habitual en archivos antiguos de Windows) y lo avisa. Las imágenes de otras webs no se cargan dentro de un documento, para que nadie sepa quién lo está leyendo; queda un enlace para abrirlas. Los diagramas `mermaid` se dibujan (sin JavaScript se ve su código). Ver un archivo cuenta en la auditoría como una descarga (detalle `view`), una vez aunque saltes de un punto a otro de un vídeo.
 
 El administrador decide en *Sistema → Vista previa* si hay visor, qué tipos multimedia se ven (imágenes, PDF, vídeo y audio, cada uno aparte), si se dibujan los diagramas, el tamaño máximo, la lista de extensiones que se abren y las que no se abren nunca. De serie no se abren los archivos de texto que suelen guardar secretos o claves (`.env`, `.pem`, `.key`, `.ppk`, `.asc`): se descargan. *Restablecer* devuelve una lista a la de serie y, antes, dice qué extensiones se añaden y cuáles se quitan. Ver `preview.*` en la [referencia de configuración](../referencia/configuracion.md).
 
 ### Editar un archivo de texto
 
-Si tienes el permiso *Editar archivos de texto* (el administrador lo da en *Acceso → Permisos del rol*; los administradores lo tienen siempre), el visor muestra **Editar**: el archivo se abre en un cuadro de texto, **Guardar** (o **Ctrl+S**) lo guarda y vuelves al visor. Se edita el archivo entero, así que solo los que se ven enteros y en UTF-8; los de solo lectura, no.
+Si tienes el permiso *Editar archivos de texto* (el administrador lo da en *Acceso → Roles*; los administradores lo tienen siempre), el visor muestra **Editar**: el archivo se abre en un cuadro de texto, **Guardar** (o **Ctrl+S**) lo guarda y vuelves al visor. Se edita el archivo entero, así que solo los que se ven enteros y en UTF-8; los de solo lectura, no.
 
 - Ocupa toda la ventana y el código se ve **con sus colores**, como en el visor (hasta 256 KB; más grande, sin colores).
 - **Barra de herramientas**, arriba del cuadro, con el lenguaje del archivo: en los `.md`, **negrita** (Ctrl+B), *cursiva* (Ctrl+I), tachado, código, enlace, título, lista, lista numerada, cita y bloque de código (pulsar otra vez quita el formato); en el código, **comentar o descomentar** las líneas seleccionadas (Ctrl+/, con el comentario de cada lenguaje: `#`, `//`, `--`, `<!-- -->`…) y sangrar o quitar sangría. Todo se deshace con Ctrl+Z.
@@ -140,6 +143,26 @@ Marca las casillas de la izquierda, o la de la cabecera para seleccionar todo lo
 - **Renombrar y Eliminar:** desde la barra de selección o el panel de detalle. Eliminar una carpeta borra todo su contenido y no se puede deshacer.
 
 Si no ves alguna de estas opciones, tu rol no tiene ese permiso o la carpeta es de solo lectura.
+
+## Compartir con un enlace
+
+Si tienes el permiso *Compartir con enlaces* (lo da el administrador; los administradores lo tienen siempre),
+elige un archivo o una carpeta y pulsa **Compartir enlace** (en la barra de selección o en el panel de detalle):
+
+- **Qué pueden hacer:** *Ver y descargar* o, en una carpeta, *Solo subir (buzón)*: quien lo abra te envía archivos
+  sin ver lo que hay en ella (nunca se sobrescribe nada: si ya hay uno con ese nombre, se guarda como
+  `nombre (1).ext`).
+- **Cuándo caduca**, una **contraseña** opcional (dásela por otro medio), cuántas **descargas** como mucho y un
+  **mensaje** para quien lo abra.
+
+Al crearlo sale la dirección para copiarla. Quien la abra no necesita cuenta: ve el archivo, o el contenido de la
+carpeta (puede entrar en sus subcarpetas y descargarlo todo en un ZIP), y quién lo comparte. En **Mi perfil →
+Enlaces** están todos los tuyos: vuelve a copiar uno o **deja de compartir** (deja de funcionar al momento). Si
+renombras o mueves lo compartido desde StorageWeb, el enlace lo sigue; si lo borras, se borra con él.
+
+![Compartir enlace: qué pueden hacer, cuándo caduca, contraseña y descargas](../img/uso/compartir.webp)
+
+![Lo que ve quien abre el enlace de una carpeta: quién la comparte, su mensaje, el contenido y Descargar todo](../img/uso/enlace.webp)
 
 ## Mover y copiar
 

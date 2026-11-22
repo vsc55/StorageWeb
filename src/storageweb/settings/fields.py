@@ -249,6 +249,60 @@ FIELDS: dict[str, Field] = {
     "permissions.user.delete": Field(doc="El rol `user` puede eliminar archivos y carpetas.", page="permissions"),
     "permissions.user.edit": Field(doc="El rol `user` puede editar archivos de texto en el navegador (desde el visor).",
                                    page="permissions"),
+    "permissions.default_role": Field(
+        doc=("El rol de las **cuentas nuevas**: las que se dan de alta desde la web o con `storageweb-admin "
+             "user-add` sin `--role`, las importadas y las que crea un método de inicio de sesión al entrar si el suyo "
+             "(Entra ID: *Rol de los usuarios nuevos*) está vacío. `user`, `admin` o la clave de un rol propio "
+             "(*Acceso → Roles*). Las cuentas que ya existen no cambian."),
+        label=_l("Role of new accounts"),
+        page="permissions",
+        words="rol por defecto cuentas nuevas alta usuarios nuevos default role"),
+    "permissions.user.share": Field(doc=("El rol `user` puede crear **enlaces para compartir** con gente de fuera "
+                                         "(ver `sharing.*`). Apagado de serie."), page="permissions"),
+    "sharing.links": Field(
+        doc=("Enlaces para compartir un archivo o una carpeta con gente sin cuenta (`/s/<token>`): con caducidad, "
+             "contraseña opcional y límite de descargas, o un **buzón** para que suban archivos. Los crea quien tenga "
+             "el permiso *Compartir con enlaces* (los administradores siempre). Apagado, ninguno funciona (ni los ya "
+             "creados) y no se pueden crear."),
+        label=_l("Share links"),
+        page="sharing",
+        words="enlaces compartir fuera público externo link share anonymous"),
+    "sharing.default_days": Field(
+        doc="Cuántos días dura un enlace si quien lo crea no elige otra cosa (de `1` a `3650`).",
+        label=_l("Days a link lasts by default"),
+        page="sharing",
+        words="enlaces caducidad días"),
+    "sharing.max_days": Field(
+        doc=("Lo máximo que puede durar un enlace, en días (de `0` a `3650`); `0` = sin máximo, y entonces se pueden "
+             "crear enlaces que no caducan."),
+        label=_l("Days a link can last at most"),
+        page="sharing",
+        words="enlaces caducidad máximo días"),
+    "sharing.require_password": Field(
+        doc="Exigir contraseña a todos los enlaces nuevos (los ya creados no cambian).",
+        label=_l("Require a password for every link"),
+        page="sharing",
+        words="enlaces contraseña obligatoria"),
+    "sharing.keep_days": Field(
+        doc=("Días que se conservan los enlaces **quitados o caducados** (siguen en la lista, con los filtros "
+             "*Quitados* y *Caducados*) antes de que la limpieza diaria borre su fila; `0` = nunca se borran. Su "
+             "historial no se borra con ellos: sigue `sharing.history_days` y se ve en el filtro *Borrados*."),
+        label=_l("Keep removed or expired links (days)"),
+        page="sharing",
+        words="enlaces conservar quitados caducados borrar limpieza días retención"),
+    "sharing.history_days": Field(
+        doc=("Días que se conserva el **historial** de los enlaces (cada visita, descarga, subida, contraseña "
+             "equivocada… con su IP y navegador); `0` = lo mismo que la auditoría (`maintenance.audit_retention_days`). "
+             "Con un número, no puede ser menor que `sharing.keep_days`: un enlace no se queda sin su historial."),
+        label=_l("Keep the history of the links (days)"),
+        page="sharing",
+        words="enlaces historial actividad trazabilidad conservar retención días ip navegador"),
+    "sharing.upload_links": Field(
+        doc=("Permitir **buzones**: enlaces a una carpeta para que alguien de fuera suba archivos sin ver lo que hay "
+             "(necesitan además poder subir a esa carpeta)."),
+        label=_l("Allow drop boxes (upload links)"),
+        page="sharing",
+        words="buzón subir enlace recibir archivos upload drop box"),
     "security.max_login_failures": Field(
         doc="Intentos fallidos (por IP o por usuario) antes de bloquear temporalmente el login.",
         label=_l("Failed attempts before locking"),
@@ -429,6 +483,27 @@ FIELDS: dict[str, Field] = {
         label=_l("Show images"),
         page="preview",
         words="imágenes fotos png jpg jpeg gif webp images pictures photos"),
+    "preview.thumbnails": Field(
+        doc=("Miniaturas de las imágenes en el explorador (en la lista y, más grande, en el panel de detalle). Las "
+             "genera el servidor con **Pillow**, que es opcional (`pip install storageweb[thumbnails]`; sin él se "
+             "ven iconos), y las guarda en `<data_dir>/thumbnails`, nunca en la carpeta de nadie. Solo de las "
+             "imágenes que abre el visor (`preview.images`), con el decodificador de su formato y nada más. Ver una "
+             "miniatura no cuenta en la auditoría."),
+        label=_l("Thumbnails in the file browser"),
+        page="preview",
+        words="miniaturas thumbnails imágenes vista explorador pillow fotos"),
+    "preview.thumbnail_max_mb": Field(
+        doc=("La imagen más grande de la que se hace miniatura, en MB (de `1` a `500`): el servidor la lee entera "
+             "para reducirla. Más grande, se ve el icono."),
+        label=_l("Thumbnails: largest image (MB)"),
+        page="preview",
+        words="miniaturas tamaño máximo imagen"),
+    "preview.thumbnail_cache_mb": Field(
+        doc=("Lo que pueden ocupar las miniaturas guardadas, en MB (de `10` a `100000`). Una vez al día se borran las "
+             "que nadie ha pedido en 60 días y, si aun así ocupan más, las menos usadas. Cada una ocupa unos 10 KB."),
+        label=_l("Thumbnails: space for the cache (MB)"),
+        page="preview",
+        words="miniaturas caché espacio disco"),
     "preview.pdf": Field(
         doc=("Ver los PDF en el visor, con el visor de PDF del propio navegador (aislado de la página). Desactivado, o "
              "en un navegador sin visor de PDF, se descargan."),

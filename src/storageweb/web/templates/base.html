@@ -88,7 +88,7 @@
           <div class="account-who">
             <strong>{{ display }}</strong>
             <span class="muted small">{{ current_user['username'] }}</span>
-            <span><span class="badge badge-{{ current_user['role'] }}">{{ ROLE_LABELS[current_user['role']] }}</span></span>
+            <span><span class="badge badge-{{ current_user['role'] }}">{{ role_label(current_user['role']) }}</span></span>
           </div>
         </div>
         <a class="menu-item" href="{{ url_for('profile.profile') }}">
@@ -151,8 +151,8 @@
   </div>
 </div>
 {% else %}
+{# Sin pie: quien no ha entrado no ve la versión (sirve para buscar vulnerabilidades); dentro, en el menú #}
 </main>
-{% if public_layout != "bare" %}<footer class="footer muted">StorageWeb {{ app_version }}</footer>{% endif %}
 {% endif %}
 <script src="{{ url_for('static', filename='js/common.js') }}"></script>
 {% if is_admin %}

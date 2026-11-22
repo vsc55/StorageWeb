@@ -1,0 +1,168 @@
+{# Piezas comunes de las vistas de roles (lista = admin/roles/list.html, paneles = admin/roles/panel.html, ficha =
+   admin/roles/form.html), con el mismo diseño que las de usuarios y grupos. Importar «with context». #}
+
+{% macro view_switch(view) -%}
+<nav class="segmented view-switch" aria-label="{{ _('Roles view') }}">
+  <a class="segment{% if view == 'list' %} active{% endif %}" href="{{ url_for('roles.list_view') }}"{% if view == 'list' %} aria-current="page"{% endif %}>{{ _("List") }}</a>
+  <a class="segment{% if view == 'panel' %} active{% endif %}" href="{{ url_for('roles.panel_view') }}"{% if view == 'panel' %} aria-current="page"{% endif %}>{{ _("Panels") }}</a>
+</nav>
+{%- endmacro %}
+
+{# La cabecera de las dos vistas: título, resumen, vista y «Nuevo rol» #}
+{% macro page_head(view) -%}
+<div class="page-head">
+  <div>
+    <h1>{{ _("Roles") }}</h1>
+    <p class="muted small">{{ ngettext("%(num)s role", "%(num)s roles", counts.all) }} · {{ ngettext("%(num)s of your own", "%(num)s of your own", counts.custom) }}
+      · {{ _("new accounts: %(role)s", role=role_label(default_key)) }}</p>
+  </div>
+  <div class="inline">
+    {{ view_switch(view) }}
+    <a class="btn btn-primary" href="{{ url_for('roles.new') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New role") }}</a>
+  </div>
+</div>
+{%- endmacro %}
+
+{% macro filters_form(filters, target, extra='') -%}
+<form method="get" action="{{ url_for(target) }}" class="inline search">
+  {{ extra }}
+  <input type="text" name="q" value="{{ filters.q }}" placeholder="{{ _('Search by name or description') }}"
+         aria-label="{{ _('Search by name or description') }}">
+  <select name="kind" aria-label="{{ _('Kind') }}">
+    <option value="">{{ _("All roles") }}</option>
+    <option value="builtin" {% if filters.kind == 'builtin' %}selected{% endif %}>{{ _("Built-in") }}</option>
+    <option value="custom" {% if filters.kind == 'custom' %}selected{% endif %}>{{ _("Your own") }}</option>
+  </select>
+  <button class="btn" type="submit">{{ _("Search") }}</button>
+  {% if filters.q or filters.kind %}<a class="btn btn-ghost" href="{{ url_for(target) }}">{{ _("Clear") }}</a>{% endif %}
+</form>
+{%- endmacro %}
+
+{% macro perm_summary(r) -%}
+{% if r.key == 'admin' %}<span class="muted">{{ _("Everything, also the administration") }}</span>
+{% elif r.permissions %}<span class="perm-chips">{% for p in r.permissions %}<span class="chip">{{ PERMISSION_LABELS[p] }}</span>{% endfor %}</span>
+{% else %}<span class="muted">{{ _("Nothing") }}</span>{% endif %}
+{%- endmacro %}
+
+{# La estrella delante del nombre: rellena en el rol de las cuentas nuevas (permissions.default_role); en los demás,
+   un botón que lo hace el de las cuentas nuevas (Administrador, tras confirmarlo). Desactivada si el ajuste está
+   fijado en config.json o el entorno. #}
+{% macro default_star(r, next) -%}
+{% if r.key == default_key -%}
+<span class="role-star is-on" role="img" title="{{ _('Role of new accounts') }}" aria-label="{{ _('Role of new accounts') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-star"></use></svg></span>
+{%- else -%}
+<form method="post" action="{{ url_for('roles.make_default', key=r.key) }}" class="role-star-form{% if r.key == 'admin' %} js-confirm{% endif %}"
+      {% if r.key == 'admin' %}data-confirm="{{ _('Make «%(name)s» the role of new accounts? Every new account, also those created on their first sign-in, will be able to change everything.', name=r.label) }}"{% endif %}>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ next }}">
+  <button class="role-star" type="submit" aria-label="{{ _('Use «%(name)s» for new accounts', name=r.label) }}"
+          title="{{ _('Set in config.json or an environment variable: it cannot be changed from the web.') if default_locked else _('Use for new accounts') }}"{% if default_locked %} disabled{% endif %}><svg class="icon icon-sm" aria-hidden="true"><use href="#i-star"></use></svg></button>
+</form>
+{%- endif %}
+{%- endmacro %}
+
+{# «Clonar»: un rol nuevo con lo de este (todos menos Administrador) #}
+{% macro clone_button(r) -%}
+{% if r.key != 'admin' %}<a class="btn btn-small" href="{{ url_for('roles.new', copy=r.key) }}" title="{{ _('A new role with the same permissions') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-copy"></use></svg>{{ _("Clone") }}</a>{% endif %}
+{%- endmacro %}
+
+{# «De serie»: un icono pequeño, con el texto al pasar el ratón y para los lectores de pantalla #}
+{% macro builtin_mark(r) -%}
+{% if r.builtin %}<span class="role-builtin" role="img" title="{{ _('Built-in: it comes with StorageWeb') }}" aria-label="{{ _('Built-in: it comes with StorageWeb') }}"><svg class="icon icon-xs" aria-hidden="true"><use href="#i-package"></use></svg></span>{% endif %}
+{%- endmacro %}
+
+{# Nombre y descripción de un rol propio #}
+{% macro general_fields(form, title=None) -%}
+<div class="card stack">
+  {% if title %}<h3 class="card-title">{{ title }}</h3>{% endif %}
+  <div class="form-grid">
+  <label><span class="label-row">{{ _("Name") }}</span>
+    <input type="text" name="label" value="{{ form.label }}" maxlength="80" required placeholder="{{ _('e.g. Editors') }}"></label>
+  <label><span class="label-row">{{ _("Description") }} <small class="muted">({{ _("optional") }})</small></span>
+    <input type="text" name="description" value="{{ form.description }}" maxlength="300"></label>
+  </div>
+</div>
+{%- endmacro %}
+
+{# Los permisos: los bloqueados por config.json o el entorno, desactivados; ``fixed``: todos (Administrador y Sin
+   permisos, que no se cambian) #}
+{% macro perm_fields(form, locked, fixed=False, title=None) -%}
+<div class="card">
+<fieldset class="plain-fieldset role-perms">
+  <legend class="{{ 'card-title' if title else 'label-row' }}">{{ title or _("It can") }}</legend>
+  <div class="checks">
+    {% for p in permissions %}
+    <label class="check"><input type="checkbox" name="permissions" value="{{ p }}" {% if p in form.permissions %}checked{% endif %}{% if p in locked or fixed %} disabled{% endif %}> {{ PERMISSION_LABELS[p] }}{% if p in locked %} <span class="badge" title="{{ _('Set in config.json or an environment variable: it cannot be changed from the web.') }}">{{ _("locked") }}</span>{% endif %}</label>
+    {% endfor %}
+  </div>
+  <small class="muted">{{ _("In read-only folders only downloading and sharing to download are allowed, whatever the role says.") }}</small>
+</fieldset>
+</div>
+{%- endmacro %}
+
+{# La ficha completa de un rol (admin/roles/form.html): el propio (nombre, descripción y permisos) o Usuario (solo
+   permisos). ``role`` es None al crear. #}
+{% macro role_form(role, form, locked) -%}
+<form method="post" action="{{ url_for('roles.edit', key=role.key) if role else url_for('roles.new') }}" class="stack">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  {% if request.values.get('next') %}<input type="hidden" name="next" value="{{ request.values.get('next') }}">{% endif %}
+  {% if not (role and role.builtin) %}{{ general_fields(form, _("General")) }}{% endif %}
+  {{ perm_fields(form, locked, title=_("It can")) }}
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">{{ _("Save changes") if role else _("Create role") }}</button>
+    <a class="btn" href="{{ url_for('roles.index') }}">{{ _("Cancel") }}</a>
+    {% if role %}{{ clone_button(role) }}{% endif %}
+  </div>
+</form>
+{%- endmacro %}
+
+{# Una pestaña de la ficha en Paneles: un formulario que envía solo su parte (``part``) y vuelve a ``next``. Su botón
+   *Guardar cambios* está en la cabecera de la ficha (``form="role-tab-form"``) #}
+{% macro tab_form(role, part, next) -%}
+<form method="post" action="{{ url_for('roles.edit', key=role.key) }}" class="stack" id="role-tab-form">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="next" value="{{ next }}">
+  <input type="hidden" name="part" value="{{ part }}">
+  {{ caller() }}
+</form>
+{%- endmacro %}
+
+{# Quién tiene el rol: personas (enlace a su ficha) y grupos (a sus miembros les da el rol) #}
+{% macro who_has(role, usage) -%}
+<div class="stack">
+  {% if usage.users or usage.groups %}
+  <section class="card stack">
+    <h3 class="card-title">{{ ngettext("%(num)s person", "%(num)s people", usage.users|length) }}</h3>
+    {% if usage.users %}
+    <p class="chips">{% for u in usage.users %}<a class="chip" href="{{ url_for('admin.users_index', q=u) }}">{{ u }}</a>{% endfor %}</p>
+    {% else %}<p class="muted small">{{ _("Nobody has it directly.") }}</p>{% endif %}
+  </section>
+  {% if role.key not in ('admin', 'none') %}
+  <section class="card stack">
+    <h3 class="card-title">{{ ngettext("%(num)s group", "%(num)s groups", usage.groups|length) }}</h3>
+    {% if usage.groups %}
+    <p class="chips">{% for gname in usage.groups %}<a class="chip" href="{{ url_for('groups.list_view', q=gname) }}">{{ gname }}</a>{% endfor %}</p>
+    <p class="muted small">{{ _("Their members get it too, added to their own role.") }}</p>
+    {% else %}<p class="muted small">{{ _("No group gives it.") }}</p>{% endif %}
+  </section>
+  {% endif %}
+  {% else %}
+  <p class="muted">{{ _("Nobody has it yet.") }}</p>
+  {% endif %}
+</div>
+{%- endmacro %}
+
+{% macro delete_zone(role) -%}
+<section class="danger-zone">
+  <div class="danger-row">
+    <div>
+      <strong>{{ _("Delete role") }}</strong>
+      <p class="muted small">{{ _("The people who have it are left with no permissions (role «No permissions»); the groups that give it stop giving a role.") }}</p>
+    </div>
+    <form method="post" action="{{ url_for('roles.delete', key=role.key) }}" class="inline js-confirm"
+          data-confirm="{{ _('Delete the role «%(name)s»? Its people are left with no permissions.', name=role.label) }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button class="btn btn-danger" type="submit">{{ _("Delete role") }}</button>
+    </form>
+  </div>
+</section>
+{%- endmacro %}

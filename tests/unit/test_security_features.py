@@ -148,7 +148,8 @@ def test_run_due_cleans_and_backs_up(db_conn, tmp_path):
     db_conn.execute("INSERT INTO audit_log (ts, action) VALUES ('2000-01-01T00:00:00+00:00', 'viejo')")
     db_conn.commit()
     done = maintenance.run_due(db_conn, cfg)
-    assert done == ["cleanup", "ipban_prune", "audit_purge", "backup"]
+    # Más las de cada día que no dependen de nada (miniaturas de serie encendidas, enlaces caducados)
+    assert done == ["cleanup", "ipban_prune", "audit_purge", "backup", "thumbnail_cleanup", "link_cleanup"]
     assert sessions.get(db_conn, "viejo") is None and len(maintenance.list_backups(cfg)) == 1
     assert maintenance.run_due(db_conn, cfg) == []                    # nada pendiente hasta la próxima
     name = maintenance.list_backups(cfg)[0]["name"]

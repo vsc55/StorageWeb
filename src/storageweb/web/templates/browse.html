@@ -147,6 +147,7 @@
       {% if can_download %}<button type="button" class="btn btn-ghost" data-action="download"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Download") }}</button>{% endif %}
       {% if can_rename or (can_download and can_delete) %}<button type="button" class="btn btn-ghost" data-action="move"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-folder"></use></svg>{{ _("Move to…") }}</button>{% endif %}
       {% if can_download %}<button type="button" class="btn btn-ghost" data-action="copy"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-folder"></use></svg>{{ _("Copy to…") }}</button>{% endif %}
+      {% if share %}<button type="button" class="btn btn-ghost" data-action="share"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-link"></use></svg>{{ _("Share link") }}</button>{% endif %}
       {% if can_rename %}<button type="button" class="btn btn-ghost" data-action="rename"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-rename"></use></svg>{{ _("Rename") }}</button>{% endif %}
       {% if can_delete %}<button type="button" class="btn btn-ghost btn-danger" data-action="delete"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-delete"></use></svg>{{ _("Delete") }}</button>{% endif %}
       <button type="button" class="btn btn-ghost" data-action="clear">{{ _("Clear selection") }}</button>
@@ -230,7 +231,8 @@
       <h2 id="details-multi-count"></h2>
     </div>
     <div id="details-body" class="details-body" hidden aria-live="polite">
-      <div class="details-preview"><svg class="icon icon-xl" id="details-icon" aria-hidden="true"><use href="#i-file"></use></svg></div>
+      <div class="details-preview"><svg class="icon icon-xl" id="details-icon" aria-hidden="true"><use href="#i-file"></use></svg>
+        <img id="details-thumb" class="details-thumb" alt="" hidden></div>
       <h2 id="details-name"></h2>
       <dl class="kv">
         <dt>{{ _("Type") }}</dt><dd id="details-kind"></dd>
@@ -242,6 +244,7 @@
         <a class="btn btn-primary btn-block" id="details-open" href="#"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-open"></use></svg>{{ _("Open") }}</a>
         {% if can_download %}<a class="btn btn-primary btn-block" id="details-download" href="#"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Download") }}</a>{% endif %}
         <button type="button" class="btn btn-block" id="details-fav" data-fav-url="{{ url_for('files.favorite_toggle') }}" data-root="{{ root.name }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-star"></use></svg><span>{{ _("Add to favorites") }}</span></button>
+        {% if share %}<button type="button" class="btn btn-block" data-action="share"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-link"></use></svg>{{ _("Share link") }}</button>{% endif %}
         {% if can_rename or (can_download and can_delete) %}<button type="button" class="btn btn-block" data-action="move"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-folder"></use></svg>{{ _("Move to…") }}</button>{% endif %}
         {% if can_download %}<button type="button" class="btn btn-block" data-action="copy"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-folder"></use></svg>{{ _("Copy to…") }}</button>{% endif %}
         {% if can_rename %}<button type="button" class="btn btn-block" data-action="rename"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-rename"></use></svg>{{ _("Rename") }}</button>{% endif %}
@@ -284,4 +287,7 @@
 {% block scripts %}<script src="{{ url_for('static', filename='js/app.js') }}"></script>
 {% if 'upload' in perms %}<script src="{{ url_for('static', filename='js/files/upload.js') }}"></script>{% endif %}
 <script src="{{ url_for('static', filename='js/files/transfer.js') }}"></script>
-<script src="{{ url_for('static', filename='js/files/listing.js') }}"></script>{% endblock %}
+<script src="{{ url_for('static', filename='js/files/listing.js') }}"></script>
+<script src="{{ url_for('static', filename='js/files/thumbs.js') }}"></script>
+{% if share %}<script type="application/json" id="share-config">{{ share|tojson }}</script>
+<script src="{{ url_for('static', filename='js/files/share.js') }}"></script>{% endif %}{% endblock %}

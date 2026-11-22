@@ -163,16 +163,16 @@ def test_preview_settings_page(app, admin):
     page = client.get("/admin/settings/preview").get_data(as_text=True)
     assert 'name="preview_diagrams"' in page and 'name="preview_blocked_extensions"' in page
     assert 'name="preview_extensions" rows="5" class="mono" data-list' in page and "markdown, md" in page
-    client.post("/admin/settings/preview", data={"_csrf": token, "preview_enabled": "on", "preview_max_mb": "5",
+    client.post("/admin/settings/preview", data={"_csrf": token, "preview_thumbnail_max_mb": "30", "preview_thumbnail_cache_mb": "500", "preview_enabled": "on", "preview_max_mb": "5",
                                                  "preview_extensions": "md, txt\ndat .OUT",
                                                  "preview_blocked_extensions": "env"})
     from tests.helpers import stored_settings
     stored = stored_settings(app)["preview"]
     assert stored["diagrams"] is False and stored["max_mb"] == 5
     assert stored["extensions"] == ["dat", "md", "out", "txt"] and stored["blocked_extensions"] == ["env"]
-    bad = client.post("/admin/settings/preview", data={"_csrf": token, "preview_enabled": "on", "preview_max_mb": "50"})
+    bad = client.post("/admin/settings/preview", data={"_csrf": token, "preview_thumbnail_max_mb": "30", "preview_thumbnail_cache_mb": "500", "preview_enabled": "on", "preview_max_mb": "50"})
     assert "preview.max_mb no puede ser más de 20" in bad.get_data(as_text=True)
-    bad = client.post("/admin/settings/preview", data={"_csrf": token, "preview_enabled": "on", "preview_max_mb": "2",
+    bad = client.post("/admin/settings/preview", data={"_csrf": token, "preview_thumbnail_max_mb": "30", "preview_thumbnail_cache_mb": "500", "preview_enabled": "on", "preview_max_mb": "2",
                                                        "preview_extensions": "md, a/b"})
     assert "a/b no es una extensión de archivo" in bad.get_data(as_text=True)
 

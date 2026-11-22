@@ -1,0 +1,9 @@
+{# Un enlace para compartir que no existe, caducó o ya no funciona (links._gone). Nunca dice cuál de esas es, ni de
+   quién era: quien lo abre no tiene por qué saber si existió. #}
+{% extends "_status_frame.html" %}
+{% set status_icon = "link-off" %}
+{% set status_title = _("This link is not available") %}
+{% set status_text = _("It may not exist, have expired or no longer be shared.") %}
+{% set status_tips = [("comment", _("Ask whoever sent it to you for a new one.")),
+                      ("clock", _("If it had an expiry date, it may have passed."))] %}
+{% block title %}{{ _("This link is not available") }} · {{ app_name }}{% endblock %}

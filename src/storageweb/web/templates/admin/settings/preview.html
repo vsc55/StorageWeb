@@ -3,6 +3,10 @@
 {% block section %}
 {% set pv = cfg.preview %}
 {{ form_start() }}
+  {# Una pestaña por sección (admin/forms.js); el formulario y la barra de guardar, para todas #}
+  <div class="js-tabs">
+  <fieldset class="tab-panel">
+    <legend>{{ _("Viewer") }}</legend>
   <div class="card form-grid">
     <h3 class="card-title span2">{{ _("Viewer") }}</h3>
     <label class="check span2"><input{{ lock('preview.enabled') }} type="checkbox" name="preview_enabled" {% if pv.enabled %}checked{% endif %}>
@@ -13,8 +17,10 @@
       <small class="muted">{{ _("For text files: larger ones are downloaded. The viewer reads the whole file to show it.") }}</small>
       {{ field_error('preview.max_mb') }}</label>
   </div>
-
-  <div class="card form-grid section-gap">
+  </fieldset>
+  <fieldset class="tab-panel">
+    <legend>{{ _("Images, PDF, video and audio") }}</legend>
+  <div class="card form-grid">
     <h3 class="card-title span2">{{ _("Images, PDF, video and audio") }}</h3>
     <p class="muted small span2">{{ _("They are shown with what the browser has (its image, PDF, video and audio viewers), always with the type the server gives them and never as a page. There is no size limit: the browser asks for them in parts.") }}</p>
     <label class="check"><input{{ lock('preview.images') }} type="checkbox" name="preview_images" {% if pv.images %}checked{% endif %}>
@@ -30,8 +36,32 @@
       <span>{{ _("Play audio") }} {{ origin('preview.audio') }}
         <small class="muted">{{ _("MP3, WAV, Ogg, Opus, M4A, AAC, FLAC and WebM.") }}</small></span></label>
   </div>
-
-  <div class="card form-grid section-gap">
+  </fieldset>
+  <fieldset class="tab-panel">
+    <legend>{{ _("Thumbnails") }}</legend>
+  <div class="card form-grid" id="thumbnails">
+    <h3 class="card-title span2">{{ _("Thumbnails") }}</h3>
+    <label class="check span2"><input{{ lock('preview.thumbnails') }} type="checkbox" name="preview_thumbnails" {% if pv.thumbnails %}checked{% endif %}>
+      <span>{{ _("Thumbnails in the file browser") }} {{ origin('preview.thumbnails') }}
+        <small class="muted">{{ _("The images are seen small in the list and larger in the details panel. The server makes them and keeps them apart, never in anyone's folder; only of the images the viewer opens.") }}</small></span></label>
+    {% if not thumbnails_available %}
+    <p class="span2 text-danger small">{{ _("Not available: the server needs Pillow (pip install storageweb[thumbnails]). Without it, icons are shown.") }}</p>
+    {% else %}
+    <p class="span2 muted small">{{ _("Pillow %(version)s · %(num)s thumbnails, %(size)s.", version=pillow_version, num=thumbnail_usage.count, size=thumbnail_usage.bytes|filesize) }}</p>
+    {% endif %}
+    <label class="{{ err_class('preview.thumbnail_max_mb') }}"><span class="label-row">{{ _("Thumbnails: largest image (MB)") }} {{ origin('preview.thumbnail_max_mb') }}</span>
+      <input{{ lock('preview.thumbnail_max_mb') }} type="number" name="preview_thumbnail_max_mb" value="{{ pv.thumbnail_max_mb }}" min="1" max="500">
+      <small class="muted">{{ _("The server reads the whole image to reduce it; larger ones show the icon. From 1 to 500.") }}</small>
+      {{ field_error('preview.thumbnail_max_mb') }}</label>
+    <label class="{{ err_class('preview.thumbnail_cache_mb') }}"><span class="label-row">{{ _("Thumbnails: space for the cache (MB)") }} {{ origin('preview.thumbnail_cache_mb') }}</span>
+      <input{{ lock('preview.thumbnail_cache_mb') }} type="number" name="preview_thumbnail_cache_mb" value="{{ pv.thumbnail_cache_mb }}" min="10" max="100000">
+      <small class="muted">{{ _("Every day the ones nobody asked for in 60 days are deleted and, if they still take more, the least used. About 10 KB each.") }}</small>
+      {{ field_error('preview.thumbnail_cache_mb') }}</label>
+  </div>
+  </fieldset>
+  <fieldset class="tab-panel">
+    <legend>{{ _("Diagrams and code colors") }}</legend>
+  <div class="card form-grid">
     <h3 class="card-title span2">{{ _("Diagrams and code colors") }}</h3>
     <label class="check span2"><input{{ lock('preview.diagrams') }} type="checkbox" name="preview_diagrams" {% if pv.diagrams %}checked{% endif %}>
       <span>{{ _("Draw Mermaid diagrams") }} {{ origin('preview.diagrams') }}
@@ -40,8 +70,10 @@
       <span>{{ _("Color the code") }} {{ origin('preview.highlight') }}
         <small class="muted">{{ _("Python, PHP, JavaScript, SQL, YAML, PowerShell… and the code blocks of a .md, with highlight.js in the browser. Files over 1 MB are shown without colors. Disabled, highlight.js is never sent to the browser.") }}</small></span></label>
   </div>
-
-  <div class="card form-grid section-gap">
+  </fieldset>
+  <fieldset class="tab-panel">
+    <legend>{{ _("Which files") }}</legend>
+  <div class="card form-grid">
     <h3 class="card-title span2">{{ _("Which files") }}</h3>
     <label class="span2 {{ err_class('preview.extensions') }}"><span class="label-row">{{ _("Extensions that open in the viewer") }} {{ origin('preview.extensions') }}</span>
       <textarea{{ lock('preview.extensions') }} name="preview_extensions" rows="5" class="mono" data-list spellcheck="false">{{ pv.extensions|join(', ') }}</textarea>
@@ -51,6 +83,8 @@
       <textarea{{ lock('preview.blocked_extensions') }} name="preview_blocked_extensions" rows="2" class="mono" data-list spellcheck="false">{{ pv.blocked_extensions|join(', ') }}</textarea>
       <small class="muted">{{ _("They are downloaded even if they are in the list above. By default, text files that usually hold secrets or keys; .env counts as env. Type one and press Enter to add it.") }}</small>
       {{ field_error('preview.blocked_extensions') }}</label>
+  </div>
+  </fieldset>
   </div>
   {{ save_bar() }}
 </form>

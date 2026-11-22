@@ -35,7 +35,11 @@
     </div>
     {{ field_error('auth.entra.enabled') }}
 
-    {% if entra_check %}
+    {% if entra_check and not entra_check.hidden %}
+    {# El detalle de la última prueba (en la sesión): la X lo oculta; el estado de la cabecera se queda #}
+    <div class="check-box">
+    <button class="btn btn-icon check-close" type="submit" form="entra-check-hide-form" title="{{ _('Hide the details') }}">
+      <svg class="icon icon-sm" aria-hidden="true"><use href="#i-x"></use></svg><span class="sr-only">{{ _("Hide the details") }}</span></button>
     <ul class="check-list">
       {% for r in entra_check.results %}
       <li class="{{ 'ok' if r.ok else ('fail' if r.ok is sameas false else ('pending' if r.pending else 'unknown')) }}">
@@ -49,6 +53,7 @@
     </div>
     {% endif %}
     <p class="muted small">{{ _("The test uses the saved settings: save before testing.") }}</p>
+    </div>
     {% endif %}
 
     <div class="js-tabs">
@@ -101,7 +106,8 @@
               <small class="muted">({{ _("if disabled, only Entra users registered beforehand by an administrator can sign in") }})</small></span></label>
           <label class="{{ err_class('auth.entra.default_role') }}"><span class="label-row">{{ _("Default role") }} {{ origin('auth.entra.default_role') }}</span>
             <select{{ lock('auth.entra.default_role') }} name="entra_default_role">
-              {% for r in ROLES %}<option value="{{ r }}" {% if en.default_role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}
+              <option value="" {% if not en.default_role %}selected{% endif %}>{{ _("The one of new accounts (%(role)s)", role=role_label(default_role())) }}</option>
+              {% for r, r_label in role_choices() %}<option value="{{ r }}" {% if en.default_role == r %}selected{% endif %}>{{ r_label }}</option>{% endfor %}
             </select></label>
           <div class="field-stack">
             <label><span class="label-row">{{ _("Allowed groups / App Roles") }} {{ origin('auth.entra.allowed_groups') }}</span>
@@ -115,17 +121,17 @@
               <tbody>
                 {% for k, v in en.role_mappings.items() %}
                 <tr><td><input{{ lock('auth.entra.role_mappings') }} type="text" name="mapping_group" value="{{ k }}" class="mono" list="entra-groups" autocomplete="off"{% if group_search %} data-group-search="{{ group_search }}"{% endif %} aria-label="{{ _('Group or App Role') }}"><small class="muted group-name">{{ group_names.get(k|lower, '') }}</small></td>
-                    <td><select{{ lock('auth.entra.role_mappings') }} name="mapping_role" aria-label="{{ _('Role') }}">{% for r in ROLES %}<option value="{{ r }}" {% if v == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></td>
+                    <td><select{{ lock('auth.entra.role_mappings') }} name="mapping_role" aria-label="{{ _('Role') }}">{% for r, r_label in role_choices() %}<option value="{{ r }}" {% if v == r %}selected{% endif %}>{{ r_label }}</option>{% endfor %}</select></td>
                     <td><button type="button" class="btn btn-small btn-ghost js-remove-row" aria-label="{{ _('Remove mapping') }}">×</button></td></tr>
                 {% endfor %}
                 <tr><td><input{{ lock('auth.entra.role_mappings') }} type="text" name="mapping_group" class="mono" list="entra-groups" autocomplete="off"{% if group_search %} data-group-search="{{ group_search }}"{% endif %} placeholder="StorageWeb.Admin" aria-label="{{ _('Group or App Role') }}"><small class="muted group-name"></small></td>
-                    <td><select{{ lock('auth.entra.role_mappings') }} name="mapping_role" aria-label="{{ _('Role') }}">{% for r in ROLES %}<option value="{{ r }}">{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></td>
+                    <td><select{{ lock('auth.entra.role_mappings') }} name="mapping_role" aria-label="{{ _('Role') }}">{% for r, r_label in role_choices() %}<option value="{{ r }}">{{ r_label }}</option>{% endfor %}</select></td>
                     <td></td></tr>
               </tbody>
             </table>
             <template id="mapping-row-template">
               <tr><td><input{{ lock('auth.entra.role_mappings') }} type="text" name="mapping_group" class="mono" list="entra-groups" autocomplete="off"{% if group_search %} data-group-search="{{ group_search }}"{% endif %} aria-label="{{ _('Group or App Role') }}"><small class="muted group-name"></small></td>
-                  <td><select{{ lock('auth.entra.role_mappings') }} name="mapping_role" aria-label="{{ _('Role') }}">{% for r in ROLES %}<option value="{{ r }}">{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></td>
+                  <td><select{{ lock('auth.entra.role_mappings') }} name="mapping_role" aria-label="{{ _('Role') }}">{% for r, r_label in role_choices() %}<option value="{{ r }}">{{ r_label }}</option>{% endfor %}</select></td>
                   <td><button type="button" class="btn btn-small btn-ghost js-remove-row" aria-label="{{ _('Remove mapping') }}">×</button></td></tr>
             </template>
             {% if group_search %}<small class="muted">{{ _("Type part of a group name to find its Object ID.") }}</small>{% endif %}

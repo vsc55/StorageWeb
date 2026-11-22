@@ -17,7 +17,7 @@
 
 {{ filters_form(filters, 'admin.users_panel', '<input type="hidden" name="tab" value="%s">'|format(tab)|safe) }}
 
-<div class="master-detail">
+<div class="master-detail" data-partial>
   <aside class="md-list" aria-label="{{ _('List of users') }}">
     <ul>
       {% for u in users %}
@@ -84,7 +84,7 @@
         <label>{{ _("Email") }}<input type="email" name="email" value="{{ form.email or '' }}" maxlength="200"{% if from_provider %} readonly class="from-provider"{% endif %}></label>
         {% if from_provider %}<p class="muted small span2">{{ _("The name and the email come from %(source)s and are updated on each sign-in: change them there.", source=SOURCE_LABELS[current['source']]) }}</p>{% endif %}
         <label>{{ _("Role") }}
-          <select name="role">{% for r in ROLES %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></label>
+          <select name="role">{% for r, r_label in role_choices() %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ r_label }}</option>{% endfor %}</select></label>
         <label>{{ _("Personal folder") }}
           <input type="text" name="home_path" value="{{ form.home_path or '' }}" class="mono" data-browse="{{ url_for('admin.browse', scope='location') }}" data-location="{{ pick_start().home_location }}" data-start="{{ pick_start().home }}" data-pick-title="{{ _('Personal folder') }}">
           <small class="muted">{{ _("Empty = the default template.") }}</small></label>
@@ -133,4 +133,5 @@
   </section>
 </div>
 {% endblock %}
-{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/path-picker.js') }}"></script>{% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/path-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/admin/panels.js') }}"></script>{% endblock %}

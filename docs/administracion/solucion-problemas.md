@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Log del servicio | `journalctl -u storageweb -f` · OpenRC: `/var/log/storageweb/storageweb.log` · Docker: `docker logs -f storageweb` |
-| Estado | `curl -s http://127.0.0.1:8080/healthz` → `{"status": "ok", "version": "…"}` |
+| Estado | `curl -s http://127.0.0.1:8080/healthz` → `{"status": "ok"}` |
 | Configuración efectiva | `storageweb-admin check-config` y *Sistema → Información → Configuración efectiva* |
 | Qué es esta instalación | *Sistema → Información*: versión, cómo se ejecuta (servicio de Windows, contenedor, systemd…), desde cuándo, máquina, hora del servidor, base de datos (versión del esquema), carpetas (si existen, si se pueden escribir y el espacio libre) y las bibliotecas instaladas. **Descargar el informe** (texto o JSON, sin secretos) para adjuntarlo a una incidencia |
 | Quién hizo qué | `storageweb-admin audit --limit 50 [--user ana]` o *Seguridad → Auditoría* |

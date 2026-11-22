@@ -4,6 +4,12 @@
 {{ form_start() }}
   {{ field_error('auth') if error_field == 'auth' else '' }}
 
+  {# Una pestaña para la verificación en dos pasos y otra por cada método de inicio de sesión registrado
+     (providers/<método>/): su tarjeta está en auth/<método>.html o, si no tiene, auth/_generic.html la construye
+     con su configuración. El formulario y la barra de guardar, para todas (admin/forms.js) #}
+  <div class="js-tabs">
+  <fieldset class="tab-panel">
+    <legend>{{ _("Two-step verification") }}</legend>
   <div class="card form-grid">
     <h3 class="card-title span2">{{ _("Two-step verification") }}</h3>
     <label class="{{ err_class('security.mfa_required') }}"><span class="label-row">{{ _("Two-step verification required for") }} {{ origin('security.mfa_required') }}</span>
@@ -25,12 +31,14 @@
 
   <p class="muted small">{{ _("The rules of the passwords of local accounts (length, kinds of characters, common and forbidden ones) are in") }}
     <a href="{{ url_for('settings.section', name='passwords') }}">{{ _("Passwords") }}</a>.</p>
-
-  {# Una tarjeta por método de inicio de sesión registrado (providers/<método>/). Cada uno tiene su
-     plantilla en auth/<método>.html; si no, auth/_generic.html la construye con su configuración. #}
+  </fieldset>
   {% for m in auth_methods %}
+  <fieldset class="tab-panel">
+    <legend>{{ m.label }}</legend>
   {% include ["admin/settings/auth/" ~ m.key ~ ".html", "admin/settings/auth/_generic.html"] %}
+  </fieldset>
   {% endfor %}
+  </div>
   {{ save_bar() }}
 </form>
 

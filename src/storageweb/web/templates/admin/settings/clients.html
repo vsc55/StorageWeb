@@ -3,6 +3,10 @@
 {% block section %}
 {% set sec = cfg.security %}
 {{ form_start() }}
+  {# Una pestaña por sección (admin/forms.js); el formulario y la barra de guardar, para todas #}
+  <div class="js-tabs">
+  <fieldset class="tab-panel">
+    <legend>{{ _("API tokens") }}</legend>
   <div class="card form-grid">
     <h3 class="card-title span2">{{ _("API tokens") }}</h3>
     <label class="check span2"><input{{ lock('security.api_tokens') }} type="checkbox" name="api_tokens" {% if sec.api_tokens %}checked{% endif %}>
@@ -17,8 +21,10 @@
       <small class="muted">{{ _("The Overview warns about valid tokens nobody has used for that long: better revoke them. 0 = no warning.") }}</small>
       {{ field_error('security.api_token_unused_days') }}</label>
   </div>
-
-  <div class="card form-grid section-gap">
+  </fieldset>
+  <fieldset class="tab-panel">
+    <legend>{{ _("Network drive") }}</legend>
+  <div class="card form-grid">
     <h3 class="card-title span2" id="webdav-title">{{ _("Network drive (WebDAV)") }}</h3>
     <label class="check span2"><input{{ lock('security.webdav') }} type="checkbox" name="webdav" {% if sec.webdav %}checked{% endif %}>
       <span>{{ _("Network drive (WebDAV)") }} {{ origin('security.webdav') }}
@@ -26,6 +32,8 @@
     <label class="check span2"><input{{ lock('security.webdav_passwords') }} type="checkbox" name="webdav_passwords" {% if sec.webdav_passwords %}checked{% endif %}>
       <span>{{ _("Also accept the account password in WebDAV") }} {{ origin('security.webdav_passwords') }}
         <small class="muted">{{ _("Local and system (PAM) users only. Disabled is safer: a token can be revoked and limited to reading, and Entra ID users only have tokens.") }}</small></span></label>
+  </div>
+  </fieldset>
   </div>
   {{ save_bar() }}
 </form>

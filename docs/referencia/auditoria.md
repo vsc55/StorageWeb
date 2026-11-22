@@ -66,6 +66,10 @@ Cada evento tiene un nivel, según su acción (columna *Nivel* de la tabla de ac
 | `user_enabled` | `info` | Cuenta activada de nuevo desde la web, o sola cuando Entra ID la vuelve a dejar entrar | Origen de la cuenta, o `entra:directory` / `entra:signin` |
 | `group_created` | `info` | Alta de grupo | `origen:grupo externo` |
 | `group_updated` | `info` | Edición de grupo | `origen:grupo externo` |
+| `group_role_changed` | `info` | Cambió el rol que un grupo da a sus miembros (*Personas → Grupos*) | La clave del rol, o `-` si ya no da ninguno |
+| `role_created` | `info` | Se creó un rol propio (*Acceso → Roles*) | Sus permisos, separados por comas |
+| `role_updated` | `info` | Se cambió un rol propio | Sus permisos, separados por comas |
+| `role_deleted` | `info` | Se borró un rol propio: sus personas pasan a Usuario y sus grupos dejan de dar rol | `users=N groups=N` |
 | `group_deleted` | `info` | Baja de grupo | |
 | `group_member_added` | `info` | Usuario añadido a mano a un grupo (*target* = grupo) | Usuario |
 | `group_member_removed` | `info` | Usuario quitado de un grupo (*target* = grupo) | Usuario |
@@ -128,6 +132,13 @@ ecurso`) |
 | `dependencies_checked` | `info` | Comprobadas las bibliotecas instaladas contra PyPI, npm y OSV.dev (*Seguridad → Vulnerabilidades*: el botón *Comprobar ahora* o la comprobación automática, con *usuario* `system`; sale a internet) | `packages=N vulnerable=N advisories=N behind=N`, y `error=…` si OSV.dev no contestó |
 | `upload` | `info` | Archivo subido (también al copiar por la unidad de red) | Tamaño en bytes; por la unidad de red, `webdav:<bytes>` o `webdav:copy:<destino>` |
 | `download` | `info` (`debug` en el visor) | Archivo descargado | Por la unidad de red, `webdav`; abierto en el visor, `view` |
+| `link_created` | `info` | Se creó un enlace para compartir (*Compartir enlace* en el explorador); *target* `carpeta:/ruta` | Tipo (`download` o `upload`), días, `password` y `max=N` si los tiene |
+| `link_revoked` | `info` | Se quitó un enlace: su dueño (*Mi perfil → Enlaces*) o un administrador (*Acceso → Enlaces para compartir*). No se borra: deja de funcionar y conserva su historial | `owner=<dueño>` |
+| `link_download` | `info` | Alguien descargó con un enlace (sin cuenta: sin usuario) | `link=<inicio del identificador> owner=<dueño>`, y `zip` si fue una carpeta entera |
+| `link_upload` | `info` | Alguien subió un archivo a un buzón (enlace de subida) | `link=… owner=…` y el tamaño en bytes |
+| `link_password_failed` | `warning` | Contraseña equivocada al abrir un enlace (cuenta en el limitador de intentos y como infracción de la IP) | `link=… owner=…` |
+| `links_purged` | `info` | La limpieza diaria borró enlaces quitados o caducados hace más de `sharing.keep_days` días (su historial sigue: filtro *Borrados*) o historial más viejo que `sharing.history_days` | `links=<n> events=<n>` |
+| `link_activity_exported` | `info` | Se descargó en CSV el historial de un enlace (su dueño o un administrador) | `owner=<dueño>` |
 | `edit` | `info` | Archivo de texto editado y guardado desde el navegador (permiso *Editar archivos de texto*) | Tamaño nuevo en bytes |
 | `mkdir` | `info` | Carpeta creada | Por la unidad de red, `webdav` |
 | `rename` | `info` | Archivo o carpeta renombrado o movido | Nombre nuevo; por la unidad de red, `webdav:move:<destino>` |

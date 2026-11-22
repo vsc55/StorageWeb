@@ -51,5 +51,5 @@
 </div>
 {% endif %}
 <p class="muted small section-gap">{{ _("Administrators also enter any folder open to the «Administrators» group. Who can upload, rename or delete inside a folder with write access depends on the role permissions.") }}
-  <a href="{{ url_for('settings.section', name='permissions') }}">{{ _("Role permissions") }}</a></p>
+  <a href="{{ url_for('roles.index') }}">{{ _("Role permissions") }}</a></p>
 {% endblock %}

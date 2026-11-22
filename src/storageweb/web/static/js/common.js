@@ -117,10 +117,10 @@
     });
   }
   window.SW.confirmForm = confirmForm;
-  document.querySelectorAll("form.js-confirm").forEach(confirmForm);
 
-  // Avisos emergentes: cerrar, y los que no son de error se van solos (no mientras el ratón o el foco estén encima)
-  document.querySelectorAll(".toast").forEach(function (toast) {
+  // Avisos emergentes: cerrar, y los que no son de error se van solos (no mientras el ratón o el foco estén encima).
+  // SW.toast(el): para los que llegan después (admin/panels.js, al cambiar de ficha sin recargar)
+  function wireToast(toast) {
     var timer = null;
     function close() {
       toast.classList.add("is-leaving");
@@ -137,13 +137,10 @@
     toast.addEventListener("focusin", function () { clearTimeout(timer); });
     toast.addEventListener("mouseleave", schedule);
     schedule();
-  });
+  }
+  window.SW.toast = wireToast;
+  document.querySelectorAll(".toast").forEach(wireToast);
 
-  // Barras de porcentaje (espacio usado…): la anchura no puede ir en un style="" (CSP), se pone aquí
-  document.querySelectorAll("[data-percent]").forEach(function (bar) {
-    var p = Math.max(0, Math.min(100, parseFloat(bar.getAttribute("data-percent")) || 0));
-    bar.style.width = p + "%";
-  });
 
   // Menús emergentes (<details class="popover">): se abren hacia el lado donde caben (sin salirse de la pantalla
   // ni crear barras de desplazamiento) y se cierran al pulsar fuera o con Esc
@@ -172,17 +169,32 @@
     });
   });
 
-  // Desplegables que envían su formulario al cambiar (p. ej. registros por página)
-  document.querySelectorAll("select.js-autosubmit").forEach(function (s) {
-    s.addEventListener("change", function () { if (s.form) s.form.submit(); });
-  });
-
-  // Copiar al portapapeles
-  document.querySelectorAll(".js-copy").forEach(function (b) {
-    b.addEventListener("click", function () {
-      var src = document.querySelector(b.dataset.copy);
-      if (!src || !navigator.clipboard) return;
-      navigator.clipboard.writeText(src.value).then(function () { b.textContent = t("Copied"); });
+  // Lo que se engancha a cada elemento de la página: al cargarla y, con SW.wire(raíz), al contenido que llega después
+  // sin recargar (admin/panels.js, que además avisa con el evento «sw:content» para los scripts de cada página)
+  function wire(root) {
+    // Formularios con confirmación
+    root.querySelectorAll("form.js-confirm").forEach(confirmForm);
+    // Barras de porcentaje (espacio usado…): la anchura no puede ir en un style="" (CSP), se pone aquí
+    root.querySelectorAll("[data-percent]").forEach(function (bar) {
+      var p = Math.max(0, Math.min(100, parseFloat(bar.getAttribute("data-percent")) || 0));
+      bar.style.width = p + "%";
     });
-  });
+    // Desplegables que envían su formulario al cambiar (p. ej. registros por página)
+    root.querySelectorAll("select.js-autosubmit").forEach(function (s) {
+      s.addEventListener("change", function () {
+        if (!s.form) return;
+        if (s.form.requestSubmit) s.form.requestSubmit(); else s.form.submit();
+      });
+    });
+    // Copiar al portapapeles
+    root.querySelectorAll(".js-copy").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var src = document.querySelector(b.dataset.copy);
+        if (!src || !navigator.clipboard) return;
+        navigator.clipboard.writeText(src.value).then(function () { b.textContent = t("Copied"); });
+      });
+    });
+  }
+  window.SW.wire = wire;
+  wire(document);
 })();

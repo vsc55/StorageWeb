@@ -68,9 +68,9 @@ La barra lateral tiene *Archivos* y, para los administradores, el **Resumen** y 
 |---|---|
 | **Resumen** | Avisos que necesitan atención (secreto de Entra ID a punto de caducar, carpetas que no existen, copias automáticas que no se hacen, problemas de red), una tarjeta por zona, tareas frecuentes y la actividad reciente. El número rojo de la barra lateral cuenta los avisos |
 | **Personas** | Usuarios · Grupos · Sesiones y tokens |
-| **Acceso** | Carpetas compartidas · Matriz de accesos · Permisos del rol · Carpetas personales · Cuotas |
-| **Seguridad** | Estado de la seguridad · Vulnerabilidades · Inicio de sesión · Reglas de bloqueo · API y unidad de red · IPs bloqueadas · Auditoría · Registro de auditoría (retención, niveles y SIEM) |
-| **Sistema** | General y marca · Red y HTTPS · Almacenamiento externo · Archivos y explorador · Vista previa · Copias automáticas · Copias y base de datos · Monitorización · Información |
+| **Acceso** | Carpetas compartidas · Matriz de accesos · Enlaces para compartir · Roles · Carpetas personales · Cuotas |
+| **Seguridad** | Estado de la seguridad · Vulnerabilidades · Inicio de sesión · Contraseñas · Reglas de bloqueo · API y unidad de red · IPs bloqueadas · Auditoría · Registro de auditoría (retención, niveles y SIEM) |
+| **Sistema** | General y marca · Red y HTTPS · Almacenamiento externo · Carpetas del servidor · Archivos y explorador · Vista previa · Copias automáticas · Copias y base de datos · Monitorización · Información |
 
 **Ajustes bloqueados:** lo que está en `config.json` o en una variable de entorno no se cambia desde la web. En el menú de cada zona, junto a la página, un candado dice cuántos ajustes suyos están así; arriba de la página, la lista de esos ajustes (con su variable de entorno o `config.json`) enlaza a cada uno, y el campo sale desactivado con su origen.
 
@@ -171,7 +171,8 @@ Aquí todos leen, y `ana` y el grupo `sistemas` además escriben. Las rutas debe
 ### Permisos del rol `user`
 
 ```json
-"permissions": {"user": {"upload": true, "download": true, "mkdir": true, "rename": true, "delete": false}}
+"permissions": {"user": {"upload": true, "download": true, "mkdir": true, "rename": true, "delete": false,
+                         "edit": false, "share": false}}
 ```
 
 ### Límites

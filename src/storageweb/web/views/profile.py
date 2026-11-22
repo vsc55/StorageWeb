@@ -3,14 +3,16 @@ from __future__ import annotations
 
 from flask import Blueprint, abort, flash, g, redirect, render_template, request, session, url_for
 
-from ...core import mfa, quota, storage, tokens
+from ...core import links, mfa, quota, storage, tokens
+from ...core.permissions import permissions_for
 from ...core.accounts import source_labels, stores_password
 from ...db.repositories import api_tokens, audit, users
 from ...db.repositories import sessions as session_repo
 from ...i18n import LOCALES, _, _l, locale_display_name, ngettext
 from ...i18n import normalize as normalize_locale
 from ...providers import local
-from ..context import external_url, get_db, settings
+from ..context import external_url, get_db, runtime, settings
+from ..forms import remembered
 from ..guards import audit_event, client_ip, login_required, safe_next
 from . import mfa as mfa_views
 
@@ -56,6 +58,7 @@ SECTIONS = (
     ("drive", _l("Network drive"),
      _l("Your folders as a drive in the file explorer (Windows, macOS, Linux) or with rclone, Cyberduck or WinSCP.")),
     ("space", _l("Space"), _l("What your personal folder takes up.")),
+    ("links", _l("Share links"), _l("What you have shared with people outside: copy a link again or stop sharing.")),
 )
 
 
@@ -68,6 +71,8 @@ def _visible_sections(cfg, home_quota, home_space) -> list[str]:
         shown.add("drive")
     if home_quota or home_space:
         shown.add("space")
+    if links.enabled(cfg) and ("share" in permissions_for(g.user, cfg) or links.for_user(get_db(), g.user)):
+        shown.add("links")
     return [key for key, _label, _desc in SECTIONS if key in shown]
 
 
@@ -110,6 +115,21 @@ def _render(section: str):
         context.update(webdav_url=external_url("dav.root"), mfa_blocks_password=bool(mfa.needed(get_db(), cfg, user)))
     elif section == "space":
         context.update(home_quota=home_quota, home_space=home_space)
+    elif section == "links":
+        key = runtime().secrets_key
+        labels = {r["name"]: str(r["label"]) for r in storage.available_roots(user, cfg)}
+        rows = [{**dict(row), "state": links.state(row), "folder": labels.get(row["root"], row["root"]),
+                 "url": (lambda t: external_url("links.public", token=t) if t else "")(links.token_of(row, key))}
+                for row in links.for_user(get_db(), user)]
+        # Filtro: activos de entrada; «borrados» son los que ya no existen y solo conservan su historial
+        show = remembered("show", "links_show", links.BUCKETS, "active")
+        deleted = links.deleted_history(get_db(), user["username"])
+        shown, counts = links.split(rows, show, len(deleted))
+        context.update(my_links=shown, link_show=show, link_counts=counts,
+                       deleted_links=deleted if show == "deleted" else [],
+                       BUCKETS=links.BUCKETS, bucket_label=links.bucket_label,
+                       MODE_LABELS=links.MODE_LABELS, STATE_LABELS=links.STATE_LABELS)
+        context["link_activity"] = links.activity(get_db(), [row["uid"] for row in shown])
     return render_template("profile.html", **context)
 
 
@@ -142,7 +162,7 @@ def profile():
     return _render("account")
 
 
-@bp.route("/profile/<any(security, tokens, drive, space):section>")
+@bp.route("/profile/<any(security, tokens, drive, space, links):section>")
 @login_required
 def section(section: str):
     return _render(section)

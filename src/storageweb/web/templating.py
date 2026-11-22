@@ -5,7 +5,7 @@ from flask import Flask, g
 
 from .. import __version__, audit_levels, i18n
 from ..i18n import _l
-from ..core import branding, diagnostics, tokens
+from ..core import branding, diagnostics, permissions, roles, tokens
 from ..core.permissions import ROLE_LABELS, is_admin
 from .. import providers
 from ..providers import local
@@ -79,6 +79,13 @@ def init_templating(app: Flask) -> None:
     # La longitud mínima de una contraseña nueva (security.password_min_length), para el minlength de los formularios
     app.jinja_env.globals["password_min_length"] = lambda: settings()["security"]["password_min_length"]
     # Lo que se pide a una contraseña nueva, en una frase (el title de esos campos): «Al menos 12 caracteres, con…»
+    # Los roles (core/roles.py): el nombre de uno (los propios, el suyo) y los de un desplegable (admin=False: sin
+    # Administrador, para los grupos)
+    app.jinja_env.globals["role_label"] = lambda key: permissions.role_label(settings(), key)
+    app.jinja_env.globals["role_choices"] = lambda admin=True: roles.choices(settings(), admin)
+    app.jinja_env.globals["default_role"] = lambda: permissions.default_role(settings())
+    # Los métodos de inicio de sesión registrados (las pestañas de Inicio de sesión, también fuera de su página)
+    app.jinja_env.globals["sign_in_methods"] = providers.methods
     app.jinja_env.globals["password_rules_text"] = lambda: local.describe(local.rules(settings()))
 
     @app.context_processor

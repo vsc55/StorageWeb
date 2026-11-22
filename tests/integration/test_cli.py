@@ -27,7 +27,7 @@ def cli(write_config):
 def test_user_lifecycle(cli, make_app):
     cli("user-add", "ana", "--password", "contraseña-larga", "--name", "Ana", "--groups", "RRHH, IT")
     out = cli("user-list").stdout
-    assert "ana" in out and "it,rrhh" in out and " user " in out
+    assert "ana" in out and "it,rrhh" in out and " none " in out          # el rol de las cuentas nuevas
 
     assert cli("user-add", "ana", "--password", "contraseña-larga", ok=False).returncode != 0
     cli("user-set", "ana", "--disable")

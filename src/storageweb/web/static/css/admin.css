@@ -101,16 +101,50 @@ a.chip-detected:hover { text-decoration: none; border-color: var(--primary); }
 /* --- grupos B: maestro-detalle --- */
 .master-detail { display: flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
                  min-height: 480px; background: var(--surface); }
+/* Paneles (usuarios, grupos, roles): hasta abajo de la ventana, no solo lo que mida la ficha */
+.page:has(> .master-detail) { display: flex; flex-direction: column; }
+.page > .master-detail { flex: 1 1 auto; }
+.md-detail.is-loading { opacity: .55; transition: opacity .15s .1s; }    /* cambiando de ficha sin recargar (panels.js) */
+/* En pantallas grandes, del alto de la zona de trabajo: la página no se desplaza; la lista y la ficha, cada una por su
+   cuenta (con muchos usuarios o roles, la ficha no se va hacia arriba al bajar por la lista) */
+@media (min-width: 1000px) and (min-height: 560px) {
+  .app:has(.page > .master-detail) { height: 100vh; }
+  .app:has(.page > .master-detail) > .app-main { min-height: 0; }
+  .app-main > :is(.zone-layout, .zone-full):has(> .page > .master-detail) { display: flex; flex: 1 1 0; min-height: 0; }
+  .zone-layout:has(> .page > .master-detail) > .zone-nav { overflow-y: auto; }
+  .page:has(> .master-detail) { min-height: 0; padding-bottom: 20px; }
+  .page > .master-detail { flex: 1 1 0; min-height: 0; flex-wrap: nowrap; }
+  .page > .master-detail > .md-list, .page > .master-detail > .md-detail { overflow-y: auto; }
+}
 .md-list { flex: 1 1 260px; max-width: 340px; background: var(--surface-head); border-right: 1px solid var(--line); }
 .md-list ul { list-style: none; margin: 0; padding: 8px 8px 12px; display: flex; flex-direction: column; gap: 2px; }   /* el mismo margen arriba que a los lados */
-.md-search { padding: 12px; }
-.md-search + ul { padding-top: 0; }     /* debajo del buscador (grupos), ya tiene su margen */
-.md-search input { width: 100%; }
 .md-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px;
            border-radius: 8px; border: 1px solid transparent; color: var(--fg); }
 .md-item:hover { text-decoration: none; background: var(--bg-hover); }
 .md-item.active { background: var(--surface); border-color: var(--primary); }
 .md-item-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; text-align: left; }   /* a la izquierda, sea corto o largo */
+.md-item-line { display: flex; align-items: center; gap: 6px; }   /* nombre e icono */
+.md-item > .badge { flex: none; white-space: nowrap; }
+/* Roles: la estrella del rol de las cuentas nuevas (rellena en el elegido; en los demás, un botón) y el icono «de serie» */
+.role-star-form { display: inline-flex; margin: 0; }
+.role-star { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 26px; height: 26px; min-height: 0;
+             padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
+.role-star .icon { fill: none; }
+.role-star:hover:not(:disabled) { background: var(--bg-hover); color: #d99a00; }
+.role-star:focus-visible { outline: 2px solid var(--primary); outline-offset: 0; }
+.role-star:disabled { cursor: not-allowed; opacity: .45; }
+.role-star.is-on { cursor: default; color: #d99a00; }
+.role-star.is-on .icon { fill: #f5b301; stroke: #d99a00; }
+.role-builtin { display: inline-flex; flex: none; color: var(--muted); }
+.role-builtin .icon { width: 14px; height: 14px; }
+.role-name { display: inline-flex; align-items: center; gap: 6px; }
+.role-name .role-star { margin-left: -4px; }
+.role-desc { padding-left: 28px; }
+.role-title { display: flex; gap: 8px; }
+.role-title .role-builtin .icon { width: 16px; height: 16px; }
+.md-row { position: relative; }
+.md-row > .role-star, .md-row > .role-star-form { position: absolute; left: 8px; top: 8px; z-index: 1; }
+.md-row > .md-item { padding-left: 40px; }
 .md-empty { padding: 8px 12px; }
 .md-detail { flex: 999 1 420px; min-width: 0; padding: 20px 24px; }
 .md-title { margin: 0; font-size: 20px; }
@@ -251,7 +285,6 @@ a.chip-detected:hover { text-decoration: none; border-color: var(--primary); }
 .tab-panel { border: 0; margin: 0; padding: 0; min-width: 0; }
 .tab-panel > legend { font-weight: 600; font-size: 14px; padding: 0; margin: 10px 0 8px; }
 .tab-panel.is-tab > legend { display: none; }
-.js-tabs .tabs { margin-bottom: 14px; }
 .tabs button.tab { border: 0; background: transparent; font: inherit; cursor: pointer; min-height: 0; }
 .mapping-table { border-collapse: collapse; margin: 6px 0; }
 .mapping-table td { padding: 3px 6px 3px 0; }
@@ -673,4 +706,53 @@ th[aria-sort="descending"] .sort-btn::after { content: "↓"; opacity: 1; color:
 .password-checks .is-bad .icon { color: var(--danger); }
 .password-checks .is-unknown .icon { color: var(--muted); }
 .js-test-username[hidden], .password-test-result[hidden] { display: none; }
-.password-test-form .is-masked { -webkit-text-security: disc; text-security: disc; }
+
+/* Pestañas de las páginas (.js-tabs, admin/forms.js, que le pone .tabs-side): en columna a la izquierda, como el
+   menú de cada zona, del ancho de su texto más largo (como mucho 240 px); la activa, marcada en azul. En pantallas
+   estrechas, arriba */
+.js-tabs > .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; }
+.js-tabs.tabs-side { display: grid; grid-template-columns: fit-content(240px) minmax(0, 1fr); gap: 20px;
+                     align-items: start; }
+.js-tabs.tabs-side > .tabs { grid-column: 1; grid-row: 1; flex-direction: column; flex-wrap: nowrap; gap: 2px;
+                             margin: 0; border-bottom: 0; border-left: 1px solid var(--line); position: sticky; top: 12px; }
+.js-tabs.tabs-side > .tabs .tab { display: block; text-decoration: none; text-align: left; border: 0; border-left: 3px solid transparent; margin: 0 0 0 -1px;
+                                        padding: 9px 14px; border-radius: 0 8px 8px 0; color: var(--muted); font-weight: 500; }
+.js-tabs.tabs-side > .tabs .tab:hover { color: var(--fg); background: var(--bg-hover); }
+.js-tabs.tabs-side > .tabs .tab.active { border-left-color: var(--primary); background: var(--primary-soft);
+                                               color: var(--primary-ink); font-weight: 600; }
+.js-tabs.tabs-side > .tab-panel { grid-column: 2; grid-row: 1; }
+@media (max-width: 760px) {
+  .js-tabs.tabs-side { grid-template-columns: minmax(0, 1fr); }
+  .js-tabs.tabs-side > .tabs { flex-direction: row; flex-wrap: wrap; border-left: 0; border-bottom: 1px solid var(--line);
+                               position: static; }
+  .js-tabs.tabs-side > .tab-panel { grid-column: 1; grid-row: auto; }
+}
+/* En una página de ajustes (sueltas o dentro de su formulario), las pestañas salen de la línea del menú de la zona (su borde derecho): la columna llega
+   hasta él (el margen de .page es de 28 px) y la marca de la activa queda sobre esa línea. Solo mientras el menú está
+   a la izquierda (más de 900 px); dentro de una tarjeta (Entra ID), con su propia línea */
+@media (min-width: 901px) {
+  .page > .js-tabs.tabs-side > .tabs,
+  .settings-main > .js-tabs.tabs-side > .tabs, .settings-main > form > .js-tabs.tabs-side > .tabs { margin-left: -29px;
+                                                                                         border-left: 0; }
+  .page > .js-tabs.tabs-side > .tabs .tab,
+  .settings-main > .js-tabs.tabs-side > .tabs .tab,
+  .settings-main > form > .js-tabs.tabs-side > .tabs .tab { margin-left: 0; padding-left: 26px; }
+}
+/* Dentro de la tarjeta de un método de inicio de sesión (Entra ID), salen igual de su borde izquierdo (margen de
+   18 px de .provider-card) */
+@media (min-width: 761px) {
+  .provider-card > .js-tabs.tabs-side > .tabs { margin-left: -19px; border-left: 0; }
+  .provider-card > .js-tabs.tabs-side > .tabs .tab { margin-left: 0; padding-left: 16px; }
+}
+/* El asistente de Entra ID y registrar o reparar la aplicación, dentro de su pestaña: a todo el ancho */
+.js-tabs > .tab-panel > .wizard { max-width: none; margin: 0; }
+/* El detalle de la prueba de conexión de Entra ID, con su X para ocultarlo */
+.check-box { position: relative; display: flex; flex-direction: column; gap: 10px; }
+.check-box > .check-close { position: absolute; top: 8px; right: 8px; z-index: 1; width: 22px; height: 22px;
+                            min-height: 22px; border-radius: 6px; }
+.check-box > .check-close .icon { width: 12px; height: 12px; }
+.check-box > .check-list { padding-right: 36px; }
+/* Acceso → Roles: los permisos de cada rol, en pastillas */
+.perm-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.perm-chips .chip { min-height: 0; padding: 2px 10px; font-size: 12px; }
+.role-perms .checks { margin-top: 4px; }

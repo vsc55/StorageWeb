@@ -1,0 +1,28 @@
+{% extends "admin/_layout.html" %}
+{% from "admin/roles/_macros.html" import role_form, who_has, delete_zone with context %}
+{% block title %}{{ role.label if role else _("New role") }} · {{ _("Roles") }} · {{ app_name }}{% endblock %}
+{% block admin_content %}
+{# La ficha de un rol (web/views/roles.py → core/roles.py): nombre, descripción, permisos y quién lo tiene. El de
+   serie Usuario (role.builtin) solo tiene los permisos: su nombre no cambia y los bloqueados no se tocan #}
+<section class="settings-main">
+  <p class="small"><a href="{{ url_for('roles.index') }}">← {{ _("Roles") }}</a></p>
+  <div class="settings-head">
+    <h1>{{ role.label if role else _("New role") }}</h1>
+    {% if not role and form.source %}
+    <p class="muted small">{{ _("A copy of «%(name)s»: change what you need and create it. The original is not touched.", name=form.source) }}</p>
+    {% elif role and role.builtin %}
+    <p class="muted small">{{ _("The built-in role for people who can work with their files. Its name does not change; its permissions, here. Administrators always have every permission.") }}</p>
+    {% else %}
+    <p class="muted small">{{ _("A role is a set of permissions on the files. Give it to a person in their record or to a group: the members of the group can also do what it allows.") }}</p>
+    {% endif %}
+  </div>
+
+  {{ role_form(role, form, locked) }}
+
+  {% if role and not role.builtin %}
+  <h2 class="card-title">{{ _("Who has it") }}</h2>
+  {{ who_has(role, usage) }}
+  {{ delete_zone(role) }}
+  {% endif %}
+</section>
+{% endblock %}

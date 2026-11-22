@@ -99,7 +99,7 @@ def test_the_browser_only_sends_the_identifier(entra_app, graph):
                                              "username": "otro-nombre", "role": "admin"})
     with app.app_context():
         pedro = users.get_by_external(get_db(), "entra", "oid-pedro")
-    assert pedro["username"] == "pedro@contoso.com" and pedro["role"] == "user"
+    assert pedro["username"] == "pedro@contoso.com" and pedro["role"] == "none"
     page = client.post("/admin/users/import", data={"_csrf": token, "source": "entra", "external_id": "no-existe"},
                        follow_redirects=True).get_data(as_text=True)
     assert "No se encontró a esa persona" in page

@@ -197,4 +197,4 @@ def test_session_cookie_flags(make_app):
 def test_healthz_without_login(client):
     resp = client.get("/healthz")
     assert resp.status_code == 200
-    assert resp.get_json()["status"] == "ok" and resp.get_json()["version"]
+    assert resp.get_json() == {"status": "ok"}

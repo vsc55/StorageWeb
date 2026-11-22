@@ -246,7 +246,7 @@ def test_settings_sections_render(admin):
     client, _ = admin
     assert client.get("/admin/settings").location.endswith("/admin/settings/general")
     for section, text in (("general", "Idioma por defecto"), ("storage", "Plantilla de carpeta personal"),
-                          ("permissions", "Permisos del rol"), ("auth", "Entra ID"),
+                          ("auth", "Entra ID"),
                           ("security", "Minutos de bloqueo"), ("clients", "Permitir tokens de API personales"),
                           ("ips", "IPs bloqueadas"),
                           ("quotas", "Cuota de las carpetas personales (MB)"),
@@ -260,11 +260,12 @@ def test_settings_sections_render(admin):
     # La antigua sección de carpetas compartidas ahora está en Acceso
     assert client.get("/admin/settings/shares").location.endswith("/admin/access/folders")
     assert client.get("/admin/settings/maintenance").location.endswith("/admin/settings/auto_backups")
+    assert client.get("/admin/settings/permissions").location.endswith("/admin/access/roles/")   # Roles, su página
     token = get_csrf(client, "/admin/settings/system")
     assert client.post("/admin/settings/system", data={"_csrf": token}).status_code == 405
 
 
-@pytest.mark.parametrize("section", ["general", "storage", "quotas", "files", "permissions", "auth", "security",
+@pytest.mark.parametrize("section", ["general", "storage", "quotas", "files", "auth", "security",
                                      "clients", "network", "preview", "audit_settings", "auto_backups", "monitoring"])
 def test_settings_roundtrip_unchanged(app, admin, section):
     from storageweb.settings import runtime_view
@@ -296,9 +297,9 @@ def test_settings_change_applies_immediately(app, admin, tmp_path):
 
 def test_settings_permissions_affect_users(app, admin):
     client, _ = admin
-    data = settings_form(client, "permissions")
-    data.pop("perm_upload", None)
-    assert client.post("/admin/settings/permissions", data=data).status_code == 302
+    token = get_csrf(client, "/admin/access/roles/user")
+    assert client.post("/admin/access/roles/user", data={"_csrf": token, "permissions": ["download", "mkdir"]}
+                       ).status_code == 302
     add_user(app, "ana")
     user_client = app.test_client()
     login(user_client, "ana")

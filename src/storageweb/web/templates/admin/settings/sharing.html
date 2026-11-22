@@ -1,0 +1,91 @@
+{% extends "admin/settings/_layout.html" %}
+{% from "admin/settings/_macros.html" import origin, err_class, field_error, form_start, save_bar, lock with context %}
+{% from "_link_filter.html" import link_filter, deleted_table with context %}
+{% block section %}
+{# Acceso → Enlaces para compartir: los ajustes y todos los enlaces de todos, para revocarlos #}
+{% set sh = cfg.sharing %}
+{# Una pestaña por sección (admin/forms.js): todos los enlaces y los ajustes (el formulario) #}
+<div class="js-tabs">
+<fieldset class="tab-panel">
+  <legend>{{ _("Links") }}</legend>
+<div class="card stack">
+  {{ link_filter(link_show, link_counts, 'settings.section', {'name': 'sharing'}) }}
+  {% if link_show == 'deleted' %}
+  {{ deleted_table(deleted_links, admin=true) }}
+  {% elif share_links %}
+  <div class="table-scroll">
+    <table class="files small js-sortable">
+      <thead><tr><th data-sort="text">{{ _("Person") }}</th><th data-sort="text">{{ _("What") }}</th><th data-sort="text">{{ _("Kind") }}</th>
+        <th data-sort="text">{{ _("Status") }}</th><th data-sort="text">{{ _("Expires") }}</th><th class="num" data-sort="number">{{ _("Downloads") }}</th>
+        <th data-sort="text">{{ _("Created") }}</th><th data-sort="number">{{ _("Activity") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr></thead>
+      <tbody>
+        {% for l in share_links %}
+        <tr>
+          <td>{{ l.owner }}{% if not l.owner_enabled %} <span class="badge">{{ _("disabled") }}</span>{% endif %}</td>
+          <td class="mono">{{ l.root }}:/{{ l.rel }}</td>
+          <td>{{ MODE_LABELS[l.mode] }}{% if l.has_password %} · {{ _("with password") }}{% endif %}</td>
+          <td><span class="badge{% if l.state != 'ok' %} badge-err{% else %} badge-ok{% endif %}">{{ STATE_LABELS[l.state] }}</span></td>
+          <td class="muted" data-sort-value="{{ l.expires_at or '9999' }}">{{ l.expires_at|datetime if l.expires_at else _("never") }}</td>
+          <td class="num" data-sort-value="{{ l.downloads }}">{% if l.mode == 'upload' %}{{ ngettext("%(num)s upload", "%(num)s uploads", l.uploads) }}{% else %}{{ l.downloads }}{% if l.max_downloads %} / {{ l.max_downloads }}{% endif %}{% endif %}</td>
+          <td class="muted" data-sort-value="{{ l.created_at }}">{{ l.created_at|datetime }}</td>
+          {% set act = link_activity.get(l.uid, {}) %}
+          <td class="nowrap" data-sort-value="{{ act.get('opened', 0) }}"><a href="{{ url_for('links.activity', uid=l.uid, next=request.full_path) }}">{{ ngettext("%(num)s visit", "%(num)s visits", act.get('opened', 0)) }}</a></td>
+          <td class="cell-end">{% if l.state != 'revoked' %}
+            <form method="post" action="{{ url_for('links.revoke', uid=l.uid) }}" class="inline js-confirm"
+                  data-confirm="{{ _('Remove this link of %(name)s? It stops working at once.', name=l.owner) }}">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.full_path }}">
+              <button class="link-btn small text-danger" type="submit">{{ _("Remove") }}</button></form>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">{{ _("No link here.") if link_counts['all'] else _("Nobody has shared anything with a link.") }}</p>
+  {% endif %}
+</div>
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Settings") }}</legend>
+{{ form_start() }}
+  <div class="card form-grid">
+    <label class="check span2"><input{{ lock('sharing.links') }} type="checkbox" name="sharing_links" {% if sh.links %}checked{% endif %}>
+      <span>{{ _("Share links") }} {{ origin('sharing.links') }}
+        <small class="muted">{{ _("Links for people without an account, with an expiry, an optional password and a download limit. They are created by whoever has the permission «Share with links» (Role permissions; administrators always). Off, none works, not even the ones already created.") }}</small></span></label>
+    <label class="{{ err_class('sharing.default_days') }}"><span class="label-row">{{ _("Days a link lasts by default") }} {{ origin('sharing.default_days') }}</span>
+      <input{{ lock('sharing.default_days') }} type="number" name="sharing_default_days" value="{{ sh.default_days }}" min="1" max="3650">
+      {{ field_error('sharing.default_days') }}</label>
+    <label class="{{ err_class('sharing.max_days') }}"><span class="label-row">{{ _("Days a link can last at most") }} {{ origin('sharing.max_days') }}</span>
+      <input{{ lock('sharing.max_days') }} type="number" name="sharing_max_days" value="{{ sh.max_days }}" min="0" max="3650">
+      <small class="muted">{{ _("0 = no maximum: links that never expire can then be created.") }}</small>
+      {{ field_error('sharing.max_days') }}</label>
+    <label class="check span2"><input{{ lock('sharing.require_password') }} type="checkbox" name="sharing_require_password" {% if sh.require_password %}checked{% endif %}>
+      <span>{{ _("Require a password for every link") }} {{ origin('sharing.require_password') }}</span></label>
+    <label class="check span2"><input{{ lock('sharing.upload_links') }} type="checkbox" name="sharing_upload_links" {% if sh.upload_links %}checked{% endif %}>
+      <span>{{ _("Allow drop boxes (upload links)") }} {{ origin('sharing.upload_links') }}
+        <small class="muted">{{ _("A link to a folder so that someone outside uploads files without seeing what is there. It also needs permission to upload to that folder; nothing is overwritten.") }}</small></span></label>
+    {% if not cfg.permissions.user.share %}
+    <p class="span2 muted small">{{ _("The «User» role cannot create links now: only administrators.") }}
+      <a href="{{ url_for('roles.index') }}">{{ _("Roles") }}</a></p>
+    {% endif %}
+  </div>
+
+  <div class="card form-grid section-gap">
+    <h3 class="card-title span2">{{ _("How long they are kept") }}</h3>
+    <p class="muted small span2">{{ _("Every day the cleanup deletes the links removed or expired long ago (their history stays: filter Deleted) and the history older than its limit.") }}</p>
+    <label class="{{ err_class('sharing.keep_days') }}"><span class="label-row">{{ _("Keep removed or expired links (days)") }} {{ origin('sharing.keep_days') }}</span>
+      <input{{ lock('sharing.keep_days') }} type="number" name="sharing_keep_days" value="{{ sh.keep_days }}" min="0" max="3650">
+      <small class="muted">{{ _("They stay in the list (filters Removed and Expired) this long. 0 = they are never deleted.") }}</small>
+      {{ field_error('sharing.keep_days') }}</label>
+    <label class="{{ err_class('sharing.history_days') }}"><span class="label-row">{{ _("Keep the history of the links (days)") }} {{ origin('sharing.history_days') }}</span>
+      <input{{ lock('sharing.history_days') }} type="number" name="sharing_history_days" value="{{ sh.history_days }}" min="0" max="3650">
+      <small class="muted">{{ _("Visits, downloads, uploads and refusals with their IP and browser. 0 = as long as the audit log. Never less than the one above.") }}</small>
+      {{ field_error('sharing.history_days') }}</label>
+  </div>
+  {{ save_bar() }}
+</form>
+</fieldset>
+</div>
+{% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/sortable.js') }}"></script>{% endblock %}

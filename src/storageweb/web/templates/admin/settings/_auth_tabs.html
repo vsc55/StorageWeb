@@ -1,0 +1,13 @@
+{# Las pestañas de Seguridad → Inicio de sesión, fijas (enlaces), para las páginas que cuelgan de una de ellas: el
+   asistente de Entra ID y registrar, renovar o reparar la aplicación. Cada enlace lleva al ancla de su pestaña
+   (admin/forms.js abre la que contiene el ancla). Uso:
+     <div class="js-tabs tabs-side">{{ auth_tabs('entra') }}<div class="tab-panel">…</div></div> #}
+{% macro auth_tabs(active) -%}
+{% set base = url_for('settings.section', name='auth') %}
+<nav class="tabs" aria-label="{{ _('Sign-in') }}">
+  <a class="tab{% if active == 'mfa' %} active{% endif %}" href="{{ base }}#f-security-mfa_required"{% if active == 'mfa' %} aria-current="page"{% endif %}>{{ _("Two-step verification") }}</a>
+  {% for m in sign_in_methods() %}
+  <a class="tab{% if active == m.key %} active{% endif %}" href="{{ base }}#p-{{ m.key }}"{% if active == m.key %} aria-current="page"{% endif %}>{{ m.label }}</a>
+  {% endfor %}
+</nav>
+{%- endmacro %}

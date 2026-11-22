@@ -401,3 +401,29 @@ html:not(.js) .editor-status button { pointer-events: none; }
 .hljs-emphasis { font-style: italic; }
 .hljs-deletion { color: var(--hl-del); background: var(--hl-del-bg); }
 .hljs-addition { color: var(--hl-add); background: var(--hl-add-bg); }
+
+/* Miniaturas de las imágenes (js/files/thumbs.js): en la fila, en el sitio del icono (que se esconde cuando carga) */
+.row-thumb { width: 28px; height: 28px; flex: 0 0 28px; object-fit: cover; border-radius: 4px; background: var(--bg-soft);
+             margin: -4px 0; }
+.name-cell:not(.has-thumb) .row-thumb { width: 0; flex-basis: 0; visibility: hidden; margin-right: -10px; }
+.name-cell.has-thumb > svg.file-icon { display: none; }
+.details-thumb { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
+.details-thumb[hidden], #details-icon[hidden] { display: none; }
+
+/* Compartir enlace (js/files/share.js) y la página pública de un enlace (share.html) */
+.share-form { min-width: min(560px, 80vw); }
+.share-form label[hidden] { display: none; }
+.share-done .copy-row input { min-width: 0; flex: 1 1 auto; }
+.link-filter { flex-wrap: wrap; align-self: flex-start; margin-bottom: 12px; }
+.card > .link-filter { margin-bottom: 0; }
+.link-filter .segment { text-decoration: none; padding: 5px 12px; font-size: 13px; }
+.share-page { max-width: 960px; margin: 24px auto; display: flex; flex-direction: column; gap: 14px; }
+.share-page h1 { margin: 0; font-size: 22px; word-break: break-word; }
+.share-meta, .share-note { margin: 0; }
+.share-note { white-space: pre-wrap; border-left: 3px solid var(--line); padding-left: 10px; }
+.share-file { display: flex; align-items: center; gap: 16px; }
+.share-password { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.share-password label { flex: 1 1 260px; }
+.share-upload { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.share-crumbs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.share-crumbs h1 { display: inline; }

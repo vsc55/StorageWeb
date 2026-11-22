@@ -34,9 +34,11 @@
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
 </form>
 
-<div class="user-layout">
-<div class="user-main stack">
-
+{# Una pestaña por sección (admin/forms.js); la barra de guardar, fuera: guarda lo de Perfil, Acceso y Carpeta
+   personal (el formulario #user-form, arriba) #}
+<div class="js-tabs user-tabs">
+<fieldset class="tab-panel">
+  <legend>{{ _("Profile") }}</legend>
   <section class="card form-grid" aria-labelledby="sec-profile">
     <h2 id="sec-profile" class="card-title span2">{{ _("Profile") }}</h2>
     <label>{{ _("Display name") }}
@@ -49,14 +51,14 @@
     {% elif is_sso %}<p class="muted small span2">{{ _("The name is updated from %(source)s on each sign-in.", source=SOURCE_LABELS[user['source']]) }}</p>{% endif %}
   </section>
 
-  <section class="card stack" aria-labelledby="sec-access">
+  <section class="card stack section-gap" aria-labelledby="sec-access">
     <div>
       <h2 id="sec-access" class="card-title">{{ _("Access") }}</h2>
       <p class="muted small">{{ _("The role says what they can do; the groups, which shared folders they see. The result is in Effective access.") }}</p>
     </div>
     <label class="user-role">{{ _("Role") }}
       <select form="user-form" name="role">
-        {% for r in ROLES %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}
+        {% for r, r_label in role_choices() %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ r_label }}</option>{% endfor %}
       </select>
     </label>
     <div>
@@ -65,7 +67,9 @@
       {% if auth_method(user['source']) and auth_method(user['source']).external_groups %}<p class="muted small">{{ _("Groups with a padlock come from %(source)s and are updated on each sign-in: change them there. The others are assigned here and are kept when the user signs in again.", source=SOURCE_LABELS[user['source']]) }}</p>{% endif %}
     </div>
   </section>
-
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Personal folder") }}</legend>
   <section class="card form-grid" aria-labelledby="sec-folder">
     <h2 id="sec-folder" class="card-title span2">{{ _("Personal folder") }}</h2>
     <label class="span2">{{ _("Path") }} <small class="muted">({{ _("empty = default template") }})</small>
@@ -82,20 +86,16 @@
       <span>{{ ('≥ ' if not home_usage.complete else '') ~ home_usage.used }} <span class="muted small">· {{ _("default: no quota") }}</span></span>{% endif %}
     </div>
   </section>
-
-  {# Un solo modelo de guardar para lo editable de arriba: aparece al cambiar algo (sin JS, siempre a la vista) #}
-  <div class="save-bar is-idle" data-user-save>
-    <span class="small" data-user-save-status>{{ _("Unsaved changes") }}</span>
-    <span class="toolbar-spacer"></span>
-    <button class="btn btn-ghost" type="reset" form="user-form">{{ _("Discard") }}</button>
-    <button class="btn btn-primary" type="submit" form="user-form">{{ _("Save changes") }}</button>
-  </div>
-
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Sign-in and security") }}</legend>
   <section class="card stack" aria-labelledby="sec-signin">
     <h2 id="sec-signin" class="card-title">{{ _("Sign-in and security") }}</h2>
     {{ signin_security(user, mfa, mfa_applies, mfa_required, user_sessions, user_tokens, request.path) }}
   </section>
-
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Favorites") }}</legend>
   {# Sus favoritos (core/favorites.for_admin): también los que ya no le sirven, para limpiarlos #}
   <section class="card stack" aria-labelledby="sec-favorites" id="sec-favorites">
     <div class="user-row">
@@ -109,7 +109,24 @@
     </div>
     {{ favorites_list(user, favorites, favorite_roots, request.path ~ '#sec-favorites') }}
   </section>
-
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Effective access") }}</legend>
+  <section class="card" aria-labelledby="access-title">
+    <h2 id="access-title" class="card-title">{{ _("Effective access") }}</h2>
+    <p class="muted small">{{ _("What they see when they sign in, and why.") }}</p>
+    {{ access_list(user, access, role_permissions) }}
+  </section>
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Recent activity") }}</legend>
+  <section class="card" aria-labelledby="activity-title">
+    <h2 id="activity-title" class="card-title">{{ _("Recent activity") }}</h2>
+    {{ activity_list(user, activity) }}
+  </section>
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Account") }}</legend>
   {% if user['id'] != current_user['id'] %}
   <section class="danger-zone" aria-label="{{ _('Access') }}">
     <div class="danger-row">
@@ -162,21 +179,15 @@
     </div>
   </section>
   {% endif %}
-
+</fieldset>
 </div>
 
-<aside class="user-side">
-  <section class="card" aria-labelledby="access-title">
-    <h2 id="access-title" class="card-title">{{ _("Effective access") }}</h2>
-    <p class="muted small">{{ _("What they see when they sign in, and why.") }}</p>
-    {{ access_list(user, access, role_permissions) }}
-  </section>
-  <section class="card" aria-labelledby="activity-title">
-    <h2 id="activity-title" class="card-title">{{ _("Recent activity") }}</h2>
-    {{ activity_list(user, activity) }}
-  </section>
-</aside>
-</div>
+  <div class="save-bar is-idle" data-user-save>
+    <span class="small" data-user-save-status>{{ _("Unsaved changes") }}</span>
+    <span class="toolbar-spacer"></span>
+    <button class="btn btn-ghost" type="reset" form="user-form">{{ _("Discard") }}</button>
+    <button class="btn btn-primary" type="submit" form="user-form">{{ _("Save changes") }}</button>
+  </div>
 
 {% else %}
 {# Alta: no hay nada inmediato todavía, así que un formulario normal, en el orden en que se piensa una cuenta nueva #}
@@ -215,7 +226,7 @@
     <h2 id="sec-access" class="card-title span2">{{ _("Access") }}</h2>
     <label>{{ _("Role") }}
       <select name="role">
-        {% for r in ROLES %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}
+        {% for r, r_label in role_choices() %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ r_label }}</option>{% endfor %}
       </select>
     </label>
     <label>{{ _("Groups") }} <small class="muted">({{ _("comma separated; unknown ones are created as local groups") }})</small>

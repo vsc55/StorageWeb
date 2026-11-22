@@ -15,6 +15,7 @@
   --badge-admin-bg: #fde7c7; --badge-admin-fg: #7a4100;
   --shadow: 0 10px 30px rgba(16, 24, 40, .16);
   --radius: 8px;
+  --scroll-thumb: #cdd3dc; --scroll-thumb-near: #aeb6c4; --scroll-thumb-hover: #6b8fdc;
 }
 [data-theme="dark"] {
   color-scheme: dark;
@@ -26,6 +27,7 @@
   --rail-bg: #0b0e13; --rail-active: #1f2633; --folder-fill: #5c4614; --folder-stroke: #f2c14e;
   --badge-admin-bg: #4a3313; --badge-admin-fg: #ffd8a0;
   --shadow: 0 10px 30px rgba(0, 0, 0, .5);
+  --scroll-thumb: #3a4354; --scroll-thumb-near: #56627a; --scroll-thumb-hover: #5b7fc4;
 }
 @media (prefers-color-scheme: dark) {
   [data-theme="system"] {
@@ -38,6 +40,7 @@
     --rail-bg: #0b0e13; --rail-active: #1f2633; --folder-fill: #5c4614; --folder-stroke: #f2c14e;
     --badge-admin-bg: #4a3313; --badge-admin-fg: #ffd8a0;
     --shadow: 0 10px 30px rgba(0, 0, 0, .5);
+    --scroll-thumb: #3a4354; --scroll-thumb-near: #56627a; --scroll-thumb-hover: #5b7fc4;
   }
 }
 
@@ -48,6 +51,22 @@ body { margin: 0; font: 14px/1.45 Inter, system-ui, -apple-system, "Segoe UI", R
 a { color: var(--primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Barras de desplazamiento del tema: finas, en píldora y sobre fondo transparente; discretas en reposo, más visibles
+   al pasar por la zona que se desplaza y del color principal al cogerlas. Chrome, Edge y Safari con
+   ::-webkit-scrollbar (permite el borde transparente que las afina); Firefox, con las propiedades estándar. */
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+  *:hover { scrollbar-color: var(--scroll-thumb-near) transparent; }
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-button { display: none; }
+::-webkit-scrollbar-thumb { min-height: 40px; min-width: 40px; border: 3px solid transparent; border-radius: 999px;
+                            background: var(--scroll-thumb) padding-box; }
+:hover::-webkit-scrollbar-thumb { background-color: var(--scroll-thumb-near); }
+::-webkit-scrollbar-thumb:hover { border-width: 2px; background-color: var(--scroll-thumb-hover); }
+::-webkit-scrollbar-thumb:active { border-width: 2px; background-color: var(--primary); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
            clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 [hidden] { display: none !important; }
@@ -148,3 +167,7 @@ input.from-provider { background: var(--surface-head); color: var(--muted); curs
 .sw-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .btn-danger-solid { background: var(--danger); border-color: var(--danger); color: #fff; }
 .btn-danger-solid:hover { filter: brightness(1.08); text-decoration: none; }
+
+/* Un campo de texto que se ve con puntos (contraseñas que el navegador no debe ofrecer guardar: el probador de
+   Seguridad → Contraseñas, la de un enlace para compartir) */
+.is-masked { -webkit-text-security: disc; text-security: disc; }

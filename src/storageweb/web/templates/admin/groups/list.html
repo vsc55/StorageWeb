@@ -1,28 +1,9 @@
 {% extends "admin/_layout.html" %}
-{% from "admin/groups/_macros.html" import source_badge, view_switch, detected_box with context %}
+{% from "admin/groups/_macros.html" import source_badge, page_head, filters_form, detected_box with context %}
 {% block title %}{{ _("Groups") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
-<div class="page-head">
-  <div>
-    <h1>{{ _("Groups") }}</h1>
-    <p class="muted small">{{ _("They give access to shared folders. They can be local or come from Entra ID or the system.") }}</p>
-  </div>
-  <div class="inline">
-    {{ view_switch('list') }}
-    <a class="btn btn-primary" href="{{ url_for('groups.new') }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New group") }}</a>
-  </div>
-</div>
-
-<form method="get" class="inline search">
-  <input type="text" name="q" value="{{ search }}" placeholder="{{ _('Search by name or description') }}"
-         aria-label="{{ _('Search by name or description') }}">
-  <select name="source" aria-label="{{ _('Source') }}">
-    <option value="">{{ _("All sources") }}</option>
-    {% for s in GROUP_SOURCES %}<option value="{{ s }}" {% if source == s %}selected{% endif %}>{{ GROUP_SOURCE_LABELS[s] }}</option>{% endfor %}
-  </select>
-  <button class="btn" type="submit">{{ _("Search") }}</button>
-  {% if search or source %}<a class="btn btn-ghost" href="{{ url_for('groups.list_view') }}">{{ _("Clear") }}</a>{% endif %}
-</form>
+{{ page_head('list') }}
+{{ filters_form(search, source, 'groups.list_view') }}
 
 <div class="table-scroll">
 <table class="files">

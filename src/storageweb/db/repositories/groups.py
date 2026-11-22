@@ -7,7 +7,7 @@ from typing import Iterable
 
 from ..connection import now_iso
 
-_UPDATABLE = {"label", "description", "source", "external_id"}
+_UPDATABLE = {"label", "description", "source", "external_id", "role"}
 
 _WITH_COUNTS = """
     SELECT g.*,

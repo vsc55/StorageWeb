@@ -23,11 +23,12 @@ from ..providers.local import burn_time, hash_password
 from ..settings import server_paths
 from ..settings.defaults import ROLES
 from . import groups as group_core
+from . import roles as role_core
 from . import maintenance
 from . import shares as share_core
 from . import storage
 from .alerts import alert, source
-from .permissions import ADMIN, USER
+from .permissions import ADMIN, USER, default_role
 
 _log = logging.getLogger(__name__)
 
@@ -109,7 +110,7 @@ def authenticate_password(conn: Connection, cfg: dict, username: str, password: 
         return None
     if user is None:
         user = users.get_by_id(conn, users.create(conn, username=username, source=used.key,
-                                                  role=identity.role or USER, home_path=identity.home))
+                                                  role=identity.role or default_role(cfg), home_path=identity.home))
     if not user["enabled"]:
         return None
     users.touch_login(conn, user["id"], **({"role": identity.role} if identity.role else {}))
@@ -156,23 +157,28 @@ def import_account(conn: Connection, cfg: dict, key: str, external_id: str) -> t
         raise AccountError(_("There is already an account called «%(name)s».", name=person.username), "conflict")
     groups = person.groups or []
     uid = users.create(conn, username=person.username, source=key, external_id=person.external_id,
-                       role=resolve_role(section, groups), display_name=person.display_name or None,
+                       role=resolve_role(section, groups, fallback=default_role(cfg)), display_name=person.display_name or None,
                        email=person.email or None, enabled=person.enabled)
     if method.external_groups and person.groups is not None:
         group_core.sync_external(conn, uid, key, person.groups)
     return users.get_by_id(conn, uid), "created", person.warning
 
 
-def resolve_role(section: dict, groups: list[str] | set[str], current_role: str | None = None) -> str:
+def resolve_role(section: dict, groups: list[str] | set[str], current_role: str | None = None,
+                 fallback: str = USER) -> str:
     """Rol para un usuario SSO según ``role_mappings`` de su método.
 
     * Usuario nuevo: rol mapeado (admin gana a user) o ``default_role``.
     * Usuario existente: si ``sync_role_on_login`` y hay mapeos, se recalcula; si no, se mantiene.
     """
     mappings = section.get("role_mappings") or {}
-    default = section.get("default_role", USER)
+    # El del método (Entra ID: «Rol de los usuarios nuevos»); vacío, el de las cuentas nuevas de StorageWeb
+    default = section.get("default_role") or fallback
     matched = {mappings[g] for g in groups if g in mappings}
-    mapped = ADMIN if ADMIN in matched else (USER if matched else None)
+    # Administrador gana; si no, un rol propio (el primero por nombre, para que no dependa del orden de los grupos);
+    # si no, Usuario. Los permisos de los demás llegan igual si esos grupos de StorageWeb tienen rol (groups.role)
+    custom = sorted(r for r in matched if r not in (ADMIN, USER))
+    mapped = ADMIN if ADMIN in matched else (custom[0] if custom else (USER if matched else None))
     if current_role is None:
         return mapped or default
     if section.get("sync_role_on_login", True) and mappings:
@@ -256,7 +262,7 @@ def login_sso(conn: Connection, cfg: dict, key: str, identity: Identity, ip: str
                                "not_provisioned")
         else:
             uid = users.create(conn, username=username, source=key, external_id=identity.external_id,
-                               role=resolve_role(section, groups), display_name=identity.display_name,
+                               role=resolve_role(section, groups, fallback=default_role(cfg)), display_name=identity.display_name,
                                email=identity.email)
             user = users.get_by_id(conn, uid)
             audit.log(conn, "user_provisioned", username=username, ip=ip, detail=f"{key}:{user['role']}")
@@ -277,7 +283,7 @@ def login_sso(conn: Connection, cfg: dict, key: str, identity: Identity, ip: str
         fields["display_name"] = identity.display_name
     if identity.email and profile_from_provider(key):
         fields["email"] = identity.email
-    role = resolve_role(section, groups, user["role"])
+    role = resolve_role(section, groups, user["role"], fallback=default_role(cfg))
     if role != user["role"]:
         fields["role"] = role
         audit.log(conn, "role_changed", username=username, ip=ip, detail=f"{user['role']}->{role} ({key})")
@@ -372,7 +378,7 @@ def sync_directory(conn: Connection, cfg: dict, only: str | None = None) -> dict
             if found.groups is None:
                 continue
             before = group_core.split(user["external_groups"])
-            role = resolve_role(section, found.groups, user["role"])
+            role = resolve_role(section, found.groups, user["role"], fallback=default_role(cfg))
             if set(found.groups) != before or role != user["role"]:
                 group_core.sync_external(conn, user["id"], m.key, found.groups)
                 if role != user["role"]:
@@ -395,8 +401,9 @@ def _sync_directory(conn: Connection, cfg: dict) -> None:
 
 # --------------------------------------------------------------------------- gestión (admin)
 
-def _check_role(role: str) -> None:
-    if role not in ROLES:
+def _check_role(conn: Connection, role: str) -> None:
+    """Uno de serie (admin, user) o uno propio que exista (core/roles.py)."""
+    if role not in ROLES and not role_core.exists(conn, str(role or "")):
         raise AccountError(_("Invalid role: %(role)s", role=role))
 
 
@@ -420,7 +427,7 @@ def create_account(conn: Connection, *, username: str, source: str, role: str = 
         username = username.lower()
     if not USERNAME_RE.match(username):
         raise AccountError(_("Invalid user name (letters, digits and . _ @ + -)."))
-    _check_role(role)
+    _check_role(conn, role)
     check_home_path(cfg, home_path)
     if users.get_by_username(conn, username) is not None:
         raise AccountError(_("A user with that name already exists."))
@@ -467,7 +474,7 @@ def update_account(conn: Connection, user, actor, *, role: str, enabled: bool, d
                    quota_mb=KEEP, cfg: dict | None = None) -> None:
     """Edita la cuenta. ``groups`` (si se pasa) son sus grupos manuales; los sincronizados no cambian. El nombre y
     el email de las cuentas cuyo proveedor los pone (Entra ID) no se tocan."""
-    _check_role(role)
+    _check_role(conn, role)
     if user["id"] == actor["id"]:
         if role != ADMIN:
             raise AccountError(_("You cannot remove the administrator role from yourself."))
@@ -514,7 +521,7 @@ def set_password(conn: Connection, user, actor, password: str, *, password_rules
 
 def set_role(conn: Connection, user, actor, role: str) -> None:
     """Cambia solo el rol (acciones en bloque y edición rápida)."""
-    _check_role(role)
+    _check_role(conn, role)
     if user["id"] == actor["id"] and role != ADMIN:
         raise AccountError(_("You cannot remove the administrator role from yourself."))
     _guard_last_admin(conn, user, role, bool(user["enabled"]))

@@ -1,6 +1,12 @@
 {% extends "admin/_layout.html" %}
+{% from "admin/settings/_auth_tabs.html" import auth_tabs with context %}
 {% block title %}{{ _("Connect with Microsoft Entra ID") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
+{# Dentro de la pestaña Entra ID de Inicio de sesión: las pestañas, a la izquierda, llevan a las demás #}
+<section class="settings-main">
+<div class="js-tabs tabs-side">
+  {{ auth_tabs('entra') }}
+  <div class="tab-panel">
 <div class="wizard">
   <a class="small" href="{{ url_for('settings.section', name='auth') }}">← {{ _("Sign-in settings") }}</a>
   <h1>{{ _("Connect with Microsoft Entra ID") }}</h1>
@@ -66,7 +72,7 @@
           <span><strong>{{ _("Only registered users") }}</strong><span class="muted small">{{ _("An administrator creates each user beforehand.") }}</span></span></label>
       </fieldset>
       <label>{{ _("Default role") }}
-        <select name="default_role">{% for r in ROLES %}<option value="{{ r }}" {% if en.default_role == r %}selected{% endif %}>{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></label>
+        <select name="default_role"><option value="" {% if not en.default_role %}selected{% endif %}>{{ _("The one of new accounts (%(role)s)", role=role_label(default_role())) }}</option>{% for r, r_label in role_choices() %}<option value="{{ r }}" {% if en.default_role == r %}selected{% endif %}>{{ r_label }}</option>{% endfor %}</select></label>
       <div class="field-stack">
         <label>{{ _("Limit to these groups (optional)") }}<input type="text" name="allowed_groups" value="{{ en.allowed_groups | join(', ') }}" placeholder="{{ _('Object ID or App Role') }}"></label>
         {% if en.allowed_groups and group_names %}<small class="muted">{% for g in en.allowed_groups %}{{ group_names.get(g|lower) or g }}{% if not loop.last %} · {% endif %}{% endfor %}</small>{% endif %}
@@ -128,5 +134,8 @@
   {% endif %}
   </div>
 </div>
+  </div>
+</div>
+</section>
 {% endblock %}
 {% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/entra.js') }}"></script><script src="{{ url_for('static', filename='js/admin/directory.js') }}"></script>{% endblock %}

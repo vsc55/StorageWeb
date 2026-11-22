@@ -141,7 +141,7 @@ def test_settings_page_saves_each_kind(app, admin):
     page = client.get("/admin/settings/preview").get_data(as_text=True)
     for key in ("images", "pdf", "video", "audio"):
         assert f'name="preview_{key}" checked' in page
-    client.post("/admin/settings/preview", data={"_csrf": token, "preview_enabled": "on", "preview_max_mb": "2",
+    client.post("/admin/settings/preview", data={"_csrf": token, "preview_thumbnail_max_mb": "30", "preview_thumbnail_cache_mb": "500", "preview_enabled": "on", "preview_max_mb": "2",
                                                  "preview_images": "on", "preview_audio": "on",
                                                  "preview_extensions": "md, txt", "preview_blocked_extensions": ""})
     stored = stored_settings(app)["preview"]

@@ -22,3 +22,15 @@ def back(default: str):
     """Vuelve a ``next`` (del formulario o de la URL) si es local; si no, a ``default``."""
     target = request.form.get("next") or request.args.get("next")
     return redirect(safe_next(target) if target else default)
+
+
+def remembered(arg: str, key: str, allowed, default: str) -> str:
+    """El valor de un filtro de la URL (``?arg=``) que se recuerda en la sesión: sin él en la URL (al recargar,
+    al volver desde otra sección) vale el último elegido; uno que no está en ``allowed``, el de serie."""
+    from flask import request, session  # noqa: PLC0415
+    value = request.args.get(arg)
+    if value in allowed:
+        session[key] = value
+        return value
+    value = session.get(key)
+    return value if value in allowed else default

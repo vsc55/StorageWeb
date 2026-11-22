@@ -14,6 +14,7 @@
 |---|---|
 | `admin` | Todo sobre archivos, y además *Administración*: usuarios, ajustes y auditoría |
 | `user` | Los permisos de `permissions.user`. Por defecto: subir, descargar y crear carpetas |
+| `none` | Nada (*Sin permisos*): lo que pueda hacer se lo dan sus grupos. Es el de las cuentas nuevas de serie |
 
 Hay tres protecciones: un admin no puede quitarse el rol, ni desactivarse, ni borrarse a sí mismo, y siempre debe quedar **al menos un admin activo**.
 
@@ -27,10 +28,71 @@ Hay tres protecciones: un admin no puede quitarse el rol, ni desactivarse, ni bo
 | Renombrar | ✔ | ✘ | ✘ |
 | Eliminar | ✔ | ✘ | ✘ |
 | Editar archivos de texto | ✔ | ✘ | ✘ |
+| Compartir con enlaces | ✔ | ✘ | ✔ (solo para descargar) |
 
 *Editar archivos de texto* deja cambiar y guardar desde el visor los archivos de texto en UTF-8 que se pueden ver (botón **Editar**); es aparte de *Subir* y *Eliminar*, que son los que pide la unidad de red para sobrescribir. Con un token de solo lectura no se edita.
 
-Los permisos del rol `user` se cambian en *Acceso → Permisos del rol*. El servidor los comprueba en cada acción, también en la API: la interfaz solo oculta los botones.
+*Compartir con enlaces* deja crear [enlaces para gente sin cuenta](#enlaces-para-compartir) de lo que la persona
+puede descargar (y buzones donde puede subir). En una carpeta de solo lectura, solo enlaces para descargar.
+
+Los permisos del rol `user` se cambian en *Acceso → Roles*, en la ficha de *Usuario* (los fijados en `config.json` o en el entorno salen bloqueados). El servidor los comprueba en cada acción, también en la API: la interfaz solo oculta los botones.
+
+*Acceso → Roles* tiene dos vistas, como *Personas → Usuarios* y *Grupos*: **Lista** (una tabla con los permisos, cuántas personas y grupos tienen cada rol y sus acciones) y **Paneles** (los roles a la izquierda y la ficha del elegido a la derecha), con una búsqueda por nombre o descripción y por tipo (de serie o propios). Se recuerda la última vista; al crear un rol se vuelve a ella. **Clonar** abre *Nuevo rol* con los permisos y la descripción de otro (también de *Usuario* o *Sin permisos*, no de *Administrador*) y el nombre «X (copia)»: se cambia lo que haga falta y se crea, sin tocar el original. *Administrador* y *Sin permisos* no se editan.
+
+### Roles propios
+
+En *Acceso → Roles* se crean **roles propios**: un nombre y los permisos de la tabla de arriba que quieras (por
+ejemplo, *Lectores* solo descarga; *Editores* además sube, renombra y edita textos). Se asignan:
+
+- **a una persona**, en su ficha (pestaña *Perfil*), en bloque desde la lista de personas o con
+  `storageweb-admin user-set ana --role editores`: es su rol, uno solo;
+- **a un grupo**, en la ficha del grupo (*Rol de los miembros*): todos sus miembros reciben también esos permisos.
+
+Lo que puede hacer una persona es la **suma** de su rol y de los roles de sus grupos. *Administrador* sigue siendo
+especial: lo da el rol de cada persona o el [mapeo de roles](entra-id.md) de Entra ID, nunca un grupo local (si no,
+añadir a alguien a un grupo lo haría administrador). En el mapeo de Entra ID también se puede elegir un rol propio.
+
+El **rol de las cuentas nuevas** (`permissions.default_role`) es el que lleva la **estrella** rellena delante del
+nombre, en las dos vistas; se cambia pulsando la estrella de otro (cualquiera, también *Administrador*: la página lo
+confirma antes y *Seguridad → Estado* lo marca como un problema mientras siga así). Es el que reciben las cuentas que se dan de alta desde la web o con `user-add` sin `--role`, las
+importadas y las que crea un método de inicio de sesión al entrar si el suyo está vacío (en Entra ID, *Rol de los
+usuarios nuevos* vacío = este). De serie, **Sin permisos**: una cuenta nueva no puede hacer nada con los archivos
+hasta que un grupo o un rol se lo da. Para el comportamiento anterior, elige *Usuario*.
+
+Borrar un rol deja a sus personas **sin permisos** (rol *Sin permisos*: nunca ganan permisos porque se borre un rol) y
+sus grupos dejan de dar rol. En las carpetas de solo lectura,
+diga lo que diga el rol, solo se descarga (y se comparte para descargar). Cada cambio queda en la auditoría
+(`role_created`, `role_updated`, `role_deleted`, `group_role_changed`).
+
+## Enlaces para compartir
+
+*Acceso → Enlaces para compartir* (`sharing.*`) decide si se pueden compartir archivos y carpetas con gente sin
+cuenta, cuánto duran los enlaces (de serie 7 días, como mucho 30; con máximo `0`, también sin caducidad), si todos
+llevan contraseña y si se permiten **buzones** (enlaces para que alguien de fuera suba archivos a una carpeta sin ver
+lo que hay). Debajo están todos los enlaces de todos, con su dueño, su estado y sus descargas, para quitar el que
+haga falta; las direcciones no se enseñan (un administrador no abre los enlaces de los demás desde ahí).
+
+**Actividad de cada enlace:** cada visita (también a cada subcarpeta), contraseña equivocada o correcta, descarga
+(qué y cuánto), ZIP, subida a un buzón e intento rechazado (caducado, sin descargas, quitado…) queda con su fecha y
+hora, la IP y el navegador. Se ve en *Actividad* (en *Mi perfil → Enlaces* para su dueño y en esta lista para los
+administradores), con un resumen (visitas, descargas, rechazos, último acceso) y la descarga en CSV. Quitar un enlace
+no lo borra: queda *Quitado*, con quién y cuándo.
+
+**Filtro y cuánto se conservan:** las dos listas (*Mi perfil → Enlaces* y la de esta página) enseñan de entrada los
+enlaces **activos**, con un filtro encima que dice cuántos hay de cada clase: *activos*, *caducados* (o sin descargas),
+*quitados*, *borrados* y *en total*. La limpieza diaria borra los quitados o caducados hace más de
+`sharing.keep_days` días (30 de serie; `0` = nunca), pero su historial se queda: esos enlaces aparecen en *Borrados*,
+con lo que compartían, el primer y el último suceso y su *Actividad* entera. El historial se borra pasados
+`sharing.history_days` días (`0`, de serie, = lo mismo que la auditoría, `maintenance.audit_retention_days`); con un
+número, nunca menos que `sharing.keep_days`, para que ningún enlace se quede sin su historial. Lo que borra la
+limpieza queda en la auditoría (`links_purged`).
+
+Cada enlace funciona con los permisos **de ahora** de quien lo creó: si se desactiva su cuenta, pierde la carpeta
+o el permiso *Compartir con enlaces*, deja de funcionar al momento. Sigue al archivo si se renombra o se mueve desde
+StorageWeb y se borra con él. Los de cada persona están en *Mi perfil → Enlaces*. La seguridad de los enlaces se
+cuenta en [Seguridad](seguridad.md#enlaces-para-compartir).
+
+![Acceso → Enlaces para compartir: los ajustes y los enlaces de todos, para quitarlos](../img/admin/compartir.webp)
 
 ## Carpetas
 

@@ -30,8 +30,7 @@
   <select name="action" id="bulk-action" required>
     <option value="">{{ _("Choose an action…") }}</option>
     <option value="add_group">{{ _("Add to a group") }}</option>
-    <option value="role_user">{{ _("Change role to %(role)s", role=ROLE_LABELS['user']) }}</option>
-    <option value="role_admin">{{ _("Change role to %(role)s", role=ROLE_LABELS['admin']) }}</option>
+    {% for r, r_label in role_choices() %}<option value="role:{{ r }}">{{ _("Change role to %(role)s", role=r_label) }}</option>{% endfor %}
     <option value="enable">{{ _("Enable") }}</option>
     <option value="disable">{{ _("Disable") }}</option>
   </select>
@@ -58,7 +57,7 @@
       <td class="name"><a class="user-cell" href="{{ url_for('admin.user_edit', user_uid=u['uid']) }}">{{ avatar(u) }}
         <span><strong>{{ u['display_name'] or u['username'] }}</strong>{% if u['display_name'] and u['display_name'] != u['username'] %}<span class="muted small">{{ u['username'] }}</span>{% endif %}</span></a></td>
       <td><span class="badge badge-src badge-src-{{ u['source'] }}">{{ SOURCE_LABELS[u['source']] }}</span></td>
-      <td><span class="badge badge-{{ u['role'] }}">{{ ROLE_LABELS[u['role']] }}</span></td>
+      <td><span class="badge badge-{{ u['role'] }}">{{ role_label(u['role']) }}</span></td>
       <td><span class="tags">{% for name in group_names[u['id']] %}<span class="tag">{{ name }}</span>{% endfor %}</span></td>
       <td>{{ status_badge(u) }}</td>
       <td>{% if u['id'] in mfa_users %}<span class="badge badge-ok">{{ _("On") }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>

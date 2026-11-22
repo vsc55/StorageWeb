@@ -1,9 +1,9 @@
-{% extends "base.html" %}
+{# Página de error (web/errors.py): el título, los consejos y el icono de cada código salen de allí #}
+{% extends "_status_frame.html" %}
+{% set status_icon = icon %}
+{% set status_title = title %}
+{% set status_text = description %}
+{% set status_tips = tips %}
+{% set status_code = _("Error %(code)s", code=code) ~ " · " ~ name %}
+{% set status_action = (_("Back to start"), url_for('files.index')) if current_user else (_("Sign in"), url_for('auth.login')) %}
 {% block title %}{{ _("Error %(code)s", code=code) }} · {{ app_name }}{% endblock %}
-{% block content %}
-<section class="card">
-  <h1>{{ code }} · {{ name }}</h1>
-  <p>{{ description }}</p>
-  <p><a class="btn" href="{{ url_for('files.index') }}">{{ _("Back to start") }}</a></p>
-</section>
-{% endblock %}

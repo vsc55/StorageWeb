@@ -1,0 +1,36 @@
+{# El filtro elegido se recuerda en la sesión (web/forms.remembered): cada enlace lleva su ?show=.
+   Filtro de las listas de enlaces para compartir (Mi perfil → Enlaces y Acceso → Enlaces para compartir) y la
+   tabla de los «borrados»: ya no existen, solo queda su historial. Importar «with context». #}
+
+{% macro link_filter(show, counts, endpoint, args) -%}
+<nav class="segmented link-filter" aria-label="{{ _('Show links') }}">
+  {% for b in BUCKETS %}
+  <a class="segment{% if b == show %} active{% endif %}" href="{{ url_for(endpoint, show=b, **args) }}"{% if b == show %} aria-current="true"{% endif %}>{{ bucket_label(b, counts[b]) }}</a>
+  {% endfor %}
+</nav>
+{%- endmacro %}
+
+{% macro deleted_table(rows, admin=false) -%}
+{% if rows %}
+<p class="muted small">{{ _("These links no longer exist: the cleanup deleted them. Only their history is kept, until it is deleted too.") }}</p>
+<div class="table-scroll">
+  <table class="files small js-sortable">
+    <thead><tr>{% if admin %}<th data-sort="text">{{ _("Person") }}</th>{% endif %}<th data-sort="text">{{ _("What") }}</th>
+      <th data-sort="text">{{ _("First event") }}</th><th data-sort="text">{{ _("Last event") }}</th><th data-sort="number">{{ _("Activity") }}</th></tr></thead>
+    <tbody>
+      {% for d in rows %}
+      <tr>
+        {% if admin %}<td>{{ d['owner'] or '—' }}</td>{% endif %}
+        <td class="mono">{{ d['target'] or '—' }}</td>
+        <td class="muted" data-sort-value="{{ d['first_at'] }}">{{ d['first_at']|datetime }}</td>
+        <td class="muted" data-sort-value="{{ d['last_at'] }}">{{ d['last_at']|datetime }}</td>
+        <td class="nowrap" data-sort-value="{{ d['events'] }}"><a href="{{ url_for('links.activity', uid=d['link_uid'], next=request.full_path) }}">{{ ngettext("%(num)s event", "%(num)s events", d['events']) }}</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="muted">{{ _("No deleted link keeps history.") }}</p>
+{% endif %}
+{%- endmacro %}

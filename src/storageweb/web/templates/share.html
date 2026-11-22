@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{# Un enlace para compartir, visto por alguien de fuera (links.public): sin sesión y con el diseño público.
+   state: locked (pide la contraseña) u open. El que no existe, caducó o ya no funciona es link_gone.html. #}
+{% block title %}{% if state == 'open' %}{{ (file.name if file else (crumbs[-1][1] if crumbs else _("Drop box"))) }} · {% endif %}{{ app_name }}{% endblock %}
+{% block content %}
+<section class="card share-page">
+{% if state == 'locked' %}
+  <h1>{{ _("This link has a password") }}</h1>
+  <p class="muted">{{ _("%(name)s shared it with a password. Ask them for it.", name=owner['display_name'] or owner['username']) }}</p>
+  <form method="post" action="{{ url_for('links.public', token=token) }}" class="share-password">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label>{{ _("Password") }}<input type="password" name="password" autocomplete="off" required autofocus></label>
+    <button class="btn btn-primary" type="submit">{{ _("Open") }}</button>
+  </form>
+
+{% else %}
+  {% set who = owner['display_name'] or owner['username'] %}
+  <p class="muted small share-meta">{{ _("Shared by %(name)s", name=who) }}{% if expires %} · {{ _("available until %(when)s", when=expires) }}{% endif %}{% if left is not none %} · {{ ngettext("%(num)s download left", "%(num)s downloads left", left) }}{% endif %}</p>
+  {% if link['note'] %}<p class="share-note">{{ link['note'] }}</p>{% endif %}
+
+  {% if link['mode'] == 'upload' %}
+  <h1>{{ _("Send files to %(name)s", name=who) }}</h1>
+  <p class="muted">{{ _("What you upload goes to a folder of %(name)s. You will not see what is there, not even your own files once uploaded.", name=who) }}</p>
+  <form method="post" action="{{ url_for('links.public_upload', token=token) }}" enctype="multipart/form-data" class="share-upload">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="file" name="files" multiple required aria-label="{{ _('Files to send') }}">
+    <button class="btn btn-primary" type="submit"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-upload"></use></svg>{{ _("Send") }}</button>
+  </form>
+  <p class="muted small">{{ _("Up to %(mb)s MB at once.", mb=max_upload_mb) }}{% if max_file_size_mb %} {{ _("Each file, at most %(mb)s MB.", mb=max_file_size_mb) }}{% endif %}</p>
+
+  {% elif file %}
+  <div class="share-file">
+    <svg class="icon icon-xl file-icon" aria-hidden="true"><use href="#i-file"></use></svg>
+    <div>
+      <h1>{{ file.name }}</h1>
+      <p class="muted small">{{ file.size }} · {{ _("modified %(when)s", when=file.mtime) }}</p>
+    </div>
+  </div>
+  <p><a class="btn btn-primary" href="{{ url_for('links.public_download', token=token, p=sub or None) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Download") }}</a></p>
+
+  {% else %}
+  <nav class="crumbs share-crumbs" aria-label="{{ _('Location') }}">
+    {% for p, label in crumbs %}
+    {% if not loop.last %}<a href="{{ url_for('links.public', token=token, p=p or None) }}">{{ label }}</a> <span class="muted">/</span>
+    {% else %}<h1>{{ label }}</h1>{% endif %}
+    {% endfor %}
+  </nav>
+  <p><a class="btn btn-primary" href="{{ url_for('links.public_zip', token=token, p=sub or None) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"></use></svg>{{ _("Download all (ZIP)") }}</a></p>
+  {% if rows %}
+  <div class="table-scroll">
+    <table class="files share-files">
+      <thead><tr><th>{{ _("Name") }}</th><th class="num">{{ _("Size") }}</th><th class="col-date">{{ _("Modified") }}</th></tr></thead>
+      <tbody>
+        {% if parent is not none %}<tr class="row-up"><td colspan="3"><a href="{{ url_for('links.public', token=token, p=parent or None) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-left"></use></svg>{{ _("Up") }}</a></td></tr>{% endif %}
+        {% for r in rows %}
+        <tr>
+          <td class="name"><span class="name-cell">
+            <svg class="icon {{ 'folder-icon' if r.is_dir else 'file-icon' }}" aria-hidden="true"><use href="#i-{{ 'folder' if r.is_dir else 'file' }}"></use></svg>
+            {% if r.is_dir %}<a href="{{ url_for('links.public', token=token, p=r.p) }}">{{ r.name }}</a>
+            {% else %}<a href="{{ url_for('links.public_download', token=token, p=r.p) }}">{{ r.name }}</a>{% endif %}
+          </span></td>
+          <td class="num">{{ r.size if not r.is_dir else '' }}</td>
+          <td class="col-date">{{ r.mtime }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if more %}<p class="muted small">{{ ngettext("And %(num)s more: download them all as a ZIP.", "And %(num)s more: download them all as a ZIP.", more) }}</p>{% endif %}
+  {% else %}
+  <p class="muted">{{ _("This folder is empty.") }}</p>
+  {% endif %}
+  {% endif %}
+{% endif %}
+</section>
+{% endblock %}

@@ -74,7 +74,7 @@ def test_accounts_with_access_are_checked_and_disabled(entra_app, token_endpoint
     assert summary["checked"] == 1 and summary["updated"] == 1
     juan = _user(app)
     assert gc.split(juan["external_groups"]) == {G_IT} and juan["role"] == "admin"
-    assert ("role_changed", "user->admin (entra:directory)") in _actions(app)
+    assert ("role_changed", "none->admin (entra:directory)") in _actions(app)
 
     # La desactivan en Entra ID: fuera sesiones y tokens
     directory.states["oid-juan"] = {"exists": True, "enabled": False}

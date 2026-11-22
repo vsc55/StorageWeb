@@ -18,7 +18,7 @@ RANK = {level: i for i, level in enumerate(LEVELS)}
 
 DEBUG = frozenset({"favorite_added", "favorite_removed", "preference_changed", "folder_listed", "search",
                    "mfa_enrol_started", "upload_started"})
-WARNING = frozenset({"login_failed", "mfa_failed", "login_denied", "password_change_failed", "user_rename_failed",
+WARNING = frozenset({"login_failed", "link_password_failed", "mfa_failed", "login_denied", "password_change_failed", "user_rename_failed",
                      "entra_app_register_failed", "access_denied", "csrf_rejected", "mfa_disabled", "passkey_removed", "password_reset_by_admin",
                      "quota_exceeded"})
 ERROR = frozenset({"backup_failed", "backup_offsite_failed"})

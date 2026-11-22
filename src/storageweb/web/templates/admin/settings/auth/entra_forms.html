@@ -9,6 +9,9 @@
 <form id="entra-groups-form" method="post" action="{{ url_for('settings.entra_grant_groups') }}" hidden>
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
 </form>
+<form id="entra-check-hide-form" method="post" action="{{ url_for('settings.entra_test_hide') }}" hidden>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+</form>
 <form id="entra-test-form" method="post" action="{{ url_for('settings.entra_test') }}" hidden>
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
   <input type="hidden" name="next" value="{{ request.path }}">

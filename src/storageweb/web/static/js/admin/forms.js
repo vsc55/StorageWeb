@@ -432,12 +432,19 @@
     var nav = document.createElement("div");
     nav.className = "tabs";
     nav.setAttribute("role", "tablist");
+    // La pestaña abierta se recuerda (por página y grupo de pestañas) para que F5 vuelva a ella
+    var boxes = document.querySelectorAll(".js-tabs");
+    var memoryKey = "sw-tab:" + location.pathname + ":" + Array.prototype.indexOf.call(boxes, box);
+    var remembered = function () {
+      try { return parseInt(window.sessionStorage.getItem(memoryKey), 10); } catch (e) { return NaN; }
+    };
     var show = function (index) {
       panels.forEach(function (p, i) { p.hidden = i !== index; });
-      nav.querySelectorAll("button").forEach(function (b, i) {
+      nav.querySelectorAll("button.tab").forEach(function (b, i) {
         b.classList.toggle("active", i === index);
         b.setAttribute("aria-selected", i === index ? "true" : "false");
       });
+      try { window.sessionStorage.setItem(memoryKey, String(index)); } catch (e) { /* sin almacenamiento: no pasa nada */ }
     };
     panels.forEach(function (panel, i) {
       var legend = panel.querySelector("legend");
@@ -451,14 +458,20 @@
       panel.classList.add("is-tab");
     });
     box.insertBefore(nav, box.firstChild);
+    box.classList.add("tabs-side");      // en columna a la izquierda (admin.css); sin JS, los fieldsets uno tras otro
     var withError = panels.findIndex(function (p) { return p.querySelector(".has-error, .field-error"); });
     // El buscador lleva a un campo (#f-…): se abre la pestaña que lo contiene
     var byHash = function () {
       var target = location.hash.length > 1 ? document.getElementById(location.hash.slice(1)) : null;
       return target ? panels.findIndex(function (p) { return p.contains(target); }) : -1;
     };
+    // Primero la que tiene un error; luego la del campo al que lleva el buscador; luego la que estaba abierta
     var start = withError >= 0 ? withError : byHash();
-    show(start >= 0 ? start : 0);
+    if (start < 0) {
+      var kept = remembered();
+      start = kept >= 0 && kept < panels.length ? kept : 0;
+    }
+    show(start);
     window.addEventListener("hashchange", function () {
       var i = byHash();
       if (i >= 0) {

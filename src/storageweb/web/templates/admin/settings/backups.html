@@ -1,5 +1,9 @@
 {% extends "admin/settings/_layout.html" %}
 {% block section %}
+{# Una pestaña por sección (admin/forms.js) #}
+<div class="js-tabs">
+<fieldset class="tab-panel">
+  <legend>{{ _("Database") }}</legend>
 <section class="card" aria-labelledby="db-title">
   <h3 class="card-title" id="db-title">{{ _("Database") }}</h3>
   <dl class="kv section-gap">
@@ -23,8 +27,10 @@
     <a class="btn btn-ghost" href="{{ url_for('admin.audit_export') }}">{{ _("Export the audit log (CSV)") }}</a>
   </div>
 </section>
-
-<section class="card section-gap" id="backups" aria-labelledby="backups-title">
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Backups") }}</legend>
+<section class="card" id="backups" aria-labelledby="backups-title">
   <div class="page-head">
     <h3 class="card-title" id="backups-title">{{ _("Backups") }}</h3>
     <form method="post" action="{{ url_for('settings.backup_create') }}" class="inline">
@@ -73,8 +79,10 @@
   <p class="muted small">{{ _("Restore replaces the database with the one in the backup, with the service running (a copy of the current state is made first). An uploaded backup, for example from another server, is added to the list. From the command line, with the service stopped:") }}
     <code>sudo storageweb-admin restore {{ backup_folder }}/&lt;{{ _("file") }}&gt;</code></p>
 </section>
-
-<section class="card section-gap" id="offsite" aria-labelledby="offsite-title">
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Outside the server") }}</legend>
+<section class="card" id="offsite" aria-labelledby="offsite-title">
   <div class="page-head">
     <h3 class="card-title" id="offsite-title">{{ _("Outside the server") }}</h3>
     {% if offsite_where and remote_backups is not defined %}
@@ -125,4 +133,6 @@
   {% endif %}
   {% endif %}
 </section>
+</fieldset>
+</div>
 {% endblock %}

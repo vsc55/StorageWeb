@@ -62,7 +62,21 @@ def secret_is_new() -> bool:
 
 # --------------------------------------------------------------------------- tarjeta de la página «Inicio de sesión»
 
+def _existing_role(role: str, field: str) -> str:
+    """Desde la web, solo roles que existen (los de serie o uno propio de Acceso → Roles). En config.json basta la
+    forma de una clave: allí no se pueden mirar (si no existe, al entrar cuenta como Usuario)."""
+    from ....core import roles  # noqa: PLC0415
+    if not roles.exists(get_db(), role):
+        raise ConfigError(_("Invalid role: %(role)s", role=role), field)
+    return role
+
+
 def _role_mappings() -> dict:
+    found = _read_role_mappings()
+    return {group: _existing_role(role, "auth.entra.role_mappings") for group, role in found.items()}
+
+
+def _read_role_mappings() -> dict:
     f = request.form
     if "entra_role_mappings" in f:  # formato de texto «grupo = rol», una línea por mapeo
         mappings = {}
@@ -106,7 +120,8 @@ def _form(method) -> dict:
         "strip_domain": checked("entra_strip_domain"),
         "allowed_groups": split_list(f.get("entra_allowed_groups", "")),
         "auto_provision": checked("entra_auto_provision"),
-        "default_role": f.get("entra_default_role", "user"),
+        "default_role": _existing_role(f.get("entra_default_role", ""), "auth.entra.default_role")
+        if f.get("entra_default_role") else "",
         "role_mappings": _role_mappings(),
         "sync_role_on_login": checked("entra_sync_role_on_login"),
         "directory_sync_minutes": form_int("entra_directory_sync_minutes", "auth.entra.directory_sync_minutes",
@@ -175,6 +190,16 @@ def entra_test():
     return redirect(safe_next(target) if target else url_for("settings.section", name="auth"))
 
 
+@bp.route("/entra/test/hide", methods=["POST"])
+@admin_required
+def entra_test_hide():
+    """La X del detalle de la prueba: lo oculta (sigue en la sesión, y con él el estado de la cabecera)."""
+    check = session.get("entra_check")
+    if check:
+        session["entra_check"] = {**check, "hidden": True}
+    return redirect(url_for("settings.section", name="auth") + "#p-entra")
+
+
 @bp.route("/entra/setup", methods=["GET", "POST"])
 @admin_required
 def entra_setup():
@@ -193,7 +218,7 @@ def entra_setup():
                     mappings[admin_group.lower()] = "admin"
                 return {"auth": {"entra": {"auto_provision": f.get("provisioning") == "auto",
                                            "allowed_groups": split_list(f.get("allowed_groups", "")),
-                                           "default_role": f.get("default_role", "user"),
+                                           "default_role": f.get("default_role", ""),
                                            "role_mappings": mappings}}}
             draft, error = save_partial(_users)
         elif step == 4:
@@ -357,6 +382,10 @@ def entra_register_cancel():
     _drop_flow(key)
     if flow:
         audit_event("entra_flow_cancelled", (flow.get("options") or {}).get("client_id"), flow.get("kind"))
+    # Registrar: a su página, para empezar otra vez. Renovar, reparar o el permiso de grupos parten de una aplicación
+    # ya configurada: de vuelta a Inicio de sesión, en la pestaña de Entra ID
+    if flow and flow.get("kind") in ("rotate", "repair", "grant_groups"):
+        return redirect(url_for("settings.section", name="auth") + "#p-entra")
     return redirect(url_for("settings.entra_register_page"))
 
 

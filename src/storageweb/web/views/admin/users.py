@@ -5,7 +5,8 @@ import re
 
 from flask import abort, flash, g, make_response, redirect, render_template, request, session, url_for
 
-from ....core import accounts, favorites, mfa
+from ....core import accounts, favorites, mfa, roles
+from ....core.permissions import default_role
 from ....core import groups as group_core
 from ....core.permissions import ADMIN, PERMISSION_LABELS, permissions_for
 from ....core import quota
@@ -49,7 +50,7 @@ def _user_filters() -> dict:
     return {"q": a.get("q", "").strip(),
             "status": status if status in USER_STATUS_FILTERS else "all",
             "source": source if source in accounts.sources() else "",
-            "role": role if role in ROLES else "",
+            "role": role if role in ROLES or role in (settings().get("roles") or {}) else "",
             "group": a.get("group", "")}  # identificador público del grupo
 
 
@@ -106,7 +107,12 @@ def users_bulk():
     """Acción sobre varios usuarios. Se aplica a cada uno con sus protecciones; los errores se listan."""
     action = request.form.get("action", "")
     ids = [row["id"] for row in (users.get_by_uid(get_db(), x) for x in request.form.getlist("ids")) if row]
-    if action not in BULK_ACTIONS or not ids:
+    # «role:<clave>»: cualquier rol (los de serie y los propios); role_user/role_admin, lo de antes
+    if action.startswith("role:") and action[5:] in dict(roles.choices(settings())):
+        action, wanted_role = "role", action[5:]
+    elif action in ("role_user", "role_admin"):
+        action, wanted_role = "role", ADMIN if action == "role_admin" else "user"
+    if (action not in BULK_ACTIONS and action != "role") or not ids:
         flash(_("Select some users and an action."), "error")
         return back(url_for("admin.users_list"))
     group = None
@@ -124,10 +130,9 @@ def users_bulk():
             if action in ("disable", "enable"):
                 accounts.set_enabled(get_db(), user, g.user, action == "enable")
                 audit_event("user_enabled" if action == "enable" else "user_disabled", user["username"], user["source"])
-            elif action in ("role_user", "role_admin"):
-                role = ADMIN if action == "role_admin" else "user"
-                accounts.set_role(get_db(), user, g.user, role)
-                audit_event("user_updated", user["username"], f"role={role}")
+            elif action == "role":
+                accounts.set_role(get_db(), user, g.user, wanted_role)
+                audit_event("user_updated", user["username"], f"role={wanted_role}")
             else:
                 group_core.add_member(get_db(), group, user)
                 audit_event("group_member_added", group["name"], user["username"])
@@ -333,7 +338,7 @@ def user_import():
 @bp.route("/users/new", methods=["GET", "POST"])
 @admin_required
 def user_new():
-    form = {"source": accounts.default_source(), "role": "user", "enabled": True}
+    form = {"source": accounts.default_source(), "role": default_role(settings()), "enabled": True}
     if request.method == "POST":
         form = {**_user_form_data(), "username": request.form.get("username", "").strip(),
                 "password": request.form.get("password", ""),

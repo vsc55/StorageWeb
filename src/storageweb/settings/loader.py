@@ -26,7 +26,7 @@ from .errors import ConfigError
 from .layers import _get, _set, merge_overrides
 from . import location_types
 from . import auth_methods
-from . import server_paths
+from . import checks, server_paths
 from ..audit_levels import LEVELS as AUDIT_LEVELS
 from .defaults import (AUDIT_FORMATS, SYSLOG_FACILITIES, SYSLOG_PORTS, DEFAULTS, LISTING_MODES, LOGIN_ART_CHOICES, MFA_POLICIES, PAGE_SIZE_RANGE, PASSWORD_KINDS, PERMISSIONS,
                        RUNTIME_SECTIONS, SECRET_FIELDS)
@@ -440,7 +440,12 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
 
     # --- permisos
     user_perms = cfg["permissions"].get("user") or {}
-    cfg["permissions"] = {"user": {p: bool(user_perms.get(p, False)) for p in PERMISSIONS}}
+    default_role = str(cfg["permissions"].get("default_role") or "none").strip()
+    if not checks.role_key(default_role):
+        raise ConfigError(_("permissions.default_role: %(role)s is not a role", role=repr(default_role)),
+                          "permissions.default_role")
+    cfg["permissions"] = {"user": {p: bool(user_perms.get(p, False)) for p in PERMISSIONS},
+                          "default_role": default_role}
 
     # --- autenticación: cada método valida su apartado (lo declara su proveedor)
     for conf in auth_methods.configs():
@@ -531,13 +536,31 @@ def normalize(file_cfg: dict, cfg_path: Path, overrides: dict | None = None, env
     if fwd["file"]:
         _check_audit_file(fwd["file"], cfg, cfg_path)
 
+    # --- enlaces para compartir
+    sharing = cfg["sharing"]
+    for key in ("links", "require_password", "upload_links"):
+        sharing[key] = bool(sharing.get(key, DEFAULTS["sharing"][key]))
+    sharing["default_days"] = _int_range(sharing.get("default_days", 7), 1, 3650, "sharing.default_days")
+    sharing["max_days"] = _int_range(sharing.get("max_days", 30), 0, 3650, "sharing.max_days")
+    sharing["keep_days"] = _int_range(sharing.get("keep_days", 30), 0, 3650, "sharing.keep_days")
+    sharing["history_days"] = _int_range(sharing.get("history_days", 0), 0, 3650, "sharing.history_days")
+    if sharing["history_days"] and (not sharing["keep_days"] or sharing["history_days"] < sharing["keep_days"]):
+        raise ConfigError(_("sharing.history_days cannot be less than sharing.keep_days (a link would keep no "
+                            "history): 0, or %(num)s or more", num=sharing["keep_days"] or 1), "sharing.history_days")
+    if sharing["max_days"] and sharing["default_days"] > sharing["max_days"]:
+        raise ConfigError(_("sharing.default_days cannot be more than sharing.max_days (%(num)s)",
+                            num=sharing["max_days"]), "sharing.default_days")
+
     # --- visor
     view = cfg["preview"]
     view["enabled"] = bool(view.get("enabled"))
     view["diagrams"] = bool(view.get("diagrams"))
     view["highlight"] = bool(view.get("highlight", True))
-    for key in ("images", "pdf", "video", "audio"):
+    for key in ("images", "pdf", "video", "audio", "thumbnails"):
         view[key] = bool(view.get(key, True))
+    view["thumbnail_max_mb"] = _int_range(view.get("thumbnail_max_mb", 30), 1, 500, "preview.thumbnail_max_mb")
+    view["thumbnail_cache_mb"] = _int_range(view.get("thumbnail_cache_mb", 500), 10, 100000,
+                                            "preview.thumbnail_cache_mb")
     view["max_mb"] = _positive_int(view.get("max_mb"), "preview.max_mb")
     if view["max_mb"] > PREVIEW_MAX_MB:
         raise ConfigError(_("preview.max_mb cannot be more than %(num)s", num=PREVIEW_MAX_MB), "preview.max_mb")

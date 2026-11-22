@@ -1,5 +1,9 @@
 {% extends "admin/settings/_layout.html" %}
 {% block section %}
+{# Una pestaña por sección (admin/forms.js) #}
+<div class="js-tabs">
+<fieldset class="tab-panel">
+  <legend>{{ _("Blocked") }}</legend>
 <section class="card" id="ip-rules" aria-labelledby="bans-title">
   <h3 class="card-title" id="bans-title">{{ _("Blocked addresses") }}</h3>
   <p class="muted small">{{ _("Your address: %(ip)s. Rescue from the server: storageweb-admin ip-unban --all", ip=my_ip) }}</p>
@@ -34,8 +38,10 @@
     <button class="btn btn-danger" type="submit">{{ _("Block") }}</button>
   </form>
 </section>
-
-<section class="card section-gap" aria-labelledby="allow-title">
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Allow list") }}</legend>
+<section class="card" aria-labelledby="allow-title">
   <h3 class="card-title" id="allow-title">{{ _("Allow list") }}</h3>
   <p class="muted small">{{ _("These addresses are never blocked, automatically or by hand (for example the office network or your VPN).") }}</p>
   <ul class="changed-list">
@@ -55,4 +61,6 @@
     <button class="btn" type="submit">{{ _("Add") }}</button>
   </form>
 </section>
+</fieldset>
+</div>
 {% endblock %}

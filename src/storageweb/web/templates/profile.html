@@ -15,7 +15,7 @@
       <div class="profile-who-text">
         <strong>{{ shown_name }}</strong>
         <span class="muted small">{{ user['username'] }}</span>
-        <span><span class="badge badge-{{ user['role'] }}">{{ ROLE_LABELS[user['role']] }}</span>
+        <span><span class="badge badge-{{ user['role'] }}">{{ role_label(user['role']) }}</span>
           <span class="muted small">{{ SOURCE_LABELS[user['source']] }}</span></span>
       </div>
     </div>
@@ -300,6 +300,46 @@
         <button class="btn btn-primary" type="submit">{{ _("Create token") }}</button>
       {% if token_max_days %}<p class="muted small profile-form-note">{{ ngettext("Tokens can last at most %(num)s day: set by the administrator.", "Tokens can last at most %(num)s days: set by the administrator.", token_max_days) }}</p>{% endif %}
       </form>
+
+{% elif section == 'links' %}
+      {% from "_link_filter.html" import link_filter, deleted_table with context %}
+      {% if link_counts['all'] or link_counts['deleted'] %}{{ link_filter(link_show, link_counts, 'profile.section', {'section': 'links'}) }}{% endif %}
+      {% if link_show == 'deleted' %}
+      <div class="card stack">{{ deleted_table(deleted_links) }}</div>
+      {% elif my_links %}
+      <div class="table-scroll">
+        <table class="files small share-links">
+          <thead><tr><th>{{ _("What") }}</th><th>{{ _("Kind") }}</th><th>{{ _("Status") }}</th><th>{{ _("Expires") }}</th><th class="num">{{ _("Downloads") }}</th><th>{{ _("Activity") }}</th><th>{{ _("Link") }}</th><th><span class="sr-only">{{ _("Actions") }}</span></th></tr></thead>
+          <tbody>
+            {% for l in my_links %}
+            <tr>
+              <td><strong>{{ l.rel.split('/')[-1] if l.rel else l.folder }}</strong><br><span class="muted">{{ l.folder }}{% if l.rel %}: /{{ l.rel }}{% endif %}</span>
+                {% if l.note %}<br><span class="muted">«{{ l.note }}»</span>{% endif %}</td>
+              <td>{{ MODE_LABELS[l.mode] }}{% if l.password_hash %} · {{ _("with password") }}{% endif %}</td>
+              <td><span class="badge{% if l.state != 'ok' %} badge-err{% else %} badge-ok{% endif %}">{{ STATE_LABELS[l.state] }}</span></td>
+              <td class="muted">{{ l.expires_at|datetime if l.expires_at else _("never") }}</td>
+              <td class="num">{% if l.mode == 'upload' %}{{ ngettext("%(num)s upload", "%(num)s uploads", l.uploads) }}{% else %}{{ l.downloads }}{% if l.max_downloads %} / {{ l.max_downloads }}{% endif %}{% endif %}</td>
+              {% set act = link_activity.get(l.uid, {}) %}
+              <td class="nowrap"><a href="{{ url_for('links.activity', uid=l.uid, next=request.full_path) }}">{{ ngettext("%(num)s visit", "%(num)s visits", act.get('opened', 0)) }}</a>
+                {% if act.get('last') %}<br><span class="muted">{{ act.get('last')|datetime }}</span>{% endif %}</td>
+              <td>{% if l.url and l.state == 'ok' %}<div class="copy-row"><input type="text" readonly value="{{ l.url }}" id="link-{{ l.uid }}" class="mono" aria-label="{{ _('Link') }}">
+                <button type="button" class="btn btn-small js-copy" data-copy="#link-{{ l.uid }}">{{ _("Copy") }}</button></div>{% else %}—{% endif %}</td>
+              <td class="cell-end">{% if l.state != 'revoked' %}
+                <form method="post" action="{{ url_for('links.revoke', uid=l.uid) }}" class="inline js-confirm"
+                      data-confirm="{{ _('Stop sharing? The link stops working at once.') }}">
+                  <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.full_path }}">
+                  <button class="link-btn small text-danger" type="submit">{{ _("Stop sharing") }}</button></form>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% elif link_counts['all'] or link_counts['deleted'] %}
+      <div class="card"><p class="muted">{{ _("No link here.") }}</p></div>
+      {% else %}
+      <div class="card"><p class="muted">{{ _("You have not shared anything with a link. Select a file or a folder in the file browser and choose «Share link».") }}</p></div>
+      {% endif %}
 
 {% elif section == 'drive' %}
       <div class="card stack" id="webdav">

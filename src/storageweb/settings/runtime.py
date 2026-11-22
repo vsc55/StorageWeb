@@ -159,15 +159,17 @@ class RuntimeSettings:
     # ------------------------------------------------------------------ lectura
 
     def current(self, conn: Connection) -> dict:
-        rev = store.revision(conn, self.profile)
+        rev = (store.revision(conn, self.profile), store.roles_revision(conn))
         with self._lock:
             if self._rev != rev:
                 overrides = self._with_entities(self.overrides(conn), self.entities(conn))
                 try:
-                    self._cfg = self._normalize(overrides)
+                    cfg = self._normalize(overrides)
                 except ConfigError:
                     _log.exception("Ajustes web no válidos; se usan solo config.json y el entorno")
-                    self._cfg = self._normalize()
+                    cfg = self._normalize()
+                # Los roles propios y los de los grupos (no son ajustes: core/roles.py), para calcular permisos
+                self._cfg = {**cfg, **store.read_roles(conn)}
                 self._rev = rev
             return self._cfg
 

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: StorageWeb VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-21 21:46+0100\n"
+"POT-Creation-Date: 2026-11-22 03:26+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -209,12 +209,13 @@ msgid "no"
 msgstr ""
 
 #: storageweb/cli/config.py storageweb/web/nav.py storageweb/web/templates/admin/overview.html
+#: storageweb/web/templates/admin/settings/_auth_tabs.html
 msgid "Sign-in"
 msgstr ""
 
 #: storageweb/cli/config.py storageweb/web/templates/browse.html storageweb/web/templates/edit.html
 #: storageweb/web/templates/recent.html storageweb/web/templates/search.html
-#: storageweb/web/templates/view.html
+#: storageweb/web/templates/share.html storageweb/web/templates/view.html
 msgid "Location"
 msgstr ""
 
@@ -603,7 +604,7 @@ msgid ""
 msgstr ""
 
 #: storageweb/cli/users.py
-msgid "Role of the user"
+msgid "Role of the user: admin, user or the key of a role (default: the one of new accounts)"
 msgstr ""
 
 #: storageweb/cli/users.py
@@ -659,7 +660,7 @@ msgid "Password updated."
 msgstr ""
 
 #: storageweb/cli/users.py
-msgid "New role"
+msgid "New role: admin, user or the key of a role"
 msgstr ""
 
 #: storageweb/cli/users.py
@@ -684,6 +685,12 @@ msgstr ""
 
 #: storageweb/cli/users.py
 msgid "Change the role, groups, folder, language or status of a user"
+msgstr ""
+
+#: storageweb/cli/users.py storageweb/core/accounts.py storageweb/core/groups.py
+#: storageweb/web/views/settings/entra.py
+#, python-format
+msgid "Invalid role: %(role)s"
 msgstr ""
 
 #: storageweb/cli/users.py
@@ -781,11 +788,6 @@ msgstr ""
 
 #: storageweb/core/accounts.py storageweb/web/views/mfa.py
 msgid "Your account is disabled."
-msgstr ""
-
-#: storageweb/core/accounts.py
-#, python-format
-msgid "Invalid role: %(role)s"
 msgstr ""
 
 #: storageweb/core/accounts.py storageweb/core/groups.py
@@ -991,11 +993,11 @@ msgstr ""
 msgid "That folder is not one of the user's."
 msgstr ""
 
-#: storageweb/core/favorites.py storageweb/core/pathpicker.py
+#: storageweb/core/favorites.py storageweb/core/links.py storageweb/core/pathpicker.py
 msgid "That path is not valid."
 msgstr ""
 
-#: storageweb/core/favorites.py storageweb/core/pathpicker.py
+#: storageweb/core/favorites.py storageweb/core/links.py storageweb/core/pathpicker.py
 msgid "That path is hidden for everyone (Hidden for everyone)."
 msgstr ""
 
@@ -1081,6 +1083,10 @@ msgid "This group comes with StorageWeb and cannot be changed."
 msgstr ""
 
 #: storageweb/core/groups.py
+msgid "A group cannot make its members administrators: give that role to each person."
+msgstr ""
+
+#: storageweb/core/groups.py
 msgid "This group comes with StorageWeb and cannot be deleted."
 msgstr ""
 
@@ -1117,6 +1123,197 @@ msgstr ""
 #: storageweb/core/ipban.py
 #, python-format
 msgid "You cannot block the address you are using (%(ip)s)."
+msgstr ""
+
+#: storageweb/core/links.py storageweb/web/js_messages.py
+msgid "View and download"
+msgstr ""
+
+#: storageweb/core/links.py storageweb/web/js_messages.py
+msgid "Upload only (drop box)"
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "Share links are turned off."
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "You are not allowed to share with links in this folder."
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "That file or folder does not exist."
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "Unknown kind of link."
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "A drop box is for folders."
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "Drop boxes are turned off."
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "You are not allowed to upload to this folder."
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "You are not allowed to download from this folder."
+msgstr ""
+
+#: storageweb/core/links.py
+#, python-format
+msgid "A link can last at most %(num)s day."
+msgid_plural "A link can last at most %(num)s days."
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/core/links.py
+msgid "A password is required for share links."
+msgstr ""
+
+#: storageweb/core/links.py
+#, python-format
+msgid "The password of a link must be at least %(num)s characters long."
+msgstr ""
+
+#: storageweb/core/links.py
+#, python-format
+msgid "The download limit must be between 1 and %(num)s."
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "The secrets key is not available."
+msgstr ""
+
+#: storageweb/core/links.py storageweb/web/templates/admin/users/_macros.html
+#: storageweb/web/templates/admin/users/panel.html
+msgid "Active"
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "Removed"
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "Expired"
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "No downloads left"
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "Deleted"
+msgstr ""
+
+#: storageweb/core/links.py storageweb/web/templates/admin/settings/sharing.html
+msgid "Created"
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "Opened"
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "Wrong password"
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "Right password"
+msgstr ""
+
+#: storageweb/core/links.py storageweb/core/permissions.py storageweb/web/templates/_file_rows.html
+#: storageweb/web/templates/admin/settings/backups.html storageweb/web/templates/browse.html
+#: storageweb/web/templates/share.html storageweb/web/templates/view.html
+msgid "Download"
+msgstr ""
+
+#: storageweb/core/links.py storageweb/web/templates/_file_rows.html
+msgid "Download as ZIP"
+msgstr ""
+
+#: storageweb/core/links.py storageweb/web/templates/admin/settings/general.html
+msgid "Upload"
+msgstr ""
+
+#: storageweb/core/links.py storageweb/web/templates/link_activity.html
+msgid "Refused"
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "it was removed"
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "it had expired"
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "no downloads left"
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "its owner can no longer share it"
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "share links are turned off"
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "too many wrong passwords"
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "the file was too large"
+msgstr ""
+
+#: storageweb/core/links.py
+msgid "no space left in the quota"
+msgstr ""
+
+#: storageweb/core/links.py
+#, python-format
+msgid "%(num)s expired"
+msgid_plural "%(num)s expired"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/core/links.py
+#, python-format
+msgid "%(num)s removed"
+msgid_plural "%(num)s removed"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/core/links.py
+#, python-format
+msgid "%(num)s deleted"
+msgid_plural "%(num)s deleted"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/core/links.py
+#, python-format
+msgid "%(num)s in all"
+msgid_plural "%(num)s in all"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/core/links.py
+#, python-format
+msgid "%(num)s active"
+msgid_plural "%(num)s active"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/core/links.py
+msgid "This link is no longer available."
 msgstr ""
 
 #: storageweb/core/backends/__init__.py storageweb/core/locations.py
@@ -1323,14 +1520,12 @@ msgstr ""
 msgid "User"
 msgstr ""
 
-#: storageweb/core/permissions.py storageweb/web/templates/browse.html
-msgid "Upload files"
+#: storageweb/core/permissions.py
+msgid "No permissions"
 msgstr ""
 
-#: storageweb/core/permissions.py storageweb/web/templates/_file_rows.html
-#: storageweb/web/templates/admin/settings/backups.html storageweb/web/templates/browse.html
-#: storageweb/web/templates/view.html
-msgid "Download"
+#: storageweb/core/permissions.py storageweb/web/templates/browse.html
+msgid "Upload files"
 msgstr ""
 
 #: storageweb/core/permissions.py
@@ -1352,6 +1547,10 @@ msgstr ""
 msgid "Edit text files"
 msgstr ""
 
+#: storageweb/core/permissions.py
+msgid "Share with links"
+msgstr ""
+
 #: storageweb/core/posture.py
 msgid "HTTPS and the public address"
 msgstr ""
@@ -1369,6 +1568,17 @@ msgstr ""
 #: storageweb/core/posture.py
 #, python-format
 msgid "Served at %(url)s with a Secure session cookie."
+msgstr ""
+
+#: storageweb/core/posture.py storageweb/settings/fields.py
+#: storageweb/web/templates/admin/roles/_macros.html storageweb/web/templates/admin/roles/panel.html
+msgid "Role of new accounts"
+msgstr ""
+
+#: storageweb/core/posture.py
+msgid ""
+"New accounts are administrators: anyone who gets an account, also on their first sign-in with an "
+"identity provider, can change everything. Choose another role with the star in Roles."
 msgstr ""
 
 #: storageweb/core/posture.py
@@ -1481,7 +1691,8 @@ msgstr ""
 msgid "They last %(num)s days at most."
 msgstr ""
 
-#: storageweb/core/posture.py storageweb/web/views/profile.py
+#: storageweb/core/posture.py storageweb/web/templates/admin/settings/clients.html
+#: storageweb/web/views/profile.py
 msgid "Network drive"
 msgstr ""
 
@@ -1584,11 +1795,80 @@ msgstr[1] ""
 msgid "None known on %(date)s."
 msgstr ""
 
+#: storageweb/core/posture.py storageweb/settings/fields.py storageweb/web/nav.py
+#: storageweb/web/templates/admin/settings/sharing.html storageweb/web/views/profile.py
+msgid "Share links"
+msgstr ""
+
+#: storageweb/core/posture.py
+msgid "Turned off: nothing can be shared with people outside."
+msgstr ""
+
+#: storageweb/core/posture.py
+msgid "They can be created without an expiry: a forgotten link stays open forever. Set a maximum."
+msgstr ""
+
+#: storageweb/core/posture.py
+#, python-format
+msgid "They expire in %(num)s day at most."
+msgid_plural "They expire in %(num)s days at most."
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/core/posture.py
+msgid "A password is required."
+msgstr ""
+
 #: storageweb/core/quota.py
 #, python-format
 msgid ""
 "Not enough quota in «%(folder)s»: %(free)s free of %(limit)s, and this needs %(size)s. Free some "
 "space or ask an administrator."
+msgstr ""
+
+#: storageweb/core/roles.py
+msgid "Write a name for the role."
+msgstr ""
+
+#: storageweb/core/roles.py
+#, python-format
+msgid "Unknown permission: %(name)s"
+msgstr ""
+
+#: storageweb/core/roles.py
+msgid "The key of a role: lower case letters, digits, - and _ (up to 40)."
+msgstr ""
+
+#: storageweb/core/roles.py
+#, python-format
+msgid "A role with the key «%(key)s» already exists."
+msgstr ""
+
+#: storageweb/core/roles.py
+#, python-format
+msgid "A role called «%(name)s» already exists."
+msgstr ""
+
+#: storageweb/core/roles.py
+#, python-format
+msgid "%(name)s (copy)"
+msgstr ""
+
+#: storageweb/core/roles.py
+#, python-format
+msgid "%(name)s (copy %(num)s)"
+msgstr ""
+
+#: storageweb/core/roles.py
+msgid "The built-in roles cannot be changed here."
+msgstr ""
+
+#: storageweb/core/roles.py
+msgid "That role does not exist."
+msgstr ""
+
+#: storageweb/core/roles.py
+msgid "The built-in roles cannot be deleted."
 msgstr ""
 
 #: storageweb/core/security.py
@@ -1698,6 +1978,22 @@ msgstr ""
 #: storageweb/core/storage.py
 #, python-format
 msgid "«%(name)s» is not allowed here."
+msgstr ""
+
+#: storageweb/core/thumbnails.py
+msgid "This file has no thumbnail."
+msgstr ""
+
+#: storageweb/core/thumbnails.py
+msgid "The image is too large for a thumbnail."
+msgstr ""
+
+#: storageweb/core/thumbnails.py
+msgid "Too many thumbnails at once: try again in a moment."
+msgstr ""
+
+#: storageweb/core/thumbnails.py
+msgid "The image cannot be read."
 msgstr ""
 
 #: storageweb/core/tokens.py
@@ -1925,9 +2221,10 @@ msgid "Disable it only for servers with their own certificate (many NAS)."
 msgstr ""
 
 #: storageweb/core/backends/ftp.py storageweb/core/backends/sftp.py storageweb/core/backends/smb.py
-#: storageweb/core/backends/webdav.py storageweb/web/templates/admin/settings/passwords.html
-#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/login.html
-#: storageweb/web/templates/profile.html
+#: storageweb/core/backends/webdav.py storageweb/web/js_messages.py
+#: storageweb/web/templates/admin/settings/passwords.html storageweb/web/templates/admin/user_form.html
+#: storageweb/web/templates/login.html storageweb/web/templates/profile.html
+#: storageweb/web/templates/share.html
 msgid "Password"
 msgstr ""
 
@@ -2500,7 +2797,7 @@ msgstr ""
 msgid "Missing Microsoft Graph permissions added to the application"
 msgstr ""
 
-#: storageweb/providers/entra/register.py
+#: storageweb/providers/entra/register.py storageweb/web/templates/admin/roles/list.html
 msgid "Permissions"
 msgstr ""
 
@@ -2699,7 +2996,7 @@ msgstr ""
 
 #: storageweb/settings/checks.py
 #, python-format
-msgid "Invalid role %(role)s in role_mappings (use %(values)s)"
+msgid "Invalid role %(role)s in role_mappings (use %(values)s or the key of a role)"
 msgstr ""
 
 #: storageweb/settings/env.py
@@ -2833,6 +3130,34 @@ msgstr ""
 msgid "Shared folders"
 msgstr ""
 
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/sharing.html
+#: storageweb/web/views/settings/forms.py
+msgid "Days a link lasts by default"
+msgstr ""
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/sharing.html
+#: storageweb/web/views/settings/forms.py
+msgid "Days a link can last at most"
+msgstr ""
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/sharing.html
+msgid "Require a password for every link"
+msgstr ""
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/sharing.html
+#: storageweb/web/views/settings/forms.py
+msgid "Keep removed or expired links (days)"
+msgstr ""
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/sharing.html
+#: storageweb/web/views/settings/forms.py
+msgid "Keep the history of the links (days)"
+msgstr ""
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/sharing.html
+msgid "Allow drop boxes (upload links)"
+msgstr ""
+
 #: storageweb/settings/fields.py storageweb/web/templates/admin/settings/security.html
 msgid "Failed attempts before locking"
 msgstr ""
@@ -2946,6 +3271,20 @@ msgstr ""
 
 #: storageweb/settings/fields.py storageweb/web/templates/admin/settings/preview.html
 msgid "Show images"
+msgstr ""
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/preview.html
+msgid "Thumbnails in the file browser"
+msgstr ""
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/preview.html
+#: storageweb/web/views/settings/forms.py
+msgid "Thumbnails: largest image (MB)"
+msgstr ""
+
+#: storageweb/settings/fields.py storageweb/web/templates/admin/settings/preview.html
+#: storageweb/web/views/settings/forms.py
+msgid "Thumbnails: space for the cache (MB)"
 msgstr ""
 
 #: storageweb/settings/fields.py storageweb/web/templates/admin/settings/preview.html
@@ -3225,6 +3564,11 @@ msgid "the shared folder %(name)s"
 msgstr ""
 
 #: storageweb/settings/loader.py
+#, python-format
+msgid "permissions.default_role: %(role)s is not a role"
+msgstr ""
+
+#: storageweb/settings/loader.py
 msgid "At least one sign-in method must be enabled"
 msgstr ""
 
@@ -3264,6 +3608,18 @@ msgstr ""
 #: storageweb/settings/loader.py
 #, python-format
 msgid "audit.syslog_facility must be one of: %(values)s"
+msgstr ""
+
+#: storageweb/settings/loader.py
+#, python-format
+msgid ""
+"sharing.history_days cannot be less than sharing.keep_days (a link would keep no history): 0, or "
+"%(num)s or more"
+msgstr ""
+
+#: storageweb/settings/loader.py
+#, python-format
+msgid "sharing.default_days cannot be more than sharing.max_days (%(num)s)"
 msgstr ""
 
 #: storageweb/settings/loader.py
@@ -3431,6 +3787,42 @@ msgid "Internal server error"
 msgstr ""
 
 #: storageweb/web/errors.py
+msgid "This request is not valid"
+msgstr ""
+
+#: storageweb/web/errors.py
+msgid "You need to sign in"
+msgstr ""
+
+#: storageweb/web/errors.py
+msgid "You cannot open this"
+msgstr ""
+
+#: storageweb/web/errors.py
+msgid "We cannot find this page"
+msgstr ""
+
+#: storageweb/web/errors.py
+msgid "This cannot be done here"
+msgstr ""
+
+#: storageweb/web/errors.py
+msgid "This is too large"
+msgstr ""
+
+#: storageweb/web/errors.py
+msgid "Too many attempts"
+msgstr ""
+
+#: storageweb/web/errors.py
+msgid "Something went wrong"
+msgstr ""
+
+#: storageweb/web/errors.py storageweb/web/guards.py
+msgid "Under maintenance"
+msgstr ""
+
+#: storageweb/web/errors.py
 msgid "The requested page or file does not exist."
 msgstr ""
 
@@ -3444,6 +3836,46 @@ msgstr ""
 
 #: storageweb/web/errors.py
 msgid "Something went wrong on the server. Try again later."
+msgstr ""
+
+#: storageweb/web/errors.py
+msgid "Check that the address is written correctly."
+msgstr ""
+
+#: storageweb/web/errors.py
+msgid "Look for it from the start: it may have been moved or renamed."
+msgstr ""
+
+#: storageweb/web/errors.py
+msgid "Sign in with your account and look for it from the start."
+msgstr ""
+
+#: storageweb/web/errors.py
+msgid "Sign in with an account that has access."
+msgstr ""
+
+#: storageweb/web/errors.py
+msgid "If you need it, ask an administrator for access."
+msgstr ""
+
+#: storageweb/web/errors.py
+msgid "Go back and try again from the page."
+msgstr ""
+
+#: storageweb/web/errors.py
+msgid "Send smaller files, or fewer at once."
+msgstr ""
+
+#: storageweb/web/errors.py
+msgid "Wait a few minutes before trying again."
+msgstr ""
+
+#: storageweb/web/errors.py
+msgid "Try again in a few minutes."
+msgstr ""
+
+#: storageweb/web/errors.py
+msgid "If it keeps happening, tell the administrator when it happened: the server log has the details."
 msgstr ""
 
 #: storageweb/web/errors.py
@@ -3478,10 +3910,6 @@ msgstr ""
 msgid "A backup is being restored. Try again in a moment."
 msgstr ""
 
-#: storageweb/web/guards.py
-msgid "Under maintenance"
-msgstr ""
-
 #: storageweb/web/js_messages.py
 msgid "Are you sure?"
 msgstr ""
@@ -3513,6 +3941,10 @@ msgstr ""
 
 #: storageweb/web/js_messages.py
 msgid "Could not read this folder."
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "Could not connect to the server."
 msgstr ""
 
 #: storageweb/web/js_messages.py
@@ -3680,6 +4112,80 @@ msgid "Close"
 msgstr ""
 
 #: storageweb/web/js_messages.py
+msgid "Never"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "After 1 day"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "After %(num)s days"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "No limit"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "At most this many downloads (optional)"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "What they can do"
+msgstr ""
+
+#: storageweb/web/js_messages.py storageweb/web/templates/admin/settings/sessions.html
+#: storageweb/web/templates/admin/settings/sharing.html storageweb/web/templates/connect.html
+#: storageweb/web/templates/profile.html
+msgid "Expires"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "Password (optional)"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "At least %(num)s characters. Give it to them by another way."
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "Message for whoever opens it (optional)"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "Create link"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "Share «%(name)s»"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "Anyone with this link can open it:"
+msgstr ""
+
+#: storageweb/web/js_messages.py storageweb/web/templates/_mfa_setup.html
+#: storageweb/web/templates/admin/settings/auth/entra.html
+#: storageweb/web/templates/admin/settings/entra_register.html
+#: storageweb/web/templates/admin/settings/entra_setup.html storageweb/web/templates/mfa_codes.html
+#: storageweb/web/templates/profile.html
+msgid "Copy"
+msgstr ""
+
+#: storageweb/web/js_messages.py
+#, python-format
+msgid "It expires %(when)s."
+msgstr ""
+
+#: storageweb/web/js_messages.py
+msgid "My share links"
+msgstr ""
+
+#: storageweb/web/js_messages.py
 msgid "Choose this folder"
 msgstr ""
 
@@ -3687,7 +4193,7 @@ msgstr ""
 msgid "Choose a folder"
 msgstr ""
 
-#: storageweb/web/js_messages.py
+#: storageweb/web/js_messages.py storageweb/web/templates/share.html
 msgid "Up"
 msgstr ""
 
@@ -3770,10 +4276,11 @@ msgstr ""
 msgid "Back to the default"
 msgstr ""
 
-#: storageweb/web/js_messages.py storageweb/web/templates/admin/groups/list.html
-#: storageweb/web/templates/admin/search.html storageweb/web/templates/admin/settings/files.html
-#: storageweb/web/templates/admin/user_import.html storageweb/web/templates/admin/users/_macros.html
-#: storageweb/web/templates/base.html storageweb/web/templates/search.html
+#: storageweb/web/js_messages.py storageweb/web/templates/admin/groups/_macros.html
+#: storageweb/web/templates/admin/roles/_macros.html storageweb/web/templates/admin/search.html
+#: storageweb/web/templates/admin/settings/files.html storageweb/web/templates/admin/user_import.html
+#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/base.html
+#: storageweb/web/templates/search.html
 msgid "Search"
 msgstr ""
 
@@ -3837,7 +4344,8 @@ msgstr ""
 msgid "Accept"
 msgstr ""
 
-#: storageweb/web/js_messages.py storageweb/web/templates/admin/settings/backup_restore.html
+#: storageweb/web/js_messages.py storageweb/web/templates/admin/roles/_macros.html
+#: storageweb/web/templates/admin/settings/backup_restore.html
 #: storageweb/web/templates/admin/settings/entra_register.html
 #: storageweb/web/templates/admin/user_password.html storageweb/web/templates/browse.html
 #: storageweb/web/templates/connect.html storageweb/web/templates/edit.html
@@ -3886,7 +4394,7 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
-#: storageweb/web/nav.py
+#: storageweb/web/nav.py storageweb/web/templates/admin/roles/list.html
 msgid "People"
 msgstr ""
 
@@ -3901,8 +4409,9 @@ msgstr ""
 msgid "Accounts, roles and status"
 msgstr ""
 
-#: storageweb/web/nav.py storageweb/web/templates/admin/groups/list.html
-#: storageweb/web/templates/admin/groups/panel.html storageweb/web/templates/admin/overview.html
+#: storageweb/web/nav.py storageweb/web/templates/admin/groups/_macros.html
+#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/groups/panel.html
+#: storageweb/web/templates/admin/overview.html storageweb/web/templates/admin/roles/list.html
 #: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users.html
 #: storageweb/web/views/groups.py
 msgid "Groups"
@@ -3941,12 +4450,18 @@ msgstr ""
 msgid "Groups × folders in one table"
 msgstr ""
 
-#: storageweb/web/nav.py storageweb/web/templates/admin/access/folders.html
-msgid "Role permissions"
+#: storageweb/web/nav.py
+msgid "Links for people without an account and drop boxes"
+msgstr ""
+
+#: storageweb/web/nav.py storageweb/web/templates/admin/roles/_macros.html
+#: storageweb/web/templates/admin/roles/form.html storageweb/web/templates/admin/roles/list.html
+#: storageweb/web/templates/admin/roles/panel.html storageweb/web/templates/admin/settings/sharing.html
+msgid "Roles"
 msgstr ""
 
 #: storageweb/web/nav.py
-msgid "What the «User» role can do"
+msgid "What each person can do with the files"
 msgstr ""
 
 #: storageweb/web/nav.py
@@ -4135,9 +4650,10 @@ msgstr ""
 
 #: storageweb/web/search.py storageweb/web/templates/admin/_user_import_results.html
 #: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/groups/list.html
-#: storageweb/web/templates/admin/settings/backups.html
+#: storageweb/web/templates/admin/roles/list.html storageweb/web/templates/admin/settings/backups.html
 #: storageweb/web/templates/admin/settings/ips.html
 #: storageweb/web/templates/admin/settings/sessions.html
+#: storageweb/web/templates/admin/settings/sharing.html
 #: storageweb/web/templates/admin/settings/system.html storageweb/web/templates/admin/users.html
 #: storageweb/web/templates/browse.html storageweb/web/templates/profile.html
 msgid "Actions"
@@ -4149,6 +4665,8 @@ msgid "Pages"
 msgstr ""
 
 #: storageweb/web/search.py storageweb/web/templates/admin/groups/panel.html
+#: storageweb/web/templates/admin/settings/passwords.html
+#: storageweb/web/templates/admin/settings/sharing.html
 msgid "Settings"
 msgstr ""
 
@@ -4215,10 +4733,6 @@ msgid "Select %(name)s"
 msgstr ""
 
 #: storageweb/web/templates/_file_rows.html
-msgid "Download as ZIP"
-msgstr ""
-
-#: storageweb/web/templates/_file_rows.html
 #, python-format
 msgid "Delete the folder «%(name)s» and all its contents?"
 msgstr ""
@@ -4226,6 +4740,51 @@ msgstr ""
 #: storageweb/web/templates/_file_rows.html
 #, python-format
 msgid "Delete «%(name)s»?"
+msgstr ""
+
+#: storageweb/web/templates/_link_filter.html
+msgid "Show links"
+msgstr ""
+
+#: storageweb/web/templates/_link_filter.html
+msgid ""
+"These links no longer exist: the cleanup deleted them. Only their history is kept, until it is "
+"deleted too."
+msgstr ""
+
+#: storageweb/web/templates/_link_filter.html storageweb/web/templates/admin/settings/sharing.html
+msgid "Person"
+msgstr ""
+
+#: storageweb/web/templates/_link_filter.html
+#: storageweb/web/templates/admin/settings/server_folders.html
+#: storageweb/web/templates/admin/settings/sharing.html storageweb/web/templates/link_activity.html
+#: storageweb/web/templates/profile.html storageweb/web/templates/recent.html
+msgid "What"
+msgstr ""
+
+#: storageweb/web/templates/_link_filter.html
+msgid "First event"
+msgstr ""
+
+#: storageweb/web/templates/_link_filter.html
+msgid "Last event"
+msgstr ""
+
+#: storageweb/web/templates/_link_filter.html storageweb/web/templates/admin/settings/sharing.html
+#: storageweb/web/templates/admin/users/panel.html storageweb/web/templates/profile.html
+msgid "Activity"
+msgstr ""
+
+#: storageweb/web/templates/_link_filter.html
+#, python-format
+msgid "%(num)s event"
+msgid_plural "%(num)s events"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/templates/_link_filter.html
+msgid "No deleted link keeps history."
 msgstr ""
 
 #: storageweb/web/templates/_mfa_setup.html
@@ -4244,13 +4803,6 @@ msgstr ""
 
 #: storageweb/web/templates/_mfa_setup.html
 msgid "Key"
-msgstr ""
-
-#: storageweb/web/templates/_mfa_setup.html storageweb/web/templates/admin/settings/auth/entra.html
-#: storageweb/web/templates/admin/settings/entra_register.html
-#: storageweb/web/templates/admin/settings/entra_setup.html storageweb/web/templates/mfa_codes.html
-#: storageweb/web/templates/profile.html
-msgid "Copy"
 msgstr ""
 
 #: storageweb/web/templates/_mfa_setup.html
@@ -4348,6 +4900,10 @@ msgstr ""
 msgid "Almost full"
 msgstr ""
 
+#: storageweb/web/templates/_status_frame.html
+msgid "What you can do"
+msgstr ""
+
 #: storageweb/web/templates/base.html storageweb/web/templates/profile.html
 msgid "Theme"
 msgstr ""
@@ -4356,7 +4912,7 @@ msgstr ""
 msgid "Main"
 msgstr ""
 
-#: storageweb/web/templates/base.html
+#: storageweb/web/templates/admin/settings/files.html storageweb/web/templates/base.html
 msgid "Files"
 msgstr ""
 
@@ -4473,7 +5029,7 @@ msgstr ""
 msgid "Upload folder"
 msgstr ""
 
-#: storageweb/web/templates/browse.html
+#: storageweb/web/templates/browse.html storageweb/web/templates/share.html
 msgid "Send"
 msgstr ""
 
@@ -4496,6 +5052,10 @@ msgid "Copy to…"
 msgstr ""
 
 #: storageweb/web/templates/browse.html
+msgid "Share link"
+msgstr ""
+
+#: storageweb/web/templates/browse.html
 msgid "Clear selection"
 msgstr ""
 
@@ -4507,20 +5067,21 @@ msgstr ""
 
 #: storageweb/web/templates/admin/_user_import_results.html
 #: storageweb/web/templates/admin/groups/_macros.html
-#: storageweb/web/templates/admin/locations/edit.html
+#: storageweb/web/templates/admin/locations/edit.html storageweb/web/templates/admin/roles/_macros.html
 #: storageweb/web/templates/admin/settings/sessions.html
 #: storageweb/web/templates/admin/settings/system.html storageweb/web/templates/browse.html
 #: storageweb/web/templates/profile.html storageweb/web/templates/recent.html
-#: storageweb/web/templates/search.html
+#: storageweb/web/templates/search.html storageweb/web/templates/share.html
 msgid "Name"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/backups.html storageweb/web/templates/browse.html
-#: storageweb/web/templates/search.html
+#: storageweb/web/templates/search.html storageweb/web/templates/share.html
 msgid "Size"
 msgstr ""
 
 #: storageweb/web/templates/browse.html storageweb/web/templates/search.html
+#: storageweb/web/templates/share.html
 msgid "Modified"
 msgstr ""
 
@@ -4600,7 +5161,7 @@ msgid "Type"
 msgstr ""
 
 #: storageweb/web/templates/admin/_user_import_rows.html storageweb/web/templates/admin/overview.html
-#: storageweb/web/templates/browse.html
+#: storageweb/web/templates/browse.html storageweb/web/templates/share.html
 msgid "Open"
 msgstr ""
 
@@ -4672,11 +5233,6 @@ msgstr ""
 msgid "Scope"
 msgstr ""
 
-#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/connect.html
-#: storageweb/web/templates/profile.html
-msgid "Expires"
-msgstr ""
-
 #: storageweb/web/templates/connect.html storageweb/web/templates/profile.html
 #, python-format
 msgid "in %(num)s day"
@@ -4684,7 +5240,8 @@ msgid_plural "in %(num)s days"
 msgstr[0] ""
 msgstr[1] ""
 
-#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/connect.html
+#: storageweb/web/templates/admin/settings/sessions.html
+#: storageweb/web/templates/admin/settings/sharing.html storageweb/web/templates/connect.html
 #: storageweb/web/templates/profile.html
 msgid "never"
 msgstr ""
@@ -4736,8 +5293,8 @@ msgstr ""
 msgid "Heading"
 msgstr ""
 
-#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/users/_macros.html
-#: storageweb/web/templates/edit.html
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/roles/_macros.html
+#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/edit.html
 msgid "List"
 msgstr ""
 
@@ -4749,7 +5306,7 @@ msgstr ""
 msgid "Quote"
 msgstr ""
 
-#: storageweb/web/templates/edit.html
+#: storageweb/web/templates/edit.html storageweb/web/templates/profile.html
 msgid "Link"
 msgstr ""
 
@@ -4807,8 +5364,118 @@ msgstr ""
 msgid "Back to start"
 msgstr ""
 
-#: storageweb/web/templates/login.html
+#: storageweb/web/templates/error.html storageweb/web/templates/login.html
 msgid "Sign in"
+msgstr ""
+
+#: storageweb/web/templates/link_activity.html
+msgid "Link activity"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/user_form.html
+#: storageweb/web/templates/admin/user_import.html storageweb/web/templates/admin/user_password.html
+#: storageweb/web/templates/link_activity.html
+msgid "Back"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sharing.html storageweb/web/templates/link_activity.html
+#: storageweb/web/templates/profile.html
+msgid "with password"
+msgstr ""
+
+#: storageweb/web/templates/link_activity.html
+#, python-format
+msgid "shared by %(name)s"
+msgstr ""
+
+#: storageweb/web/templates/link_activity.html
+#, python-format
+msgid "created %(when)s"
+msgstr ""
+
+#: storageweb/web/templates/link_activity.html
+#, python-format
+msgid "expires %(when)s"
+msgstr ""
+
+#: storageweb/web/templates/link_activity.html
+msgid "never expires"
+msgstr ""
+
+#: storageweb/web/templates/link_activity.html
+msgid "Download CSV"
+msgstr ""
+
+#: storageweb/web/templates/link_activity.html
+msgid "This link no longer exists: the cleanup deleted it. Only its history is kept."
+msgstr ""
+
+#: storageweb/web/templates/link_activity.html
+#, python-format
+msgid "Removed %(when)s by %(name)s."
+msgstr ""
+
+#: storageweb/web/templates/link_activity.html
+msgid "What it shared was deleted."
+msgstr ""
+
+#: storageweb/web/templates/link_activity.html
+msgid "Visits"
+msgstr ""
+
+#: storageweb/web/templates/link_activity.html
+msgid "Files received"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sharing.html storageweb/web/templates/link_activity.html
+#: storageweb/web/templates/profile.html
+msgid "Downloads"
+msgstr ""
+
+#: storageweb/web/templates/link_activity.html
+#, python-format
+msgid "of %(num)s allowed"
+msgstr ""
+
+#: storageweb/web/templates/link_activity.html
+msgid "Last access"
+msgstr ""
+
+#: storageweb/web/templates/link_activity.html
+msgid "History"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/security_status.html
+#: storageweb/web/templates/link_activity.html storageweb/web/templates/recent.html
+msgid "When"
+msgstr ""
+
+#: storageweb/web/templates/link_activity.html
+msgid "File or folder"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sessions.html storageweb/web/templates/link_activity.html
+msgid "Browser"
+msgstr ""
+
+#: storageweb/web/templates/link_activity.html
+msgid "Nothing yet: nobody has opened it."
+msgstr ""
+
+#: storageweb/web/templates/link_gone.html
+msgid "This link is not available"
+msgstr ""
+
+#: storageweb/web/templates/link_gone.html
+msgid "It may not exist, have expired or no longer be shared."
+msgstr ""
+
+#: storageweb/web/templates/link_gone.html
+msgid "Ask whoever sent it to you for a new one."
+msgstr ""
+
+#: storageweb/web/templates/link_gone.html
+msgid "If it had an expiry date, it may have passed."
 msgstr ""
 
 #: storageweb/web/templates/login.html
@@ -4827,6 +5494,7 @@ msgstr ""
 msgid "No sign-in method is enabled. Check config.json."
 msgstr ""
 
+#: storageweb/web/templates/admin/settings/_auth_tabs.html
 #: storageweb/web/templates/admin/settings/auth.html
 #: storageweb/web/templates/admin/settings/security_status.html
 #: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/_macros.html
@@ -4945,6 +5613,7 @@ msgid "Browser language"
 msgstr ""
 
 #: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/groups/panel.html
+#: storageweb/web/templates/admin/roles/_macros.html storageweb/web/templates/admin/roles/panel.html
 #: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
 #: storageweb/web/templates/profile.html
 msgid "Save changes"
@@ -5059,6 +5728,7 @@ msgid "Remove the authenticator app? The codes it shows will stop working."
 msgstr ""
 
 #: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/settings/ips.html
+#: storageweb/web/templates/admin/settings/sharing.html
 #: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/profile.html
 msgid "Remove"
 msgstr ""
@@ -5197,6 +5867,49 @@ msgid_plural "Tokens can last at most %(num)s days: set by the administrator."
 msgstr[0] ""
 msgstr[1] ""
 
+#: storageweb/web/templates/admin/access/folder.html storageweb/web/templates/admin/roles/_macros.html
+#: storageweb/web/templates/admin/settings/sharing.html storageweb/web/templates/profile.html
+msgid "Kind"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/server_folders.html
+#: storageweb/web/templates/admin/settings/sharing.html storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/profile.html
+msgid "Status"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sharing.html storageweb/web/templates/profile.html
+#, python-format
+msgid "%(num)s upload"
+msgid_plural "%(num)s uploads"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/templates/admin/settings/sharing.html storageweb/web/templates/profile.html
+#, python-format
+msgid "%(num)s visit"
+msgid_plural "%(num)s visits"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/templates/profile.html
+msgid "Stop sharing? The link stops working at once."
+msgstr ""
+
+#: storageweb/web/templates/profile.html
+msgid "Stop sharing"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sharing.html storageweb/web/templates/profile.html
+msgid "No link here."
+msgstr ""
+
+#: storageweb/web/templates/profile.html
+msgid ""
+"You have not shared anything with a link. Select a file or a folder in the file browser and "
+"choose «Share link»."
+msgstr ""
+
 #: storageweb/web/templates/profile.html
 msgid "an API token"
 msgstr ""
@@ -5225,14 +5938,6 @@ msgstr ""
 msgid ""
 "What you opened, downloaded or uploaded lately from the web. The network drive and the VS Code "
 "sync do not count."
-msgstr ""
-
-#: storageweb/web/templates/admin/settings/server_folders.html storageweb/web/templates/recent.html
-msgid "What"
-msgstr ""
-
-#: storageweb/web/templates/admin/settings/security_status.html storageweb/web/templates/recent.html
-msgid "When"
 msgstr ""
 
 #: storageweb/web/templates/recent.html
@@ -5297,6 +6002,82 @@ msgstr ""
 msgid "Nothing found with «%(query)s»."
 msgstr ""
 
+#: storageweb/web/templates/share.html
+msgid "Drop box"
+msgstr ""
+
+#: storageweb/web/templates/share.html
+msgid "This link has a password"
+msgstr ""
+
+#: storageweb/web/templates/share.html
+#, python-format
+msgid "%(name)s shared it with a password. Ask them for it."
+msgstr ""
+
+#: storageweb/web/templates/share.html
+#, python-format
+msgid "Shared by %(name)s"
+msgstr ""
+
+#: storageweb/web/templates/share.html
+#, python-format
+msgid "available until %(when)s"
+msgstr ""
+
+#: storageweb/web/templates/share.html
+#, python-format
+msgid "%(num)s download left"
+msgid_plural "%(num)s downloads left"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/templates/share.html
+#, python-format
+msgid "Send files to %(name)s"
+msgstr ""
+
+#: storageweb/web/templates/share.html
+#, python-format
+msgid ""
+"What you upload goes to a folder of %(name)s. You will not see what is there, not even your own "
+"files once uploaded."
+msgstr ""
+
+#: storageweb/web/templates/share.html
+msgid "Files to send"
+msgstr ""
+
+#: storageweb/web/templates/share.html
+#, python-format
+msgid "Up to %(mb)s MB at once."
+msgstr ""
+
+#: storageweb/web/templates/share.html
+#, python-format
+msgid "Each file, at most %(mb)s MB."
+msgstr ""
+
+#: storageweb/web/templates/share.html storageweb/web/templates/view.html
+#, python-format
+msgid "modified %(when)s"
+msgstr ""
+
+#: storageweb/web/templates/share.html
+msgid "Download all (ZIP)"
+msgstr ""
+
+#: storageweb/web/templates/share.html
+#, python-format
+msgid "And %(num)s more: download them all as a ZIP."
+msgid_plural "And %(num)s more: download them all as a ZIP."
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/templates/share.html
+msgid "This folder is empty."
+msgstr ""
+
 #: storageweb/web/templates/view.html
 msgid "Parts of the file"
 msgstr ""
@@ -5350,11 +6131,6 @@ msgstr[1] ""
 
 #: storageweb/web/templates/view.html
 #, python-format
-msgid "modified %(when)s"
-msgstr ""
-
-#: storageweb/web/templates/view.html
-#, python-format
 msgid "Previous: %(name)s"
 msgstr ""
 
@@ -5379,8 +6155,8 @@ msgstr ""
 msgid "Copy all"
 msgstr ""
 
-#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/users.html
-#: storageweb/web/templates/view.html
+#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/roles/list.html
+#: storageweb/web/templates/admin/users.html storageweb/web/templates/view.html
 msgid "Edit"
 msgstr ""
 
@@ -5565,8 +6341,8 @@ msgstr ""
 msgid "Filter"
 msgstr ""
 
-#: storageweb/web/templates/admin/audit.html storageweb/web/templates/admin/groups/list.html
-#: storageweb/web/templates/admin/users/_macros.html
+#: storageweb/web/templates/admin/audit.html storageweb/web/templates/admin/groups/_macros.html
+#: storageweb/web/templates/admin/roles/_macros.html storageweb/web/templates/admin/users/_macros.html
 msgid "Clear"
 msgstr ""
 
@@ -5831,6 +6607,7 @@ msgid ""
 "Effective access."
 msgstr ""
 
+#: storageweb/web/templates/admin/roles/list.html
 #: storageweb/web/templates/admin/settings/auth/entra.html
 #: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users.html
 #: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/admin/users/panel.html
@@ -5870,8 +6647,9 @@ msgstr ""
 msgid "Empty = the one of their groups or the default one; 0 = no quota."
 msgstr ""
 
-#: storageweb/web/templates/admin/access/folder.html storageweb/web/templates/admin/user_form.html
-#: storageweb/web/templates/admin/users/panel.html
+#: storageweb/web/templates/admin/access/folder.html
+#: storageweb/web/templates/admin/settings/server_folders.html
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
 msgid "In use"
 msgstr ""
 
@@ -5886,6 +6664,18 @@ msgstr ""
 
 #: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
 msgid "Remove all"
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
+msgid "Effective access"
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html
+msgid "What they see when they sign in, and why."
+msgstr ""
+
+#: storageweb/web/templates/admin/user_form.html storageweb/web/views/profile.py
+msgid "Account"
 msgstr ""
 
 #: storageweb/web/templates/admin/user_form.html
@@ -5951,29 +6741,13 @@ msgid ""
 "nobody locks themselves out."
 msgstr ""
 
-#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users/panel.html
-msgid "Effective access"
-msgstr ""
-
-#: storageweb/web/templates/admin/user_form.html
-msgid "What they see when they sign in, and why."
-msgstr ""
-
-#: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/user_form.html
-#: storageweb/web/templates/admin/user_import.html storageweb/web/templates/admin/user_password.html
-msgid "Back"
-msgstr ""
-
-#: storageweb/web/templates/admin/user_form.html storageweb/web/views/profile.py
-msgid "Account"
-msgstr ""
-
 #: storageweb/web/templates/admin/user_form.html
 msgid "For Entra ID use the UPN, e.g. juan@contoso.com"
 msgstr ""
 
-#: storageweb/web/templates/admin/groups/list.html storageweb/web/templates/admin/user_form.html
-#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/_macros.html
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/groups/list.html
+#: storageweb/web/templates/admin/user_form.html storageweb/web/templates/admin/users.html
+#: storageweb/web/templates/admin/users/_macros.html
 msgid "Source"
 msgstr ""
 
@@ -6086,11 +6860,6 @@ msgstr ""
 
 #: storageweb/web/templates/admin/users.html
 msgid "Group…"
-msgstr ""
-
-#: storageweb/web/templates/admin/settings/server_folders.html
-#: storageweb/web/templates/admin/users.html storageweb/web/templates/admin/users/_macros.html
-msgid "Status"
 msgstr ""
 
 #: storageweb/web/templates/admin/users.html
@@ -6236,10 +7005,6 @@ msgstr ""
 msgid "Nobody has access yet."
 msgstr ""
 
-#: storageweb/web/templates/admin/access/folder.html
-msgid "Kind"
-msgstr ""
-
 #: storageweb/web/templates/admin/access/folder.html storageweb/web/views/access.py
 msgid "All users"
 msgstr ""
@@ -6299,6 +7064,10 @@ msgid ""
 "or delete inside a folder with write access depends on the role permissions."
 msgstr ""
 
+#: storageweb/web/templates/admin/access/folders.html
+msgid "Role permissions"
+msgstr ""
+
 #: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/groups/matrix.html
 msgid "Read-only"
 msgstr ""
@@ -6308,10 +7077,29 @@ msgid "No access"
 msgstr ""
 
 #: storageweb/web/templates/admin/groups/_macros.html
+msgid "They give access to shared folders. They can be local or come from Entra ID or the system."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/groups/form.html
+#: storageweb/web/templates/admin/groups/matrix.html storageweb/web/templates/admin/groups/panel.html
+#: storageweb/web/views/groups.py
+msgid "New group"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/roles/_macros.html
+msgid "Search by name or description"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "All sources"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
 msgid "Groups view"
 msgstr ""
 
-#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/users/_macros.html
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/roles/_macros.html
+#: storageweb/web/templates/admin/users/_macros.html
 msgid "Panels"
 msgstr ""
 
@@ -6331,7 +7119,7 @@ msgstr ""
 msgid "e.g. Human Resources"
 msgstr ""
 
-#: storageweb/web/templates/admin/groups/_macros.html
+#: storageweb/web/templates/admin/groups/_macros.html storageweb/web/templates/admin/roles/_macros.html
 msgid "Description"
 msgstr ""
 
@@ -6340,6 +7128,20 @@ msgstr ""
 msgid ""
 "The name and the description come from %(source)s and are updated automatically: change them "
 "there."
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "Role of the members"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid "None: only their own"
+msgstr ""
+
+#: storageweb/web/templates/admin/groups/_macros.html
+msgid ""
+"Its permissions are added to the ones of each member's own role. Never Administrator: give that "
+"to each person."
 msgstr ""
 
 #: storageweb/web/templates/admin/groups/_macros.html
@@ -6495,12 +7297,6 @@ msgid "Group «%(name)s»"
 msgstr ""
 
 #: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/groups/list.html
-#: storageweb/web/templates/admin/groups/matrix.html storageweb/web/templates/admin/groups/panel.html
-#: storageweb/web/views/groups.py
-msgid "New group"
-msgstr ""
-
-#: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/groups/list.html
 #: storageweb/web/templates/admin/groups/panel.html
 msgid "Built-in group"
 msgstr ""
@@ -6541,18 +7337,6 @@ msgstr ""
 #: storageweb/web/templates/admin/groups/form.html storageweb/web/templates/admin/groups/panel.html
 #, python-format
 msgid "Delete the group «%(name)s»?"
-msgstr ""
-
-#: storageweb/web/templates/admin/groups/list.html
-msgid "They give access to shared folders. They can be local or come from Entra ID or the system."
-msgstr ""
-
-#: storageweb/web/templates/admin/groups/list.html
-msgid "Search by name or description"
-msgstr ""
-
-#: storageweb/web/templates/admin/groups/list.html
-msgid "All sources"
 msgstr ""
 
 #: storageweb/web/templates/admin/groups/list.html
@@ -6621,14 +7405,6 @@ msgstr ""
 
 #: storageweb/web/templates/admin/groups/panel.html
 msgid "List of groups"
-msgstr ""
-
-#: storageweb/web/templates/admin/groups/panel.html
-msgid "Filter…"
-msgstr ""
-
-#: storageweb/web/templates/admin/groups/panel.html
-msgid "Filter groups"
 msgstr ""
 
 #: storageweb/web/templates/admin/groups/panel.html
@@ -6745,6 +7521,232 @@ msgstr ""
 msgid ""
 "Choose the location of each folder in Access → Shared folders, and of the personal folders in "
 "Access → Personal folders."
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "Roles view"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+#, python-format
+msgid "%(num)s role"
+msgid_plural "%(num)s roles"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+#, python-format
+msgid "%(num)s of your own"
+msgid_plural "%(num)s of your own"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+#, python-format
+msgid "new accounts: %(role)s"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html storageweb/web/templates/admin/roles/form.html
+msgid "New role"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "All roles"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "Built-in"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "Your own"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "Everything, also the administration"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "Nothing"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+#, python-format
+msgid ""
+"Make «%(name)s» the role of new accounts? Every new account, also those created on their first "
+"sign-in, will be able to change everything."
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+#, python-format
+msgid "Use «%(name)s» for new accounts"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "Set in config.json or an environment variable: it cannot be changed from the web."
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "Use for new accounts"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "A new role with the same permissions"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "Clone"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "Built-in: it comes with StorageWeb"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "e.g. Editors"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "optional"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "It can"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "locked"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "In read-only folders only downloading and sharing to download are allowed, whatever the role says."
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html storageweb/web/views/roles.py
+msgid "General"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "Create role"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html storageweb/web/templates/admin/roles/panel.html
+#, python-format
+msgid "%(num)s person"
+msgid_plural "%(num)s people"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "Nobody has it directly."
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html storageweb/web/templates/admin/roles/panel.html
+#, python-format
+msgid "%(num)s group"
+msgid_plural "%(num)s groups"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "Their members get it too, added to their own role."
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "No group gives it."
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid "Nobody has it yet."
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html storageweb/web/templates/admin/roles/panel.html
+msgid "Delete role"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html
+msgid ""
+"The people who have it are left with no permissions (role «No permissions»); the groups that give"
+" it stop giving a role."
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/_macros.html storageweb/web/templates/admin/roles/panel.html
+#, python-format
+msgid "Delete the role «%(name)s»? Its people are left with no permissions."
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/form.html
+#, python-format
+msgid "A copy of «%(name)s»: change what you need and create it. The original is not touched."
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/form.html storageweb/web/templates/admin/roles/panel.html
+msgid ""
+"The built-in role for people who can work with their files. Its name does not change; its "
+"permissions, here. Administrators always have every permission."
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/form.html
+msgid ""
+"A role is a set of permissions on the files. Give it to a person in their record or to a group: "
+"the members of the group can also do what it allows."
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/form.html
+msgid "Who has it"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/list.html storageweb/web/templates/admin/roles/panel.html
+msgid "No role matches."
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/list.html
+msgid ""
+"Each person has one role, and each group can give its members another one: they can do what all "
+"of them allow together. In read-only folders only downloading and sharing to download are "
+"allowed."
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/list.html
+msgid ""
+"With «No permissions», what a person can do comes from their groups until someone gives them a "
+"role."
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/list.html
+msgid "The star marks the role of new accounts: click another one to change it."
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/panel.html
+msgid "List of roles"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/panel.html
+msgid "everything"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/panel.html
+#, python-format
+msgid "%(num)s permission"
+msgid_plural "%(num)s permissions"
+msgstr[0] ""
+msgstr[1] ""
+
+#: storageweb/web/templates/admin/roles/panel.html
+msgid "Sections of the role"
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/panel.html
+msgid ""
+"Everything, also the administration. It comes with StorageWeb: it cannot be changed or deleted, "
+"and a group never gives it."
+msgstr ""
+
+#: storageweb/web/templates/admin/roles/panel.html
+msgid ""
+"No permission on the files. What a person with this role can do comes from the roles of their "
+"groups, until someone gives them another role. It comes with StorageWeb: it cannot be changed or "
+"deleted."
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/_advisories.html
@@ -6908,6 +7910,10 @@ msgid "Save to apply the changes."
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/audit_settings.html
+msgid "Retention and levels"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/audit_settings.html
 msgid "0 = forever. Older entries are removed once a day."
 msgstr ""
 
@@ -6915,6 +7921,10 @@ msgstr ""
 msgid ""
 "Debug records everything, also listing folders, searching, opening files in the viewer and "
 "favorites."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/audit_settings.html
+msgid "SIEM"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/audit_settings.html
@@ -7018,7 +8028,16 @@ msgid ""
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/auto_backups.html
+msgid "Schedule"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/auto_backups.html
 msgid "0 = never from the service (the systemd timer storageweb-backup.timer can do it instead)."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/auto_backups.html
+#: storageweb/web/templates/admin/settings/backups.html
+msgid "Outside the server"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/auto_backups.html
@@ -7182,10 +8201,6 @@ msgstr ""
 
 #: storageweb/web/templates/admin/settings/backups.html
 msgid "file"
-msgstr ""
-
-#: storageweb/web/templates/admin/settings/backups.html
-msgid "Outside the server"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/backups.html
@@ -7443,6 +8458,7 @@ msgid "Users and roles"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/entra_setup.html
+#: storageweb/web/templates/admin/settings/network.html
 msgid "Check"
 msgstr ""
 
@@ -7543,6 +8559,12 @@ msgstr ""
 
 #: storageweb/web/templates/admin/settings/entra_setup.html
 msgid "An administrator creates each user beforehand."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/auth/entra.html
+#: storageweb/web/templates/admin/settings/entra_setup.html
+#, python-format
+msgid "The one of new accounts (%(role)s)"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/entra_setup.html
@@ -7702,10 +8724,6 @@ msgid "Buttons, links and highlights. It is used in the light and the dark theme
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/general.html
-msgid "Upload"
-msgstr ""
-
-#: storageweb/web/templates/admin/settings/general.html
 msgid "Remove logo"
 msgstr ""
 
@@ -7739,6 +8757,10 @@ msgstr ""
 msgid ""
 "A JPEG or WebP photo up to 3 MB, at least 1000 pixels high. It takes the place of the "
 "illustrations and is cropped to fill the side (on phones, a strip at the top)."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/ips.html
+msgid "Blocked"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/ips.html
@@ -7853,6 +8875,10 @@ msgid "Without the token. With neither a token nor networks, only from this serv
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/network.html
+msgid "Public name"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/network.html
 msgid "Public name (FQDN)"
 msgstr ""
 
@@ -7884,6 +8910,10 @@ msgstr ""
 #: storageweb/web/templates/admin/settings/network.html
 #, python-format
 msgid "through %(peer)s"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/network.html
+msgid "Proxy and HTTPS"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/network.html
@@ -7999,36 +9029,6 @@ msgid ""
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/passwords.html
-msgid "Try a password"
-msgstr ""
-
-#: storageweb/web/templates/admin/settings/passwords.html
-msgid ""
-"Checks a password against the rules of this page, one by one, even before saving them, without "
-"storing it anywhere."
-msgstr ""
-
-#: storageweb/web/templates/admin/settings/passwords.html
-msgid "With known data breaches on, its SHA-1 prefix is sent to Have I Been Pwned, as when it is set."
-msgstr ""
-
-#: storageweb/web/templates/admin/settings/passwords.html
-msgid "Whose password it would be (optional)"
-msgstr ""
-
-#: storageweb/web/templates/admin/settings/passwords.html
-msgid "A user name, to also try the rule «does not contain the user name»."
-msgstr ""
-
-#: storageweb/web/templates/admin/settings/passwords.html
-msgid "Try"
-msgstr ""
-
-#: storageweb/web/templates/admin/settings/passwords.html
-msgid "Show the password"
-msgstr ""
-
-#: storageweb/web/templates/admin/settings/passwords.html
 msgid "List of common passwords"
 msgstr ""
 
@@ -8058,12 +9058,34 @@ msgid ""
 "length), in lower case. The command line does the same: storageweb-admin password-list."
 msgstr ""
 
-#: storageweb/web/templates/admin/settings/permissions.html
-msgid "Permissions of the «User» role"
+#: storageweb/web/templates/admin/settings/passwords.html
+msgid "Try"
 msgstr ""
 
-#: storageweb/web/templates/admin/settings/permissions.html
-msgid "Administrators always have every permission. In read-only folders only downloading is allowed."
+#: storageweb/web/templates/admin/settings/passwords.html
+msgid "Try a password"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/passwords.html
+msgid ""
+"Checks a password against the rules of this page, one by one, even before saving them, without "
+"storing it anywhere."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/passwords.html
+msgid "With known data breaches on, its SHA-1 prefix is sent to Have I Been Pwned, as when it is set."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/passwords.html
+msgid "Whose password it would be (optional)"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/passwords.html
+msgid "A user name, to also try the rule «does not contain the user name»."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/passwords.html
+msgid "Show the password"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/preview.html
@@ -8106,6 +9128,37 @@ msgstr ""
 
 #: storageweb/web/templates/admin/settings/preview.html
 msgid "MP3, WAV, Ogg, Opus, M4A, AAC, FLAC and WebM."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/preview.html
+msgid "Thumbnails"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/preview.html
+msgid ""
+"The images are seen small in the list and larger in the details panel. The server makes them and "
+"keeps them apart, never in anyone's folder; only of the images the viewer opens."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/preview.html
+msgid ""
+"Not available: the server needs Pillow (pip install storageweb[thumbnails]). Without it, icons "
+"are shown."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/preview.html
+#, python-format
+msgid "Pillow %(version)s · %(num)s thumbnails, %(size)s."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/preview.html
+msgid "The server reads the whole image to reduce it; larger ones show the icon. From 1 to 500."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/preview.html
+msgid ""
+"Every day the ones nobody asked for in 60 days are deleted and, if they still take more, the "
+"least used. About 10 KB each."
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/preview.html
@@ -8275,6 +9328,10 @@ msgid "Nothing worth a warning in the audit log."
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/server_folders.html
+msgid "Allowed"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/server_folders.html
 msgid ""
 "One absolute path per line. Shared and personal folders on the server disk (without a storage "
 "location) must be inside one of them, and Browse only lists what is inside them. Empty = any "
@@ -8365,10 +9422,6 @@ msgid "30 days"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/sessions.html
-msgid "Browser"
-msgstr ""
-
-#: storageweb/web/templates/admin/settings/sessions.html
 msgid "Signed in"
 msgstr ""
 
@@ -8421,6 +9474,64 @@ msgstr ""
 msgid "There are no API tokens."
 msgstr ""
 
+#: storageweb/web/templates/admin/settings/sharing.html
+msgid "Links"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sharing.html
+msgid "disabled"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sharing.html
+#, python-format
+msgid "Remove this link of %(name)s? It stops working at once."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sharing.html
+msgid "Nobody has shared anything with a link."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sharing.html
+msgid ""
+"Links for people without an account, with an expiry, an optional password and a download limit. "
+"They are created by whoever has the permission «Share with links» (Role permissions; "
+"administrators always). Off, none works, not even the ones already created."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sharing.html
+msgid "0 = no maximum: links that never expire can then be created."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sharing.html
+msgid ""
+"A link to a folder so that someone outside uploads files without seeing what is there. It also "
+"needs permission to upload to that folder; nothing is overwritten."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sharing.html
+msgid "The «User» role cannot create links now: only administrators."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sharing.html
+msgid "How long they are kept"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sharing.html
+msgid ""
+"Every day the cleanup deletes the links removed or expired long ago (their history stays: filter "
+"Deleted) and the history older than its limit."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sharing.html
+msgid "They stay in the list (filters Removed and Expired) this long. 0 = they are never deleted."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/sharing.html
+msgid ""
+"Visits, downloads, uploads and refusals with their IP and browser. 0 = as long as the audit log. "
+"Never less than the one above."
+msgstr ""
+
 #: storageweb/web/templates/admin/settings/storage.html
 #, python-brace-format
 msgid "In a storage location the template is a folder inside it, for example homes/{username}."
@@ -8461,6 +9572,10 @@ msgstr ""
 
 #: storageweb/web/templates/admin/settings/system.html
 msgid "Logs (Windows service)"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/system.html
+msgid "Installation"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/system.html
@@ -8584,6 +9699,10 @@ msgid "%(free)s of %(total)s"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/system.html
+msgid "Network"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/system.html
 msgid "How this page arrived"
 msgstr ""
 
@@ -8657,6 +9776,10 @@ msgid ""
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/system.html
+msgid "Startup"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/system.html
 msgid "Startup (config.json or environment only, requires restarting the service)"
 msgstr ""
 
@@ -8698,6 +9821,10 @@ msgid "%(num)s field"
 msgid_plural "%(num)s fields"
 msgstr[0] ""
 msgstr[1] ""
+
+#: storageweb/web/templates/admin/settings/system.html
+msgid "Origin of each value"
+msgstr ""
 
 #: storageweb/web/templates/admin/settings/system.html
 msgid "Where each value comes from"
@@ -8752,6 +9879,10 @@ msgstr ""
 
 #: storageweb/web/templates/admin/settings/system.html
 msgid "Effective configuration (JSON, secrets hidden)"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/vulnerabilities.html
+msgid "Libraries"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/vulnerabilities.html
@@ -8830,6 +9961,10 @@ msgstr ""
 
 #: storageweb/web/templates/admin/settings/auth/entra.html
 msgid "Open in Entra ID"
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/auth/entra.html
+msgid "Hide the details"
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/auth/entra.html
@@ -8920,10 +10055,6 @@ msgstr ""
 
 #: storageweb/web/templates/admin/users/_macros.html
 msgid "Users view"
-msgstr ""
-
-#: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/admin/users/panel.html
-msgid "Active"
 msgstr ""
 
 #: storageweb/web/templates/admin/users/_macros.html storageweb/web/templates/admin/users/panel.html
@@ -9108,10 +10239,6 @@ msgid "Favorites (%(count)s)"
 msgstr ""
 
 #: storageweb/web/templates/admin/users/panel.html
-msgid "Activity"
-msgstr ""
-
-#: storageweb/web/templates/admin/users/panel.html
 msgid "Empty = the default template."
 msgstr ""
 
@@ -9138,7 +10265,7 @@ msgstr ""
 msgid "Enter your user name and password."
 msgstr ""
 
-#: storageweb/web/views/auth.py storageweb/web/views/mfa.py
+#: storageweb/web/views/auth.py storageweb/web/views/links.py storageweb/web/views/mfa.py
 msgid "Too many failed attempts. Wait a few minutes."
 msgstr ""
 
@@ -9185,6 +10312,7 @@ msgid "This file cannot be edited here: it is too large, it is not text or it is
 msgstr ""
 
 #: storageweb/web/views/admin/users.py storageweb/web/views/files.py storageweb/web/views/groups.py
+#: storageweb/web/views/roles.py
 msgid "Changes saved."
 msgstr ""
 
@@ -9193,11 +10321,11 @@ msgstr ""
 msgid "It is too large to save from here (more than %(num)s MB)."
 msgstr ""
 
-#: storageweb/web/views/files.py
+#: storageweb/web/views/files.py storageweb/web/views/links.py
 msgid "write error"
 msgstr ""
 
-#: storageweb/web/views/files.py
+#: storageweb/web/views/files.py storageweb/web/views/links.py
 #, python-format
 msgid "%(num)d file uploaded."
 msgid_plural "%(num)d files uploaded."
@@ -9293,6 +10421,23 @@ msgstr ""
 
 #: storageweb/web/views/groups.py
 msgid "There were no changes."
+msgstr ""
+
+#: storageweb/web/views/links.py
+msgid "Write whole numbers for the days and the downloads."
+msgstr ""
+
+#: storageweb/web/views/links.py
+msgid "Link removed: it no longer works."
+msgstr ""
+
+#: storageweb/web/views/links.py
+msgid "Wrong password."
+msgstr ""
+
+#: storageweb/web/views/links.py
+#, python-format
+msgid "It is larger than %(size)s."
 msgstr ""
 
 #: storageweb/web/views/locations.py
@@ -9423,6 +10568,10 @@ msgid "What your personal folder takes up."
 msgstr ""
 
 #: storageweb/web/views/profile.py
+msgid "What you have shared with people outside: copy a link again or stop sharing."
+msgstr ""
+
+#: storageweb/web/views/profile.py
 msgid "Profile saved."
 msgstr ""
 
@@ -9462,6 +10611,38 @@ msgstr ""
 #, python-format
 msgid "Token «%(name)s» revoked."
 msgstr ""
+
+#: storageweb/web/views/roles.py
+#, python-format
+msgid "Permissions (%(count)s)"
+msgstr ""
+
+#: storageweb/web/views/roles.py
+#, python-format
+msgid "Who has it (%(count)s)"
+msgstr ""
+
+#: storageweb/web/views/roles.py
+#, python-format
+msgid "New accounts will get the role «%(name)s»."
+msgstr ""
+
+#: storageweb/web/views/roles.py
+#, python-format
+msgid "Role «%(name)s» created. Give it to people in their record or to a group."
+msgstr ""
+
+#: storageweb/web/views/roles.py
+#, python-format
+msgid "Role «%(name)s» deleted."
+msgstr ""
+
+#: storageweb/web/views/roles.py
+#, python-format
+msgid "%(num)s person now has no permissions."
+msgid_plural "%(num)s people now have no permissions."
+msgstr[0] ""
+msgstr[1] ""
 
 #: storageweb/web/views/admin/users.py
 msgid "Select some users and an action."
@@ -9808,6 +10989,12 @@ msgstr ""
 
 #: storageweb/web/views/settings/forms.py
 msgid ""
+"Links to share a file or a folder with people without an account, and drop boxes to receive "
+"files. Who can create them is the permission «Share with links» of the role."
+msgstr ""
+
+#: storageweb/web/views/settings/forms.py
+msgid ""
 "Which folders of the server disk can hold shared and personal folders, and the only ones that "
 "Browse shows on it."
 msgstr ""
@@ -9830,10 +11017,6 @@ msgstr ""
 
 #: storageweb/web/views/settings/forms.py
 msgid "Metrics for Prometheus: who can read them and how."
-msgstr ""
-
-#: storageweb/web/views/settings/forms.py
-msgid "What the «User» role can do. Administrators always have every permission."
 msgstr ""
 
 #: storageweb/web/views/settings/forms.py

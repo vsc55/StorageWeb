@@ -15,6 +15,7 @@
 - [ ] Copias programadas y [restauración probada](copias-seguridad.md).
 - [ ] La auditoría se revisa periódicamente (*Seguridad → Auditoría* o `storageweb-admin audit`).
 - [ ] Actualizaciones del sistema y de StorageWeb al día.
+- [ ] *Acceso → Enlaces para compartir* con una caducidad máxima (de serie, 30 días) y, si lo que se comparte es delicado, contraseña obligatoria; o los enlaces desactivados si no se usan.
 - [ ] *Sistema → Carpetas del servidor* con las carpetas de datos, fijadas en el `config.json`: así un administrador de la web no puede publicar otras carpetas del servidor ni recorrerlas con *Examinar*.
 - [ ] Límites ajustados: `storage.max_file_size_mb`, `security.max_login_failures`, `client_max_body_size`.
 
@@ -69,7 +70,7 @@ Las reglas de las contraseñas de las cuentas locales están en *Seguridad → C
 `user-passwd`); las que ya existen no se tocan. Se guardan con el hash scrypt de Werkzeug. Quien la escribe ve
 debajo del campo lo que se le pide («Al menos 12 caracteres, con una mayúscula, un número.»).
 
-![Seguridad → Contraseñas: las palabras prohibidas y el probador, que dice regla por regla por qué se rechazaría](../img/admin/contrasenas.webp)
+![Seguridad → Contraseñas, pestaña Probar: regla por regla, por qué se rechazaría](../img/admin/contrasenas.webp)
 
 | Regla | Ajuste | De serie |
 |---|---|---|
@@ -81,8 +82,9 @@ debajo del campo lo que se le pide («Al menos 12 caracteres, con una mayúscula
 | No ser una de las **más comunes** | `security.password_check` | sí |
 | No aparecer en **filtraciones conocidas** (Have I Been Pwned) | `security.password_breach_check` | no |
 
-*Probar una contraseña*, en la misma página, dice regla por regla si una contraseña (y, si se
-escribe, un nombre de usuario) se aceptaría con las reglas guardadas, sin guardarla en ningún sitio.
+La pestaña *Probar*, en la misma página, dice regla por regla si una contraseña (y, si se
+escribe, un nombre de usuario) se aceptaría con las reglas que hay en la otra pestaña, aunque aún no
+estén guardadas, y sin guardarla en ningún sitio.
 
 Lo que más protege es la longitud. Obligar a mezclar tipos de caracteres las hace más difíciles de recordar más que
 de adivinar (así lo dice NIST SP 800-63B): por eso viene apagado.
@@ -192,7 +194,8 @@ Se envía desde una cola en segundo plano: un colector lento o caído nunca fren
   automáticamente), intentos fallidos de inicio de sesión en las últimas 24 horas (y bloqueos), sesiones abiertas (y
   de administradores), cuentas con contraseña que tienen la verificación en dos pasos y tokens de API vigentes. Cada
   cifra lleva a su página.
-- **Lista de comprobación:** HTTPS y la dirección pública, la verificación en dos pasos de los administradores y de
+- **Lista de comprobación:** HTTPS y la dirección pública, el rol de las cuentas nuevas (solo si es *Administrador*:
+  entonces es un problema), la verificación en dos pasos de los administradores y de
   los usuarios, las reglas de las contraseñas, la protección contra quien prueba contraseñas, los tokens de API (sin
   caducidad o sin usar), la unidad de red (si admite la contraseña de la cuenta), las copias (automáticas, recientes y
   fuera del servidor), la auditoría (si sale a un SIEM), la clave de los secretos y las vulnerabilidades de las
@@ -227,6 +230,28 @@ decide el servidor (no la petición). Queda en la auditoría (`dependencies_chec
 `system`). El resultado se guarda: la página lo enseña hasta la siguiente comprobación y, si encontró
 vulnerabilidades, el **Resumen** y el *Estado de la seguridad* lo avisan (en rojo si alguna es alta o crítica). En un
 servidor sin salida a internet, la página lo dice y no hay más.
+
+## Enlaces para compartir
+
+Un enlace (`/s/<token>`, ver [Usuarios y permisos](usuarios-y-permisos.md#enlaces-para-compartir)) deja entrar a
+quien lo tenga, sin cuenta, solo a ese archivo o carpeta:
+
+- **El token** son 24 bytes aleatorios (192 bits). En la base de datos está su SHA-256 (para encontrarlo) y,
+  cifrado con la clave de los secretos, el token (para que su dueño pueda volver a copiarlo): con la base de datos
+  sola no se abre ninguno. Un token que no existe cuenta como infracción de la IP, así que probar tokens acaba en
+  bloqueo.
+- **Nunca sale de lo compartido**: la ruta pedida pasa por las mismas comprobaciones que el explorador (`..`,
+  enlaces simbólicos, lo oculto para todos); un enlace a un archivo solo da ese archivo.
+- **Contraseña** opcional (obligatoria con `sharing.require_password`), al menos 8 caracteres, guardada como hash.
+  Los fallos van al limitador de intentos (por IP y enlace) y cuentan como infracción de la IP; una contraseña
+  correcta vale una hora en ese navegador.
+- **Caducidad** (`sharing.max_days`) y **límite de descargas**, contadas de forma atómica (cada archivo o ZIP, una).
+- **Permisos de ahora** de quien lo creó, en cada petición; los buzones nunca sobrescriben (`nombre (1).ext`) y
+  cuentan para la cuota de la carpeta.
+- Las páginas públicas van con `Referrer-Policy: no-referrer` (el token va en la dirección y no debe salir a otra
+  web), sin caché y con `X-Robots-Tag: noindex`; las descargas, como adjunto y aisladas (CSP `sandbox`).
+- Auditoría de cada descarga y subida (`link_download`, `link_upload`) y de las contraseñas equivocadas
+  (`link_password_failed`, nivel `warning`).
 
 ## Lo que NO hace (todavía)
 

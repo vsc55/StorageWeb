@@ -3,7 +3,12 @@
 {% block section %}
 {# Seguridad → Registro de auditoría: cuánto se guarda, desde qué nivel y el envío a un SIEM #}
 {% set m = cfg.maintenance %}
+{% set au = cfg.audit %}
 {{ form_start() }}
+  {# Una pestaña por sección (admin/forms.js); el formulario y la barra de guardar, para todas #}
+  <div class="js-tabs">
+  <fieldset class="tab-panel">
+    <legend>{{ _("Retention and levels") }}</legend>
   <div class="card form-grid">
     <label class="{{ err_class('maintenance.audit_retention_days') }}"><span class="label-row">{{ _("Keep the audit log (days)") }} {{ origin('maintenance.audit_retention_days') }}</span>
       <input{{ lock('maintenance.audit_retention_days') }} type="number" name="audit_retention_days" value="{{ m.audit_retention_days }}" min="0">
@@ -15,9 +20,10 @@
       <small class="muted">{{ _("Debug records everything, also listing folders, searching, opening files in the viewer and favorites.") }}</small>
       {{ field_error('audit.min_level') }}</label>
   </div>
-
-  {% set au = cfg.audit %}
-  <section class="card form-grid section-gap" aria-labelledby="siem-title">
+  </fieldset>
+  <fieldset class="tab-panel">
+    <legend>{{ _("SIEM") }}</legend>
+  <section class="card form-grid" aria-labelledby="siem-title">
     <h2 class="card-title span2" id="siem-title">{{ _("Send the audit log to a SIEM") }}</h2>
     <p class="muted small span2">{{ _("Each audit event also goes to a syslog collector or SIEM (rsyslog, Graylog, Wazuh, Splunk, Microsoft Sentinel, QRadar…) and/or to a file for an agent. It is sent in the background: a slow or stopped collector never slows the service, and the audit log stays complete here.") }}</p>
     <label class="{{ err_class('audit.forward_min_level') }}"><span class="label-row">{{ _("Send to the SIEM from level") }} {{ origin('audit.forward_min_level') }}</span>
@@ -62,6 +68,8 @@
       <small class="muted">{{ _("With the saved settings: save first if you changed them.") }}</small>
     </div>
   </section>
+  </fieldset>
+  </div>
   {{ save_bar() }}
 </form>
 {# Fuera del formulario de ajustes (los botones de dentro lo señalan con form=): no se guarda nada al probar #}

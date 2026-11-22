@@ -4,6 +4,10 @@
 {# Una tarjeta por tema. Todo se guarda con la barra salvo subir y quitar imágenes, que son formularios
    aparte (al final) a los que apuntan sus controles con form=: así cada control queda en su tema #}
 {{ form_start() }}
+  {# Una pestaña por sección (admin/forms.js); el formulario y la barra de guardar, para todas #}
+  <div class="js-tabs">
+  <fieldset class="tab-panel">
+    <legend>{{ _("Application") }}</legend>
   <div class="card form-grid">
     <h3 class="card-title span2">{{ _("Application") }}</h3>
     <label class="{{ err_class('app_name') }}"><span class="label-row">{{ _("Application name") }} {{ origin('app_name') }}</span>
@@ -16,8 +20,10 @@
       <small class="muted">{{ _("Used when the user has not chosen one and the browser does not ask for an available language.") }}</small>
       {{ field_error('default_locale') }}</label>
   </div>
-
-  <div class="card section-gap stack">
+  </fieldset>
+  <fieldset class="tab-panel">
+    <legend>{{ _("Main color") }}</legend>
+  <div class="card stack">
     <h3 class="card-title">{{ _("Main color") }}</h3>
     <div class="brand-color{{ err_class('branding.primary_color') }}">
       <label class="check"><input{{ lock('branding.primary_color') }} type="checkbox" name="custom_color" {% if cfg.branding.primary_color %}checked{% endif %}>
@@ -27,8 +33,10 @@
       {{ field_error('branding.primary_color') }}
     </div>
   </div>
-
-  <div class="card section-gap stack">
+  </fieldset>
+  <fieldset class="tab-panel">
+    <legend>{{ _("Logo") }}</legend>
+  <div class="card stack">
     <h3 class="card-title">{{ _("Logo") }} {{ origin('branding.logo') }}</h3>
     <div class="brand-logo-row">
       <span class="rail-brand brand-preview{% if brand.logo %} has-logo{% endif %}" aria-hidden="true">
@@ -43,8 +51,10 @@
     </div>
     <small class="muted">{{ _("PNG, JPEG, WebP or SVG up to 512 KB, square works best. It replaces the icon of the side bar, the sign-in page and the browser tab.") }}</small>
   </div>
-
-  <div class="card section-gap stack art-field{{ err_class('branding.login_art') }}" role="group" aria-labelledby="art-title">
+  </fieldset>
+  <fieldset class="tab-panel">
+    <legend>{{ _("Sign-in image") }}</legend>
+  <div class="card stack art-field{{ err_class('branding.login_art') }}" role="group" aria-labelledby="art-title">
     <h3 class="card-title" id="art-title">{{ _("Sign-in image") }} {{ origin('branding.login_art') }}</h3>
     {% if brand.login_image %}
     <div class="art-custom">
@@ -77,6 +87,8 @@
       <button{{ lock('branding.login_image') }} class="btn" type="submit" form="login-image-upload">{{ _("Upload") }}</button>
     </div>
     <small class="muted">{{ _("A JPEG or WebP photo up to 3 MB, at least 1000 pixels high. It takes the place of the illustrations and is cropped to fill the side (on phones, a strip at the top).") }}</small>
+  </div>
+  </fieldset>
   </div>
   {{ save_bar() }}
 </form>

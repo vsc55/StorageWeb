@@ -72,8 +72,13 @@ ZONES: tuple[Zone, ...] = (
              also=("access.*",), words="carpetas compartidas shares acceso permiso folders"),
         Page("matrix", _l("Access matrix"), "groups.matrix_view", hint=_l("Groups × folders in one table"),
              words="matriz accesos grupos carpetas"),
-        _settings("permissions", _l("Role permissions"), hint=_l("What the «User» role can do"),
-                  words="permisos rol subir descargar borrar renombrar upload delete rename"),
+        _settings("sharing", _l("Share links"), hint=_l("Links for people without an account and drop boxes"),
+                  words="enlaces compartir fuera público buzón subir link share drop box caducidad"),
+        # Roles (web/views/roles.py): vistas Lista y Paneles como Usuarios y Grupos; la clave sigue siendo
+        # «permissions» (la página de sus ajustes: permissions.user.*, permissions.default_role)
+        Page("permissions", _l("Roles"), "roles.index", kind="op", hint=_l("What each person can do with the files"),
+             also=("roles.*",),
+             words="roles permisos rol crear nuevo subir descargar borrar renombrar compartir upload delete rename"),
         _settings("storage", _l("Personal folders"), hint=_l("Where personal folders live and how they are created"),
                   words="almacenamiento home carpeta personal plantilla crear storage"),
         _settings("quotas", _l("Quotas"), hint=_l("Space of personal folders, blocking and measuring the usage"),

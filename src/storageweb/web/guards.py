@@ -259,8 +259,8 @@ def maintenance_gate():
     if request.blueprint == DAV_BLUEPRINT or request.accept_mimetypes.best == "application/json":
         return Response(f"503 Service Unavailable\n{message}\n", 503, mimetype="text/plain",
                         headers={"Retry-After": "30"})
-    return Response(render_template("error.html", code=503, name=_("Under maintenance"), description=message), 503,
-                    headers={"Retry-After": "30"})
+    from .errors import error_page  # noqa: PLC0415 (errors importa de aquí)
+    return Response(error_page(503, _("Under maintenance"), message), 503, headers={"Retry-After": "30"})
 
 
 def set_security_headers(response):

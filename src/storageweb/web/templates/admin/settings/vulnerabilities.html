@@ -3,6 +3,14 @@
 {% block section %}
 {# Seguridad → Vulnerabilidades: el ajuste de la comprobación automática y la comprobación (botón, barra de progreso
    y resultado: _advisories.html, admin/advisories.js) #}
+{# Una pestaña por sección (admin/forms.js): primero el resultado; luego la comprobación automática (el formulario) #}
+<div class="js-tabs">
+<fieldset class="tab-panel">
+  <legend>{{ _("Libraries") }}</legend>
+{% include "admin/settings/_advisories.html" %}
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Automatic check") }}</legend>
 {{ form_start() }}
   <div class="card form-grid">
     <h3 class="card-title span2">{{ _("Automatic check") }}</h3>
@@ -13,8 +21,8 @@
   </div>
   {{ save_bar() }}
 </form>
-
-{% include "admin/settings/_advisories.html" %}
+</fieldset>
+</div>
 {% endblock %}
 {% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/sortable.js') }}"></script>
 <script src="{{ url_for('static', filename='js/admin/advisories.js') }}"></script>{% endblock %}

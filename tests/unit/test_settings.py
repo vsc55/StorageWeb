@@ -145,8 +145,8 @@ def test_file_wins_over_web_settings(tmp_path):
 
 
 @pytest.mark.parametrize("entra", [
-    {"default_role": "superuser"},
-    {"role_mappings": {"g": "root"}},
+    {"default_role": "Super User!"},             # la clave de un rol propio: minúsculas, números, - y _
+    {"role_mappings": {"g": "Root Admin"}},
     {"role_mappings": ["no", "dict"]},
     {"timeout_seconds": 0},
 ])
@@ -169,7 +169,7 @@ def test_permissions_normalized(tmp_path):
     cfg = load_config(_cfg(tmp_path, {"permissions": {"user": {"delete": 1, "otro": True}}}))
     # Los permisos no indicados toman el valor por defecto; las claves desconocidas se ignoran
     assert cfg["permissions"]["user"] == {"upload": True, "download": True, "mkdir": True,
-                                          "rename": False, "delete": True, "edit": False}
+                                          "rename": False, "delete": True, "edit": False, "share": False}
 
 
 def test_default_user_permissions(tmp_path):

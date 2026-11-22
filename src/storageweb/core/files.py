@@ -165,7 +165,7 @@ def zip_name(items: list[tuple[dict, str]]) -> str:
 
 # --------------------------------------------------------------------------- buscar
 
-def _fold(text: str) -> str:
+def fold(text: str) -> str:
     """Sin mayúsculas ni tildes: «Informe Año» → «informe ano»."""
     decomposed = unicodedata.normalize("NFKD", text)
     return "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
@@ -174,10 +174,10 @@ def _fold(text: str) -> str:
 def filter_by_name(entries: list[dict], query: str) -> list[dict]:
     """Las entradas de un listado cuyo nombre contiene todas las palabras de ``query`` (como :func:`search`, sin
     distinguir mayúsculas ni tildes); el filtro del explorador en una carpeta que no se muestra entera."""
-    words = [_fold(w) for w in query.split() if w.strip()]
+    words = [fold(w) for w in query.split() if w.strip()]
     if not words:
         return entries
-    return [e for e in entries if all(w in _fold(e["name"]) for w in words)]
+    return [e for e in entries if all(w in fold(e["name"]) for w in words)]
 
 
 @dataclass
@@ -193,7 +193,7 @@ def search(cfg: dict, places: list[tuple[dict, str]], query: str, *, limit: int 
     tildes), bajo esos sitios: (carpeta de StorageWeb, ruta desde la que buscar; "" = toda). Se para al llegar a
     ``limit`` resultados, ``seconds`` segundos o ``max_folders`` carpetas recorridas (en un almacenamiento remoto
     cada carpeta es una petición)."""
-    words = [_fold(w) for w in query.split() if w.strip()]
+    words = [fold(w) for w in query.split() if w.strip()]
     result = SearchResult()
     if not words:
         return result
@@ -217,7 +217,7 @@ def search(cfg: dict, places: list[tuple[dict, str]], query: str, *, limit: int 
                     continue
                 if child["is_dir"]:
                     pending.append(child["rel"])
-                folded = _fold(child["name"])
+                folded = fold(child["name"])
                 if all(w in folded for w in words):
                     result.items.append({"root": root, "rel": child["rel"], "name": child["name"],
                                          "is_dir": child["is_dir"], "size": child["size"], "bytes": child["bytes"],

@@ -274,6 +274,36 @@ def test_repair_flow_fixes_and_saves_a_new_secret(entra_admin, monkeypatch):
     assert "entra_app_repaired" in client.get("/admin/audit").get_data(as_text=True)
 
 
+def test_cancel_a_repair_goes_back_to_the_entra_tab(entra_admin, monkeypatch):
+    """Cancelar reparar (o renovar) vuelve a Inicio de sesión, a la pestaña de Entra ID: la aplicación ya estaba
+    configurada. Cancelar un registro, en cambio, vuelve a la página de registrar."""
+    _app, client, token = entra_admin
+    results = [{"key": "redirect", "ok": False, "message": "no registrada", "fixable": True}]
+    monkeypatch.setattr(entra_check, "check", lambda ecfg, uri, secret_is_new=False, **_kw: results)
+    client.post("/admin/settings/entra/test", data={"_csrf": token})
+    assert "/entra/register" in client.post("/admin/settings/entra/repair", data={"_csrf": token}).location
+    back = client.post("/admin/settings/entra/register/cancel", data={"_csrf": token})
+    assert back.location.endswith("/admin/settings/auth#p-entra")
+    client.post("/admin/settings/entra/rotate", data={"_csrf": token})
+    assert client.post("/admin/settings/entra/register/cancel", data={"_csrf": token}).location.endswith("#p-entra")
+
+
+def test_the_details_of_the_test_can_be_hidden(entra_admin, monkeypatch):
+    """La X oculta el detalle de la prueba (al recargar ya no sale); el estado de la cabecera se queda, y probar
+    otra vez lo enseña de nuevo."""
+    _app, client, token = entra_admin
+    results = [{"key": "metadata", "ok": True, "message": "El tenant existe y responde"}]
+    monkeypatch.setattr(entra_check, "check", lambda ecfg, uri, secret_is_new=False, **_kw: results)
+    client.post("/admin/settings/entra/test", data={"_csrf": token})
+    assert "El tenant existe y responde" in client.get("/admin/settings/auth").get_data(as_text=True)
+    back = client.post("/admin/settings/entra/test/hide", data={"_csrf": token})
+    assert back.location.endswith("/admin/settings/auth#p-entra")
+    page = client.get("/admin/settings/auth").get_data(as_text=True)
+    assert "El tenant existe y responde" not in page and "Conexión comprobada" in page
+    client.post("/admin/settings/entra/test", data={"_csrf": token})
+    assert "El tenant existe y responde" in client.get("/admin/settings/auth").get_data(as_text=True)
+
+
 def test_no_repair_button_when_nothing_can_be_fixed(entra_admin, monkeypatch):
     _app, client, token = entra_admin
     monkeypatch.setattr(entra_check, "check", lambda ecfg, uri, secret_is_new=False, **_kw: [

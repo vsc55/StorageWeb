@@ -20,7 +20,8 @@ export async function launch(browser, options = {}) {
   const profile = mkdtempSync(path.join(tmpdir(), "storageweb-cdp-"));
   const args = [
     "--headless=new", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run",
-    "--no-default-browser-check", "--disable-extensions", "--disable-sync", "--hide-scrollbars",
+    "--no-default-browser-check", "--disable-extensions", "--disable-sync",
+    ...(options.scrollbars ? [] : ["--hide-scrollbars"]),     // scrollbars: true, para capturas que las enseñen
     `--lang=${options.lang || "es-ES"}`, "--force-color-profile=srgb",   // y Emulation más abajo (Linux, macOS)
     // Solo habla con el servidor local: sin buscar un proxy (en Windows, la detección automática retrasa la
     // primera página unos 30 segundos)

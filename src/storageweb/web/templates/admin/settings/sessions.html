@@ -1,5 +1,9 @@
 {% extends "admin/settings/_layout.html" %}
 {% block section %}
+{# Una pestaña por sección (admin/forms.js) #}
+<div class="js-tabs">
+<fieldset class="tab-panel">
+  <legend>{{ _("Open sessions") }}</legend>
 <section class="card" aria-labelledby="sessions-title">
   <div class="page-head">
     <div>
@@ -83,8 +87,10 @@
   </div>
   <p class="muted small">{{ _("Disabling a user or changing their password closes all their sessions. From the server: storageweb-admin sessions-close <user> or --all.") }}</p>
 </section>
-
-<section class="card section-gap" aria-labelledby="tokens-title">
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("API tokens") }}</legend>
+<section class="card" aria-labelledby="tokens-title">
   <h3 class="card-title" id="tokens-title">{{ _("API tokens") }}</h3>
   <p class="muted small">{{ _("Users create them in their profile. Revoking one stops it at once.") }}
     <a href="{{ url_for('settings.section', name='clients') }}">{{ _("Allow or forbid tokens in Security → API and network drive") }}</a></p>
@@ -116,5 +122,7 @@
   </table>
   </div>
 </section>
+</fieldset>
+</div>
 {% endblock %}
 {% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/bulk.js') }}"></script>{% endblock %}

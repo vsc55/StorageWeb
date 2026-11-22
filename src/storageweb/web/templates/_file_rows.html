@@ -1,5 +1,5 @@
 {# Filas del explorador: las incluye browse.html y las devuelve files.browse con ?rows=1 (cargar más al bajar y
-   el filtro en carpetas que no caben enteras). Contexto: root, rows, perms, viewable, favorite_keys #}
+   el filtro en carpetas que no caben enteras). Contexto: root, rows, perms, viewable, thumbable, favorite_keys #}
 {% set can_download = 'download' in perms %}
 {% set can_rename = 'rename' in perms %}
 {% set can_delete = 'delete' in perms %}
@@ -7,12 +7,13 @@
 {% set download_href = url_for('files.download', root=root.name, sub=e.rel) if not e.is_dir and can_download else '' %}
 {% set view_href = url_for('files.view', root=root.name, sub=e.rel) if can_download and viewable(e.name) else '' %}
 {% set href = url_for('files.browse', root=root.name, sub=e.rel) if e.is_dir else (view_href or download_href) %}
+{% set thumb_href = url_for('files.thumbnail', root=root.name, sub=e.rel, v=e.ts|int) if not e.is_dir and can_download and thumbable(e.name) else '' %}
 <tr class="file-row" data-name="{{ e.name }}" data-dir="{{ '1' if e.is_dir else '0' }}" data-href="{{ href }}"
     data-download="{{ download_href }}" data-view="{{ view_href }}" data-fav="{{ '1' if (root.name, e.rel) in favorite_keys else '0' }}"
     data-rel="{{ e.rel }}" data-zip="{{ url_for('files.zip_folder', root=root.name, sub=e.rel) if can_download else '' }}"
     {% if can_download or can_rename %}draggable="true"{% endif %}
     data-kind="{{ _('Folder') if e.is_dir else (_('%(ext)s file', ext=e.ext) if e.ext else _('File')) }}"
-    data-size="{{ e.size or '—' }}" data-mtime="{{ e.mtime }}">
+    data-size="{{ e.size or '—' }}" data-mtime="{{ e.mtime }}"{% if thumb_href %} data-thumb="{{ thumb_href }}"{% endif %}>
   <td class="col-check"><input type="checkbox" class="row-check" aria-label="{{ _('Select %(name)s', name=e.name) }}"></td>
   <td class="name">
     <span class="name-cell">

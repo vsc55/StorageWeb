@@ -115,8 +115,10 @@ def find(query: str, conn: Connection, cfg: dict) -> list[dict]:
                 continue
             label, words, page = fields.label(path), info.words, info.page
             if matches(terms, label, words, path, nav.PAGES[page].label):
-                results.append(item("setting", label, _where(page),
-                                    nav.PAGES[page].url() + "#f-" + path.replace(".", "-"), _value(cfg, path)))
+                # Los permisos de Usuario se editan en la ficha de ese rol, no en la página de Roles
+                url = (url_for("roles.edit", key="user") if path.startswith("permissions.user.")
+                       else nav.PAGES[page].url() + "#f-" + path.replace(".", "-"))
+                results.append(item("setting", label, _where(page), url, _value(cfg, path)))
         for p in sorted(_PROVIDERS.values(), key=lambda p: (p.order, p.kind)):
             results.extend(p.find(terms, conn, cfg)[:MAX_PER_ENTITY])
     return results[:MAX_RESULTS]

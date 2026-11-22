@@ -8,7 +8,6 @@ from ..db.repositories import users
 from ..i18n import _, _l
 from ..providers import local
 from ..core.accounts import stores_password
-from ..settings import ROLES
 from .common import _ask_password, _fail, _get, _groups, _prompt_password, _read_password, command, effective, password_rules
 
 
@@ -17,7 +16,7 @@ def _user_add_args(p):
     p.add_argument("--source", choices=[m.key for m in providers.methods()], default=None,
                    help=_("Sign-in method of the account (default: the first one that keeps the password here, "
                           "local). The others are registered beforehand and linked on the first sign-in."))
-    p.add_argument("--role", choices=ROLES, default="user", help=_("Role of the user"))
+    p.add_argument("--role", help=_("Role of the user: admin, user or the key of a role (default: the one of new accounts)"))
     p.add_argument("--password", help=_("Password (avoid it: it stays in the shell history; better let it ask)"))
     p.add_argument("--password-stdin", action="store_true", help=_("Read the password from standard input"))
     p.add_argument("--name", help=_("Display name"))
@@ -34,15 +33,16 @@ def cmd_user_add(cfg, conn, args):
     password = None
     if stores_password(source):
         password = _read_password(args) or _prompt_password()
+    from ..core.permissions import default_role
+    role = args.role or default_role(effective(cfg, conn, args))
     try:
-        create_account(conn, username=args.username, source=source, role=args.role,
+        create_account(conn, username=args.username, source=source, role=role,
                        password=password, display_name=args.name, email=args.email,
                        groups=_groups(args.groups), home_path=args.home,
                        password_rules=password_rules(cfg, conn, args), cfg=effective(cfg, conn, args))
     except AccountError as exc:
         _fail(exc.message)
-    print(_("User %(name)s (%(source)s, %(role)s) created.", name=repr(args.username), source=args.source,
-            role=args.role))
+    print(_("User %(name)s (%(source)s, %(role)s) created.", name=repr(args.username), source=source, role=role))
 
 
 def _user_passwd_args(p):
@@ -64,7 +64,7 @@ def cmd_user_passwd(cfg, conn, args):
 
 def _user_set_args(p):
     p.add_argument("username", help=_("User name"))
-    p.add_argument("--role", choices=ROLES, help=_("New role"))
+    p.add_argument("--role", help=_("New role: admin, user or the key of a role"))
     p.add_argument("--groups", help=_("Comma-separated groups (replace the current ones)"))
     p.add_argument("--home", help=_("Personal folder; '' to go back to storage.home_template"))
     p.add_argument("--name", help=_("Display name"))
@@ -95,6 +95,9 @@ def cmd_user_set(cfg, conn, args):
     if args.email is not None:
         fields["email"] = args.email
     if args.role is not None:
+        from ..core import roles
+        if not roles.exists(conn, args.role):
+            _fail(_("Invalid role: %(role)s", role=args.role))
         fields["role"] = args.role
     if args.locale is not None:
         fields["locale"] = i18n.normalize(args.locale)

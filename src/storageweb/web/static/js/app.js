@@ -82,7 +82,8 @@
     mtime: document.getElementById("details-mtime"),
     open: document.getElementById("details-open"),
     download: document.getElementById("details-download"),
-    fav: document.getElementById("details-fav")
+    fav: document.getElementById("details-fav"),
+    thumb: document.getElementById("details-thumb")
   };
   var rowHooks = [];
   var actions = {};
@@ -114,7 +115,7 @@
         var a = b.dataset.action;
         if (a === "download") b.disabled = n === 0 || sel.some(function (r) { return !r.dataset.zip; });
         if (a === "move" || a === "copy") b.disabled = n === 0;
-        if (a === "rename") b.disabled = n !== 1;
+        if (a === "rename" || a === "share") b.disabled = n !== 1;
         if (a === "delete") b.disabled = n === 0;
       });
     }
@@ -135,6 +136,7 @@
       details.mtime.textContent = r.dataset.mtime;
       details.icon.querySelector("use").setAttribute("href", isDir(r) ? "#i-folder" : "#i-file");
       details.icon.setAttribute("class", "icon icon-xl " + (isDir(r) ? "folder-icon" : "file-icon"));
+      showThumb(r.dataset.thumb || "");
       details.open.hidden = !isDir(r) && !r.dataset.view;     // carpetas y archivos que se ven en el visor
       details.open.setAttribute("href", isDir(r) ? r.dataset.href : (r.dataset.view || "#"));
       if (details.download) {
@@ -150,6 +152,17 @@
         details.fav.querySelector("span").textContent = on ? t("Remove from favorites") : t("Add to favorites");
       }
     }
+  }
+
+  // La miniatura en el panel de detalle (imágenes con data-thumb): en lugar del icono, si llega a cargar
+  function showThumb(url) {
+    if (!details.thumb) return;
+    details.thumb.hidden = true;
+    details.icon.hidden = false;
+    if (!url) { details.thumb.removeAttribute("src"); return; }
+    details.thumb.onload = function () { details.thumb.hidden = false; details.icon.hidden = true; };
+    details.thumb.onerror = function () { details.thumb.hidden = true; details.icon.hidden = false; };
+    details.thumb.src = url;
   }
 
   // Favoritos desde el panel de detalle: se marca o se quita y se recarga (el panel izquierdo cambia)

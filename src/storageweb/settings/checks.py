@@ -53,14 +53,20 @@ def one_of(value, values, path: str):
     return value
 
 
+def role_key(value) -> bool:
+    """Si ``value`` puede ser un rol: uno de serie o la clave de uno propio (core/roles.py; si ya no existe, al
+    entrar cuenta como Usuario)."""
+    return value in ROLES or bool(re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,39}", str(value or "")))
+
+
 def role_mappings(value, path: str) -> dict[str, str]:
     """``{grupo: rol}`` con los grupos en minúsculas y roles válidos."""
     if not isinstance(value, dict):
         raise ConfigError(_("%(field)s must be an object {group: role}", field=path), path)
     mappings = {}
     for key, role in value.items():
-        if role not in ROLES:
-            raise ConfigError(_("Invalid role %(role)s in role_mappings (use %(values)s)", role=repr(role),
-                                values=", ".join(ROLES)), path)
+        if not role_key(role):
+            raise ConfigError(_("Invalid role %(role)s in role_mappings (use %(values)s or the key of a role)",
+                                role=repr(role), values=", ".join(ROLES)), path)
         mappings[str(key).strip().lower()] = role
     return mappings

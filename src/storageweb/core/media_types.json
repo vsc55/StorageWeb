@@ -1,9 +1,11 @@
 {
-  "$comment": "Imágenes, PDF, vídeo y audio que abre el visor (core/preview.py, files.inline). Por tipo: el ajuste que lo enciende (preview.<setting>) y extensión → tipo MIME con el que se sirve (nunca el del archivo). Solo formatos que no ejecutan código con la sesión: nunca svg ni html. Se lee y se valida al arrancar.",
+  "$comment": "Imágenes, PDF, vídeo y audio que abre el visor (core/preview.py, files.inline). Por tipo: el ajuste que lo enciende (preview.<setting>) y extensión → tipo MIME con el que se sirve (nunca el del archivo). Solo formatos que no ejecutan código con la sesión: nunca svg ni html. Se lee y se valida al arrancar. «thumbnails» (solo imágenes): extensión → el formato de Pillow con el que se hace su miniatura (core/thumbnails.py; Pillow solo prueba ese).",
   "image": {
     "setting": "images",
     "types": {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "gif": "image/gif",
-              "webp": "image/webp", "bmp": "image/bmp", "ico": "image/x-icon", "avif": "image/avif"}
+              "webp": "image/webp", "bmp": "image/bmp", "ico": "image/x-icon", "avif": "image/avif"},
+    "thumbnails": {"png": "PNG", "jpg": "JPEG", "jpeg": "JPEG", "gif": "GIF", "webp": "WEBP", "bmp": "BMP",
+                   "ico": "ICO", "avif": "AVIF"}
   },
   "pdf": {
     "setting": "pdf",

@@ -36,7 +36,8 @@ def _validate(section: dict, cfg: dict) -> None:
     checks.one_of(section["provider"], list(SSO_PROVIDERS), "auth.entra.provider")
     section["scopes"] = checks.str_list(section["scopes"], "auth.entra.scopes")
     section["allowed_groups"] = checks.str_list(section["allowed_groups"], "auth.entra.allowed_groups")
-    checks.one_of(section["default_role"], ROLES, "auth.entra.default_role")
+    if section["default_role"] and not checks.role_key(section["default_role"]):   # vacío: el de las cuentas nuevas
+        checks.one_of(section["default_role"], ROLES, "auth.entra.default_role")
     section["role_mappings"] = checks.role_mappings(section["role_mappings"], "auth.entra.role_mappings")
     section["timeout_seconds"] = checks.positive_int(section["timeout_seconds"], "auth.entra.timeout_seconds")
     section["secret_expires"] = checks.iso_datetime(section.get("secret_expires"), "auth.entra.secret_expires")
@@ -84,7 +85,7 @@ CONFIG = AuthConfig(
         # False: solo pueden entrar usuarios dados de alta antes por un admin
         "auto_provision": True,
         # Rol asignado a los usuarios nuevos si no aplica ningún mapeo
-        "default_role": "user",
+        "default_role": "",
         # Grupo (Object ID) o App Role -> rol. Ej.: {"StorageWeb.Admin": "admin"}
         "role_mappings": {},
         # True: con role_mappings definidos, el rol se recalcula en cada login
@@ -140,7 +141,9 @@ CONFIG = AuthConfig(
                  "usuarios dados de alta antes por un administrador."),
             label=_l("Create the user automatically on first sign-in"), page="auth",
             words="entra alta automática provisioning"),
-        "default_role": Field(doc="Rol de los usuarios nuevos cuando no aplica ningún mapeo (`user` o `admin`).",
+        "default_role": Field(doc=("Rol de los usuarios nuevos cuando no aplica ningún mapeo: `user`, `admin` o la "
+                                   "clave de un rol propio; vacío = el de las cuentas nuevas de StorageWeb "
+                                   "(`permissions.default_role`)."),
                               label=_l("Default role"), page="auth", words="entra rol role"),
         "role_mappings": Field(
             doc=("Grupo (Object ID) o App Role → rol, p. ej. `{\"StorageWeb.Admin\": \"admin\"}`. Si coinciden "

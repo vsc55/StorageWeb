@@ -185,6 +185,8 @@ test("rutas: Examinar abre las carpetas para elegir y al escribir se autocomplet
   const href = await page.evaluate("document.querySelector('.user-actions a.btn-icon')?.getAttribute('href')");
   assert.ok(href, "la ficha de ana");
   await page.go(`${BASE}${href}`);
+  // Los favoritos están en su pestaña de la ficha
+  await page.evaluate("[...document.querySelectorAll('.js-tabs .tabs .tab')].find((b) => b.textContent === 'Favoritos').click()");
   const input = "document.querySelector('#sec-favorites input[name=path]')";
   await page.evaluate(`${input}.parentNode.querySelector('.path-browse').click()`);
   await page.waitFor("[...document.querySelectorAll('dialog.sw-modal[open] .picker-item')].some((b) => b.textContent.trim() === 'Muchos')");
@@ -223,5 +225,85 @@ test("contraseñas: el probador dice regla por regla si se aceptaría", async ()
   // Sin la regla del nombre de usuario, el campo del usuario no sale
   await page.evaluate("document.querySelector('form.settings-form input[name=password_reject_username]').click()");
   assert.equal(await page.evaluate("getComputedStyle(document.querySelector('.js-test-username')).display"), "none");
+  noErrors();
+});
+
+test("roles, vista Paneles: elegir, pestañas, guardar, la estrella y borrar sin recargar la página", async () => {
+  // Tres roles, creados como lo haría el formulario de Nuevo rol
+  await page.go(`${BASE}/admin/access/roles/list`);
+  await page.evaluate(`(async () => {
+    const csrf = document.querySelector('input[name=_csrf]').value;
+    for (const label of ['Alfa', 'Beta', 'Gamma']) {
+      const body = new URLSearchParams({ _csrf: csrf, label, permissions: 'download' });
+      await fetch('/admin/access/roles/new', { method: 'POST', body });
+    }
+  })()`);
+  await page.go(`${BASE}/admin/access/roles/panel?r=alfa`);
+  await page.evaluate("window.__sinRecargar = true");
+  const kept = "window.__sinRecargar === true";
+  // Elegir otro en la lista
+  await page.evaluate("[...document.querySelectorAll('.md-list .md-item')].find((a) => a.textContent.includes('Gamma')).click()");
+  await page.waitFor("document.querySelector('.md-detail .md-title').textContent.trim() === 'Gamma'");
+  assert.ok(await page.evaluate(kept), "elegir no recarga");
+  assert.match(await page.evaluate("location.search"), /r=gamma/);
+  // Pestaña Permisos y guardar
+  await page.evaluate("[...document.querySelectorAll('.md-detail .tabs a')].find((a) => a.textContent.startsWith('Permisos')).click()");
+  await page.waitFor("!!document.querySelector('#role-tab-form input[value=upload]')");
+  await page.evaluate("document.querySelector('#role-tab-form input[value=upload]').click(); document.querySelector('button[form=role-tab-form]').click()");
+  await page.waitFor("[...document.querySelectorAll('.toast')].some((t) => t.textContent.includes('Cambios guardados'))");
+  assert.ok(await page.evaluate("document.querySelector('#role-tab-form input[value=upload]').checked"));
+  assert.ok(await page.evaluate(kept), "guardar no recarga");
+  // La estrella: Gamma pasa a ser el de las cuentas nuevas
+  await page.evaluate("document.querySelector('.md-detail .role-title button.role-star').click()");
+  await page.waitFor("!!document.querySelector('.md-detail .role-title .role-star.is-on')");
+  assert.ok(await page.evaluate(kept), "la estrella no recarga");
+  // Borrar Beta: el modal propio y fuera de la lista, sin recargar
+  await page.evaluate("[...document.querySelectorAll('.md-list .md-item')].find((a) => a.textContent.includes('Beta')).click()");
+  await page.waitFor("document.querySelector('.md-detail .md-title').textContent.trim() === 'Beta'");
+  await page.evaluate("[...document.querySelectorAll('.md-detail button.btn-danger')].find((b) => b.textContent.includes('Borrar')).click()");
+  await page.waitFor("!!document.querySelector('dialog.sw-modal[open]')");
+  await page.evaluate("document.querySelector('dialog.sw-modal[open] button[value=ok]').click()");
+  await page.waitFor("![...document.querySelectorAll('.md-list .md-item')].some((a) => a.textContent.includes('Beta'))");
+  assert.ok(await page.evaluate(kept), "borrar no recarga");
+  // Atrás vuelve a la ficha anterior, también sin recargar
+  await page.evaluate("history.back()");
+  await page.waitFor("location.search.includes('r=beta') || location.search.includes('r=gamma')");
+  assert.ok(await page.evaluate(kept));
+  noErrors();
+});
+
+test("usuarios y grupos, vista Paneles: elegir y cambiar de pestaña sin recargar; lo que usa JavaScript sigue funcionando", async () => {
+  await page.go(`${BASE}/admin/users/panel`);
+  await page.evaluate("window.__sinRecargar = true");
+  const kept = "window.__sinRecargar === true";
+  // Elegir a ana: su ficha, con el selector de carpetas («Examinar») y la barra de uso puestos por el JavaScript
+  // (por el nombre de usuario exacto: «Juan Pérez», importado antes, también contiene «an»)
+  await page.evaluate("[...document.querySelectorAll('.md-list .md-item')].find((a) => a.querySelector('.md-item-text .muted').textContent.trim() === 'ana').click()");
+  await page.waitFor("document.querySelector('.md-detail .user-head .inline span').textContent.trim() === 'ana'");
+  assert.ok(await page.evaluate(kept), "elegir una persona no recarga");
+  assert.ok(await page.evaluate("!!document.querySelector('.md-detail input[name=home_path]').closest('.path-field').querySelector('.path-browse')"),
+            "Examinar en el campo de la carpeta personal");
+  // Pestaña Grupos y vuelta a Perfil; guardar el perfil
+  await page.evaluate("[...document.querySelectorAll('.md-detail .tabs a')].find((a) => a.textContent.startsWith('Grupos')).click()");
+  await page.waitFor("location.search.includes('tab=groups')");
+  await page.evaluate("[...document.querySelectorAll('.md-detail .tabs a')].find((a) => a.textContent.startsWith('Perfil')).click()");
+  await page.waitFor("!!document.querySelector('.md-detail input[name=display_name]')");
+  await page.evaluate("document.querySelector('.md-detail input[name=display_name]').value = 'Ana Pruebas'; [...document.querySelectorAll('.md-detail button')].find((b) => b.textContent.includes('Guardar')).click()");
+  await page.waitFor("document.querySelector('.md-detail .md-title').textContent.trim() === 'Ana Pruebas'");
+  assert.ok(await page.evaluate(kept), "guardar el perfil no recarga");
+  assert.ok(await page.evaluate("!!document.querySelector('.md-detail .path-browse')"), "Examinar sigue tras guardar");
+
+  // Grupos: dos, creados como en Nuevo grupo
+  await page.evaluate(`(async () => {
+    const csrf = document.querySelector('input[name=_csrf]').value;
+    for (const name of ['ventas', 'compras']) {
+      await fetch('/admin/groups/new', { method: 'POST', body: new URLSearchParams({ _csrf: csrf, name, label: name, source: 'local' }) });
+    }
+  })()`);
+  await page.go(`${BASE}/admin/groups/panel`);
+  await page.evaluate("window.__sinRecargar = true");
+  await page.evaluate("[...document.querySelectorAll('.md-list .md-item')].find((a) => a.textContent.includes('ventas')).click()");
+  await page.waitFor("document.querySelector('.md-detail').textContent.includes('ventas') && location.search.includes('g=')");
+  assert.ok(await page.evaluate(kept), "elegir un grupo no recarga");
   noErrors();
 });

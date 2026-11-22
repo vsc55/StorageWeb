@@ -1,8 +1,8 @@
 """Valores por defecto y constantes de configuración."""
 from __future__ import annotations
 
-ROLES = ("admin", "user")
-PERMISSIONS = ("upload", "download", "mkdir", "rename", "delete", "edit")
+ROLES = ("admin", "user", "none")
+PERMISSIONS = ("upload", "download", "mkdir", "rename", "delete", "edit", "share")
 # Quién debe tener la verificación en dos pasos (security.mfa_required)
 MFA_POLICIES = ("off", "admins", "all")
 # Cómo se ve una carpeta con más elementos que storage.page_size (storage.listing_mode): cargando más al bajar,
@@ -38,7 +38,7 @@ PREVIEW_EXTENSIONS = tuple(sorted({
 PREVIEW_BLOCKED = ("asc", "env", "key", "pem", "ppk")
 
 RUNTIME_SECTIONS = ("app_name", "default_locale", "branding", "network", "storage", "permissions", "auth", "security",
-                    "maintenance", "metrics", "preview", "audit")
+                    "maintenance", "metrics", "preview", "audit", "sharing")
 
 # Campos secretos: nunca se muestran en la web; si se guardan vacíos se conserva el valor anterior.
 # Los de cada método de inicio de sesión los añade su proveedor (settings/auth_methods.py).
@@ -147,8 +147,28 @@ DEFAULTS: dict = {
     },
     # Permisos del rol "user" (el rol "admin" los tiene todos)
     "permissions": {
-        # edit: editar archivos de texto en el navegador (visor → Editar)
-        "user": {"upload": True, "download": True, "mkdir": True, "rename": False, "delete": False, "edit": False},
+        # edit: editar archivos de texto en el navegador (visor → Editar); share: enlaces para compartir (/s/…)
+        "user": {"upload": True, "download": True, "mkdir": True, "rename": False, "delete": False, "edit": False,
+                 "share": False},
+        # El rol de las cuentas nuevas (alta, CLI, importar y las que crea un método al entrar si el suyo está vacío):
+        # «user», «admin» o la clave de un rol propio (core/roles.py)
+        "default_role": "none",
+    },
+    # Enlaces para compartir un archivo o una carpeta con gente de fuera (core/links.py, /s/<token>)
+    "sharing": {
+        "links": True,
+        # Caducidad que se propone y la máxima (días; 0 = sin máximo, y entonces se pueden crear sin caducidad)
+        "default_days": 7,
+        "max_days": 30,
+        # Exigir contraseña a todos los enlaces
+        "require_password": False,
+        # Buzones: enlaces para que alguien de fuera SUBA archivos a una carpeta (sin ver lo que hay)
+        "upload_links": True,
+        # Días que se conservan los enlaces quitados o caducados (en la lista, con su filtro) antes de que la limpieza
+        # diaria borre su fila; 0 = nunca. Su historial sigue (history_days)
+        "keep_days": 30,
+        # Días que se conserva el historial de los enlaces (visitas, descargas…); 0 = lo mismo que la auditoría
+        "history_days": 0,
     },
     # Un apartado por método de inicio de sesión (local, pam, entra…): sus valores los declara cada
     # proveedor en providers/<método>/ y se añaden aquí al registrarlo (settings/auth_methods.py)
@@ -214,6 +234,12 @@ DEFAULTS: dict = {
         "pdf": True,
         "video": True,
         "audio": True,
+        # Miniaturas de las imágenes en el explorador (core/thumbnails.py, con Pillow): las genera el servidor y las
+        # guarda en <data_dir>/thumbnails. De una imagen de hasta thumbnail_max_mb; la caché, hasta
+        # thumbnail_cache_mb (las menos usadas se borran)
+        "thumbnails": True,
+        "thumbnail_max_mb": 30,
+        "thumbnail_cache_mb": 500,
         # Tamaño máximo de un texto para verse en el navegador; más grande, se descarga
         "max_mb": 2,
         # Las extensiones (sin el punto) que se abren en el visor: la lista entera, editable. Las de Markdown se

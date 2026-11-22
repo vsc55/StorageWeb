@@ -16,6 +16,8 @@ import json
 from sqlite3 import Connection
 
 from ..db.repositories import catalog
+from ..db.repositories import roles as roles_repo
+from ..db.repositories import settings as state_repo
 from ..db.repositories import settings_values as repo
 from .defaults import LEAF_PATHS
 from .layers import _set
@@ -95,6 +97,29 @@ def profiles(conn: Connection) -> list:
 
 def profile_names(conn: Connection) -> list[str]:
     return [row["name"] for row in repo.profiles(conn)]
+
+
+# --------------------------------------------------------------------------- roles propios
+
+# Tampoco son ajustes (tabla ``roles`` y ``groups.role``), pero los permisos se calculan con los ajustes efectivos
+# (``core.permissions.permissions_for``): van en ellos como ``roles`` y ``group_roles``, y cambiarlos sube esta
+# revisión, que ``RuntimeSettings.current`` mira junto a la de los ajustes
+ROLES_STATE = "state:roles"
+
+
+def read_roles(conn: Connection) -> dict:
+    """``{"roles": {clave: {"label", "permissions"}}, "group_roles": {grupo: clave}}``."""
+    return {"roles": {r["key"]: {"label": r["label"], "permissions": r["permissions"]} for r in roles_repo.list_all(conn)},
+            "group_roles": roles_repo.group_roles(conn)}
+
+
+def roles_revision(conn: Connection) -> int:
+    return state_repo.revision(conn, ROLES_STATE)
+
+
+def roles_changed(conn: Connection, username: str | None = None) -> None:
+    """Tras cambiar un rol o el rol de un grupo: los ajustes efectivos se vuelven a leer."""
+    state_repo.put(conn, ROLES_STATE, {}, username)
 
 
 # --------------------------------------------------------------------------- carpetas, ubicaciones y cuotas de grupo

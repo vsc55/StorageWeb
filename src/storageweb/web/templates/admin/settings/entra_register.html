@@ -1,6 +1,12 @@
 {% extends "admin/_layout.html" %}
+{% from "admin/settings/_auth_tabs.html" import auth_tabs with context %}
 {% block title %}{{ _("Register in Entra ID") }} · {{ app_name }}{% endblock %}
 {% block admin_content %}
+{# Dentro de la pestaña Entra ID de Inicio de sesión: las pestañas, a la izquierda, llevan a las demás #}
+<section class="settings-main">
+<div class="js-tabs tabs-side">
+  {{ auth_tabs('entra') }}
+  <div class="tab-panel">
 <div class="wizard">
   <a class="small" href="{{ url_for('settings.section', name='auth') }}">← {{ _("Sign-in settings") }}</a>
   {% set kind = flow.kind if flow else 'register' %}
@@ -69,5 +75,8 @@
   <p class="muted small">{{ _("The sign-in uses the device code flow with the public «Microsoft Graph Command Line Tools» client. The first time, Microsoft may ask you to consent to it. StorageWeb does not keep that token.") }}</p>
   {% endif %}
 </div>
+  </div>
+</div>
+</section>
 {% endblock %}
 {% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/entra.js') }}"></script>{% endblock %}

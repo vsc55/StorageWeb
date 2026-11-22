@@ -130,7 +130,7 @@ def test_new_method_in_config_and_accounts(extra_methods, tmp_path, db_conn):
     # Contraseña: da de alta en el primer inicio de sesión y sincroniza sus grupos
     assert accounts.authenticate_password(db_conn, cfg, "ana", "mala") is None
     user = accounts.authenticate_password(db_conn, cfg, "ana", "secreto-ana")
-    assert user["source"] == "llave" and user["role"] == "user" and "equipo" in gc.split(user["groups"])
+    assert user["source"] == "llave" and user["role"] == "none" and "equipo" in gc.split(user["groups"])
     assert "llave" in gc.group_sources() and accounts.source_labels()["llave"] == "Llave"
     assert not accounts.stores_password("llave")
 

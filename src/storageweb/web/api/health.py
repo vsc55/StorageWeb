@@ -1,11 +1,11 @@
-"""Comprobación de salud para Docker, Kubernetes o balanceadores: GET /healthz (sin sesión)."""
+"""Comprobación de salud para Docker, Kubernetes o balanceadores: GET /healthz (sin sesión, así que sin la versión:
+servirle a cualquiera la versión le ayuda a buscar vulnerabilidades; está en /metrics y en Sistema → Información)."""
 from __future__ import annotations
 
 import sqlite3
 
 from flask import Blueprint
 
-from ... import __version__
 from ..context import get_db
 from . import json_api
 
@@ -19,4 +19,4 @@ def healthz():
         get_db().execute("SELECT 1").fetchone()
     except sqlite3.Error:
         return {"status": "error", "detail": "database"}, 503
-    return {"status": "ok", "version": __version__}
+    return {"status": "ok"}

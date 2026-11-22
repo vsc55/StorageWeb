@@ -51,8 +51,7 @@ def test_web_changes_badge_in_subnav(admin):
     data = page_form(client, "/admin/settings/storage")
     data.pop("create_home", None)                      # Carpetas personales: no crearlas al entrar
     client.post("/admin/settings/storage", data=data)
-    html = client.get("/admin/settings/permissions").get_data(as_text=True)
-    assert 'id="f-permissions-user-upload"' in html  # ancla del buscador
+    html = client.get("/admin/access/roles/list").get_data(as_text=True)
     # Submenú: valores no predeterminados por página (los tests ponen rename y delete a True)
     assert "1 ajuste no tiene su valor predeterminado" in html and "2 ajustes no tienen su valor predeterminado" in html
 

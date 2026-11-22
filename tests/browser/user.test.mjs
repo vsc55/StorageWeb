@@ -127,6 +127,33 @@ test("visor: una imagen se ve entera y al pulsarla, a su tamaño", async () => {
   noErrors();
 });
 
+test("explorador: la miniatura de una imagen sustituye a su icono", async () => {
+  await page.go(`${BASE}/f/home/`);
+  const cell = "document.querySelector('tr.file-row[data-name=\"foto.png\"] .name-cell')";
+  await page.waitFor(`${cell}.classList.contains('has-thumb')`);
+  assert.equal(await page.evaluate(`getComputedStyle(${cell}.querySelector('svg.file-icon')).display`), "none");
+  // Y en el panel de detalle, al seleccionarla
+  await page.evaluate("document.querySelector('tr.file-row[data-name=\"foto.png\"] input.row-check').click()");
+  await page.waitFor("!document.getElementById('details-thumb').hidden");
+  await page.evaluate("document.querySelector('tr.file-row[data-name=\"foto.png\"] input.row-check').click()");
+  noErrors();
+});
+
+test("compartir enlace: la ventana lo crea y el enlace abre el archivo", async () => {
+  await page.go(`${BASE}/f/home/`);
+  await page.evaluate("document.querySelector('tr.file-row[data-name=\"texto.txt\"] input.row-check').click()");
+  await page.evaluate("document.querySelector('#selection-bar [data-action=share]').click()");
+  await page.waitFor("!!document.querySelector('dialog.sw-modal[open] .share-form')");
+  assert.equal(await page.evaluate("document.querySelectorAll('dialog.sw-modal[open] input[type=password]').length"), 0);
+  await page.evaluate("[...document.querySelectorAll('dialog.sw-modal[open] .share-form button')].find((b) => b.textContent === 'Crear enlace').click()");
+  await page.waitFor("!!document.querySelector('dialog.sw-modal[open] .share-done input')");
+  const url = await page.evaluate("document.querySelector('dialog.sw-modal[open] .share-done input').value");
+  assert.match(url, /\/s\/[A-Za-z0-9_-]{30,}$/);
+  await page.go(url.replace(/^https?:\/\/[^/]+/, BASE));
+  assert.match(await page.evaluate("document.body.textContent"), /texto\.txt/);
+  noErrors();
+});
+
 test("editor: colores debajo del cuadro, al día al escribir, y ocupa toda la ventana", async () => {
   await page.go(`${BASE}/edit/home/script.py`);
   await page.waitFor("document.querySelector('.editor-wrap').classList.contains('is-colored')");

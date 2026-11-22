@@ -137,6 +137,33 @@ def _mockup_png(width: int = 1200, height: int = 760) -> bytes:
             + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
 
 
+def _photo(name: str) -> bytes:
+    """Una «foto» inventada (degradado con un sol y unas montañas) en JPEG, con Pillow si está; si no, ``b""``."""
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError:
+        return b""
+    import hashlib
+    import io
+    seed = hashlib.sha256(name.encode()).digest()
+    width, height = 1200, 800
+    img = Image.new("RGB", (width, height))
+    draw = ImageDraw.Draw(img)
+    top, bottom = (40 + seed[0] % 60, 90 + seed[1] % 80, 160 + seed[2] % 80), (240, 190 + seed[3] % 40, 150)
+    for y in range(height):
+        k = y / height
+        draw.line([(0, y), (width, y)], fill=tuple(int(a + (b - a) * k) for a, b in zip(top, bottom)))
+    sun = 200 + seed[4] % 700
+    draw.ellipse([sun, 140, sun + 140, 280], fill=(255, 236, 180))
+    for i, shade in enumerate(((60, 80, 90), (40, 60, 70))):
+        base = 520 + i * 90
+        points = [(0, height)] + [(x, base - (seed[(x // 150 + i) % 32] % 160)) for x in range(0, width + 150, 150)]
+        draw.polygon(points + [(width, height)], fill=shade)
+    buffer = io.BytesIO()
+    img.save(buffer, "JPEG", quality=82)
+    return buffer.getvalue()
+
+
 def _file(path: Path, size: int, days: float) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "wb") as fh:
@@ -144,6 +171,8 @@ def _file(path: Path, size: int, days: float) -> None:
             fh.write(TEXTS[path.name].encode("utf-8"))
         elif path.suffix == ".png":       # el visor de imágenes, también
             fh.write(_mockup_png())
+        elif path.suffix == ".jpg" and _photo(path.name):   # fotos de verdad: el explorador enseña su miniatura
+            fh.write(_photo(path.name))
         else:
             fh.truncate(size)
     stamp = (NOW - timedelta(days=days)).timestamp()
@@ -474,7 +503,31 @@ def build(base: Path, port: int) -> Path:
         runtime = app.extensions["storageweb.runtime"]
         maintenance.create_backup(runtime.current(conn), prune=False)
         _fake_advisories(conn)
+        _demo_links(app, conn, runtime, ids)
     return config
+
+
+DEMO_LINK = {}   # el token de un enlace de la demo, para capturar su página pública
+
+
+def _demo_links(app, conn, runtime, ids) -> None:
+    """Unos enlaces para compartir: los de Ana (Mi perfil → Enlaces) y uno de Luis (Acceso → Enlaces)."""
+    from storageweb.core import links, storage
+    from storageweb.db.repositories import users
+    cfg = runtime.current(conn)
+    key = runtime.secrets_key
+    ana = users.get_by_id(conn, ids["ana.garcia"])
+    home = storage.find_root(ana, cfg, "home")
+    proyectos = storage.find_root(ana, cfg, "proyectos")
+    _row, token = links.create(conn, cfg, key, ana, proyectos, "Web corporativa", days=30,
+                               note="Las maquetas y el briefing de la web nueva. Cualquier duda, me escribes.")
+    DEMO_LINK["token"] = token
+    links.create(conn, cfg, key, ana, home, "Informe trimestral T3.pdf", days=7, password="cliente-norte-2026",
+                 max_downloads=5)
+    links.create(conn, cfg, key, ana, home, "Documentos/Contratos", mode="upload", days=30,
+                 note="Sube aquí el contrato firmado.")
+    conn.execute("UPDATE share_links SET downloads = 3 WHERE max_downloads = 5")
+    conn.commit()
 
 
 # Una biblioteca y un aviso INVENTADOS (nunca se le atribuye un fallo a una biblioteca de verdad): lo que se ve en
@@ -574,6 +627,10 @@ def plan(uids: dict) -> list[dict]:
          "wait": 2500},   # el diagrama se dibuja en su marco
         {"file": "uso/visor-texto.webp", "path": "/view/home/Registro%20de%20copias.log", "as": "ana.garcia"},
         {"file": "uso/visor-codigo.webp", "path": "/view/proyectos/Web%20corporativa/publicar.py", "as": "ana.garcia"},
+        {"file": "uso/compartir.webp", "path": "/f/home/", "as": "ana.garcia",
+         "js": f"({select})(['Informe trimestral T3.pdf']);"
+               " document.querySelector('#selection-bar [data-action=share]').click()", "wait": 900},
+        {"file": "uso/enlace.webp", "path": f"/s/{DEMO_LINK.get('token', '')}", "as": None},
         {"file": "uso/visor-imagen.webp", "path": "/view/proyectos/Web%20corporativa/Maquetas/Inicio%20v3.png",
          "as": "ana.garcia", "wait": 900},
         {"file": "uso/editor.webp", "path": "/edit/home/Plan%20de%20proyecto.md", "as": "ana.garcia"},
@@ -601,13 +658,15 @@ def plan(uids: dict) -> list[dict]:
         {"file": "admin/carpeta.webp", "path": "/admin/access/folders/contabilidad", "as": "ana.garcia"},
         {"file": "admin/inicio-sesion.webp", "path": "/admin/settings/auth", "as": "ana.garcia"},
         {"file": "admin/contrasenas.webp", "path": "/admin/settings/passwords", "as": "ana.garcia",
-         "js": "(() => { const t = document.getElementById('password-test');"
+         "js": "(() => { document.querySelectorAll('.js-tabs .tabs .tab')[1].click();"
+               " const t = document.getElementById('password-test');"
                " t.querySelector('[name=test_password]').value = 'Ejemplo-2026';"
                " t.querySelector('.js-show-password').click(); t.querySelector('.js-try').click();"
-               " setTimeout(() => t.scrollIntoView({block: 'end'}), 700); })()", "wait": 1400},
+               " })()", "wait": 1400},
         {"file": "admin/estado-seguridad.webp", "path": "/admin/settings/security_status", "as": "ana.garcia"},
         {"file": "admin/vulnerabilidades.webp", "path": "/admin/settings/vulnerabilities", "as": "ana.garcia"},
         {"file": "admin/carpetas-servidor.webp", "path": "/admin/settings/server_folders", "as": "ana.garcia"},
+        {"file": "admin/compartir.webp", "path": "/admin/settings/sharing", "as": "ana.garcia"},
         {"file": "admin/marca.webp", "path": "/admin/settings/general", "as": "ana.garcia"},
         {"file": "admin/ubicaciones.webp", "path": "/admin/storage/", "as": "ana.garcia"},
         {"file": "admin/copias.webp", "path": "/admin/settings/backups", "as": "ana.garcia"},

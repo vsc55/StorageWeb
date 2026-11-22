@@ -24,13 +24,13 @@ La especificación completa está en [`openapi.yaml`](openapi.yaml) (OpenAPI 3.1
 
 ## `GET /healthz`
 
-**Estado del servicio.** Sin autenticación. Comprueba que la base de datos responde. Lo usa el healthcheck de Docker.
+**Estado del servicio.** Sin autenticación. Comprueba que la base de datos responde. Lo usa el healthcheck de Docker. No da la versión (sin sesión no se enseña).
 
 Autenticación: ninguna
 
 | Respuesta | Descripción |
 |---|---|
-| `200` | Servicio operativo — `status`, `version` |
+| `200` | Servicio operativo — `status` |
 | `503` | La base de datos no responde — `status`, `detail` |
 
 ## `POST /api/uploads`

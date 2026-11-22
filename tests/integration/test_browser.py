@@ -87,7 +87,7 @@ def test_in_a_real_browser(make_app, home, monkeypatch):
         str(int(skiptoken or 0) + 1) if int(skiptoken or 0) + 1 < len(everyone) else ""))
     from tests.sso_helpers import entra_cfg
     app = make_app({"storage": {"page_size": 50, "listing_mode": "scroll"},
-                    "permissions": {"user": {"edit": True}}, "auth": {"entra": entra_cfg()}})
+                    "permissions": {"user": {"edit": True, "share": True}}, "auth": {"entra": entra_cfg()}})
     app.config["SW_SYNC_JOBS"] = False       # la comprobación de vulnerabilidades en su hilo, como de verdad
     add_user(app, "ana")
     add_user(app, "root", role="admin")
@@ -99,8 +99,9 @@ def test_in_a_real_browser(make_app, home, monkeypatch):
     (home / "notas.md").write_text(MARKDOWN, encoding="utf-8")
     (home / "texto.txt").write_text("primera línea\n", encoding="utf-8")
     (home / "borrar.txt").write_text("x", encoding="utf-8")
-    from tests.integration.test_viewer_media import PNG
-    (home / "foto.png").write_bytes(PNG)
+    # Una imagen de verdad (Pillow, dependencia de desarrollo): también tiene miniatura en el explorador
+    from PIL import Image
+    Image.new("RGBA", (1, 1), (255, 255, 255, 255)).save(home / "foto.png", "PNG")
     (home / "script.py").write_text('def saluda(nombre):\n    """Varias\n    líneas"""\n    return f"hola {nombre}"  # fin\n',
                                     encoding="utf-8", newline="\n")      # LF también en Windows
 

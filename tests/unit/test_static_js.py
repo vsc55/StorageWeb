@@ -32,6 +32,7 @@ def test_a_page_with_tag_lists_loads_their_script():
 def test_the_file_browser_loads_its_modules_after_the_core():
     scripts = SCRIPT.findall((TEMPLATES / "browse.html").read_text(encoding="utf-8"))
     assert scripts[0] == "js/app.js", "app.js (crea SW.files) tiene que ir antes que sus módulos"
-    assert set(scripts) == {"js/app.js", "js/files/upload.js", "js/files/transfer.js", "js/files/listing.js"}
-    for module in ("transfer", "listing"):
+    assert set(scripts) == {"js/app.js", "js/files/upload.js", "js/files/transfer.js", "js/files/listing.js",
+                            "js/files/thumbs.js", "js/files/share.js"}
+    for module in ("transfer", "listing", "thumbs", "share"):
         assert "window.SW.files" in (JS / "files" / f"{module}.js").read_text(encoding="utf-8")

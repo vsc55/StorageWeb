@@ -104,7 +104,7 @@ def test_role_sync_on_login(entra, token_endpoint):
     token_endpoint.claims_extra = {"groups": []}
     _, q = start_login(client, token_endpoint)
     finish_login(client, q["state"])
-    assert _user(app, "juan@contoso.com")["role"] == "user"
+    assert _user(app, "juan@contoso.com")["role"] == "none"         # el de las cuentas nuevas
 
 
 def test_role_not_synced_keeps_manual_role(entra, token_endpoint):

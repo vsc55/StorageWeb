@@ -8,6 +8,10 @@
                     "dev": _("Development server"), "process": _("Process started by hand or by another supervisor")} %}
 {% set folder_names = {"data": _("Data"), "homes": _("Personal folders"), "backups": _("Backups"),
                        "uploads": _("Unfinished uploads"), "logs": _("Logs (Windows service)")} %}
+{# Una pestaña por sección (admin/forms.js); el informe para descargar, en la primera #}
+<div class="js-tabs">
+<fieldset class="tab-panel">
+  <legend>{{ _("Installation") }}</legend>
 <div class="card">
   <div class="card-title-row">
     <h3 class="card-title">{{ _("This installation") }}</h3>
@@ -25,8 +29,10 @@
     <dt>Python</dt><dd>{{ sy.python_impl or unknown }} {{ sy.python or '' }} <code class="muted small">{{ sy.python_exe }}</code></dd>
   </dl>
 </div>
-
-<div class="card section-gap">
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Server") }}</legend>
+<div class="card">
   <h3 class="card-title">{{ _("Server") }}</h3>
   <dl class="kv section-gap">
     <dt>{{ _("Name") }}</dt><dd>{{ sy.hostname or unknown }}</dd>
@@ -37,8 +43,10 @@
       <small class="muted">· {{ _("Authenticator app codes depend on it: if it is wrong, they fail.") }}</small></dd>
   </dl>
 </div>
-
-<div class="card section-gap">
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Database") }}</legend>
+<div class="card">
   <div class="card-title-row">
     <h3 class="card-title">{{ _("Database") }}</h3>
     <a class="small" href="{{ url_for('settings.section', name='backups') }}">{{ _("Backups and maintenance") }}</a>
@@ -51,8 +59,10 @@
       {% else %}<span class="badge badge-err">{{ _("this version expects %(num)s", num=db.latest) }}</span>{% endif %}</dd>
   </dl>
 </div>
-
-<div class="card section-gap">
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Folders") }}</legend>
+<div class="card">
   <h3 class="card-title">{{ _("Folders") }}</h3>
   <p class="muted small">{{ _("Where StorageWeb writes on this server. The free space is shown once per disk.") }}</p>
   <div class="table-scroll section-gap">
@@ -74,8 +84,10 @@
   </table>
   </div>
 </div>
-
-<div class="card section-gap">
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Network") }}</legend>
+<div class="card">
   <div class="card-title-row">
     <h3 class="card-title">{{ _("How this page arrived") }}</h3>
     <a class="small" href="{{ url_for('settings.section', name='network') }}">{{ _("Network and HTTPS") }}</a>
@@ -86,8 +98,10 @@
     <dt>{{ _("Problems") }}</dt><dd>{% if net.problems %}<span class="badge badge-err">{{ net.problems|length }}</span> {{ net.problems|first }}{% else %}<span class="badge badge-ok">{{ _("none") }}</span>{% endif %}</dd>
   </dl>
 </div>
-
-<div class="card section-gap">
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Components") }}</legend>
+<div class="card">
   <h3 class="card-title">{{ _("Components") }}</h3>
   {% if comp.stale %}
   <p class="flash flash-error" role="note">{{ _("The installed package data says version %(installed)s and the code is %(code)s: the list below is from then. Install it again (pip install -e . in a checkout, or the package of this version).", installed=comp.dist_version, code=sy.version) }}</p>
@@ -118,16 +132,20 @@
   </div>
   {% endif %}
 </div>
-
-<div class="card section-gap">
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Vulnerabilities") }}</legend>
+<div class="card">
   <div class="card-title-row">
     <h3 class="card-title">{{ _("Vulnerabilities and new versions") }}</h3>
     <a class="small" href="{{ url_for('settings.section', name='vulnerabilities') }}">{{ _("Vulnerabilities") }}</a>
   </div>
   <p class="muted small">{{ _("The check of the installed libraries against the vulnerability databases is in Security → Vulnerabilities.") }}</p>
 </div>
-
-<div class="card section-gap">
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Startup") }}</legend>
+<div class="card">
   <h3 class="card-title">{{ _("Startup (config.json or environment only, requires restarting the service)") }}</h3>
   <dl class="kv section-gap">
     <dt>{{ _("Configuration file") }}</dt><dd><code>{{ boot.config_path }}</code></dd>
@@ -144,8 +162,10 @@
     {% for p in others %}<code>{{ p.name }}</code> ({{ ngettext("%(num)s field", "%(num)s fields", p.fields) }}{% if p.updated_at %}, {{ p.updated_at|datetime }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}</p>
   {% endif %}
 </div>
-
-<section class="card section-gap" aria-labelledby="layers-title">
+</fieldset>
+<fieldset class="tab-panel">
+  <legend>{{ _("Origin of each value") }}</legend>
+<section class="card" aria-labelledby="layers-title">
   <h3 class="card-title" id="layers-title">{{ _("Where each value comes from") }}</h3>
   <p class="muted small">{{ _("Each layer wins over the previous one, field by field: default values < settings saved from the web < config.json < environment variables. What config.json or an environment variable sets is locked here.") }}
     {{ _("Web settings profile: %(profile)s.", profile=profile) }}
@@ -184,6 +204,8 @@
   <summary>{{ _("Effective configuration (JSON, secrets hidden)") }}</summary>
   <pre class="code">{{ effective_json }}</pre>
 </details>
+</fieldset>
+</div>
 {% endblock %}
 {% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/sortable.js') }}"></script>
 {% endblock %}

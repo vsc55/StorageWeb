@@ -1,0 +1,84 @@
+{% extends "admin/_layout.html" %}
+{% from "admin/roles/_macros.html" import page_head, filters_form, default_star, builtin_mark, clone_button, general_fields, perm_fields, tab_form, who_has with context %}
+{% block title %}{{ _("Roles") }} · {{ app_name }}{% endblock %}
+{% block admin_content %}
+{# Acceso → Roles, vista Paneles (roles.panel_view): la lista de roles a la izquierda y la ficha del elegido a la
+   derecha. La vista Lista es roles.list_view #}
+{{ page_head('panel') }}
+{{ filters_form(filters, 'roles.panel_view') }}
+
+<div class="master-detail" data-partial>
+  <aside class="md-list" aria-label="{{ _('List of roles') }}">
+    <ul>
+      {% for r in roles_list %}
+      <li class="md-row">{{ default_star(r, request.full_path) }}<a class="md-item{% if current and r.key == current.key %} active{% endif %}"
+             href="{{ url_for('roles.panel_view', r=r.key, tab=tab or None, q=filters.q or None, kind=filters.kind or None) }}"
+             {% if current and r.key == current.key %}aria-current="true"{% endif %}>
+        <span class="md-item-text"><span class="md-item-line"><strong>{{ r.label }}</strong>{{ builtin_mark(r) }}</span>
+          <span class="muted small">{{ ngettext("%(num)s person", "%(num)s people", r.users) }}
+            · {% if r.key == 'admin' %}{{ _("everything") }}{% else %}{{ ngettext("%(num)s permission", "%(num)s permissions", r.permissions|length) }}{% endif %}</span></span>
+      </a></li>
+      {% else %}
+      <li class="muted small md-empty">{{ _("No role matches.") }}</li>
+      {% endfor %}
+    </ul>
+  </aside>
+
+  <section class="md-detail">
+    {% if current %}
+    {% set here = url_for('roles.panel_view', r=current.key, tab=tab) %}
+    <div class="user-head">
+      <div class="user-head-text">
+        <div class="role-name role-title">{{ default_star(current, here) }}<h2 class="md-title">{{ current.label }}</h2>{{ builtin_mark(current) }}</div>
+        <div class="inline small muted">
+          {% if current.key == default_key %}<span>{{ _("Role of new accounts") }} ·</span>{% endif %}
+          <span>{{ ngettext("%(num)s person", "%(num)s people", current.users) }}{% if current.key not in ('admin', 'none') %} · {{ ngettext("%(num)s group", "%(num)s groups", current.groups) }}{% endif %}</span>
+        </div>
+        {% if current.description %}<p class="muted small">{{ current.description }}</p>{% endif %}
+      </div>
+      {% if tab == 'general' or (tab == 'permissions' and current.key not in ('admin', 'none')) %}
+      <button class="btn btn-small btn-primary" type="submit" form="role-tab-form">{{ _("Save changes") }}</button>
+      {% endif %}
+      {{ clone_button(current) }}
+      {% if not current.builtin %}
+      <form method="post" action="{{ url_for('roles.delete', key=current.key) }}" class="inline js-confirm"
+            data-confirm="{{ _('Delete the role «%(name)s»? Its people are left with no permissions.', name=current.label) }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button class="btn btn-small btn-danger" type="submit">{{ _("Delete role") }}</button>
+      </form>
+      {% endif %}
+    </div>
+
+    <nav class="tabs" aria-label="{{ _('Sections of the role') }}">
+      {% for key, label in tabs %}
+      <a class="tab{% if tab == key %} active{% endif %}" href="{{ url_for('roles.panel_view', r=current.key, tab=key, q=filters.q or None, kind=filters.kind or None) }}"{% if tab == key %} aria-current="page"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+
+    {% if tab == 'general' %}
+      {% call tab_form(current, 'general', here) %}{{ general_fields(form) }}{% endcall %}
+    {% elif tab == 'permissions' %}
+      {% if current.key == 'admin' %}
+      <div class="stack">
+        <p class="muted">{{ _("Everything, also the administration. It comes with StorageWeb: it cannot be changed or deleted, and a group never gives it.") }}</p>
+        {{ perm_fields(form, locked, fixed=True) }}
+      </div>
+      {% elif current.key == 'none' %}
+      <div class="stack">
+        <p class="muted">{{ _("No permission on the files. What a person with this role can do comes from the roles of their groups, until someone gives them another role. It comes with StorageWeb: it cannot be changed or deleted.") }}</p>
+        {{ perm_fields(form, locked, fixed=True) }}
+      </div>
+      {% else %}
+        {% call tab_form(current, 'permissions', here) %}
+          {% if current.key == 'user' %}<p class="muted small">{{ _("The built-in role for people who can work with their files. Its name does not change; its permissions, here. Administrators always have every permission.") }}</p>{% endif %}
+          {{ perm_fields(form, locked) }}
+        {% endcall %}
+      {% endif %}
+    {% else %}
+      {{ who_has(current, usage) }}
+    {% endif %}
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', filename='js/admin/panels.js') }}"></script>{% endblock %}

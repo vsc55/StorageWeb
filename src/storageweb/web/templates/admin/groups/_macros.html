@@ -8,6 +8,34 @@
 {% if level == 'write' %}{{ _("Read and write") }}{% elif level == 'read' %}{{ _("Read-only") }}{% else %}{{ _("No access") }}{% endif %}
 {%- endmacro %}
 
+{# La cabecera de las dos vistas (Lista y Paneles), con el mismo diseño que Usuarios y Roles #}
+{% macro page_head(view) -%}
+<div class="page-head">
+  <div>
+    <h1>{{ _("Groups") }}</h1>
+    <p class="muted small">{{ _("They give access to shared folders. They can be local or come from Entra ID or the system.") }}</p>
+  </div>
+  <div class="inline">
+    {{ view_switch(view) }}
+    <a class="btn btn-primary" href="{{ url_for('groups.new', next=url_for('groups.panel_view') if view == 'panel' else None) }}"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"></use></svg>{{ _("New group") }}</a>
+  </div>
+</div>
+{%- endmacro %}
+
+{% macro filters_form(search, source, target, extra='') -%}
+<form method="get" action="{{ url_for(target) }}" class="inline search">
+  {{ extra }}
+  <input type="text" name="q" value="{{ search }}" placeholder="{{ _('Search by name or description') }}"
+         aria-label="{{ _('Search by name or description') }}">
+  <select name="source" aria-label="{{ _('Source') }}">
+    <option value="">{{ _("All sources") }}</option>
+    {% for s in GROUP_SOURCES %}<option value="{{ s }}" {% if source == s %}selected{% endif %}>{{ GROUP_SOURCE_LABELS[s] }}</option>{% endfor %}
+  </select>
+  <button class="btn" type="submit">{{ _("Search") }}</button>
+  {% if search or source %}<a class="btn btn-ghost" href="{{ url_for(target) }}">{{ _("Clear") }}</a>{% endif %}
+</form>
+{%- endmacro %}
+
 {% macro view_switch(view) -%}
 <nav class="segmented view-switch" aria-label="{{ _('Groups view') }}">
   <a class="segment{% if view == 'list' %} active{% endif %}" href="{{ url_for('groups.list_view') }}"{% if view == 'list' %} aria-current="page"{% endif %}>{{ _("List") }}</a>
@@ -37,6 +65,13 @@
     {% if from_directory %}<small class="muted">{{ _("The name and the description come from %(source)s and are updated automatically: change them there.", source=GROUP_SOURCE_LABELS[group['source']]) }}</small>{% endif %}
   </label>
   {% if group and not group['builtin'] %}
+  <label>{{ _("Role of the members") }}
+    <select name="role">
+      <option value="" {% if not form.role %}selected{% endif %}>{{ _("None: only their own") }}</option>
+      {% for r, r_label in role_choices(false) %}<option value="{{ r }}" {% if form.role == r %}selected{% endif %}>{{ r_label }}</option>{% endfor %}
+    </select>
+    <small class="muted">{{ _("Its permissions are added to the ones of each member's own role. Never Administrator: give that to each person.") }}</small>
+  </label>
   <label>{{ _("Personal folder quota of the members (MB)") }}
     <input type="number" name="home_quota_mb" min="0" value="{{ form.home_quota_mb if form.home_quota_mb is not none else '' }}"
            placeholder="{{ _('none') }}"{% if quota_lock %} disabled title="{{ quota_lock }}"{% endif %}>
