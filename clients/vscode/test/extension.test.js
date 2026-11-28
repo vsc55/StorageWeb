@@ -241,9 +241,9 @@ const reason = (status, code, extra = {}) => new Response("", { status,
 /**
  * La extensión con carpetas vinculadas a un servidor falso: `answer(method, url)` da la respuesta de cada
  * petición. Devuelve lo registrado, las peticiones hechas y `until(fn)` para esperar a que pase algo.
- * @param {string[]} names @param {(method: string, url: string) => Response} answer
+ * @param {string[]} names @param {(method: string, url: string, init: any) => Response} answer
  */
-function linked(names, answer) {
+function linked(names, answer, setup = (_context) => undefined) {
   const os = require("node:os");
   const context = createContext();
   const { vscode, registered } = createVscode();
@@ -270,8 +270,9 @@ function linked(names, answer) {
   const realFetch = global.fetch;
   global.fetch = async (url, init) => {
     calls.push(`${init.method} ${url}`);
-    return answer(init.method, String(url));
+    return answer(init.method, String(url), init);
   };
+  setup(context);
   const extension = withVscode(vscode, () => require("../src/extension"));
   extension.activate(context);
   const until = async (/** @type {() => boolean} */ fn, ms = 3000) => {
@@ -284,7 +285,7 @@ function linked(names, answer) {
     global.fetch = realFetch;
     for (const f of folders) fs.rmSync(f.uri.fsPath, { recursive: true, force: true });
   };
-  return { vscode, registered, calls, until, syncs, done, folders };
+  return { vscode, registered, calls, until, syncs, done, folders, context };
 }
 
 test("carpeta del servidor que ya no está: en pausa, un aviso y no se borra nada", async () => {
@@ -426,4 +427,242 @@ test("los archivos abiertos dejan de comprobarse si el servidor rechaza las cred
   await provider.poll();
   assert.equal(asked, 2);
   provider.dispose();
+});
+
+// --------------------------------------------------------------------------- entrar con la cuenta de Windows
+
+const ENTRA = { key: "entra", label: "Microsoft Entra ID", provider: "microsoft", tenant: "11111111-2222-3333-4444-555555555555",
+  scopes: ["api://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/access_as_user"] };
+const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const basic = (user, token) => `Basic ${Buffer.from(`${user}:${token}`).toString("base64")}`;
+
+/**
+ * La extensión contra un StorageWeb falso con `/connect/desktop` (`desktop(method, body)` contesta) y la unidad
+ * de red (`/dav/`: con `sw_win` entra). Devuelve lo registrado, lo pedido y `choose(...)` para las listas.
+ */
+function windowsEnv(desktop) {
+  const context = createContext();
+  const { vscode, registered, extension } = load(context);
+  const calls = [];
+  const realFetch = global.fetch;
+  global.fetch = async (url, init) => {
+    const where = String(url).replace(/^https?:\/\/[^/]+/, "");
+    calls.push(`${init.method} ${where}`);
+    if (where === "/connect/desktop") return desktop(init.method, init.body ? JSON.parse(init.body) : null);
+    if (where === "/dav/" && init.method === "PROPFIND") {
+      return init.headers.Authorization === basic("ana", "sw_win") ? new Response(MULTISTATUS("home"), { status: 207 })
+        : reason(401, "token_invalid");
+    }
+    return reason(404);
+  };
+  const sessions = [];
+  vscode.authentication.getSession = async (provider, scopes, options) => {
+    sessions.push({ provider, scopes, options });
+    return { id: "s", accessToken: "ms-token", account: { id: "a", label: "ana@empresa.es" }, scopes };
+  };
+  const picks = [];
+  /** Lo que se elige en cada lista, en orden: el `method` de la opción (undefined: cancelar). */
+  const choose = (...methods) => {
+    vscode.window.showQuickPick = async (items) => {
+      picks.push(items.map((i) => i.method || i.label));
+      const method = methods.shift();
+      return method && items.find((i) => i.method === method);
+    };
+  };
+  vscode.window.showInputBox = async () => "https://files.example.com/";
+  const done = () => { extension.deactivate(); global.fetch = realFetch; };
+  return { vscode, registered, context, calls, sessions, picks, choose, done };
+}
+
+test("Añadir servidor con la cuenta de Windows: primera opción, token de Microsoft y canje, sin navegador", async () => {
+  let redeemed;
+  const env = windowsEnv((method, body) => {
+    if (method === "GET") return json(200, { methods: [ENTRA] });
+    redeemed = body;
+    return json(200, { username: "ana", token: "sw_win", name: "Visual Studio Code (PC)", days: 365 });
+  });
+  try {
+    let opened = false;
+    env.vscode.env.openExternal = async () => { opened = true; return true; };
+    env.choose("windows");
+    const profile = await env.registered.commands.get("storageweb.addServer")();
+    assert.deepEqual(env.picks, [["windows", "browser", "token"]], "la cuenta de Windows, la primera");
+    assert.deepEqual(env.sessions, [{ provider: "microsoft", scopes: ["api://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/access_as_user", "VSCODE_TENANT:11111111-2222-3333-4444-555555555555"],
+      options: { createIfNone: true } }]);
+    assert.deepEqual(redeemed, { method: "entra", client: "vscode", access_token: "ms-token",
+      device: require("node:os").hostname() });
+    assert.equal(profile.username, "ana");
+    assert.equal(await env.context.secrets.get("storageweb.token:https://files.example.com|ana"), "sw_win");
+    assert.ok(!opened, "sin navegador");
+    assert.deepEqual(env.registered.messages, []);
+  } finally {
+    env.done();
+  }
+});
+
+test("cuenta de Windows: si el servidor pide luego otra aplicación de Microsoft, se pregunta antes de pedirla", async () => {
+  let scopes = ENTRA.scopes;
+  const env = windowsEnv((method) => (method === "GET" ? json(200, { methods: [{ ...ENTRA, scopes }] })
+    : json(200, { username: "ana", token: "sw_win", name: "Visual Studio Code (PC)", days: 90 })));
+  try {
+    env.choose("windows");
+    await env.registered.commands.get("storageweb.addServer")();
+    assert.equal(env.sessions.length, 1);
+    // Otra StorageWeb (otro client id): el token sería para usarlo allí
+    scopes = ["api://99999999-bbbb-cccc-dddd-eeeeeeeeeeee/access_as_user"];
+    env.choose(undefined);
+    await env.registered.commands.get("storageweb.addServer")();
+    assert.deepEqual(env.picks[1], ["browser", "token"], "sin aceptar el cambio, la cuenta de Windows no se ofrece");
+    assert.equal(env.sessions.length, 1, "ni se pide el token");
+    assert.ok(env.registered.messages.some((m) => /different Microsoft application/.test(m.text)));
+  } finally {
+    env.done();
+  }
+});
+
+test("cuenta de Windows: por http no se ofrece (quien esté en medio cambiaría lo que se pide)", async () => {
+  const env = windowsEnv((method) => json(200, { methods: method === "GET" ? [ENTRA] : [] }));
+  try {
+    env.vscode.window.showInputBox = async () => "http://files.example.com/";
+    env.choose(undefined);
+    await env.registered.commands.get("storageweb.addServer")();
+    assert.deepEqual(env.picks, [["browser", "token"]]);
+    assert.ok(!env.calls.includes("GET /connect/desktop"));
+  } finally {
+    env.done();
+  }
+});
+
+test("cuenta de Windows: si se cancela, se dice y se ofrecen las otras formas", async () => {
+  const env = windowsEnv((method) => (method === "GET" ? json(200, { methods: [{ ...ENTRA, tenant: "organizations" }] })
+    : json(500, {})));
+  try {
+    env.vscode.authentication.getSession = async (provider, scopes) => {
+      env.sessions.push({ provider, scopes });
+      throw new Error("User did not consent to login.");
+    };
+    env.choose("windows", undefined);
+    assert.equal(await env.registered.commands.get("storageweb.addServer")(), undefined);
+    assert.deepEqual(env.sessions.map((s) => s.scopes), [["api://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/access_as_user"]], "organizations: sin VSCODE_TENANT");
+    assert.deepEqual(env.picks, [["windows", "browser", "token"], ["browser", "token"]]);
+    const [warning] = env.registered.messages;
+    assert.equal(warning.kind, "warning");
+    assert.match(warning.text, /Windows account did not finish \(User did not consent to login\.\)\. Choose another way/);
+    assert.ok(!env.calls.includes("POST /connect/desktop"), "sin token de Microsoft no se canjea nada");
+  } finally {
+    env.done();
+  }
+});
+
+test("cuenta de Windows que StorageWeb no deja entrar: el motivo del servidor y «otra cuenta de Windows»", async () => {
+  const env = windowsEnv((method) => (method === "GET" ? json(200, { methods: [ENTRA] })
+    : json(403, { error: "denied", message: "Tu cuenta no está en los grupos permitidos." })));
+  try {
+    env.choose("windows", "windows", undefined);
+    assert.equal(await env.registered.commands.get("storageweb.addServer")(), undefined);
+    const errors = env.registered.messages.filter((m) => m.kind === "error").map((m) => m.text);
+    assert.deepEqual(errors,
+      Array(2).fill("StorageWeb: Tu cuenta no está en los grupos permitidos. (Windows account: ana@empresa.es)"));
+    assert.deepEqual(env.picks[1], ["windows", "browser", "token"], "se puede probar otra cuenta");
+    assert.deepEqual(env.sessions.map((s) => s.options),
+      [{ createIfNone: true }, { createIfNone: true, clearSessionPreference: true }], "la segunda, eligiendo cuenta");
+  } finally {
+    env.done();
+  }
+});
+
+test("cuenta de Windows: un error sin explicación del servidor, con su texto", async () => {
+  const env = windowsEnv((method) => (method === "GET" ? json(200, { methods: [ENTRA] }) : json(404, { error: "not_enabled" })));
+  try {
+    env.choose("windows", undefined);
+    await env.registered.commands.get("storageweb.addServer")();
+    assert.match(env.registered.messages.find((m) => m.kind === "error").text,
+      /does not have the sign-in with the Windows account enabled: ask an administrator/);
+    assert.deepEqual(env.picks[1], ["browser", "token"], "otra cuenta no lo arregla");
+  } finally {
+    env.done();
+  }
+});
+
+test("sin la opción de la cuenta de Windows: servidor antiguo (404) o VS Code en el navegador", async () => {
+  const old = windowsEnv(() => new Response("<html>Not found</html>", { status: 404 }));
+  try {
+    old.choose(undefined);
+    await old.registered.commands.get("storageweb.addServer")();
+    assert.deepEqual(old.picks, [["browser", "token"]]);
+    assert.deepEqual(old.registered.messages, []);
+  } finally {
+    old.done();
+  }
+  const web = windowsEnv(() => json(200, { methods: [ENTRA] }));
+  try {
+    web.vscode.env.uiKind = web.vscode.UIKind.Web;
+    web.choose(undefined);
+    await web.registered.commands.get("storageweb.addServer")();
+    assert.deepEqual(web.picks, [["browser", "token"]]);
+    assert.ok(!web.calls.some((c) => c.includes("/connect/desktop")), "ni pregunta al servidor");
+  } finally {
+    web.done();
+  }
+});
+
+/** Lo que guarda la extensión tras entrar con Windows en el servidor de `linked`. */
+const PINNED = (context) => context.globalState.update("storageweb.windowsSignIn",
+  { "http://127.0.0.1:9": `${ENTRA.scopes[0]}|${ENTRA.tenant}` });
+
+test("token caducado → «Iniciar sesión otra vez» con la cuenta de Windows, sin preguntar nada", async () => {
+  const sessions = [];
+  const env = linked(["p"], (method, url, init) => {
+    const where = url.replace(/^https?:\/\/[^/]+/, "");
+    if (where === "/connect/desktop") {
+      return method === "GET" ? json(200, { methods: [ENTRA] })
+        : json(200, { username: "ana", token: "sw_new", name: "Visual Studio Code (PC)", days: 365 });
+    }
+    if (init.headers.Authorization !== basic("ana", "sw_new")) return reason(401, "token_expired");
+    if (method === "PROPFIND" && where === "/dav/") return new Response(MULTISTATUS("home"), { status: 207 });
+    return reason(503, "maintenance");
+  }, PINNED);
+  try {
+    env.vscode.authentication.getSession = async (provider, scopes, options) => {
+      sessions.push(options);
+      return { id: "s", accessToken: "ms-token", account: { id: "a", label: "ana@empresa.es" }, scopes };
+    };
+    let picked = 0;
+    env.vscode.window.showQuickPick = async () => { picked++; return undefined; };
+    env.vscode.window.showErrorMessage = async (text, ...buttons) => {
+      env.registered.messages.push({ kind: "error", text, rest: buttons });
+      return buttons.includes("Sign in again") ? "Sign in again" : undefined;
+    };
+    await env.until(() => env.registered.messages.some((m) => m.kind === "info"));
+    assert.ok(env.calls.includes("POST http://127.0.0.1:9/connect/desktop"));
+    assert.equal(await env.context.secrets.get("storageweb.token:http://127.0.0.1:9|ana"), "sw_new");
+    assert.deepEqual(sessions, [{ createIfNone: true }]);
+    assert.equal(picked, 0, "sin listas que elegir");
+    assert.match(env.registered.messages.find((m) => m.kind === "info").text, /token saved/);
+  } finally {
+    env.done();
+  }
+});
+
+test("«Iniciar sesión otra vez» en un servidor donde nunca se entró con Windows: se elige, no se pide el token solo", async () => {
+  const sessions = [];
+  const picks = [];
+  const env = linked(["p"], (method, url) => {
+    const where = url.replace(/^https?:\/\/[^/]+/, "");
+    if (where === "/connect/desktop") return json(200, { methods: method === "GET" ? [ENTRA] : [] });
+    return reason(401, "token_expired");
+  });
+  try {
+    env.vscode.authentication.getSession = async (provider, scopes, options) => { sessions.push(options); };
+    env.vscode.window.showQuickPick = async (items) => { picks.push(items.map((i) => i.method)); return undefined; };
+    env.vscode.window.showErrorMessage = async (text, ...buttons) => {
+      env.registered.messages.push({ kind: "error", text, rest: buttons });
+      return buttons.includes("Sign in again") && !picks.length ? "Sign in again" : undefined;
+    };
+    await env.until(() => picks.length > 0);
+    assert.deepEqual(picks[0], ["windows", "browser", "token"], "se ofrece, pero hay que elegirla");
+    assert.deepEqual(sessions, [], "sin pedir el token a Windows");
+  } finally {
+    env.done();
+  }
 });

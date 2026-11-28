@@ -85,6 +85,9 @@
           <label class="check span2"><input{{ lock('auth.entra.auto_login') }} type="checkbox" name="entra_auto_login" {% if en.auto_login %}checked{% endif %}>
             <span>{{ _("Sign in directly with Microsoft (skip the sign-in page)") }} {{ origin('auth.entra.auto_login') }}
               <small class="muted">{{ _("On computers joined to Entra ID (Intune) users get in without typing anything. %(url)s still shows the page, for local users and to get in if Microsoft fails.", url=url_for('auth.login', manual=1)) }}</small></span></label>
+          <label class="check span2"><input{{ lock('auth.entra.desktop_sign_in') }} type="checkbox" name="entra_desktop_sign_in" {% if en.desktop_sign_in %}checked{% endif %}>
+            <span>{{ _("Sign in from VS Code with the Windows account") }} {{ origin('auth.entra.desktop_sign_in') }}
+              <small class="muted">{{ _("The StorageWeb extension for VS Code gets in with the Windows account (computers joined to Entra ID), without a browser. The application in Entra ID must expose its API to VS Code: the automatic registration does it, and «Repair permissions» adds it to an existing one.") }}</small></span></label>
         </div>
       </fieldset>
 

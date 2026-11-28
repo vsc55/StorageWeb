@@ -74,7 +74,7 @@ def check_csrf():
         return
     if g.get("api_token") is not None or request.blueprint == DAV_BLUEPRINT:
         return  # sin cookies no hay CSRF posible: las credenciales van en la cabecera
-    if request.endpoint == CONNECT_TOKEN_ENDPOINT:
+    if request.endpoint in CONNECT_ENDPOINTS:
         return  # canje de un código de /connect: no usa la sesión, el secreto es el verifier (PKCE)
     if not csrf_ok(request.headers.get("X-CSRF-Token") or request.form.get("_csrf")):
         if g.get("session_ended"):
@@ -125,7 +125,9 @@ def end_session() -> None:
 TOUCH_SECONDS = 60
 DAV_BLUEPRINT = "dav"
 TOKEN_BLUEPRINTS = ("files", "uploads", "health", DAV_BLUEPRINT)
-CONNECT_TOKEN_ENDPOINT = "connect.token"
+# Canjes de las aplicaciones (sin cookies, no hay CSRF posible): el código del navegador con su verifier
+# (/connect/token) y el token de Microsoft de la cuenta de Windows (/connect/desktop)
+CONNECT_ENDPOINTS = frozenset({"connect.token", "connect.desktop"})
 METRICS_ENDPOINT = "metrics.metrics_page"
 
 

@@ -167,5 +167,21 @@
   "«{0}» is hidden on the server for everyone (storage.hidden): it cannot be created there.": "«{0}» está oculto para todos en el servidor (storage.hidden): no se puede crear allí.",
   "«{0}»: {1}": "«{0}»: {1}",
   "StorageWeb: the changes in «{0}» cannot be uploaded to «{1}»: {2}. They stay on this computer; changes on the server still arrive. The files deleted here were downloaded again: {3}": "StorageWeb: los cambios de «{0}» no se pueden subir a «{1}»: {2}. Se quedan en este equipo; lo que cambie en el servidor sigue llegando. Los archivos borrados aquí se han vuelto a bajar: {3}",
-  "StorageWeb: what you deleted in «{0}» cannot be deleted on the server ({1}), so it was downloaded again: {2}": "StorageWeb: lo que has borrado en «{0}» no se puede borrar en el servidor ({1}), así que se ha vuelto a bajar: {2}"
+  "StorageWeb: what you deleted in «{0}» cannot be deleted on the server ({1}), so it was downloaded again: {2}": "StorageWeb: lo que has borrado en «{0}» no se puede borrar en el servidor ({1}), así que se ha vuelto a bajar: {2}",
+  "StorageWeb: connecting to {0}…": "StorageWeb: conectando con {0}…",
+  "This StorageWeb does not have the sign-in with the Windows account enabled: ask an administrator.": "Este StorageWeb no tiene activada la entrada con la cuenta de Windows: pregunta a un administrador.",
+  "This StorageWeb does not accept this extension for the sign-in with the Windows account: update StorageWeb.": "Este StorageWeb no admite esta extensión para entrar con la cuenta de Windows: actualiza StorageWeb.",
+  "StorageWeb did not accept the Microsoft sign-in of your Windows account.": "StorageWeb no ha aceptado el inicio de sesión de Microsoft de tu cuenta de Windows.",
+  "StorageWeb does not let this account in: ask an administrator.": "StorageWeb no deja entrar a esta cuenta: pregunta a un administrador.",
+  "StorageWeb: the sign-in with the Windows account did not finish ({0}). Choose another way to sign in.": "StorageWeb: la entrada con la cuenta de Windows no ha terminado ({0}). Elige otra forma de entrar.",
+  "StorageWeb: the sign-in with the Windows account did not finish. Choose another way to sign in.": "StorageWeb: la entrada con la cuenta de Windows no ha terminado. Elige otra forma de entrar.",
+  "StorageWeb: signing in with the Windows account…": "StorageWeb: entrando con la cuenta de Windows…",
+  "Signed in with the Windows account ({0}) as {1}: token «{2}»": "Entrada con la cuenta de Windows ({0}) como {1}: token «{2}»",
+  "{0} (Windows account: {1})": "{0} (cuenta de Windows: {1})",
+  "Sign in with another Windows account": "Entrar con otra cuenta de Windows",
+  "Sign in with your Windows account (Microsoft Entra ID)": "Entrar con tu cuenta de Windows (Microsoft Entra ID)",
+  "Uses the account you signed in to Windows with, without the browser. Creates a token for this computer.": "Con la cuenta con la que has iniciado sesión en Windows, sin navegador. Crea un token para este equipo.",
+  "{0} asks for a different Microsoft application for the Windows account ({1}, before {2})": "{0} pide otra aplicación de Microsoft para la cuenta de Windows ({1}, antes {2})",
+  "Use the new one": "Usar la nueva",
+  "StorageWeb: {0} now asks for a different Microsoft application to sign in with your Windows account. Use it only if the administrator changed the application; otherwise, sign in with the browser.": "StorageWeb: {0} pide ahora otra aplicación de Microsoft para entrar con tu cuenta de Windows. Úsala solo si el administrador cambió la aplicación; si no, entra con el navegador."
 }

@@ -6,6 +6,10 @@ Secciones de cada versión: *Añadido*, *Cambiado*, *Obsoleto*, *Eliminado*, *Co
 
 ## [Sin publicar]
 
+### Añadido
+
+- **Entrar desde VS Code con la cuenta de Windows** (`auth.entra.desktop_sign_in`): en equipos unidos a Entra ID, la extensión entra sin navegador. VS Code pide a Windows (WAM) un token de Microsoft para la API de StorageWeb y StorageWeb lo canjea en `/connect/desktop` por un token de API, con las reglas del inicio de sesión de Entra (alta automática, grupos permitidos, roles) y **comprobando su firma** con las claves del tenant. El registro automático y *Reparar permisos* exponen la API a VS Code (`api://<client_id>/access_as_user`). Extensión 0.7.0.
+
 ## [0.2.0] - 2026-11-22
 
 Segunda versión de la serie **0.x**. La base de datos se pone al día sola al arrancar (migraciones 002 a 010); antes de actualizar, haz una copia de seguridad (*Sistema → Copias de seguridad* o `storageweb backup`).

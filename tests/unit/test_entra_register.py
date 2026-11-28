@@ -174,9 +174,14 @@ def test_repair_fixes_only_what_is_missing(graph):
     assert {c["name"] for c in claims} == {"email", "sid"}
     grant = next(b for m, p, b in calls if m == "POST" and p == "/oauth2PermissionGrants")
     assert grant["consentType"] == "AllPrincipals" and grant["clientId"] == "sp-1"
+    # La API para entrar desde VS Code con la cuenta de Windows: URI, permiso y VS Code autorizado
+    api = [b["api"] for b in patches if "api" in b]
+    assert {"identifierUris": ["api://c1"]} in patches
+    assert any(a.get("oauth2PermissionScopes", [{}])[0].get("value") == "access_as_user" for a in api)
+    assert any(a.get("preAuthorizedApplications", [{}])[0].get("appId") == er.VSCODE_CLIENT_ID for a in api)
     # redirect, cierre de sesión, claims, permisos, consentimiento, Group.Read.All, User.Read.All,
-    # Application.Read.All, secreto
-    assert len(result["fixed"]) == 9
+    # Application.Read.All, URI de la API, su permiso, VS Code autorizado, secreto
+    assert len(result["fixed"]) == 12
 
 
 def test_repair_leaves_a_correct_app_alone(graph):
@@ -186,7 +191,11 @@ def test_repair_leaves_a_correct_app_alone(graph):
         {"id": er.APPLICATION_READ_ALL, "type": "Role"}]
     app = {"id": "obj-1", "appId": "c1", "web": {"redirectUris": ["https://files/cb"], "logoutUrl": "https://files/fc"},
            "requiredResourceAccess": [{"resourceAppId": er.GRAPH_APP_ID, "resourceAccess": full}],
-           "optionalClaims": {"idToken": [{"name": "email"}, {"name": "sid"}, {"name": "groups"}]}}
+           "optionalClaims": {"idToken": [{"name": "email"}, {"name": "sid"}, {"name": "groups"}]},
+           "identifierUris": ["api://c1"],
+           "api": {"requestedAccessTokenVersion": 2,
+                   "oauth2PermissionScopes": [{"id": "s1", "value": "access_as_user"}],
+                   "preAuthorizedApplications": [{"appId": er.VSCODE_CLIENT_ID, "delegatedPermissionIds": ["s1"]}]}}
     answers[("GET", "/applications?")] = (200, {"value": [app]})
     answers[("GET", "/oauth2PermissionGrants?")] = (200, {"value": [
         {"id": "g1", "consentType": "AllPrincipals", "scope": "openid profile email User.Read"}]})

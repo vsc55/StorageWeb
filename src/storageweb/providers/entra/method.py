@@ -1,6 +1,7 @@
 """Método de inicio de sesión «entra»: Microsoft Entra ID (SSO OAuth2/OIDC)."""
 from __future__ import annotations
 
+import dataclasses
 import logging
 import re
 from datetime import datetime, timezone
@@ -13,7 +14,7 @@ from ...settings.errors import ConfigError
 from ...settings.fields import Field
 from ..base import (AuthDenied, AuthMethod, DirectoryPerson, DirectoryUser, GroupDirectory, Identity, LoginButton,
                     Notice)
-from . import directory
+from . import access_token, directory
 from .common import MULTI_TENANT
 from .oauth2 import GRANTED_KEY
 from .sso import SSO_PROVIDERS, get_sso_provider
@@ -34,6 +35,7 @@ def _validate(section: dict, cfg: dict) -> None:
     section["secret_months"] = checks.int_range(section.get("secret_months"), 1, 24, "auth.entra.secret_months")
     section["secret_warn_days"] = checks.int_range(section.get("secret_warn_days"), 1, 365, "auth.entra.secret_warn_days")
     section["auto_login"] = bool(section.get("auto_login"))
+    section["desktop_sign_in"] = bool(section.get("desktop_sign_in"))
     section["directory_sync_minutes"] = checks.non_negative_int(section.get("directory_sync_minutes", 0) or 0,
                                                                 "auth.entra.directory_sync_minutes")
     if section["enabled"]:
@@ -80,6 +82,8 @@ CONFIG = AuthConfig(
         # True: /login va directamente a Microsoft (en equipos unidos a Entra ID, sin escribir nada).
         # /login?manual=1 sigue mostrando la página para entrar con usuario y contraseña
         "auto_login": False,
+        # Entrar desde aplicaciones de escritorio (VS Code) con la cuenta de Windows (/connect/desktop)
+        "desktop_sign_in": False,
         # Solo oauth2: endpoints propios (Entra soberano u otro proveedor OIDC)
         "authorize_url": "",
         "token_url": "",
@@ -144,6 +148,13 @@ CONFIG = AuthConfig(
                  "iniciar sesión. La revisión corre cada 10 minutos como mucho."),
             label=_l("Check accounts against Entra ID every (minutes)"), page="auth",
             words="entra sincronizar revisar cuentas desactivadas borradas grupos tokens directorio sync"),
+        "desktop_sign_in": Field(
+            doc=("Dejar entrar a la extensión de VS Code con la cuenta de Windows (equipos unidos a Entra ID), sin "
+                 "navegador: VS Code pide a Windows un token de Microsoft para la API de StorageWeb y lo canjea por "
+                 "un token de API. La aplicación de Entra tiene que exponer la API `access_as_user` y autorizar a VS "
+                 "Code (el registro automático y *Reparar permisos* lo hacen). Solo la nube pública de Microsoft."),
+            label=_l("Sign in from VS Code with the Windows account"), page="auth",
+            words="entra windows wam vscode escritorio cuenta desktop extensión token sin navegador"),
         "auto_login": Field(
             doc=("Ir directamente a Microsoft sin mostrar la página de inicio de sesión. En equipos unidos a Entra ID "
                  "(Intune) se entra sin escribir nada. `/login?manual=1` sigue mostrando la página (usuarios locales, "
@@ -360,6 +371,32 @@ class EntraMethod(AuthMethod):
         if not section.get("enabled") or not directory.configured(section):
             return 0
         return int(section.get("directory_sync_minutes") or 0)
+
+    # --- entrar desde VS Code con la cuenta de Windows (/connect/desktop, access_token.py)
+    def desktop(self, section: dict) -> dict | None:
+        custom = any(section.get(k) for k in ("authorize_url", "token_url", "issuer"))
+        # Cuentas de trabajo: Windows unido a Entra ID (nunca consumers, las cuentas personales)
+        personal = str(section.get("tenant_id") or "").lower() == "consumers"
+        if not (section.get("enabled") and section.get("desktop_sign_in") and section.get("client_id")
+                and section.get("tenant_id")) or custom or personal:
+            return None
+        return {"provider": "microsoft", "tenant": section["tenant_id"], "scopes": access_token.scopes(section)}
+
+    def desktop_identity(self, section: dict, token: str) -> Identity:
+        if self.desktop(section) is None:
+            raise AuthDenied(_("Signing in from desktop applications is not enabled."), "not_enabled")
+        claims = access_token.verify(section, token)
+        # El token de acceso no lleva los mismos claims que el id_token: sin el del nombre de usuario,
+        # identity_from_claims usaría otro (email) y la cuenta se renombraría en cada cambio de web a VS Code
+        claim = section.get("username_claim") or ""
+        if not claim or not claims.get(claim):
+            raise AuthDenied(_("The Microsoft token of the Windows account does not include the «%(claim)s» claim "
+                               "that gives the user name: add it to the access token in Entra ID (Token "
+                               "configuration).", claim=claim), "claims")
+        identity = identity_from_claims(section, claims)
+        # El email, solo si viene (es claim opcional del id_token, no del token de acceso): si no, el UPN que pone
+        # identity_from_claims machacaría el correo que dejó la entrada web
+        return dataclasses.replace(identity, email=claims.get("email") or None)
 
     # --- importar personas (Personas → Importar de Microsoft Entra ID)
     def can_import(self, section: dict) -> bool:

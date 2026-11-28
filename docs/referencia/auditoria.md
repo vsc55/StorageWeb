@@ -35,7 +35,7 @@ Cada evento tiene un nivel, según su acción (columna *Nivel* de la tabla de ac
 | Acción | Nivel | Cuándo | `detail` |
 |---|---|---|---|
 | `login` | `info` | Inicio de sesión correcto | Origen: `local`, `pam` o `entra`; con verificación en dos pasos, `+totp` (código de la aplicación), `+passkey` o `+recovery` (código de recuperación): `local+totp` |
-| `login_failed` | `warning` | Contraseña incorrecta, error del proveedor SSO o credenciales de la unidad de red no válidas | `entra:<código>` en SSO; en WebDAV, `webdav:bad_token`, `webdav:bad_password`, `webdav:password_not_allowed` (se usó la contraseña de la cuenta sin estar admitida) `webdav:mfa_requires_token` (contraseña correcta de una cuenta con verificación en dos pasos: en la unidad de red solo valen tokens), `webdav:token_expired` (token caducado) o `webdav:account_disabled` (token o contraseña buenos de una cuenta desactivada); `account_disabled` en la página de entrada (contraseña buena de una cuenta desactivada: no cuenta como intento fallido) |
+| `login_failed` | `warning` | Contraseña incorrecta, error del proveedor SSO o credenciales de la unidad de red no válidas | `entra:<código>` en SSO; en WebDAV, `webdav:bad_token`, `webdav:bad_password`, `webdav:password_not_allowed` (se usó la contraseña de la cuenta sin estar admitida) `webdav:mfa_requires_token` (contraseña correcta de una cuenta con verificación en dos pasos: en la unidad de red solo valen tokens), `webdav:token_expired` (token caducado) o `webdav:account_disabled` (token o contraseña buenos de una cuenta desactivada); `account_disabled` en la página de entrada (contraseña buena de una cuenta desactivada: no cuenta como intento fallido); `entra:desktop:<motivo>` si VS Code manda un token de Microsoft que no vale (`invalid_token`, `expired`, `client`, `tenant`…) |
 | `login_blocked` | `critical` | Intento durante un bloqueo por intentos fallidos | `mfa` si fue al escribir el código del segundo paso |
 | `mfa_enrolled` | `info` | Verificación en dos pasos activada (el primer factor de la cuenta) | `self` (desde *Mi perfil*) o `forced` (la política la exigía y se configuró al iniciar sesión), seguido de ` passkey` si fue con una passkey |
 | `mfa_enrol_started` | `debug` | Empezó a configurar la verificación en dos pasos en *Mi perfil* (aún sin activar) |  |
@@ -47,7 +47,7 @@ Cada evento tiene un nivel, según su acción (columna *Nivel* de la tabla de ac
 | `passkey_renamed` | `info` | Passkey renombrada (objetivo: el nombre nuevo) | `from=<nombre anterior>` |
 | `passkey_removed` | `warning` | Passkey quitada por su dueño (objetivo: su nombre) | |
 | `mfa_reset_by_admin` | `critical` | Un administrador (o `cli`, con `mfa-reset`) quitó la verificación en dos pasos de otra cuenta | |
-| `login_denied` | `warning` | Cuenta de Entra rechazada (tenant, grupo, conflicto, no dada de alta, desactivada) | `entra:<motivo>` |
+| `login_denied` | `warning` | Cuenta de Entra rechazada (tenant, grupo, conflicto, no dada de alta, desactivada), también al entrar desde VS Code con la cuenta de Windows | `entra:<motivo>`; desde VS Code, `entra:desktop:<motivo>` |
 | `logout` | `info` | Cierre de sesión | `entra:frontchannel` si la cerró Microsoft (cierre de sesión de canal frontal) |
 | `login_cancelled` | `info` | Se canceló el inicio de sesión cuando pedía el código del segundo paso | `mfa` |
 | `csrf_rejected` | `warning` | Formulario rechazado: el token CSRF faltaba o no valía (una página abierta hace mucho, o una petición falsificada desde otra web) | Método HTTP |
@@ -100,8 +100,8 @@ ecurso`) |
 | `entra_flow_cancelled` | `info` | Se canceló ese inicio de sesión con Microsoft | El mismo tipo |
 | `session_closed` | `info` | Un admin o el propio usuario cerró una sesión | IP de la sesión |
 | `sessions_closed` | `info` | Se cerraron varias sesiones: las de un usuario (web o `sessions-close`), todas (*target* `*`), las seleccionadas (`selected`) o las inactivas (`idle>Nh`) | Número de sesiones |
-| `api_token_created` | `info` | El usuario creó un token de API (en *Mi perfil*, o una aplicación al canjear su autorización: detalle `connect`) | Nombre del token |
-| `app_authorized` | `info` | El usuario permitió a una aplicación (la extensión de VS Code) conectarse a su cuenta desde el navegador; el token se crea al canjearlo (`api_token_created`) | Nombre del equipo |
+| `api_token_created` | `info` | El usuario creó un token de API (en *Mi perfil*, o una aplicación al canjear su autorización: detalle `connect`; al entrar desde VS Code con la cuenta de Windows: `connect-desktop`) | Nombre del token |
+| `app_authorized` | `info` | El usuario permitió a una aplicación (la extensión de VS Code) conectarse a su cuenta desde el navegador, o entró con ella con la cuenta de Windows; el token se crea al canjearlo (`api_token_created`) | Nombre del equipo; con la cuenta de Windows, `entra:desktop` |
 | `api_token_rotated` | `info` | El usuario rotó un token de API (*Mi perfil*): uno nuevo con el mismo nombre, alcance y caducidad; el anterior deja de valer | Nombre del token |
 | `api_token_revoked` | `info` | Token de API revocado por su usuario o por un admin | Nombre del token |
 | `ip_banned` | `critical` | IP bloqueada (automática por infracciones o manual) | `auto:<tipo>:<n>` o `manual:<motivo>` |

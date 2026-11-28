@@ -80,9 +80,14 @@ function createVscode() {
     StatusBarAlignment: { Left: 1, Right: 2 },
     ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
     ProgressLocation: { SourceControl: 1, Window: 10, Notification: 15 },
+    UIKind: { Desktop: 1, Web: 2 },
     RelativePattern: class { constructor(base, pattern) { this.base = base; this.pattern = pattern; } },
     l10n: { t: (text, ...args) => format(text, args) },
-    env: { openExternal: async () => true, uriScheme: "vscode", asExternalUri: async (uri) => uri },
+    env: { openExternal: async () => true, uriScheme: "vscode", asExternalUri: async (uri) => uri, uiKind: 1, language: "en" },
+    authentication: {
+      // Sin cuenta: como si la persona cancelara el selector de cuentas (los tests lo cambian)
+      getSession: async () => { throw new Error("User did not consent to login."); },
+    },
     commands: {
       registerCommand: (id, fn) => {
         if (registered.commands.has(id)) throw new Error(`command ${id} registered twice`);

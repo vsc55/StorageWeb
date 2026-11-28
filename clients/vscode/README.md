@@ -38,7 +38,7 @@ No hay que compilar nada: la extensión está en JavaScript y no tiene dependenc
 ## Uso
 
 1. Pulsa el icono de StorageWeb en la barra de actividad (a la izquierda).
-2. *Servidores* → **+**: dirección de StorageWeb y cómo entrar: **Iniciar sesión en el navegador** (también con Microsoft / Entra ID; no hay que copiar nada) o **usuario y token de API**.
+2. *Servidores* → **+**: dirección de StorageWeb y cómo entrar: **Entrar con tu cuenta de Windows** (equipos unidos a Microsoft Entra ID, si el administrador lo activa en StorageWeb; sin navegador), **Iniciar sesión en el navegador** (también con Microsoft / Entra ID; no hay que copiar nada) o **usuario y token de API**.
 3. Navega por las carpetas. Clic en un archivo para abrirlo; clic derecho para subir, descargar, renombrar, borrar, **Sincronizar con una carpeta local…** o **Añadir al espacio de trabajo**.
 4. O, con la carpeta del proyecto abierta: `Ctrl+Shift+P` → **StorageWeb: Sincronizar una carpeta de esta ventana…** y elige servidor y carpeta.
 
@@ -46,7 +46,7 @@ Desde entonces, el icono de la nube en la barra de estado indica si está sincro
 
 | Comando | |
 |---|---|
-| StorageWeb: Añadir servidor… | Dirección y cómo entrar: navegador, o usuario y token (se comprueban) |
+| StorageWeb: Añadir servidor… | Dirección y cómo entrar: cuenta de Windows, navegador, o usuario y token (se comprueban) |
 | StorageWeb: Sincronizar una carpeta de esta ventana… | Elige servidor y carpeta del servidor |
 | StorageWeb: Sincronizar ahora | Sincronización completa |
 | StorageWeb: Abrir en el navegador | La carpeta del archivo abierto, en la web |
@@ -71,4 +71,4 @@ El token se guarda en el almacén de secretos de VS Code (el del sistema), nunca
 - Las carpetas vacías no se sincronizan (solo los archivos).
 - Cada archivo, como mucho `server.max_upload_mb` del servidor.
 - Las sincronizaciones completas recorren toda la carpeta: con muchos miles de archivos, sube `storageweb.pollSeconds`.
-- Entrar sin token con la sesión de Windows (Entra ID) está en la hoja de ruta de StorageWeb.
+- Entrar con la cuenta de Windows solo va en VS Code de escritorio (no en vscode.dev) y con StorageWeb que usa Microsoft Entra ID.

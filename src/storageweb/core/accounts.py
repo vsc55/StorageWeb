@@ -236,12 +236,13 @@ def rename_account(conn: Connection, cfg: dict, user, username: str, *, ip: str 
 
 
 def login_sso(conn: Connection, cfg: dict, key: str, identity: Identity, ip: str | None = None,
-              on_rename: Renamed | None = None):
+              on_rename: Renamed | None = None, reenable: bool = True):
     """Usuario de un método SSO a partir de la identidad que devuelve su proveedor (creándolo si procede).
 
     La cuenta se busca por origen + identificador externo: si el proveedor trae otro nombre (UPN cambiado), se
     renombra (:func:`rename_account`). Una cuenta que desactivó el directorio se reactiva al entrar (el proveedor
-    la ha dejado entrar). Opciones comunes de los métodos SSO (en ``auth.<método>``): ``auto_provision``,
+    la ha dejado entrar), salvo con ``reenable=False``: una identidad que puede ser de antes de que se desactivara
+    (el token de Microsoft que trae una aplicación de escritorio). Opciones comunes de los métodos SSO (en ``auth.<método>``): ``auto_provision``,
     ``default_role``, ``role_mappings`` y ``sync_role_on_login``.
     """
     section = cfg["auth"][key]
@@ -269,7 +270,7 @@ def login_sso(conn: Connection, cfg: dict, key: str, identity: Identity, ip: str
             user = users.get_by_id(conn, uid)
             audit.log(conn, "user_provisioned", username=username, ip=ip, detail=f"{key}:{user['role']}")
 
-    if not user["enabled"] and user["disabled_reason"] == users.DIRECTORY:
+    if reenable and not user["enabled"] and user["disabled_reason"] == users.DIRECTORY:
         users.update(conn, user["id"], enabled=True, disabled_reason=None)
         audit.log(conn, "user_enabled", username=user["username"], ip=ip, detail=f"{key}:signin")
         user = users.get_by_id(conn, user["id"])

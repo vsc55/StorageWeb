@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from ..i18n import _
 from ..settings.auth_methods import AuthConfig
 from ..settings.errors import UserError
 
@@ -238,6 +239,18 @@ class AuthMethod:
         """Una persona por su identificador (al importar se vuelve a leer: nunca se fía de lo que manda el
         navegador), con sus grupos si se pueden leer; ``None`` si no existe o no se puede saber."""
         return None
+
+    # --- entrar desde una aplicación de escritorio con la cuenta del sistema (``/connect/desktop``)
+    def desktop(self, section: dict) -> dict | None:
+        """Si se puede entrar desde una aplicación de escritorio con la cuenta del sistema (VS Code con la cuenta de
+        Windows) y lo que la aplicación necesita para pedir el token a su proveedor: ``{"provider", "tenant",
+        "scopes"}``; ``None`` si no."""
+        return None
+
+    def desktop_identity(self, section: dict, access_token: str) -> Identity:
+        """La persona de un token del proveedor que manda la aplicación (comprobado de verdad: firma, destinatario,
+        caducidad…). :class:`AuthDenied` si no vale (código ``invalid_token``) o no puede entrar."""
+        raise AuthDenied(_("This sign-in method does not support desktop applications."), "not_enabled")
 
     # --- cierre de sesión iniciado por el proveedor (canal frontal)
     def frontchannel_session(self, section: dict, args: dict) -> str | None:

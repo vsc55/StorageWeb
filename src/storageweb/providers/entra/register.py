@@ -64,6 +64,44 @@ DIRECTORY_ROLES = {"Group.Read.All": GROUP_READ_ALL, "User.Read.All": USER_READ_
 ID_TOKEN_CLAIMS = ("email", "sid")
 
 
+DESKTOP_SCOPE = "access_as_user"                          # = access_token.SCOPE (aquí, sin importar de allí)
+VSCODE_CLIENT_ID = "aebc6443-996d-45c2-90f0-388ff96faa56"
+
+
+def expose_desktop_api(access_token: str, app: dict) -> list[str]:
+    """Que VS Code pueda pedir con la cuenta de Windows un token para StorageWeb (``auth.entra.desktop_sign_in``):
+    la aplicación expone la API ``api://<client_id>`` con el permiso ``access_as_user`` (tokens v2) y da por
+    autorizada a la aplicación de VS Code, así nadie tiene que consentir nada. No toca lo que ya esté. Devuelve lo
+    que ha cambiado."""
+    done: list[str] = []
+    client_id, path = app["appId"], f"/applications/{app['id']}"
+    uri = f"api://{client_id}"
+    if uri not in (app.get("identifierUris") or []):
+        _graph("PATCH", path, access_token, {"identifierUris": [*(app.get("identifierUris") or []), uri]})
+        done.append(_("Application ID URI set: %(uri)s", uri=uri))
+    api = app.get("api") or {}
+    scopes = list(api.get("oauth2PermissionScopes") or [])
+    scope = next((s for s in scopes if s.get("value") == DESKTOP_SCOPE), None)
+    if scope is None:
+        scope = {"id": str(uuid.uuid4()), "value": DESKTOP_SCOPE, "type": "User", "isEnabled": True,
+                 "adminConsentDisplayName": "Access StorageWeb", "userConsentDisplayName": "Access StorageWeb",
+                 "adminConsentDescription": "Use StorageWeb as the signed-in user from a desktop application.",
+                 "userConsentDescription": "Use StorageWeb as you from a desktop application."}
+        _graph("PATCH", path, access_token, {"api": {"requestedAccessTokenVersion": 2,
+                                                     "oauth2PermissionScopes": [*scopes, scope]}})
+        done.append(_("API permission access_as_user added"))
+    elif api.get("requestedAccessTokenVersion") != 2:
+        _graph("PATCH", path, access_token, {"api": {"requestedAccessTokenVersion": 2}})
+    pre = list(api.get("preAuthorizedApplications") or [])
+    if not any(p.get("appId") == VSCODE_CLIENT_ID and scope["id"] in (p.get("delegatedPermissionIds") or [])
+               for p in pre):
+        pre = [p for p in pre if p.get("appId") != VSCODE_CLIENT_ID]
+        pre.append({"appId": VSCODE_CLIENT_ID, "delegatedPermissionIds": [scope["id"]]})
+        _graph("PATCH", path, access_token, {"api": {"preAuthorizedApplications": pre}})
+        done.append(_("Visual Studio Code authorized to use the API"))
+    return done
+
+
 def _optional_claims(current: dict | None, groups: bool = False) -> dict | None:
     """``optionalClaims`` con los que necesita StorageWeb añadidos a los que ya hubiera; ``None`` si no falta
     ninguno."""
@@ -93,7 +131,7 @@ class RegisterError(Exception):
 # --------------------------------------------------------------------------- HTTP
 
 def _request(method: str, url: str, *, token: str | None = None, form: dict | None = None,
-             body: dict | None = None) -> tuple[int, dict]:
+             body: dict | None = None, timeout: float = TIMEOUT) -> tuple[int, dict]:
     """Petición HTTP que devuelve (estado, JSON). Los errores HTTP no lanzan: devuelven su cuerpo.
 
     La URL se codifica aquí: las consultas de Graph llevan espacios y comillas (``$filter=appId eq '…'``), y
@@ -111,7 +149,7 @@ def _request(method: str, url: str, *, token: str | None = None, form: dict | No
         headers["Content-Type"] = "application/json"
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:  # noqa: S310 (URLs fijas de Microsoft)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (URLs fijas de Microsoft)
             raw = resp.read()
             return resp.status, json.loads(raw) if raw else {}
     except urllib.error.HTTPError as exc:
@@ -242,8 +280,13 @@ def _grant_consent(access_token: str, sp_id: str, graph_sp: str) -> None:
 def _finish_registration(access_token: str, app_body: dict, roles: list, tenant_id: str, admin_oid: str,
                          object_id: str, client_id: str, *, name: str, app_roles: bool, require_assignment: bool,
                          group_read: bool, warnings: list[str], secret_months: int = SECRET_MONTHS) -> dict:
-    """Lo que va después de crear la aplicación: secreto, service principal, consentimiento y rol de admin."""
+    """Lo que va después de crear la aplicación: secreto, API para VS Code, service principal, consentimiento y rol
+    de admin."""
     secret = _add_secret(access_token, object_id, name, secret_months)
+    try:   # la API para entrar desde VS Code con la cuenta de Windows (se activa aparte: auth.entra.desktop_sign_in)
+        expose_desktop_api(access_token, {"id": object_id, "appId": client_id})
+    except RegisterError as exc:
+        warnings.append(_("Sign-in from VS Code with the Windows account could not be prepared: %(error)s", error=exc))
 
     # El service principal puede tardar unos segundos en poder crearse tras la aplicación
     sp_id = ""
@@ -421,6 +464,10 @@ def repair_app(access_token: str, client_id: str, *, redirect_uri: str = "", new
                     if _grant_role(access_token, sp["id"], graph_sp["id"], role_id):
                         fixed.append(_("Application permission %(perm)s granted", perm=perm))
                 step(perm, grant)
+
+    def desktop_api() -> None:
+        fixed.extend(expose_desktop_api(access_token, _application(access_token, client_id)))
+    step(_("Sign in from VS Code with the Windows account"), desktop_api)
 
     if new_secret:
         def secret() -> None:

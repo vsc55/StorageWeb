@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: StorageWeb VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-22 21:35+0100\n"
+"POT-Creation-Date: 2026-11-28 15:24+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -960,7 +960,7 @@ msgstr ""
 msgid "The file is not a valid %(type)s image."
 msgstr ""
 
-#: storageweb/core/connect.py
+#: storageweb/core/connect.py storageweb/web/views/connect.py
 msgid "Unknown application."
 msgstr ""
 
@@ -2398,6 +2398,22 @@ msgstr ""
 msgid "Folder inside that address where everything goes (empty = its root)."
 msgstr ""
 
+#: storageweb/providers/base.py
+msgid "This sign-in method does not support desktop applications."
+msgstr ""
+
+#: storageweb/providers/entra/access_token.py
+msgid "The Microsoft token is not valid for this StorageWeb."
+msgstr ""
+
+#: storageweb/providers/entra/access_token.py
+msgid "Microsoft could not be reached to check the token. Try again in a while."
+msgstr ""
+
+#: storageweb/providers/entra/access_token.py storageweb/providers/entra/method.py
+msgid "Your account does not belong to the allowed organization."
+msgstr ""
+
 #: storageweb/providers/entra/check.py
 msgid "to show group names instead of Object IDs"
 msgstr ""
@@ -2589,6 +2605,11 @@ msgstr ""
 msgid "Check accounts against Entra ID every (minutes)"
 msgstr ""
 
+#: storageweb/providers/entra/method.py storageweb/providers/entra/register.py
+#: storageweb/web/templates/admin/settings/auth/entra.html
+msgid "Sign in from VS Code with the Windows account"
+msgstr ""
+
 #: storageweb/providers/entra/method.py storageweb/web/templates/admin/settings/auth/entra.html
 msgid "Sign in directly with Microsoft (skip the sign-in page)"
 msgstr ""
@@ -2619,10 +2640,6 @@ msgstr ""
 msgid ""
 "Not assigned to the application in Entra ID («Assignment required» is on): they cannot sign in "
 "until an administrator assigns them, or one of their groups, in the enterprise application."
-msgstr ""
-
-#: storageweb/providers/entra/method.py
-msgid "Your account does not belong to the allowed organization."
 msgstr ""
 
 #: storageweb/providers/entra/method.py
@@ -2688,10 +2705,34 @@ msgid ""
 "reach the server, and each one must be registered in Entra ID. Set the public address."
 msgstr ""
 
+#: storageweb/providers/entra/method.py storageweb/web/views/connect.py
+msgid "Signing in from desktop applications is not enabled."
+msgstr ""
+
+#: storageweb/providers/entra/method.py
+#, python-format
+msgid ""
+"The Microsoft token of the Windows account does not include the «%(claim)s» claim that gives the "
+"user name: add it to the access token in Entra ID (Token configuration)."
+msgstr ""
+
 #: storageweb/providers/entra/method.py
 msgid ""
 "Whether the application requires assignment (and so who can sign in) could not be checked: it "
 "needs the Application.Read.All permission («Repair permissions» adds it)."
+msgstr ""
+
+#: storageweb/providers/entra/register.py
+#, python-format
+msgid "Application ID URI set: %(uri)s"
+msgstr ""
+
+#: storageweb/providers/entra/register.py
+msgid "API permission access_as_user added"
+msgstr ""
+
+#: storageweb/providers/entra/register.py
+msgid "Visual Studio Code authorized to use the API"
 msgstr ""
 
 #: storageweb/providers/entra/register.py
@@ -2717,6 +2758,11 @@ msgstr ""
 msgid ""
 "The application %(client)s was created in Entra ID, but setting it up failed: %(error)s. Delete "
 "it in the Entra admin center (App registrations) and try again."
+msgstr ""
+
+#: storageweb/providers/entra/register.py
+#, python-format
+msgid "Sign-in from VS Code with the Windows account could not be prepared: %(error)s"
 msgstr ""
 
 #: storageweb/providers/entra/register.py
@@ -3914,7 +3960,7 @@ msgstr ""
 msgid "Your IP address is blocked. Contact the administrator."
 msgstr ""
 
-#: storageweb/web/guards.py
+#: storageweb/web/guards.py storageweb/web/views/connect.py
 msgid "API tokens are disabled."
 msgstr ""
 
@@ -10121,6 +10167,13 @@ msgstr ""
 msgid ""
 "On computers joined to Entra ID (Intune) users get in without typing anything. %(url)s still "
 "shows the page, for local users and to get in if Microsoft fails."
+msgstr ""
+
+#: storageweb/web/templates/admin/settings/auth/entra.html
+msgid ""
+"The StorageWeb extension for VS Code gets in with the Windows account (computers joined to Entra "
+"ID), without a browser. The application in Entra ID must expose its API to VS Code: the automatic"
+" registration does it, and «Repair permissions» adds it to an existing one."
 msgstr ""
 
 #: storageweb/web/templates/admin/settings/auth/entra.html

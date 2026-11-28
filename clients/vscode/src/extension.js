@@ -20,7 +20,10 @@ const os = require("os");
 const path = require("path");
 const vscode = require("vscode");
 
-const { ConnectError, exchange, parseCallback, startRequest } = require("./connect");
+const {
+  ConnectError, desktopMethods, exchange, methodPin, parseCallback, redeemDesktop, secureServer, sessionScopes,
+  startRequest,
+} = require("./connect");
 const { DavClient, DavError } = require("./dav");
 const { DEFAULT_EXCLUDES, excluder, ignorePatterns } = require("./glob");
 const { LocalFs } = require("./localfs");
@@ -37,6 +40,8 @@ const PENDING = "storageweb.pendingLinks";
 const SIGN_IN_MINUTES = 5;
 const IGNORE_FILE = ".storagewebignore";
 const PAUSED = "storageweb.paused";
+/** Dirección del servidor → lo que se pidió a Microsoft la primera vez que se entró con la cuenta de Windows. */
+const WINDOWS_PINS = "storageweb.windowsSignIn";
 const THROTTLED_RETRY_MINUTES = 5;
 const MAX_NAMES = 5;
 
@@ -216,33 +221,153 @@ function handleUri(uri) {
 }
 
 /**
- * Cómo conseguir las credenciales: iniciando sesión en el navegador o con usuario y token a mano.
- * `username`: el de un servidor ya añadido (no se pregunta y el del navegador tiene que coincidir).
+ * El método para entrar con la cuenta de Windows (Microsoft Entra ID) si el servidor lo anuncia y VS Code
+ * puede pedir el token (escritorio: en vscode.dev no hay agente de cuentas). @param {string} url
+ * @returns {Promise<import("./connect").DesktopMethod | undefined>}
+ */
+async function windowsMethod(url) {
+  if (vscode.env.uiKind === vscode.UIKind.Web || !vscode.authentication || !secureServer(url)) return undefined;
+  const methods = await vscode.window.withProgress({
+    location: vscode.ProgressLocation.Window, title: t("StorageWeb: connecting to {0}…", hostOf(url)),
+  }, () => desktopMethods(url, { timeoutMs: 8000 }));
+  const found = methods.find((m) => m.provider === "microsoft");
+  if (!found) return undefined;
+  const pinned = (ctx.globalState.get(WINDOWS_PINS) || {})[url];
+  if (pinned && pinned !== methodPin(found)) {
+    // El servidor pide el token de otra aplicación de Microsoft: podría ser para usarlo en otro sitio
+    log(t("{0} asks for a different Microsoft application for the Windows account ({1}, before {2})", url,
+      methodPin(found), pinned));
+    const use = t("Use the new one");
+    const answer = await vscode.window.showWarningMessage(
+      t("StorageWeb: {0} now asks for a different Microsoft application to sign in with your Windows account. Use it only if the administrator changed the application; otherwise, sign in with the browser.", hostOf(url)),
+      { modal: true }, use);
+    if (answer !== use) return undefined;
+  }
+  return found;
+}
+
+/** Lo que se pidió a Microsoft para este servidor, para las próximas veces. @param {string} url @param {import("./connect").DesktopMethod} method */
+async function pinWindows(url, method) {
+  const pins = { ...(ctx.globalState.get(WINDOWS_PINS) || {}) };
+  pins[url] = methodPin(method);
+  await ctx.globalState.update(WINDOWS_PINS, pins);
+}
+
+/** Qué decir si StorageWeb no acepta la cuenta de Windows (lo que explica el servidor, si lo explica). @param {unknown} err */
+function windowsErrorText(err) {
+  if (!(err instanceof ConnectError)) return describe(err);
+  if (err.serverMessage) return err.serverMessage;
+  switch (err.code) {
+    case "tokens_disabled": return reasonText("tokens_disabled");
+    case "not_enabled": return t("This StorageWeb does not have the sign-in with the Windows account enabled: ask an administrator.");
+    case "unknown_client": return t("This StorageWeb does not accept this extension for the sign-in with the Windows account: update StorageWeb.");
+    case "invalid_token": return t("StorageWeb did not accept the Microsoft sign-in of your Windows account.");
+    case "denied": return t("StorageWeb does not let this account in: ask an administrator.");
+    default: return err.message;
+  }
+}
+
+/**
+ * Entrar con la cuenta de Windows: VS Code pide un token de Microsoft para StorageWeb (en Windows, con el
+ * agente de cuentas del sistema: la primera vez pregunta la cuenta, luego no) y StorageWeb lo canjea por un
+ * token de API para este equipo. Si no sale, lo dice; `retry`: se llegó a tener cuenta (puede valer otra).
+ * @param {string} url @param {import("./connect").DesktopMethod} method @param {boolean} [another] elegir otra cuenta
+ * @returns {Promise<{username: string, token: string} | {failed: true, retry: boolean}>}
+ */
+async function signInWithWindows(url, method, another = false) {
+  /** @type {vscode.AuthenticationSession | undefined} */
+  let session;
+  try {
+    session = await vscode.authentication.getSession(method.provider, sessionScopes(method),
+      another ? { createIfNone: true, clearSessionPreference: true } : { createIfNone: true });
+  } catch (err) {
+    vscode.window.showWarningMessage(t("StorageWeb: the sign-in with the Windows account did not finish ({0}). Choose another way to sign in.",
+      err instanceof Error ? err.message : String(err)));
+    return { failed: true, retry: false };
+  }
+  if (!session || !session.accessToken) {
+    vscode.window.showWarningMessage(t("StorageWeb: the sign-in with the Windows account did not finish. Choose another way to sign in."));
+    return { failed: true, retry: false };
+  }
+  const token = session.accessToken, account = session.account ? session.account.label : "";
+  try {
+    const got = await vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification, title: t("StorageWeb: signing in with the Windows account…"),
+    }, () => redeemDesktop(url, method, token, os.hostname(), { language: vscode.env.language }));
+    log(t("Signed in with the Windows account ({0}) as {1}: token «{2}»", account, got.username, got.name));
+    await pinWindows(url, method);
+    return { username: got.username, token: got.token };
+  } catch (err) {
+    const text = windowsErrorText(err);
+    showError(new Error(account ? t("{0} (Windows account: {1})", text, account) : text));
+    const code = err instanceof ConnectError ? err.code : "";
+    return { failed: true, retry: code === "denied" || code === "invalid_token" };
+  }
+}
+
+/**
+ * Lo que se consiguió, si es de la cuenta del servidor ya añadido (`username`; sin él, cualquiera).
+ * @param {{username: string, token: string} | undefined} got @param {string} [username]
+ */
+function sameAccount(got, username) {
+  if (got && username && got.username.toLowerCase() !== username.toLowerCase()) {
+    showError(new Error(t("You signed in as «{0}», but this server is set up for «{1}». Add it as another server instead.",
+      got.username, username)));
+    return undefined;
+  }
+  return got;
+}
+
+/**
+ * Cómo conseguir las credenciales: con la cuenta de Windows (si el servidor lo admite), iniciando sesión en el
+ * navegador o con usuario y token a mano.
+ * `username`: el de un servidor ya añadido (no se pregunta y el que se consiga tiene que coincidir).
  * @param {string} url @param {string} title @param {string} [username]
  * @returns {Promise<{username: string, token: string} | undefined>}
  */
 async function askCredentials(url, title, username) {
-  const choice = await vscode.window.showQuickPick([
-    { label: `$(globe) ${t("Sign in with the browser")}`, method: "browser",
-      detail: t("Uses the sign-in of StorageWeb (also Microsoft / Entra ID). Creates a token for this computer.") },
-    { label: `$(key) ${t("User name and API token")}`, method: "token",
-      detail: t("Paste a token created in StorageWeb → My profile → API tokens.") },
-  ], { title, placeHolder: t("How do you want to sign in?"), ignoreFocusOut: true });
-  if (!choice) return undefined;
-  if (choice.method === "browser") {
-    const got = await signInWithBrowser(url);
-    if (got && username && got.username.toLowerCase() !== username.toLowerCase()) {
-      showError(new Error(t("You signed in as «{0}», but this server is set up for «{1}». Add it as another server instead.",
-        got.username, username)));
-      return undefined;
+  const windows = await windowsMethod(url);
+  return chooseCredentials(url, title, username, windows, Boolean(windows), false);
+}
+
+/**
+ * La elección de `askCredentials`. Si la cuenta de Windows no sale, se vuelve a preguntar con las otras formas
+ * (y «otra cuenta de Windows» si la que se usó no vale).
+ * @param {string} url @param {string} title @param {string | undefined} username
+ * @param {import("./connect").DesktopMethod | undefined} windows @param {boolean} offerWindows @param {boolean} another
+ * @returns {Promise<{username: string, token: string} | undefined>}
+ */
+async function chooseCredentials(url, title, username, windows, offerWindows, another) {
+  for (;;) {
+    const items = [];
+    if (windows && offerWindows) {
+      items.push({ label: `$(account) ${another ? t("Sign in with another Windows account")
+        : t("Sign in with your Windows account (Microsoft Entra ID)")}`, method: "windows",
+        detail: t("Uses the account you signed in to Windows with, without the browser. Creates a token for this computer.") });
     }
-    return got;
+    items.push(
+      { label: `$(globe) ${t("Sign in with the browser")}`, method: "browser",
+        detail: t("Uses the sign-in of StorageWeb (also Microsoft / Entra ID). Creates a token for this computer.") },
+      { label: `$(key) ${t("User name and API token")}`, method: "token",
+        detail: t("Paste a token created in StorageWeb → My profile → API tokens.") });
+    const choice = await vscode.window.showQuickPick(items,
+      { title, placeHolder: t("How do you want to sign in?"), ignoreFocusOut: true });
+    if (!choice) return undefined;
+    if (choice.method === "windows" && windows) {
+      const result = await signInWithWindows(url, windows, another);
+      if ("failed" in result) {
+        offerWindows = another = result.retry;
+        continue;
+      }
+      return sameAccount(result, username);
+    }
+    if (choice.method === "browser") return sameAccount(await signInWithBrowser(url), username);
+    const user = username || (await vscode.window.showInputBox({ title, prompt: t("User name in StorageWeb"),
+      ignoreFocusOut: true }) || "").trim();
+    if (!user) return undefined;
+    const token = await askToken(url, title);
+    return token ? { username: user, token } : undefined;
   }
-  const user = username || (await vscode.window.showInputBox({ title, prompt: t("User name in StorageWeb"),
-    ignoreFocusOut: true }) || "").trim();
-  if (!user) return undefined;
-  const token = await askToken(url, title);
-  return token ? { username: user, token } : undefined;
 }
 
 /** Lo que se tocó de un servidor: se olvida su cliente y su caché y se refrescan los paneles. @param {string} [id] */
@@ -325,18 +450,30 @@ async function saveToken(profile, token) {
 }
 
 /**
- * El token ya no vale (caducó, se revocó…): iniciar sesión otra vez en el navegador con la misma cuenta.
+ * El token ya no vale (caducó, se revocó…): iniciar sesión otra vez con la misma cuenta, con la de Windows si
+ * el servidor lo admite (sin preguntar nada si Windows ya sabe la cuenta) o en el navegador. Si la de Windows
+ * no sale, se ofrecen las otras formas.
  * @param {import("./servers").ServerProfile} profile
  */
 async function signInAgain(profile) {
-  const got = await signInWithBrowser(profile.url);
-  if (!got) return;
-  if (got.username.toLowerCase() !== profile.username.toLowerCase()) {
-    showError(new Error(t("You signed in as «{0}», but this server is set up for «{1}». Add it as another server instead.",
-      got.username, profile.username)));
-    return;
+  const windows = await windowsMethod(profile.url);
+  // Directamente con Windows solo si ya se entró así en este servidor (con esta misma aplicación de Microsoft):
+  // si no, se elige, como al añadirlo (un servidor que nunca lo usó no consigue el token sin que se pulse nada)
+  const pinned = windows && (ctx.globalState.get(WINDOWS_PINS) || {})[profile.url] === methodPin(windows);
+  let got;
+  if (windows && !pinned) {
+    got = await chooseCredentials(profile.url, t("StorageWeb: token for {0} ({1})", store.title(profile), profile.username),
+      profile.username, windows, true, false);
+  } else if (!windows) {
+    got = sameAccount(await signInWithBrowser(profile.url), profile.username);
+  } else {
+    const result = await signInWithWindows(profile.url, windows);
+    got = "failed" in result
+      ? await chooseCredentials(profile.url, t("StorageWeb: token for {0} ({1})", store.title(profile), profile.username),
+        profile.username, windows, result.retry, result.retry)
+      : sameAccount(result, profile.username);
   }
-  await saveToken(profile, got.token);
+  if (got) await saveToken(profile, got.token);
 }
 
 /**

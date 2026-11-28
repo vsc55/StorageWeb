@@ -206,6 +206,57 @@ Con *Entrar directamente con Microsoft* (`auth.entra.auto_login`), la página de
 - Tras **salir**, o si el inicio de sesión con Microsoft falla, se vuelve a la página (`?manual=1`) en lugar de volver a entrar solo.
 - La unidad de red (WebDAV) no puede usar la sesión de Windows: allí se entra con un token ([Unidad de red](../uso/unidad-de-red.md)).
 
+## Entrar desde VS Code con la cuenta de Windows
+
+Con *Entrar desde VS Code con la cuenta de Windows* (`auth.entra.desktop_sign_in`, en la tarjeta de Entra ID), la
+extensión de StorageWeb para VS Code entra **sin navegador** con la cuenta de Windows de los equipos unidos a Entra ID
+(Intune): VS Code pide a Windows (el agente de cuentas, WAM) un token de Microsoft para StorageWeb y StorageWeb lo
+canjea por un token de API, como el que crea *Iniciar sesión en el navegador*. La primera vez Windows enseña
+su selector de cuenta; después es silencioso.
+
+Para activarlo:
+
+1. La aplicación de Entra ID tiene que **exponer su API a VS Code**: la URI `api://<client_id>`, el permiso
+   `access_as_user` (tokens v2) y la aplicación de VS Code (`aebc6443-996d-45c2-90f0-388ff96faa56`) como cliente
+   autorizado, para que nadie tenga que consentir nada. El **registro automático** lo deja hecho; a una aplicación que
+   ya existía se lo añade **Reparar permisos**. A mano, en el portal: *Exponer una API*.
+2. Marca la casilla y guarda.
+
+Las reglas son las del inicio de sesión web: alta automática (`auto_provision`), grupos permitidos, mapeo de roles y
+cuentas desactivadas, con una diferencia: una cuenta que desactivó la [revisión del directorio](#cuentas-al-dia-con-entra-id)
+**no se reactiva** desde VS Code (el token de Microsoft vale una hora y puede ser de antes); entrando en la web, sí. El
+token de Microsoft **se comprueba de verdad**, porque llega de un programa y no del propio
+servidor (al contrario que el id_token del inicio de sesión web, [ADR 0004](../arquitectura/decisiones/0004-firma-id-token.md)):
+la firma con las claves públicas del tenant (`/discovery/v2.0/keys?appid=…`, también las propias de la aplicación si las tiene; guardadas un día), algoritmo RS256, que sea para
+esta aplicación, solo tokens v2 (`ver` 2.0 y `aud` = el client id: en los v1 el `aud` es la URI pedida, que podría
+haber registrado otra aplicación), el emisor y el tenant (`iss`, `tid`; con `organizations`, sin cuentas personales),
+la caducidad (`exp`, `nbf`, con 5 minutos de margen), el permiso `access_as_user` y que lo pidió VS Code (`azp`). Un
+token que no firmó Microsoft cuenta para el bloqueo de IPs (uno auténtico caducado o de otra organización, no). Si
+Microsoft no contesta (o no da claves), se responde 503, sin apuntarlo en la auditoría, y no se vuelve a preguntar
+hasta pasado un minuto. Queda en la auditoría como
+`app_authorized` (`entra:desktop`) y `api_token_created` (`connect-desktop`); el token se llama «Visual Studio Code
+(<equipo>)», dura **90 días** (volver a entrar no pregunta nada) y se ve y se revoca en *Mi perfil → Tokens de API*.
+
+Solo con la nube pública de Microsoft (sin `authorize_url`/`token_url`/`issuer` propios), con cuentas de trabajo (no
+con `tenant_id: consumers`) y con VS Code de escritorio.
+
+El nombre de usuario sale del mismo claim que en la web (`username_claim`), pero del **token de acceso**, que no
+lleva los mismos claims opcionales que el id_token: con `preferred_username` (el de serie) no hay que hacer nada; con
+`upn` o `email`, añádelo también al token de acceso (*Configuración de token → Agregar notificación opcional →
+Acceso*). Si falta, no se entra (con otro nombre la cuenta se renombraría) y el error lo dice.
+
+La extensión solo pide a Windows ese permiso (`api://<id>/access_as_user`), sea cual sea lo que conteste el servidor,
+así que un servidor que no sea StorageWeb no puede conseguir con ella un token para el correo o los archivos de
+Microsoft 365. Tampoco lo ofrece por `http://` (salvo al propio equipo), y recuerda qué aplicación pidió cada servidor
+la primera vez: si luego pide otra, pregunta antes. Lo que no puede evitar es que un servidor falso, **la primera
+vez**, pida el de *otra* StorageWeb para usarlo allí (como con *Iniciar sesión en el navegador*, donde bastaría con
+pulsar *Permitir*): añade solo servidores de confianza.
+
+Autorizar a VS Code en la API también vale para quien use su client id en un engaño con un **código de dispositivo**
+(«entra en microsoft.com/devicelogin y escribe este código»): con la opción activada, ese token entraría en
+StorageWeb sin pantalla de permisos. Si no lo usáis, bloquea el flujo de código de dispositivo con Acceso condicional
+(*Condiciones → Flujos de autenticación*).
+
 ## Comprobaciones de seguridad del login
 
 - `state` (CSRF), `nonce` y PKCE (S256);

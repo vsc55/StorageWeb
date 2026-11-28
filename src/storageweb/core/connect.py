@@ -127,11 +127,32 @@ def redeem(conn: Connection, code: str | None, verifier: str | None, max_days: i
     user = users.get_by_id(conn, grant.user_id)
     if user is None or not user["enabled"]:
         raise ConnectError("invalid_grant")
-    label = CLIENTS[grant.client].label
-    name = f"{label} ({grant.device})" if grant.device else label
-    days = tokens.clamp_days(grant.days, max_days)   # la política pudo cambiar entre medias
-    plain, _token_id = tokens.create(conn, user, name=name[:80], scope=grant.scope, days=days, max_days=max_days)
-    return user, plain, name[:80], days
+    plain, name, days = _token_for(conn, user, CLIENTS[grant.client], grant.device, grant.scope, grant.days, max_days)
+    return user, plain, name, days
+
+
+# Entrar con la cuenta del sistema (sin la página de permitir): más corto que el de serie de esa página, porque
+# volver a entrar no pregunta nada (Windows ya sabe la cuenta) y un token de Microsoft robado o pedido con engaños
+# (código de dispositivo con el client id de VS Code) da menos tiempo
+DESKTOP_DAYS = 90
+
+
+def desktop_token(conn: Connection, user, client: str, device: str, max_days: int = 0) -> tuple[str, str, int]:
+    """El token de API de una aplicación que entró con la cuenta del sistema (``/connect/desktop``): de lectura y
+    escritura, para el equipo ``device``. Devuelve (token en claro, nombre, días). :class:`ConnectError` si
+    ``client`` no es una aplicación conocida."""
+    app = CLIENTS.get(client)
+    if app is None:
+        raise ConnectError("unknown_client")
+    return _token_for(conn, user, app, clean_device(device), "write", DESKTOP_DAYS, max_days)
+
+
+def _token_for(conn: Connection, user, app: Client, device: str, scope: str, days: int, max_days: int):
+    """El token de API de una aplicación conectada, con su nombre («Visual Studio Code (PC-ANA)»)."""
+    name = (f"{app.label} ({device})" if device else app.label)[:80]
+    days = tokens.clamp_days(days, max_days)   # la política pudo cambiar entre medias
+    plain, _token_id = tokens.create(conn, user, name=name, scope=scope, days=days, max_days=max_days)
+    return plain, name, days
 
 
 def clear() -> None:

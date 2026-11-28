@@ -48,10 +48,11 @@ Pulsa el icono de StorageWeb en la barra de actividad (a la izquierda). Tiene do
 
 En el panel, sección *Servidores*, botón **+** (*Añadir servidor…*). Escribe la dirección de StorageWeb (`https://archivos.empresa.es`) y elige cómo entrar:
 
-- **Iniciar sesión en el navegador** (recomendado). Se abre StorageWeb en tu navegador; entras como siempre (con Microsoft si tu StorageWeb usa Entra ID: en un equipo unido a Entra ID y con `auth.entra.auto_login`, sin escribir nada) y la página pregunta si permites conectar *Visual Studio Code* desde ese equipo, con qué alcance y hasta cuándo. Al pulsar **Permitir**, el navegador vuelve a VS Code (puede preguntar si abrir Visual Studio Code: acepta) y ya está: no hay que copiar nada. Se crea un token llamado «Visual Studio Code (*nombre del equipo*)», que ves y puedes revocar en *Mi perfil → Tokens de API*.
+- **Entrar con tu cuenta de Windows (Microsoft Entra ID)**, la primera opción si tu StorageWeb lo tiene activado: sin navegador y sin escribir nada (ver [Entrar con la cuenta de Windows](#entrar-con-la-cuenta-de-windows)).
+- **Iniciar sesión en el navegador** (recomendado si no tienes la anterior). Se abre StorageWeb en tu navegador; entras como siempre (con Microsoft si tu StorageWeb usa Entra ID: en un equipo unido a Entra ID y con `auth.entra.auto_login`, sin escribir nada) y la página pregunta si permites conectar *Visual Studio Code* desde ese equipo, con qué alcance y hasta cuándo. Al pulsar **Permitir**, el navegador vuelve a VS Code (puede preguntar si abrir Visual Studio Code: acepta) y ya está: no hay que copiar nada. Se crea un token llamado «Visual Studio Code (*nombre del equipo*)», que ves y puedes revocar en *Mi perfil → Tokens de API*.
 - **Usuario y token de API**, como antes: crea el token en StorageWeb, *Mi perfil → Tokens de API*, con alcance **lectura y escritura** (o **solo lectura** si solo vas a mirar y descargar), y escribe tu usuario y el token.
 
-En los dos casos la extensión comprueba que funcionan antes de guardarlo. *Cambiar el token…* pregunta lo mismo; con el navegador tienes que entrar con el mismo usuario del servidor (otra cuenta es otro servidor).
+En todos los casos la extensión comprueba que funcionan antes de guardarlo. *Cambiar el token…* pregunta lo mismo; con la cuenta de Windows o el navegador tienes que entrar con el mismo usuario del servidor (otra cuenta es otro servidor).
 
 Al iniciar sesión en el navegador, VS Code y StorageWeb se pasan el token así (OAuth con PKCE):
 
@@ -74,6 +75,26 @@ sequenceDiagram
 
 !!! note "Iniciar sesión en el navegador"
     Necesita que StorageWeb tenga los tokens de API activados (*Seguridad → API y unidad de red*, vienen así) y un servidor con esta versión o posterior; si no, la extensión lo dice y puedes usar usuario y token. No funciona en VS Code en el navegador (vscode.dev) ni en conexiones remotas. El intercambio es seguro aunque otro programa vea la vuelta a VS Code: el código solo vale una vez, durante 5 minutos, y solo con un secreto que la extensión nunca envía al navegador (PKCE).
+
+### Entrar con la cuenta de Windows
+
+En un equipo **unido a Microsoft Entra ID** (el de la empresa, con la sesión de Windows de tu cuenta del trabajo) y con un StorageWeb que usa Entra ID, la extensión puede entrar **con la cuenta con la que iniciaste sesión en Windows**, sin abrir el navegador:
+
+1. Al añadir el servidor (o en *Cambiar el token…*), elige **Entrar con tu cuenta de Windows (Microsoft Entra ID)**.
+2. VS Code pide a Windows (su agente de cuentas, el mismo que usan Office o Teams) un token de Microsoft para StorageWeb. **La primera vez Windows enseña su selector de cuenta**: elige tu cuenta del trabajo. Después ya no pregunta.
+3. StorageWeb comprueba ese token y que tu cuenta puede entrar (las mismas reglas que en la web: grupos permitidos, alta automática, cuenta activa) y lo cambia por un token de API para este equipo, «Visual Studio Code (*nombre del equipo*)», que dura 90 días: se ve y se revoca en *Mi perfil → Tokens de API*.
+
+Solo se ofrece con servidores `https://` (o el propio equipo), y la extensión solo pide a Windows el permiso de entrar en StorageWeb, nunca otro. Recuerda qué aplicación de Microsoft pidió cada servidor la primera vez: si luego pide otra, pregunta antes de usar tu cuenta (acéptalo solo si el administrador cambió la aplicación). Añade solo servidores de confianza: uno falso podría, la primera vez, pedir el token de otro StorageWeb.
+
+Cuando el token caduca o se revoca, **Iniciar sesión otra vez** usa directamente la cuenta de Windows: normalmente basta con pulsar el botón.
+
+Si no sale, la extensión dice por qué y ofrece las otras formas de entrar:
+
+- Si cierras el selector de cuenta de Windows (o Windows no puede dar el token), lo avisa y pregunta otra vez sin esta opción.
+- Si StorageWeb no deja entrar a esa cuenta, enseña el motivo que da el servidor (por ejemplo, que no está en los grupos permitidos) y ofrece **Entrar con otra cuenta de Windows**, que vuelve a enseñar el selector.
+
+!!! note "Lo tiene que activar el administrador"
+    La opción solo aparece si el administrador la ha activado en StorageWeb (*Entrar desde VS Code con la cuenta de Windows*, en la tarjeta de Entra ID: ver [Entra ID](../administracion/entra-id.md#entrar-desde-vs-code-con-la-cuenta-de-windows)) y con un servidor que lo admite; si no, la extensión solo ofrece el navegador y el token. Solo va en VS Code de escritorio, no en VS Code en el navegador (vscode.dev); sin el agente de cuentas de Windows (versiones antiguas de VS Code, otro sistema), VS Code abre el inicio de sesión de Microsoft en el navegador. VS Code usa su propia aplicación de Microsoft, que StorageWeb tiene autorizada: no hay que consentir nada.
 
 Puedes añadir varios: servidores distintos, o el mismo con otra cuenta. Con clic derecho sobre un servidor: *Editar servidor…* (el nombre que se ve o la dirección), *Cambiar el token…*, *Abrir en el navegador* y *Quitar servidor* (borra su token de este equipo; en el servidor no se borra nada). Si el servidor rechaza el token (lo revocaste o caducó), el panel lo dice y ofrece ponerlo otra vez.
 
@@ -152,7 +173,7 @@ StorageWeb dice a la extensión por qué deniega algo (cabecera `X-StorageWeb-Re
 | Qué pasa | Qué hace la extensión |
 |---|---|
 | Tu cuenta está **desactivada** | Para la sincronización y avisa: «Tu cuenta de StorageWeb está desactivada: pregunta a un administrador». |
-| El **token ha caducado** o se revocó | Para y ofrece **Iniciar sesión otra vez** (en el navegador) o **Cambiar el token…**. |
+| El **token ha caducado** o se revocó | Para y ofrece **Iniciar sesión otra vez** (con la cuenta de Windows si el servidor lo admite; si no, en el navegador) o **Cambiar el token…**. |
 | El servidor ya no admite tokens, o la cuenta tiene verificación en dos pasos y se usó la contraseña | Para y lo explica. |
 | **Demasiados intentos fallidos** | Espera 5 minutos y lo vuelve a intentar sola. |
 | La **IP de tu equipo está bloqueada** | Para y avisa: lo tiene que desbloquear un administrador. |
@@ -191,7 +212,7 @@ La **lista de servidores** se guarda en este equipo (en los datos de la extensi�
 - El panel no se entera solo de los cambios que hacen otros: *Actualizar*.
 - Cada archivo, como mucho `server.max_upload_mb` del servidor.
 - La sincronización completa recorre toda la carpeta (una consulta al servidor por cada subcarpeta): con muchos miles de archivos, excluye lo que no haga falta o sube `storageweb.pollSeconds`. No sincronices carpetas enteras de dependencias o compilados.
-- Entrar con la sesión de Windows sin pasar por el navegador (Entra ID, WAM) está en la [hoja de ruta](../proyecto/hoja-de-ruta.md); mientras tanto, *Iniciar sesión en el navegador* ya usa el inicio de sesión de Microsoft.
+- Entrar con la cuenta de Windows necesita un equipo unido a Entra ID, VS Code de escritorio y que el administrador lo active; si no, *Iniciar sesión en el navegador* también usa el inicio de sesión de Microsoft.
 
 ## Para desarrolladores
 
@@ -209,7 +230,7 @@ La lógica está en módulos sin VS Code que se prueban con Node:
 | `src/messages.js` | Qué decir según el motivo que da el servidor (lo usan los avisos, los paneles y `storageweb://`) |
 | `src/remotefs.js` | Los archivos de un servidor como sistema de archivos |
 | `src/servers.js` | Lista de servidores (tokens en el almacén de secretos) |
-| `src/connect.js` | Iniciar sesión en el navegador (PKCE, [ADR 0016](../arquitectura/decisiones/0016-conectar-aplicaciones-con-el-navegador.md)) |
+| `src/connect.js` | Iniciar sesión en el navegador (PKCE, [ADR 0016](../arquitectura/decisiones/0016-conectar-aplicaciones-con-el-navegador.md)) y canjear el token de Microsoft de la cuenta de Windows (`/connect/desktop`) |
 | `src/glob.js`, `src/localfs.js` | Exclusiones (`.storagewebignore`, `.gitignore`) y disco local |
 
 `src/provider.js` y `src/views.js` los adaptan a la API de VS Code (`storageweb://` y los paneles) y `src/extension.js` añade comandos, avisos, pausa y la vigilancia de cambios.

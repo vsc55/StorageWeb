@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.7.0
+
+- **Entrar con la cuenta de Windows** (equipos unidos a Microsoft Entra ID), sin navegador: si el servidor lo anuncia (`GET /connect/desktop`), al añadir un servidor, en *Cambiar el token…* y en *Iniciar sesión otra vez* la primera opción es *Entrar con tu cuenta de Windows (Microsoft Entra ID)*. VS Code pide a Windows un token de Microsoft para StorageWeb (la primera vez Windows enseña su selector de cuenta; después, nada) y StorageWeb lo canjea por un token de API para el equipo. Si no sale, se dice por qué (lo que explica el servidor) y se ofrecen las otras formas, también *Entrar con otra cuenta de Windows* si la usada no vale. Solo con servidores `https://` (o el propio equipo); lo que se pide a Microsoft es siempre y solo `api://<id>/access_as_user` (un servidor no puede pedir otro permiso ni otra aplicación de VS Code) y se recuerda por servidor: si cambia, se pregunta antes.
+
 ## 0.6.0
 
 - **Avisos claros cuando el servidor deniega algo**, con el motivo que da StorageWeb (cabecera `X-StorageWeb-Reason`): cuenta desactivada, token caducado o revocado (con *Iniciar sesión otra vez* y *Cambiar el token…*), tokens desactivados en el servidor, verificación en dos pasos, demasiados intentos fallidos (espera 5 minutos y lo vuelve a intentar sola), IP bloqueada, servidor en mantenimiento (sin aviso: lo vuelve a intentar en la próxima vuelta) y archivos demasiado grandes. Cada aviso sale una vez, no en cada vuelta. Los mismos textos en el panel *Servidores* y al abrir o guardar archivos `storageweb://`.

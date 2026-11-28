@@ -155,7 +155,7 @@ def sso_callback(method: str):
         return to_login()
     try:
         user, identity = accounts.complete_sso(get_db(), cfg, m.key, pending["flow"], request.args.to_dict(), ip=ip,
-                                               on_rename=_rename_in_shares)
+                                               on_rename=rename_in_shares)
     except SSOError as exc:
         current_app.logger.warning("SSO error: %s", exc)
         audit.log(get_db(), "login_failed", ip=ip, detail=f"{m.key}:{exc.code}")
@@ -171,7 +171,7 @@ def sso_callback(method: str):
     return redirect(safe_next(pending.get("next", "")))
 
 
-def _rename_in_shares(old: str, new: str) -> None:
+def rename_in_shares(old: str, new: str) -> None:
     """Una cuenta cambió de nombre al entrar (UPN nuevo): las carpetas compartidas que la nombraban pasan al
     nombre nuevo. Si esa lista está fijada en config.json no se puede: queda en la auditoría para hacerlo a mano."""
     renamed = share_core.rename_user(runtime_view(settings())["storage"]["shares"], old, new)
